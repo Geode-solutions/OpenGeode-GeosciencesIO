@@ -21,15 +21,23 @@
  *
  */
 
-#include <mylib/hello_world.h>
-
+#include <geode/basic/assert.h>
 #include <geode/basic/logger.h>
 
-namespace mymodule
+#include <geosciences/hello_world.h>
+
+int main()
 {
-    bool hello_world()
+    try
     {
-        geode::Logger::info( "Hello Geode World!" );
-        return true;
+        OPENGEODE_EXCEPTION(
+            mymodule::hello_world(), "Hello World is not correct" );
+
+        geode::Logger::info( "TEST SUCCESS" );
+        return 0;
     }
-} // namespace mymodule
+    catch( ... )
+    {
+        return geode::geode_lippincott();
+    }
+}

@@ -18,16 +18,17 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.7.2)
     
-if(NOT TARGET MyModule::mylib)
+if(NOT TARGET OpenGeode_GeosciencesIO::geosciences)
     project(MyModule CXX)
     find_package(OpenGeode REQUIRED CONFIG)
-    find_package(MyModule REQUIRED CONFIG)
+    find_package(OpenGeode_Geosciences REQUIRED CONFIG)
+    find_package(OpenGeode_GeosciencesIO REQUIRED CONFIG)
     enable_testing()
 endif()
 
 set(CTEST_OUTPUT_ON_FAILURE ON)
 
-add_subdirectory(mylib)
+add_subdirectory(geosciences)
 

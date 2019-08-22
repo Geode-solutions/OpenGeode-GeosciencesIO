@@ -18,28 +18,29 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.7.2)
 
 # Define the project
-project(MyModule CXX)
+project(OpenGeode_GeosciencesIO CXX)
 
-option(MYMODULE_WITH_TESTS "Compile test projects" ON)
+option(OPENGEODE_GEOSCIENCESIO_WITH_TESTS "Compile test projects" ON)
 
-# Get MyModule dependencies
+# Get OpenGeode_GeosciencesIO dependencies
 find_package(OpenGeode REQUIRED)
+find_package(OpenGeode_Geosciences REQUIRED)
 
-copy_windows_binaries(OpenGeode::basic)
+copy_windows_binaries(OpenGeode::geosciences)
 
 #------------------------------------------------------------------------------------------------
-# Configure the MyModule libraries
-add_geode_library(mylib)
+# Configure the OpenGeode_GeosciencesIO libraries
+add_geode_library(geode/geosciences)
 
 #------------------------------------------------------------------------------------------------
 # Optional modules configuration
-if(MYMODULE_WITH_TESTS)
+if(OPENGEODE_GEOSCIENCESIO_WITH_TESTS)
     # Enable testing with CTest
     enable_testing()
-    message(STATUS "Configuring MyModule with tests")
+    message(STATUS "Configuring OpenGeode_GeosciencesIO with tests")
     add_subdirectory(tests)
 endif()
 
