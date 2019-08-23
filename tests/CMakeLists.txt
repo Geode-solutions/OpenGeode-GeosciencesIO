@@ -30,5 +30,11 @@ endif()
 
 set(CTEST_OUTPUT_ON_FAILURE ON)
 
+set(TEST_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+set(test_config_file_in ${CMAKE_CURRENT_LIST_DIR}/tests_config.h.in)
+set(test_config_file ${PROJECT_BINARY_DIR}/geode/tests_config.h)
+configure_file(${test_config_file_in} ${test_config_file})
+include_directories(${PROJECT_BINARY_DIR})
+
 add_subdirectory(geosciences)
 

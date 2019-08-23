@@ -21,19 +21,43 @@
  *
  */
 
+#include <geode/tests_config.h>
+
 #include <geode/basic/assert.h>
 #include <geode/basic/logger.h>
 
-#include <geosciences/hello_world.h>
+#include <geode/geosciences/core/structural_model.h>
+#include <geode/geosciences/detail/ml_input.h>
+#include <geode/geosciences/io/structural_model_output.h>
 
 int main()
 {
+    using namespace geode;
+
     try
     {
-        OPENGEODE_EXCEPTION(
-            mymodule::hello_world(), "Hello World is not correct" );
+        initialize_geosciences_io();
+        StructuralModel model;
 
-        geode::Logger::info( "TEST SUCCESS" );
+        // Load structural model
+        load_structural_model( model,
+            test_path + "geosciences/data/modelA1." + MLInput::extension() );
+
+        OPENGEODE_EXCEPTION( model.nb_corners() == 20,
+            "Number of Corners in the loaded StructuralModel is not correct" );
+        OPENGEODE_EXCEPTION( model.nb_lines() == 36,
+            "Number of Lines in the loaded StructuralModel is not correct" );
+        OPENGEODE_EXCEPTION( model.nb_surfaces() == 21,
+            "Number of Surfaces in the loaded StructuralModel is not correct" );
+        OPENGEODE_EXCEPTION( model.nb_blocks() == 4,
+            "Number of Blocks in the loaded StructuralModel is not correct" );
+
+        // Save structural model
+        std::string output_file_native{ "modelA1."
+                                        + model.native_extension() };
+        save_structural_model( model, output_file_native );
+
+        Logger::info( "TEST SUCCESS" );
         return 0;
     }
     catch( ... )

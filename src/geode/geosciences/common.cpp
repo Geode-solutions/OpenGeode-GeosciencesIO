@@ -23,13 +23,14 @@
 
 #include <geode/geosciences/detail/common.h>
 
+#include <geode/geosciences/io/structural_model_input.h>
 #include <geode/geosciences/detail/ml_input.h>
 
 namespace
 {
     void register_structural_model_input()
     {
-        geode::StructuralModelInputFactory3D::register_creator<
+        geode::StructuralModelInputFactory::register_creator<
             geode::MLInput >( geode::MLInput::extension() );
     }
 
@@ -38,3 +39,8 @@ namespace
         register_structural_model_input();
     }
 } // namespace
+
+namespace geode
+{
+    void initialize_geosciences_io() {}
+} // namespace geode
