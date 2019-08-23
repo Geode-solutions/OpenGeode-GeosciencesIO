@@ -20,14 +20,18 @@ jobs:
       parameters:
         repo: OpenGeode
         pattern: "*Linux*"
+    - template: get-release.yml@templates
+      parameters:
+        repo: OpenGeode-Geosciences
+        pattern: "*Linux*"
     - template: unix-compilation.yml@templates
       parameters:
         type: "Debug"
-        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH)"
+        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);-DCMAKE_PREFIX_PATH=$(OPENGEODE-GEOSCIENCESPATH)"
     - template: unix-testing.yml@templates
       parameters:
         type: "Debug"
-        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);$(Build.SourcesDirectory)/build"
+        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);-DCMAKE_PREFIX_PATH=$(OPENGEODE-GEOSCIENCESPATH);$(Build.SourcesDirectory)/build"
     - template: coverage.yml@templates
       parameters:
         directory: "$(Build.SourcesDirectory)/build/bin"
@@ -41,10 +45,14 @@ jobs:
       parameters:
         repo: OpenGeode
         pattern: "*win64*"
+    - template: get-release.yml@templates
+      parameters:
+        repo: OpenGeode-Geosciences
+        pattern: "*win64*"
     - template: windows-compilation.yml@templates
       parameters:
         type: "Debug"
-        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH)"
+        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);-DCMAKE_PREFIX_PATH=$(OPENGEODE-GEOSCIENCESPATH)"
     - template: windows-testing.yml@templates
       parameters:
         type: "Debug"
@@ -58,14 +66,18 @@ jobs:
       parameters:
         repo: OpenGeode
         pattern: "*Darwin*"
+    - template: get-release.yml@templates
+      parameters:
+        repo: OpenGeode-Geosciences
+        pattern: "*Darwin*"
     - template: unix-compilation.yml@templates
       parameters:
         type: "Debug"
-        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH)"
+        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);-DCMAKE_PREFIX_PATH=$(OPENGEODE-GEOSCIENCESPATH)"
     - template: unix-testing.yml@templates
       parameters:
         type: "Debug"
-        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);$(Build.SourcesDirectory)/build"
+        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);-DCMAKE_PREFIX_PATH=$(OPENGEODE-GEOSCIENCESPATH);$(Build.SourcesDirectory)/build"
 
 - template: semantic-release.yml@templates
   parameters:
