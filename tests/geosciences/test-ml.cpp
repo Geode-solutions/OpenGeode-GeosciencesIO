@@ -53,8 +53,7 @@ int main()
             "Number of Blocks in the loaded StructuralModel is not correct" );
 
         // Save structural model
-        std::string output_file_native{ "modelA1."
-                                        + model.native_extension() };
+        std::string output_file_native{ "modelA1." + model.native_extension() };
         save_structural_model( model, output_file_native );
 
         Logger::info( "TEST SUCCESS" );
