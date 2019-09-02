@@ -76,10 +76,10 @@ namespace
         std::tie( found, edge ) = mesh.polygon_edge_from_vertices( v0, v1 );
         if( !found )
         {
-            throw geode::OpenGeodeException(
+            throw geode::OpenGeodeException{
                 "Starting edge Line from Corner not found.",
-                "Looking for edge: ", mesh.point( v0 ), " - ",
-                mesh.point( v1 ) );
+                "Looking for edge: ", mesh.point( v0 ), " - ", mesh.point( v1 )
+            };
         }
         return edge;
     }
@@ -117,7 +117,7 @@ namespace
         {
             geode::index_t tface_id( geode::index_t vertex_id ) const
             {
-                for( auto i : geode::Range( 1, tface_vertices_offset.size() ) )
+                for( auto i : geode::Range{ 1, tface_vertices_offset.size() } )
                 {
                     if( vertex_id < tface_vertices_offset[i] )
                     {
@@ -183,7 +183,7 @@ namespace
                     vertex_id );
             }
             for( auto i :
-                geode::Range( colocated_info.colocated_mapping.size() ) )
+                geode::Range{ colocated_info.colocated_mapping.size() } )
             {
                 vertices.set_unique_vertex(
                     std::move( info_.corner_surface_index[i] ),
@@ -232,7 +232,7 @@ namespace
             {
                 return false;
             }
-            for( auto v : geode::Range( mesh.nb_vertices() ) )
+            for( auto v : geode::Range{ mesh.nb_vertices() } )
             {
                 if( !mesh.point( v ).inexact_equal(
                         line_data.points[v], model_.epsilon() ) )
@@ -251,7 +251,7 @@ namespace
             {
                 return false;
             }
-            for( auto v : geode::Range( mesh.nb_vertices() ) )
+            for( auto v : geode::Range{ mesh.nb_vertices() } )
             {
                 if( !mesh.point( v ).inexact_equal(
                         line_data.points[mesh.nb_vertices() - v - 1],
@@ -323,7 +323,7 @@ namespace
             builder_.add_boundary_relation( model_.line( line_id ), surface );
             auto& vertices = builder_.unique_vertices();
             auto surface_id = surface.component_id();
-            for( auto i : geode::Range( line_data.indices.size() ) )
+            for( auto i : geode::Range{ line_data.indices.size() } )
             {
                 auto unique_id = vertices.unique_vertex(
                     { model_.line( line_id ).component_id(), i } );
@@ -410,8 +410,9 @@ namespace
                     return;
                 }
             }
-            throw geode::OpenGeodeException(
-                "Cannot find the end of CRS section" );
+            throw geode::OpenGeodeException{
+                "Cannot find the end of CRS section"
+            };
         }
 
         void read_model_components()
@@ -440,8 +441,9 @@ namespace
                     process_REGION_keyword( iss );
                 }
             }
-            throw geode::OpenGeodeException(
-                "Cannot find the end of component section" );
+            throw geode::OpenGeodeException{
+                "Cannot find the end of component section"
+            };
         }
 
         void process_TSURF_keyword( std::istringstream& iss )
