@@ -682,7 +682,7 @@ namespace geode
 {
     void MLInput::read()
     {
-        MLInputImpl impl( filename(), structural_model() );
+        MLInputImpl impl{ filename(), structural_model() };
         impl.read_file();
     }
 } // namespace geode
