@@ -27,11 +27,11 @@ jobs:
     - template: unix-compilation.yml@templates
       parameters:
         type: "Debug"
-        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);-DCMAKE_PREFIX_PATH=$(OPENGEODE-GEOSCIENCESPATH)"
+        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);$(OPENGEODE-GEOSCIENCESPATH)"
     - template: unix-testing.yml@templates
       parameters:
         type: "Debug"
-        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);-DCMAKE_PREFIX_PATH=$(OPENGEODE-GEOSCIENCESPATH);$(Build.SourcesDirectory)/build"
+        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);$(OPENGEODE-GEOSCIENCESPATH);$(Build.SourcesDirectory)/build"
     - template: coverage.yml@templates
       parameters:
         directory: "$(Build.SourcesDirectory)/build/bin"
@@ -52,7 +52,7 @@ jobs:
     - template: windows-compilation.yml@templates
       parameters:
         type: "Debug"
-        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);-DCMAKE_PREFIX_PATH=$(OPENGEODE-GEOSCIENCESPATH)"
+        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);$(OPENGEODE-GEOSCIENCESPATH)"
     - template: windows-testing.yml@templates
       parameters:
         type: "Debug"
@@ -73,11 +73,11 @@ jobs:
     - template: unix-compilation.yml@templates
       parameters:
         type: "Debug"
-        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);-DCMAKE_PREFIX_PATH=$(OPENGEODE-GEOSCIENCESPATH)"
+        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);$(OPENGEODE-GEOSCIENCESPATH)"
     - template: unix-testing.yml@templates
       parameters:
         type: "Debug"
-        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);-DCMAKE_PREFIX_PATH=$(OPENGEODE-GEOSCIENCESPATH);$(Build.SourcesDirectory)/build"
+        cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);$(OPENGEODE-GEOSCIENCESPATH);$(Build.SourcesDirectory)/build"
 
 - template: semantic-release.yml@templates
   parameters:
