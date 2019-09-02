@@ -22,7 +22,7 @@ jobs:
         pattern: "*Linux*"
     - template: get-release.yml@templates
       parameters:
-        repo: OpenGeode-Geosciences
+        repo: "OpenGeode-Geosciences"
         pattern: "*Linux*"
     - template: unix-compilation.yml@templates
       parameters:
