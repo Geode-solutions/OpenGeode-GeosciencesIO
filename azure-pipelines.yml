@@ -19,11 +19,11 @@ jobs:
     - template: get-release.yml@templates
       parameters:
         repo: OpenGeode
-        pattern: "*Linux*"
+        pattern: "OpenGeode-*Linux*"
     - template: get-release.yml@templates
       parameters:
-        repo: "OpenGeode-Geosciences"
-        pattern: "*Linux*"
+        repo: OpenGeode-Geosciences
+        pattern: "OpenGeode_Geosciences-*Linux*"
     - template: unix-compilation.yml@templates
       parameters:
         type: "Debug"
