@@ -121,7 +121,7 @@ jobs:
     - template: get-release.yml@templates
       parameters:
         repo: OpenGeode
-        pattern: "*Darwin*"
+        pattern: "OpenGeode-*Darwin*"
     - template: get-release.yml@templates
       parameters:
         repo: OpenGeode-Geosciences
@@ -145,7 +145,7 @@ jobs:
     - template: get-release.yml@templates
       parameters:
         repo: OpenGeode
-        pattern: "*win64*"    
+        pattern: "OpenGeode-*win64*"    
     - template: get-release.yml@templates
       parameters:
         repo: OpenGeode-Geosciences
@@ -157,3 +157,19 @@ jobs:
     - template: windows-release.yml@templates
       parameters:
         version: $(Version)
+
+- template: documentation.yml@templates
+  parameters:
+    dependencies:	
+    - Semantic_release
+    repo: "OpenGeode-GeosciencesIO"
+    preCMake:
+    - template: get-release.yml
+      parameters:
+        repo: OpenGeode
+        pattern: "OpenGeode-*Linux*"
+    - template: get-release.yml
+      parameters:
+        repo: OpenGeode-Geosciences
+        pattern: "OpenGeode-Geosciences-*win64*"   
+    cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);$(OPENGEODE-GEOSCIENCESPATH)"
