@@ -98,10 +98,14 @@ jobs:
       parameters:
         repo: OpenGeode
         pattern: "OpenGeode-*Linux*"
+    - template: get-release.yml@templates
+      parameters:
+        repo: OpenGeode-Geosciences
+        pattern: "OpenGeode_Geosciences-*Linux*"
     - template: unix-compilation.yml@templates
       parameters:
         type: "Release"
-        cmakeArgs: "-DOPENGEODE_MYMODULE_WITH_TESTS:BOOL=OFF -DCPACK_PACKAGE_VERSION:STRING=$(Version) -DCMAKE_PREFIX_PATH=$(OPENGEODEPATH)"
+        cmakeArgs: "-DOPENGEODE_MYMODULE_WITH_TESTS:BOOL=OFF -DCPACK_PACKAGE_VERSION:STRING=$(Version) -DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);$(OPENGEODE-GEOSCIENCESPATH)
     - template: unix-release.yml@templates
       parameters:
         version: $(Version)
@@ -118,10 +122,14 @@ jobs:
       parameters:
         repo: OpenGeode
         pattern: "*Darwin*"
+    - template: get-release.yml@templates
+      parameters:
+        repo: OpenGeode-Geosciences
+        pattern: "OpenGeode_Geosciences-*Darwin*"
     - template: unix-compilation.yml@templates
       parameters:
         type: "Release"
-        cmakeArgs: "-DOPENGEODE_MYMODULE_WITH_TESTS:BOOL=OFF -DCPACK_PACKAGE_VERSION:STRING=$(Version) -DCMAKE_PREFIX_PATH=$(OPENGEODEPATH)"
+        cmakeArgs: "-DOPENGEODE_MYMODULE_WITH_TESTS:BOOL=OFF -DCPACK_PACKAGE_VERSION:STRING=$(Version) -DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);$(OPENGEODE-GEOSCIENCESPATH)
     - template: unix-release.yml@templates
       parameters:
         version: $(Version)
@@ -138,10 +146,14 @@ jobs:
       parameters:
         repo: OpenGeode
         pattern: "*win64*"    
+    - template: get-release.yml@templates
+      parameters:
+        repo: OpenGeode-Geosciences
+        pattern: "OpenGeode_Geosciences-*win64*"
     - template: windows-compilation.yml@templates
       parameters:
         type: "Release"
-        cmakeArgs: "-DOPENGEODE_MYMODULE_WITH_TESTS:BOOL=OFF -DCPACK_PACKAGE_VERSION:STRING=$(Version) -DCMAKE_PREFIX_PATH=$(OPENGEODEPATH)"
+        cmakeArgs: "-DOPENGEODE_MYMODULE_WITH_TESTS:BOOL=OFF -DCPACK_PACKAGE_VERSION:STRING=$(Version) -DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);$(OPENGEODE-GEOSCIENCESPATH)
     - template: windows-release.yml@templates
       parameters:
         version: $(Version)
