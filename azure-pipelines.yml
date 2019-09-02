@@ -105,7 +105,7 @@ jobs:
     - template: unix-compilation.yml@templates
       parameters:
         type: "Release"
-        cmakeArgs: "-DOPENGEODE_MYMODULE_WITH_TESTS:BOOL=OFF -DCPACK_PACKAGE_VERSION:STRING=$(Version) -DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);$(OPENGEODE-GEOSCIENCESPATH)
+        cmakeArgs: "-DOPENGEODE_MYMODULE_WITH_TESTS:BOOL=OFF -DCPACK_PACKAGE_VERSION:STRING=$(Version) -DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);$(OPENGEODE-GEOSCIENCESPATH)"
     - template: unix-release.yml@templates
       parameters:
         version: $(Version)
