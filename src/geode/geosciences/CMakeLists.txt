@@ -18,7 +18,17 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-add_geode_test(test-hello-world.cpp 
-    ${PROJECT_NAME}::mylib
-    OpenGeode::basic
+set(sources
+    "${lib_source_dir}/common.cpp"
+    "${lib_source_dir}/ml_input.cpp"
+)
+set(public_headers
+    "${lib_include_dir}/detail/common.h"
+    "${lib_include_dir}/detail/ml_input.h"
+)
+target_link_libraries(${target_name}
+    PRIVATE
+        OpenGeode::basic
+        OpenGeode::georepresentation
+        OpenGeode_Geosciences::geosciences
 )

@@ -21,11 +21,26 @@
  *
  */
 
-#pragma once
+#include <geode/geosciences/detail/common.h>
 
-#include <mylib/mymodule_mylib_export.h>
+#include <geode/geosciences/detail/ml_input.h>
+#include <geode/geosciences/io/structural_model_input.h>
 
-namespace mymodule
+namespace
 {
-    bool mymodule_mylib_api hello_world();
-} // namespace mymodule
+    void register_structural_model_input()
+    {
+        geode::StructuralModelInputFactory::register_creator< geode::MLInput >(
+            geode::MLInput::extension() );
+    }
+
+    OPENGEODE_LIBRARY_INITIALIZE( OpenGeode_GeosciencesIO_geosciences )
+    {
+        register_structural_model_input();
+    }
+} // namespace
+
+namespace geode
+{
+    void initialize_geosciences_io() {}
+} // namespace geode

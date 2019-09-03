@@ -21,14 +21,27 @@
  *
  */
 
-#include <geode/basic/common.h>
+#pragma once
 
-namespace
+#include <geode/geosciences/detail/common.h>
+#include <geode/geosciences/io/structural_model_input.h>
+
+namespace geode
 {
-    OPENGEODE_LIBRARY_INITIALIZE( myLib )
+    class opengeode_geosciencesio_geosciences_api MLInput final
+        : public StructuralModelInput
     {
-        /* Here the functions to call when initializing the library
-         * For exemple: registers, ...
-         */
-    }
-} // namespace
+    public:
+        MLInput( StructuralModel& structural_model, std::string filename )
+            : StructuralModelInput( structural_model, std::move( filename ) )
+        {
+        }
+
+        static std::string extension()
+        {
+            return "ml";
+        }
+
+        void read() final;
+    };
+} // namespace geode

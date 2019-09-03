@@ -21,23 +21,11 @@
  *
  */
 
-#include <geode/basic/assert.h>
-#include <geode/basic/logger.h>
+#pragma once
 
-#include <mylib/hello_world.h>
+#include <geode/geosciences/opengeode_geosciencesio_geosciences_export.h>
 
-int main()
+namespace geode
 {
-    try
-    {
-        OPENGEODE_EXCEPTION(
-            mymodule::hello_world(), "Hello World is not correct" );
-
-        geode::Logger::info( "TEST SUCCESS" );
-        return 0;
-    }
-    catch( ... )
-    {
-        return geode::geode_lippincott();
-    }
-}
+    void opengeode_geosciencesio_geosciences_api initialize_geosciences_io();
+} // namespace geode
