@@ -171,5 +171,5 @@ jobs:
     - template: get-release.yml
       parameters:
         repo: OpenGeode-Geosciences
-        pattern: "OpenGeode-Geosciences-*win64*"   
+        pattern: "OpenGeode_Geosciences-*win64*"   
     cmakeArgs: "-DCMAKE_PREFIX_PATH=$(OPENGEODEPATH);$(OPENGEODE-GEOSCIENCESPATH)"
