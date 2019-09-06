@@ -28,8 +28,10 @@
 #include <functional>
 #include <unordered_map>
 
+#include <geode/basic/bounding_box.h>
 #include <geode/basic/nn_search.h>
 #include <geode/basic/point.h>
+#include <geode/basic/vector.h>
 
 #include <geode/model/mixin/core/corner.h>
 #include <geode/model/mixin/core/line.h>
@@ -107,6 +109,7 @@ namespace
             {
                 read_tsurf( tsurf );
             }
+            compute_epsilon();
             build_corners();
             build_lines();
             complete_vertex_identifier();
@@ -147,20 +150,37 @@ namespace
             std::vector< geode::index_t > indices;
         };
 
+        void compute_epsilon()
+        {
+            geode::BoundingBox3D box;
+            for( const auto& surface : model_.surfaces() )
+            {
+                const auto& mesh = surface.mesh();
+                for( auto v : geode::Range{ mesh.nb_vertices() } )
+                {
+                    box.add_point( mesh.point( v ) );
+                }
+            }
+            geode::Vector3D diagonal{ box.min(), box.max() };
+            epsilon_ =
+                1e-7
+                * std::min( diagonal.value( 0 ),
+                      std::min( diagonal.value( 1 ), diagonal.value( 2 ) ) );
+        }
+
         void complete_vertex_identifier()
         {
-            auto& vertices = builder_.unique_vertices();
             for( const auto& surface : model_.surfaces() )
             {
                 const auto& mesh = surface.mesh();
                 auto surface_id = surface.component_id();
                 for( auto v : geode::Range{ mesh.nb_vertices() } )
                 {
-                    if( vertices.unique_vertex( { surface.component_id(), v } )
+                    if( model_.unique_vertex( { surface.component_id(), v } )
                         == geode::NO_ID )
                     {
-                        vertices.set_unique_vertex( { surface_id, v },
-                            vertices.create_unique_vertex() );
+                        builder_.set_unique_vertex( { surface_id, v },
+                            builder_.create_unique_vertex() );
                     }
                 }
             }
@@ -169,23 +189,21 @@ namespace
         void build_corners()
         {
             geode::NNSearch3D ann{ std::move( info_.corner_points ) };
-            auto colocated_info =
-                ann.colocated_index_mapping( model_.epsilon() );
-            auto& vertices = builder_.unique_vertices();
+            auto colocated_info = ann.colocated_index_mapping( epsilon_ );
             for( auto& point : colocated_info.unique_points )
             {
                 const auto& corner_id = builder_.add_corner();
                 builder_.corner_mesh_builder( corner_id )
                     ->create_point( point );
-                auto vertex_id = vertices.create_unique_vertex();
-                vertices.set_unique_vertex(
+                auto vertex_id = builder_.create_unique_vertex();
+                builder_.set_unique_vertex(
                     { model_.corner( corner_id ).component_id(), 0 },
                     vertex_id );
             }
             for( auto i :
                 geode::Range{ colocated_info.colocated_mapping.size() } )
             {
-                vertices.set_unique_vertex(
+                builder_.set_unique_vertex(
                     std::move( info_.corner_surface_index[i] ),
                     colocated_info.colocated_mapping[i] );
             }
@@ -235,7 +253,7 @@ namespace
             for( auto v : geode::Range{ mesh.nb_vertices() } )
             {
                 if( !mesh.point( v ).inexact_equal(
-                        line_data.points[v], model_.epsilon() ) )
+                        line_data.points[v], epsilon_ ) )
                 {
                     return false;
                 }
@@ -255,7 +273,7 @@ namespace
             {
                 if( !mesh.point( v ).inexact_equal(
                         line_data.points[mesh.nb_vertices() - v - 1],
-                        model_.epsilon() ) )
+                        epsilon_ ) )
                 {
                     return false;
                 }
@@ -278,27 +296,26 @@ namespace
             const LineData& line_data, const geode::uuid& line_id )
         {
             const auto& line = model_.line( line_id );
-            builder_.add_boundary_relation(
+            builder_.add_corner_line_relationship(
                 model_.corner( line_data.corner0 ), line );
-            builder_.add_boundary_relation(
+            builder_.add_corner_line_relationship(
                 model_.corner( line_data.corner1 ), line );
 
-            auto& vertices = builder_.unique_vertices();
             auto line_component_id = line.component_id();
             auto last_index =
                 static_cast< geode::index_t >( line_data.points.size() - 1 );
-            vertices.set_unique_vertex( { line_component_id, 0 },
-                vertices.unique_vertex(
+            builder_.set_unique_vertex( { line_component_id, 0 },
+                model_.unique_vertex(
                     { model_.corner( line_data.corner0 ).component_id(),
                         0 } ) );
-            vertices.set_unique_vertex( { line_component_id, last_index },
-                vertices.unique_vertex(
+            builder_.set_unique_vertex( { line_component_id, last_index },
+                model_.unique_vertex(
                     { model_.corner( line_data.corner1 ).component_id(),
                         0 } ) );
             for( auto i : geode::Range{ 1, last_index } )
             {
-                vertices.set_unique_vertex(
-                    { line_component_id, i }, vertices.create_unique_vertex() );
+                builder_.set_unique_vertex(
+                    { line_component_id, i }, builder_.create_unique_vertex() );
             }
         }
 
@@ -320,14 +337,14 @@ namespace
             const LineData& line_data, const geode::uuid& line_id )
         {
             const auto& surface = model_.surface( line_data.surface );
-            builder_.add_boundary_relation( model_.line( line_id ), surface );
-            auto& vertices = builder_.unique_vertices();
+            builder_.add_line_surface_relationship(
+                model_.line( line_id ), surface );
             auto surface_id = surface.component_id();
             for( auto i : geode::Range{ line_data.indices.size() } )
             {
-                auto unique_id = vertices.unique_vertex(
+                auto unique_id = model_.unique_vertex(
                     { model_.line( line_id ).component_id(), i } );
-                vertices.set_unique_vertex(
+                builder_.set_unique_vertex(
                     { surface_id, line_data.indices[i] }, unique_id );
             }
         }
@@ -337,11 +354,10 @@ namespace
         {
             LineData result;
             result.surface = surface.id();
-            auto& vertices = builder_.unique_vertices();
             result.corner0 =
-                vertices
+                model_
                     .mesh_component_vertices(
-                        vertices.unique_vertex( { surface.component_id(),
+                        model_.unique_vertex( { surface.component_id(),
                             line_start.first.vertex } ),
                         geode::Corner3D::component_type_static() )
                     .front()
@@ -352,7 +368,7 @@ namespace
             result.points.emplace_back( mesh.point( result.indices.back() ) );
             auto edge = find_edge(
                 mesh, line_start.second.vertex, line_start.first.vertex );
-            while( vertices.unique_vertex( { surface.component_id(),
+            while( model_.unique_vertex( { surface.component_id(),
                        mesh.polygon_edge_vertex( edge, 0 ) } )
                    == geode::NO_ID )
             {
@@ -365,9 +381,9 @@ namespace
             result.indices.push_back( mesh.polygon_edge_vertex( edge, 0 ) );
             result.points.emplace_back( mesh.point( result.indices.back() ) );
             result.corner1 =
-                vertices
+                model_
                     .mesh_component_vertices(
-                        vertices.unique_vertex(
+                        model_.unique_vertex(
                             { surface.component_id(), result.indices.back() } ),
                         geode::Corner3D::component_type_static() )
                     .front()
@@ -507,7 +523,7 @@ namespace
                         return;
                     }
                     surface_id = std::abs( surface_id ) - OFFSET_START;
-                    builder_.add_boundary_relation(
+                    builder_.add_surface_block_relationship(
                         model_.surface( surfaces_[surface_id] ), block );
                 }
             }
@@ -675,6 +691,7 @@ namespace
         std::unordered_map< std::pair< geode::uuid, geode::uuid >, geode::uuid >
             corners2line_;
         std::deque< geode::uuid > surfaces_;
+        double epsilon_;
     };
 } // namespace
 
