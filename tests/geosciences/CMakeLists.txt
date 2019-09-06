@@ -21,6 +21,6 @@
 add_geode_test(test-ml.cpp 
     ${PROJECT_NAME}::geosciences
     OpenGeode::basic
-    OpenGeode::georepresentation
+    OpenGeode::model
     OpenGeode_Geosciences::geosciences
 )
