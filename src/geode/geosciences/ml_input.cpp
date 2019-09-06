@@ -31,10 +31,10 @@
 #include <geode/basic/nn_search.h>
 #include <geode/basic/point.h>
 
-#include <geode/georepresentation/core/corner.h>
-#include <geode/georepresentation/core/line.h>
-#include <geode/georepresentation/core/surface.h>
-#include <geode/georepresentation/core/vertex_identifier.h>
+#include <geode/model/mixin/core/corner.h>
+#include <geode/model/mixin/core/line.h>
+#include <geode/model/mixin/core/surface.h>
+#include <geode/model/mixin/core/vertex_identifier.h>
 
 #include <geode/mesh/builder/edged_curve_builder.h>
 #include <geode/mesh/builder/point_set_builder.h>
