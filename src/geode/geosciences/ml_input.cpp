@@ -514,10 +514,10 @@ namespace
                 std::string boundary_line;
                 std::getline( file_, boundary_line );
                 std::istringstream boundary_iss{ boundary_line };
-                int surface_id;
+                int surface_id{ 0 };
+                boundary_iss >> surface_id;
                 while( !boundary_iss.eof() )
                 {
-                    boundary_iss >> surface_id;
                     if( surface_id == 0 )
                     {
                         return;
@@ -525,6 +525,7 @@ namespace
                     surface_id = std::abs( surface_id ) - OFFSET_START;
                     builder_.add_surface_block_relationship(
                         model_.surface( surfaces_[surface_id] ), block );
+                    boundary_iss >> surface_id;
                 }
             }
         }
