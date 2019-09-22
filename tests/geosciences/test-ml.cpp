@@ -43,7 +43,7 @@ int main()
         load_structural_model( model,
             test_path + "geosciences/data/modelA2." + MLInput::extension() );
 
-        OPENGEODE_EXCEPTION( model.nb_corners() == 21,
+        OPENGEODE_EXCEPTION( model.nb_corners() == 52,
             "Number of Corners in the loaded StructuralModel is not correct" );
         OPENGEODE_EXCEPTION( model.nb_lines() == 100,
             "Number of Lines in the loaded StructuralModel is not correct" );
