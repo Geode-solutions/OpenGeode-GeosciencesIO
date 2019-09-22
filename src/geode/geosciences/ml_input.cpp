@@ -470,27 +470,31 @@ namespace
             {
                 if( tsurf.feature.find( "fault" ) != std::string::npos )
                 {
-                    const auto& fault_uuid = builder_.add_fault( fault_map_.at( tsurf.feature ) );
+                    const auto& fault_uuid =
+                        builder_.add_fault( fault_map_.at( tsurf.feature ) );
                     const auto& fault = model_.fault( fault_uuid );
                     for( const auto& uuid : tsurf.tfaces )
                     {
-                        builder_.add_surface_in_fault( model_.surface( uuid ), fault );
+                        builder_.add_surface_in_fault(
+                            model_.surface( uuid ), fault );
                     }
                 }
-                else if( tsurf.feature == "boundary" || tsurf.feature == "lease" )
+                else if( tsurf.feature == "boundary"
+                         || tsurf.feature == "lease" )
                 {
-                    //todo ahndle ModelBoundary
+                    // todo ahndle ModelBoundary
                 }
                 else
                 {
-                    const auto& horizon_uuid = builder_.add_horizon( horizon_map_.at( tsurf.feature ) );
+                    const auto& horizon_uuid = builder_.add_horizon(
+                        horizon_map_.at( tsurf.feature ) );
                     const auto& horizon = model_.horizon( horizon_uuid );
                     for( const auto& uuid : tsurf.tfaces )
                     {
-                        builder_.add_surface_in_horizon( model_.surface( uuid ), horizon );
+                        builder_.add_surface_in_horizon(
+                            model_.surface( uuid ), horizon );
                     }
                 }
-                
             }
         }
 
@@ -725,18 +729,16 @@ namespace
         std::deque< geode::uuid > surfaces_;
         double epsilon_;
 
-        std::unordered_map< std::string, geode::Fault3D::FAULT_TYPE > fault_map_ = {
-            { "fault", geode::Fault3D::FAULT_TYPE::NO_TYPE },
-            { "reverse_fault", geode::Fault3D::FAULT_TYPE::REVERSE },
-            { "normal_fault", geode::Fault3D::FAULT_TYPE::NORMAL }
-        };
-        std::unordered_map< std::string, geode::Horizon3D::HORIZON_TYPE > horizon_map_ = {
-            { "top", geode::Horizon3D::HORIZON_TYPE::NO_TYPE },
-            { "none", geode::Horizon3D::HORIZON_TYPE::NO_TYPE },
-            { "topographic", geode::Horizon3D::HORIZON_TYPE::NO_TYPE },
-            { "unconformity", geode::Horizon3D::HORIZON_TYPE::NON_CONFORMAL }
-        };
-
+        std::unordered_map< std::string, geode::Fault3D::FAULT_TYPE >
+            fault_map_ = { { "fault", geode::Fault3D::FAULT_TYPE::NO_TYPE },
+                { "reverse_fault", geode::Fault3D::FAULT_TYPE::REVERSE },
+                { "normal_fault", geode::Fault3D::FAULT_TYPE::NORMAL } };
+        std::unordered_map< std::string, geode::Horizon3D::HORIZON_TYPE >
+            horizon_map_ = { { "top", geode::Horizon3D::HORIZON_TYPE::NO_TYPE },
+                { "none", geode::Horizon3D::HORIZON_TYPE::NO_TYPE },
+                { "topographic", geode::Horizon3D::HORIZON_TYPE::NO_TYPE },
+                { "unconformity",
+                    geode::Horizon3D::HORIZON_TYPE::NON_CONFORMAL } };
     };
 } // namespace
 
