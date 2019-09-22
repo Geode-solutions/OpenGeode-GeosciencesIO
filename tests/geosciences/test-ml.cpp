@@ -41,19 +41,23 @@ int main()
 
         // Load structural model
         load_structural_model( model,
-            test_path + "geosciences/data/modelA1." + MLInput::extension() );
+            test_path + "geosciences/data/modelA2." + MLInput::extension() );
 
-        OPENGEODE_EXCEPTION( model.nb_corners() == 20,
+        OPENGEODE_EXCEPTION( model.nb_corners() == 21,
             "Number of Corners in the loaded StructuralModel is not correct" );
-        OPENGEODE_EXCEPTION( model.nb_lines() == 36,
+        OPENGEODE_EXCEPTION( model.nb_lines() == 100,
             "Number of Lines in the loaded StructuralModel is not correct" );
-        OPENGEODE_EXCEPTION( model.nb_surfaces() == 21,
+        OPENGEODE_EXCEPTION( model.nb_surfaces() == 61,
             "Number of Surfaces in the loaded StructuralModel is not correct" );
-        OPENGEODE_EXCEPTION( model.nb_blocks() == 4,
+        OPENGEODE_EXCEPTION( model.nb_blocks() == 12,
             "Number of Blocks in the loaded StructuralModel is not correct" );
+        OPENGEODE_EXCEPTION( model.nb_faults() == 2,
+            "Number of Faults in the loaded StructuralModel is not correct" );
+        OPENGEODE_EXCEPTION( model.nb_horizons() == 3,
+            "Number of Horizons in the loaded StructuralModel is not correct" );
 
         // Save structural model
-        std::string output_file_native{ "modelA1." + model.native_extension() };
+        std::string output_file_native{ "modelA2." + model.native_extension() };
         save_structural_model( model, output_file_native );
 
         Logger::info( "TEST SUCCESS" );
