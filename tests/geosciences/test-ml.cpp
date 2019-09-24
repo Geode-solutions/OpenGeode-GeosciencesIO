@@ -26,9 +26,9 @@
 #include <geode/basic/assert.h>
 #include <geode/basic/logger.h>
 
-#include <geode/geosciences/core/structural_model.h>
 #include <geode/geosciences/detail/ml_input.h>
-#include <geode/geosciences/io/structural_model_output.h>
+#include <geode/geosciences/representation/core/structural_model.h>
+#include <geode/geosciences/representation/io/structural_model_output.h>
 
 int main()
 {
