@@ -24,7 +24,7 @@
 #pragma once
 
 #include <geode/geosciences/detail/common.h>
-#include <geode/geosciences/io/structural_model_input.h>
+#include <geode/geosciences/representation/io/structural_model_input.h>
 
 namespace geode
 {
