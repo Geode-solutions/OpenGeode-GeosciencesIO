@@ -55,6 +55,8 @@ int main()
             "Number of Faults in the loaded StructuralModel is not correct" );
         OPENGEODE_EXCEPTION( model.nb_horizons() == 3,
             "Number of Horizons in the loaded StructuralModel is not correct" );
+        OPENGEODE_EXCEPTION( model.nb_model_boundaries() == 1,
+            "Number of ModelBoundary in the loaded StructuralModel is not correct" );
 
         // Save structural model
         std::string output_file_native{ "modelA2." + model.native_extension() };
