@@ -492,7 +492,7 @@ namespace
                 else if( tsurf.feature == "boundary"
                          || tsurf.feature == "lease" )
                 {
-                    // todo ahndle ModelBoundary
+                    // todo handle ModelBoundary
                 }
                 else
                 {
@@ -561,7 +561,7 @@ namespace
                 std::string boundary_line;
                 std::getline( file_, boundary_line );
                 std::istringstream boundary_iss{ boundary_line };
-                int surface_id{ 0 };
+                int surface_id;
                 while( boundary_iss >> surface_id )
                 {
                     if( surface_id == 0 )
