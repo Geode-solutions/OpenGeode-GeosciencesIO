@@ -492,7 +492,13 @@ namespace
                 else if( tsurf.feature == "boundary"
                          || tsurf.feature == "lease" )
                 {
-                    // todo handle ModelBoundary
+                    const auto& model_boundary_uuid = builder_.add_model_boundary();
+                    const auto& model_boundary = model_.model_boundary( model_boundary_uuid );
+                    for( const auto& uuid : tsurf.tfaces )
+                    {
+                        builder_.add_surface_in_model_boundary(
+                            model_.surface( uuid ), model_boundary );
+                    }
                 }
                 else
                 {
