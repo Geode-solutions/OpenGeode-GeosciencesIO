@@ -426,6 +426,16 @@ namespace
                 {
                     return;
                 }
+
+                std::istringstream iss{ line };
+                std::string keyword;
+                iss >> keyword;
+                if( keyword == "ZPOSITIVE" )
+                {
+                    std::string sign;
+                    iss >> sign;
+                    z_sign = sign == "Elevation" ? 1 : -1;
+                }
             }
             throw geode::OpenGeodeException{
                 "Cannot find the end of CRS section"
@@ -688,7 +698,7 @@ namespace
             geode::index_t dummy;
             double x, y, z;
             iss >> dummy >> x >> y >> z;
-            return { { x, y, z } };
+            return { { x, y, z_sign * z } };
         }
 
         const geode::Point3D& process_ATOM_keyword(
@@ -728,7 +738,7 @@ namespace
             corners2line_;
         std::deque< geode::uuid > surfaces_;
         double epsilon_;
-
+        int z_sign{ 1 };
         std::unordered_map< std::string, geode::Fault3D::FAULT_TYPE >
             fault_map_ = { { "fault", geode::Fault3D::FAULT_TYPE::NO_TYPE },
                 { "reverse_fault", geode::Fault3D::FAULT_TYPE::REVERSE },
