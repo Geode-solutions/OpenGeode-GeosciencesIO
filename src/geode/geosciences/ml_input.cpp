@@ -118,6 +118,8 @@ namespace
     private:
         struct TSurfData
         {
+            TSurfData( std::string input_name ) : name( std::move( input_name ) ){}
+
             geode::index_t tface_id( geode::index_t vertex_id ) const
             {
                 for( auto i : geode::Range{ 1, tface_vertices_offset.size() } )
@@ -133,6 +135,7 @@ namespace
             std::deque< std::reference_wrapper< const geode::uuid > > tfaces{};
             std::deque< geode::index_t > tface_vertices_offset{ 0 };
             std::string feature;
+            std::string name = std::string( "unknown" );
         };
 
         struct TopoInfo
@@ -476,12 +479,14 @@ namespace
 
         void create_tsurfs()
         {
+            std::vector< geode::uuid > boundaries;
             for( const auto& tsurf : tsurfs_ )
             {
                 if( tsurf.feature.find( "fault" ) != std::string::npos )
                 {
                     const auto& fault_uuid =
                         builder_.add_fault( fault_map_.at( tsurf.feature ) );
+                    builder_.set_fault_name( fault_uuid, tsurf.name );
                     const auto& fault = model_.fault( fault_uuid );
                     for( const auto& uuid : tsurf.tfaces )
                     {
@@ -493,23 +498,45 @@ namespace
                          || tsurf.feature == "lease" )
                 {
                     const auto& model_boundary_uuid = builder_.add_model_boundary();
+                    builder_.set_model_boundary_name( model_boundary_uuid, tsurf.name );
                     const auto& model_boundary = model_.model_boundary( model_boundary_uuid );
                     for( const auto& uuid : tsurf.tfaces )
                     {
                         builder_.add_surface_in_model_boundary(
                             model_.surface( uuid ), model_boundary );
+                        boundaries.push_back( uuid );
                     }
                 }
                 else
                 {
                     const auto& horizon_uuid = builder_.add_horizon(
                         horizon_map_.at( tsurf.feature ) );
+                    builder_.set_horizon_name( horizon_uuid, tsurf.name );
                     const auto& horizon = model_.horizon( horizon_uuid );
                     for( const auto& uuid : tsurf.tfaces )
                     {
                         builder_.add_surface_in_horizon(
                             model_.surface( uuid ), horizon );
                     }
+                }
+            }
+            process_unassigned_model_boundaries( boundaries );
+        }
+
+        void process_unassigned_model_boundaries( std::vector< geode::uuid >& boundaries )
+        {
+            std::sort( boundaries.begin(), boundaries.end() );
+            std::vector< geode::uuid > diff( boundaries.size() + universe_.size() );
+            diff.resize( std::set_difference (boundaries.begin(), boundaries.end(), universe_.begin(), universe_.end(), diff.begin()) - diff.begin() );
+            if( !diff.empty() )
+            {
+                const auto& model_boundary_uuid = builder_.add_model_boundary();
+                builder_.set_model_boundary_name( model_boundary_uuid, "undefined boundary" );
+                const auto& model_boundary = model_.model_boundary( model_boundary_uuid );
+                for( const auto& uuid : diff )
+                {
+                    builder_.add_surface_in_model_boundary(
+                        model_.surface( uuid ), model_boundary );
                 }
             }
         }
@@ -524,8 +551,8 @@ namespace
                 iss >> token;
                 name += "_" + token;
             }
+            tsurfs_.emplace_back( name );
             tsurf_names2index_.emplace( std::move( name ), tsurfs_.size() );
-            tsurfs_.emplace_back();
         }
 
         void process_TFACE_keyword( std::istringstream& iss )
@@ -554,9 +581,31 @@ namespace
             iss >> id >> name;
             if( name == "Universe" )
             {
+                read_universe();
                 return;
             }
             create_block_topology( builder_.add_block() );
+        }
+
+        void read_universe()
+        {
+            while( true )
+            {
+                std::string boundary_line;
+                std::getline( file_, boundary_line );
+                std::istringstream boundary_iss{ boundary_line };
+                int surface_id;
+                while( boundary_iss >> surface_id )
+                {
+                    if( surface_id == 0 )
+                    {
+                        return;
+                    }
+                    surface_id = std::abs( surface_id ) - OFFSET_START;
+                    universe_.push_back( surfaces_[surface_id] );
+                }
+            }
+            std::sort( universe_.begin(), universe_.end() );
         }
 
         void create_block_topology( const geode::uuid& block_id )
@@ -743,6 +792,7 @@ namespace
         std::unordered_map< std::pair< geode::uuid, geode::uuid >, geode::uuid >
             corners2line_;
         std::deque< geode::uuid > surfaces_;
+        std::vector< geode::uuid > universe_;
         double epsilon_;
         int z_sign{ 1 };
         std::unordered_map< std::string, geode::Fault3D::FAULT_TYPE >
