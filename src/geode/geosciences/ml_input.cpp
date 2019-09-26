@@ -132,8 +132,8 @@ namespace
                 return tface_vertices_offset.size() - 1;
             }
 
-            std::deque< std::reference_wrapper< const geode::uuid > > tfaces{};
-            std::deque< geode::index_t > tface_vertices_offset{ 0 };
+            std::vector< geode::uuid > tfaces{};
+            std::vector< geode::index_t > tface_vertices_offset{ 0 };
             std::string feature;
             std::string name = std::string( "unknown" );
         };
@@ -149,7 +149,13 @@ namespace
 
         struct LineData
         {
-            geode::uuid corner0, corner1, surface;
+            bool operator!=( const LineData& rhs ) const{
+                return line != rhs.line;
+            }
+            bool operator<( const LineData& rhs ) const{
+                return line < rhs.line;
+            }
+            geode::uuid corner0, corner1, line, surface;
             std::vector< geode::Point3D > points;
             std::vector< geode::index_t > indices;
         };
@@ -215,13 +221,39 @@ namespace
 
         void build_lines()
         {
+            std::unordered_map< geode::uuid, std::vector< LineData > > surface2lines;
             for( auto& line_start : info_.line_surface_index )
             {
-                const auto& surface =
-                    model_.surface( line_start.first.component_id.id() );
+                const auto& surface_id = line_start.first.component_id.id();
+                const auto& surface = model_.surface( surface_id );
                 auto line_data = compute_line( surface, line_start );
-                register_line_data(
-                    line_data, find_or_create_line( line_data ) );
+                line_data.line = find_or_create_line( line_data );
+                surface2lines[surface_id].emplace_back( std::move( line_data ) );
+            }
+
+            for( auto& surface2line : surface2lines )
+            {
+                auto& lines = surface2line.second;
+                std::sort( lines.begin(), lines.end() );
+                for( size_t l = 1; l < lines.size(); l++ )
+                {
+                    if( lines[l-1] != lines[l] )
+                    {
+                        register_line_data( lines[l-1] );
+                    }
+                    else
+                    {
+                        register_internal_line_data( lines[l-1] );
+                        const auto& surface = model_.surface( lines[l].surface );
+                        register_line_surface_vertex_identifier( lines[l], surface.component_id() );
+                        l++;
+                    }
+                }
+                auto size = lines.size() - 1;
+                if( lines[size-1] != lines[size] )
+                {
+                    register_line_data( lines[size] );
+                }
             }
         }
 
@@ -338,16 +370,28 @@ namespace
         }
 
         void register_line_data(
-            const LineData& line_data, const geode::uuid& line_id )
+            const LineData& line_data )
         {
             const auto& surface = model_.surface( line_data.surface );
-            builder_.add_line_surface_relationship(
-                model_.line( line_id ), surface );
-            auto surface_id = surface.component_id();
+            builder_.add_line_surface_relationship( 
+                model_.line( line_data.line ), surface );
+            register_line_surface_vertex_identifier( line_data, surface.component_id() );
+        }
+
+        void register_internal_line_data( const LineData& line_data )
+        {
+            const auto& surface = model_.surface( line_data.surface );
+            builder_.add_line_surface_internal_relationship(
+                 model_.line( line_data.line ), surface );
+            register_line_surface_vertex_identifier( line_data, surface.component_id() );
+        }
+
+        void register_line_surface_vertex_identifier( const LineData& line_data, const geode::ComponentID& surface_id )
+        {
             for( auto i : geode::Range{ line_data.indices.size() } )
             {
                 auto unique_id = model_.unique_vertex(
-                    { model_.line( line_id ).component_id(), i } );
+                    { model_.line( line_data.line ).component_id(), i } );
                 builder_.set_unique_vertex(
                     { surface_id, line_data.indices[i] }, unique_id );
             }
@@ -543,29 +587,29 @@ namespace
 
         void process_TSURF_keyword( std::istringstream& iss )
         {
+            auto name = read_name( iss );
+            tsurf_names2index_.emplace( name, tsurfs_.size() );
+            tsurfs_.emplace_back( std::move( name ) );
+        }
+
+        std::string read_name( std::istringstream& iss )
+        {
             std::string name;
             iss >> name;
-            while( !iss.eof() )
+            std::string token;
+            while( iss >> token )
             {
-                std::string token;
-                iss >> token;
                 name += "_" + token;
             }
-            tsurfs_.emplace_back( name );
-            tsurf_names2index_.emplace( std::move( name ), tsurfs_.size() );
+            return name;
         }
 
         void process_TFACE_keyword( std::istringstream& iss )
         {
             geode::index_t id;
-            std::string feature, name;
-            iss >> id >> feature >> name;
-            while( !iss.eof() )
-            {
-                std::string token;
-                iss >> token;
-                name += "_" + token;
-            }
+            std::string feature;
+            iss >> id >> feature;
+            std::string name = read_name( iss );
             const auto& surface_id = builder_.add_surface(
                 geode::OpenGeodeTriangulatedSurface3D::type_name_static() );
             auto& tsurf = tsurfs_[tsurf_names2index_.at( name )];
@@ -577,14 +621,16 @@ namespace
         void process_REGION_keyword( std::istringstream& iss )
         {
             geode::index_t id;
-            std::string name;
-            iss >> id >> name;
+            iss >> id;
+            auto name = read_name( iss );
             if( name == "Universe" )
             {
                 read_universe();
                 return;
             }
-            create_block_topology( builder_.add_block() );
+            const auto& block_id = builder_.add_block();
+            builder_.set_block_name( block_id, name );
+            create_block_topology( block_id );
         }
 
         void read_universe()
@@ -599,18 +645,19 @@ namespace
                 {
                     if( surface_id == 0 )
                     {
+                        std::sort( universe_.begin(), universe_.end() );
                         return;
                     }
                     surface_id = std::abs( surface_id ) - OFFSET_START;
                     universe_.push_back( surfaces_[surface_id] );
                 }
             }
-            std::sort( universe_.begin(), universe_.end() );
         }
 
         void create_block_topology( const geode::uuid& block_id )
         {
             const auto& block = model_.block( block_id );
+            std::vector< geode::index_t > surfaces;
             while( true )
             {
                 std::string boundary_line;
@@ -621,11 +668,31 @@ namespace
                 {
                     if( surface_id == 0 )
                     {
+                        std::sort( surfaces.begin(), surfaces.end() );
+                        for( size_t s = 1; s < surfaces.size(); s++ )
+                        {
+                            if( surfaces[s-1] != surfaces[s] )
+                            {
+                                builder_.add_surface_block_relationship(
+                                    model_.surface( surfaces_[surfaces[s-1]] ), block );
+                            }
+                            else
+                            {
+                                builder_.add_surface_block_internal_relationship( 
+                                    model_.surface( surfaces_[surfaces[s]] ), block );
+                                s++;
+                            }                            
+                        }
+                        auto size = surfaces.size() - 1;
+                        if( surfaces[size-1] != surfaces[size] )
+                        {
+                            builder_.add_surface_block_relationship(
+                                model_.surface( surfaces_[surfaces[size]] ), block );
+                        }
                         return;
                     }
                     surface_id = std::abs( surface_id ) - OFFSET_START;
-                    builder_.add_surface_block_relationship(
-                        model_.surface( surfaces_[surface_id] ), block );
+                    surfaces.push_back( surface_id );
                 }
             }
         }
@@ -787,11 +854,11 @@ namespace
         geode::StructuralModel& model_;
         geode::StructuralModelBuilder builder_;
         std::unordered_map< std::string, geode::index_t > tsurf_names2index_;
-        std::deque< TSurfData > tsurfs_;
+        std::vector< TSurfData > tsurfs_;
         TopoInfo info_;
         std::unordered_map< std::pair< geode::uuid, geode::uuid >, geode::uuid >
             corners2line_;
-        std::deque< geode::uuid > surfaces_;
+        std::vector< geode::uuid > surfaces_;
         std::vector< geode::uuid > universe_;
         double epsilon_;
         int z_sign{ 1 };
