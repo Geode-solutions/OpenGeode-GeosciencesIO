@@ -75,9 +75,9 @@ int main()
             }
             nb_block_internals += nb_internals;
         }
-        OPENGEODE_EXCEPTION(
-            nb_block_internals == 4, "Number of Block internals in the loaded "
-                                     "StructuralModel is not correct" );
+        OPENGEODE_EXCEPTION( nb_block_internals == 4,
+            "Number of Block internals in the loaded "
+            "StructuralModel is not correct" );
 
         index_t nb_surface_internals{ 0 };
         for( const auto& surface : model.surfaces() )
