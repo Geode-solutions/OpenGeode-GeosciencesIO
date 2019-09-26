@@ -26,6 +26,10 @@
 #include <geode/basic/assert.h>
 #include <geode/basic/logger.h>
 
+#include <geode/model/mixin/core/block.h>
+#include <geode/model/mixin/core/model_boundary.h>
+#include <geode/model/mixin/core/surface.h>
+
 #include <geode/geosciences/detail/ml_input.h>
 #include <geode/geosciences/representation/core/structural_model.h>
 #include <geode/geosciences/representation/io/structural_model_output.h>
@@ -41,25 +45,56 @@ int main()
 
         // Load structural model
         load_structural_model( model,
-            test_path + "geosciences/data/modelA2." + MLInput::extension() );
+            test_path + "geosciences/data/modelA4." + MLInput::extension() );
 
         OPENGEODE_EXCEPTION( model.nb_corners() == 52,
             "Number of Corners in the loaded StructuralModel is not correct" );
-        OPENGEODE_EXCEPTION( model.nb_lines() == 100,
+        OPENGEODE_EXCEPTION( model.nb_lines() == 98,
             "Number of Lines in the loaded StructuralModel is not correct" );
-        OPENGEODE_EXCEPTION( model.nb_surfaces() == 61,
+        OPENGEODE_EXCEPTION( model.nb_surfaces() == 55,
             "Number of Surfaces in the loaded StructuralModel is not correct" );
-        OPENGEODE_EXCEPTION( model.nb_blocks() == 12,
+        OPENGEODE_EXCEPTION( model.nb_blocks() == 8,
             "Number of Blocks in the loaded StructuralModel is not correct" );
         OPENGEODE_EXCEPTION( model.nb_faults() == 2,
             "Number of Faults in the loaded StructuralModel is not correct" );
         OPENGEODE_EXCEPTION( model.nb_horizons() == 3,
             "Number of Horizons in the loaded StructuralModel is not correct" );
-        OPENGEODE_EXCEPTION( model.nb_model_boundaries() == 1,
+        OPENGEODE_EXCEPTION( model.nb_model_boundaries() == 6,
             "Number of ModelBoundary in the loaded StructuralModel is not correct" );
 
+        index_t nb_block_internals{ 0 };
+        for( const auto& block : model.blocks() )
+        {
+            auto nb_internals = model.nb_internals( block.id() );
+            if( nb_internals )
+            {
+                auto token = block.name().substr( block.name().size() - 3 );
+                OPENGEODE_EXCEPTION( token == "b_2", "Block name should end by b_2" );
+            }
+            nb_block_internals += nb_internals;
+        }
+        OPENGEODE_EXCEPTION( nb_block_internals == 4,
+            "Number of Block internals in the loaded StructuralModel is not correct" );
+        
+        index_t nb_surface_internals{ 0 };
+        for( const auto& surface : model.surfaces() )
+        {
+            auto nb_internals = model.nb_internals( surface.id() );
+            if( nb_internals )
+            {
+                for( const auto& collection : model.collections( surface.id() ) )
+                {
+                    const auto& name = model.model_boundary( collection ).name();
+                    OPENGEODE_EXCEPTION( name == "voi_top_boundary" || name == "voi_bottom_boundary", "ModelBoundary name is not correct" );
+                }
+            }
+            nb_surface_internals += model.nb_internals( surface.id() );
+        }
+        OPENGEODE_EXCEPTION( nb_surface_internals == 2,
+            "Number of Surface internals in the loaded StructuralModel is not correct" );
+
         // Save structural model
-        std::string output_file_native{ "modelA2." + model.native_extension() };
+        std::string output_file_native{ "modelA4." + model.native_extension() };
         save_structural_model( model, output_file_native );
 
         Logger::info( "TEST SUCCESS" );
