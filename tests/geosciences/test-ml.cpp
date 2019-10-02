@@ -47,24 +47,24 @@ int main()
         load_structural_model( model,
             test_path + "geosciences/data/modelA4." + MLInput::extension() );
 
-        OPENGEODE_EXCEPTION(
-            model.nb_corners() == 52, "[Test] Number of Corners in the loaded "
-                                      "StructuralModel is not correct" );
-        OPENGEODE_EXCEPTION(
-            model.nb_lines() == 98, "[Test] Number of Lines in the loaded "
-                                    "StructuralModel is not correct" );
+        OPENGEODE_EXCEPTION( model.nb_corners() == 52,
+            "[Test] Number of Corners in the loaded "
+            "StructuralModel is not correct" );
+        OPENGEODE_EXCEPTION( model.nb_lines() == 98,
+            "[Test] Number of Lines in the loaded "
+            "StructuralModel is not correct" );
         OPENGEODE_EXCEPTION( model.nb_surfaces() == 55,
             "[Test] Number of Surfaces in the loaded StructuralModel is not "
             "correct" );
-        OPENGEODE_EXCEPTION(
-            model.nb_blocks() == 8, "[Test] Number of Blocks in the loaded "
-                                    "StructuralModel is not correct" );
-        OPENGEODE_EXCEPTION(
-            model.nb_faults() == 2, "[Test] Number of Faults in the loaded "
-                                    "StructuralModel is not correct" );
-        OPENGEODE_EXCEPTION(
-            model.nb_horizons() == 3, "[Test] Number of Horizons in the loaded "
-                                      "StructuralModel is not correct" );
+        OPENGEODE_EXCEPTION( model.nb_blocks() == 8,
+            "[Test] Number of Blocks in the loaded "
+            "StructuralModel is not correct" );
+        OPENGEODE_EXCEPTION( model.nb_faults() == 2,
+            "[Test] Number of Faults in the loaded "
+            "StructuralModel is not correct" );
+        OPENGEODE_EXCEPTION( model.nb_horizons() == 3,
+            "[Test] Number of Horizons in the loaded "
+            "StructuralModel is not correct" );
         OPENGEODE_EXCEPTION( model.nb_model_boundaries() == 6,
             "[Test] Number of ModelBoundary in the loaded StructuralModel is "
             "not correct" );
@@ -81,9 +81,9 @@ int main()
             }
             nb_block_internals += nb_internals;
         }
-        OPENGEODE_EXCEPTION(
-            nb_block_internals == 4, "[Test] Number of Block internals in the "
-                                     "loaded StructuralModel is not correct" );
+        OPENGEODE_EXCEPTION( nb_block_internals == 4,
+            "[Test] Number of Block internals in the "
+            "loaded StructuralModel is not correct" );
 
         index_t nb_surface_internals{ 0 };
         for( const auto& surface : model.surfaces() )
