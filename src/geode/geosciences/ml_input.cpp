@@ -79,7 +79,7 @@ namespace
         if( !found )
         {
             throw geode::OpenGeodeException{
-                "Starting edge Line from Corner not found.",
+                "[MLInput] Starting edge Line from Corner not found.",
                 "Looking for edge: ", mesh.point( v0 ), " - ", mesh.point( v1 )
             };
         }
@@ -95,8 +95,8 @@ namespace
             const std::string& filename, geode::StructuralModel& model )
             : file_( filename ), model_( model ), builder_( model )
         {
-            OPENGEODE_EXCEPTION(
-                file_.good(), "Error while opening file: " + filename );
+            OPENGEODE_EXCEPTION( file_.good(),
+                "[MLInput] Error while opening file: " + filename );
         }
 
         void read_file()
@@ -455,7 +455,7 @@ namespace
             std::string line;
             std::getline( file_, line );
             OPENGEODE_EXCEPTION( string_starts_with( line, keyword ),
-                "Line should starts with \"" + keyword + "\"" );
+                "[MLInput] Line should starts with \"" + keyword + "\"" );
         }
 
         void read_header()
@@ -470,7 +470,7 @@ namespace
                 }
             }
             throw geode::OpenGeodeException(
-                "Cannot find the end of \"HEADER\" section" );
+                "[MLInput] Cannot find the end of \"HEADER\" section" );
         }
 
         void read_CRS()
@@ -496,7 +496,7 @@ namespace
                 }
             }
             throw geode::OpenGeodeException{
-                "Cannot find the end of CRS section"
+                "[MLInput] Cannot find the end of CRS section"
             };
         }
 
@@ -528,7 +528,7 @@ namespace
                 }
             }
             throw geode::OpenGeodeException{
-                "Cannot find the end of component section"
+                "[MLInput] Cannot find the end of component section"
             };
         }
 
