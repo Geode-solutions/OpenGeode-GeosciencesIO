@@ -95,8 +95,8 @@ namespace
             const std::string& filename, geode::StructuralModel& model )
             : file_( filename ), model_( model ), builder_( model )
         {
-            OPENGEODE_EXCEPTION(
-                file_.good(), "[MLInput] Error while opening file: " + filename );
+            OPENGEODE_EXCEPTION( file_.good(),
+                "[MLInput] Error while opening file: " + filename );
         }
 
         void read_file()
@@ -118,7 +118,10 @@ namespace
     private:
         struct TSurfData
         {
-            TSurfData( std::string input_name ) : name( std::move( input_name ) ){}
+            TSurfData( std::string input_name )
+                : name( std::move( input_name ) )
+            {
+            }
 
             geode::index_t tface_id( geode::index_t vertex_id ) const
             {
@@ -149,10 +152,12 @@ namespace
 
         struct LineData
         {
-            bool operator!=( const LineData& rhs ) const{
+            bool operator!=( const LineData& rhs ) const
+            {
                 return line != rhs.line;
             }
-            bool operator<( const LineData& rhs ) const{
+            bool operator<( const LineData& rhs ) const
+            {
                 return line < rhs.line;
             }
             geode::uuid corner0, corner1, line, surface;
@@ -221,14 +226,16 @@ namespace
 
         void build_lines()
         {
-            std::unordered_map< geode::uuid, std::vector< LineData > > surface2lines;
+            std::unordered_map< geode::uuid, std::vector< LineData > >
+                surface2lines;
             for( auto& line_start : info_.line_surface_index )
             {
                 const auto& surface_id = line_start.first.component_id.id();
                 const auto& surface = model_.surface( surface_id );
                 auto line_data = compute_line( surface, line_start );
                 line_data.line = find_or_create_line( line_data );
-                surface2lines[surface_id].emplace_back( std::move( line_data ) );
+                surface2lines[surface_id].emplace_back(
+                    std::move( line_data ) );
             }
 
             for( auto& surface2line : surface2lines )
@@ -237,20 +244,22 @@ namespace
                 std::sort( lines.begin(), lines.end() );
                 for( size_t l = 1; l < lines.size(); l++ )
                 {
-                    if( lines[l-1] != lines[l] )
+                    if( lines[l - 1] != lines[l] )
                     {
-                        register_line_data( lines[l-1] );
+                        register_line_data( lines[l - 1] );
                     }
                     else
                     {
-                        register_internal_line_data( lines[l-1] );
-                        const auto& surface = model_.surface( lines[l].surface );
-                        register_line_surface_vertex_identifier( lines[l], surface.component_id() );
+                        register_internal_line_data( lines[l - 1] );
+                        const auto& surface =
+                            model_.surface( lines[l].surface );
+                        register_line_surface_vertex_identifier(
+                            lines[l], surface.component_id() );
                         l++;
                     }
                 }
                 auto size = lines.size() - 1;
-                if( lines[size-1] != lines[size] )
+                if( lines[size - 1] != lines[size] )
                 {
                     register_line_data( lines[size] );
                 }
@@ -369,24 +378,26 @@ namespace
             }
         }
 
-        void register_line_data(
-            const LineData& line_data )
+        void register_line_data( const LineData& line_data )
         {
             const auto& surface = model_.surface( line_data.surface );
-            builder_.add_line_surface_relationship( 
+            builder_.add_line_surface_relationship(
                 model_.line( line_data.line ), surface );
-            register_line_surface_vertex_identifier( line_data, surface.component_id() );
+            register_line_surface_vertex_identifier(
+                line_data, surface.component_id() );
         }
 
         void register_internal_line_data( const LineData& line_data )
         {
             const auto& surface = model_.surface( line_data.surface );
             builder_.add_line_surface_internal_relationship(
-                 model_.line( line_data.line ), surface );
-            register_line_surface_vertex_identifier( line_data, surface.component_id() );
+                model_.line( line_data.line ), surface );
+            register_line_surface_vertex_identifier(
+                line_data, surface.component_id() );
         }
 
-        void register_line_surface_vertex_identifier( const LineData& line_data, const geode::ComponentID& surface_id )
+        void register_line_surface_vertex_identifier(
+            const LineData& line_data, const geode::ComponentID& surface_id )
         {
             for( auto i : geode::Range{ line_data.indices.size() } )
             {
@@ -541,9 +552,12 @@ namespace
                 else if( tsurf.feature == "boundary"
                          || tsurf.feature == "lease" )
                 {
-                    const auto& model_boundary_uuid = builder_.add_model_boundary();
-                    builder_.set_model_boundary_name( model_boundary_uuid, tsurf.name );
-                    const auto& model_boundary = model_.model_boundary( model_boundary_uuid );
+                    const auto& model_boundary_uuid =
+                        builder_.add_model_boundary();
+                    builder_.set_model_boundary_name(
+                        model_boundary_uuid, tsurf.name );
+                    const auto& model_boundary =
+                        model_.model_boundary( model_boundary_uuid );
                     for( const auto& uuid : tsurf.tfaces )
                     {
                         builder_.add_surface_in_model_boundary(
@@ -567,16 +581,23 @@ namespace
             process_unassigned_model_boundaries( boundaries );
         }
 
-        void process_unassigned_model_boundaries( std::vector< geode::uuid >& boundaries )
+        void process_unassigned_model_boundaries(
+            std::vector< geode::uuid >& boundaries )
         {
             std::sort( boundaries.begin(), boundaries.end() );
-            std::vector< geode::uuid > diff( boundaries.size() + universe_.size() );
-            diff.resize( std::set_difference (boundaries.begin(), boundaries.end(), universe_.begin(), universe_.end(), diff.begin()) - diff.begin() );
+            std::vector< geode::uuid > diff(
+                boundaries.size() + universe_.size() );
+            diff.resize(
+                std::set_difference( boundaries.begin(), boundaries.end(),
+                    universe_.begin(), universe_.end(), diff.begin() )
+                - diff.begin() );
             if( !diff.empty() )
             {
                 const auto& model_boundary_uuid = builder_.add_model_boundary();
-                builder_.set_model_boundary_name( model_boundary_uuid, "undefined boundary" );
-                const auto& model_boundary = model_.model_boundary( model_boundary_uuid );
+                builder_.set_model_boundary_name(
+                    model_boundary_uuid, "undefined boundary" );
+                const auto& model_boundary =
+                    model_.model_boundary( model_boundary_uuid );
                 for( const auto& uuid : diff )
                 {
                     builder_.add_surface_in_model_boundary(
@@ -671,23 +692,29 @@ namespace
                         std::sort( surfaces.begin(), surfaces.end() );
                         for( size_t s = 1; s < surfaces.size(); s++ )
                         {
-                            if( surfaces[s-1] != surfaces[s] )
+                            if( surfaces[s - 1] != surfaces[s] )
                             {
                                 builder_.add_surface_block_relationship(
-                                    model_.surface( surfaces_[surfaces[s-1]] ), block );
+                                    model_.surface(
+                                        surfaces_[surfaces[s - 1]] ),
+                                    block );
                             }
                             else
                             {
-                                builder_.add_surface_block_internal_relationship( 
-                                    model_.surface( surfaces_[surfaces[s]] ), block );
+                                builder_
+                                    .add_surface_block_internal_relationship(
+                                        model_.surface(
+                                            surfaces_[surfaces[s]] ),
+                                        block );
                                 s++;
-                            }                            
+                            }
                         }
                         auto size = surfaces.size() - 1;
-                        if( surfaces[size-1] != surfaces[size] )
+                        if( surfaces[size - 1] != surfaces[size] )
                         {
                             builder_.add_surface_block_relationship(
-                                model_.surface( surfaces_[surfaces[size]] ), block );
+                                model_.surface( surfaces_[surfaces[size]] ),
+                                block );
                         }
                         return;
                     }
