@@ -21,38 +21,29 @@
  *
  */
 
+#pragma once
+
 #include <geode/geosciences/detail/common.h>
-
-#include <geode/geosciences/detail/ml_input.h>
-#include <geode/geosciences/detail/ts_input.h>
-
 #include <geode/mesh/io/triangulated_surface_input.h>
-#include <geode/geosciences/representation/io/structural_model_input.h>
-
-namespace
-{
-    void register_structural_model_input()
-    {
-        geode::StructuralModelInputFactory::register_creator< geode::MLInput >(
-            geode::MLInput::extension() );
-    }
-
-    void register_triangulated_surface_input()
-    {
-        geode::TriangulatedSurfaceInputFactory2D::register_creator<
-            geode::TSInput2D >( geode::TSInput2D::extension() );
-        geode::TriangulatedSurfaceInputFactory3D::register_creator<
-            geode::TSInput3D >( geode::TSInput3D::extension() );
-    }
-
-    OPENGEODE_LIBRARY_INITIALIZE( OpenGeode_GeosciencesIO_geosciences )
-    {
-        register_structural_model_input();
-        register_triangulated_surface_input();
-    }
-} // namespace
 
 namespace geode
 {
-    void initialize_geosciences_io() {}
+    template < index_t dimension >
+    class TSInput
+        : public TriangulatedSurfaceInput< dimension >
+    {
+    public:
+        TSInput( TriangulatedSurface< dimension >& surface, std::string filename )
+            : TriangulatedSurfaceInput< dimension >( surface, std::move( filename ) )
+        {
+        }
+
+        static std::string extension()
+        {
+            return "ts";
+        }
+
+        void do_read();
+    };
+    ALIAS_2D_AND_3D( TSInput );
 } // namespace geode
