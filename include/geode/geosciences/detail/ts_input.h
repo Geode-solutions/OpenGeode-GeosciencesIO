@@ -29,12 +29,13 @@
 namespace geode
 {
     template < index_t dimension >
-    class TSInput
-        : public TriangulatedSurfaceInput< dimension >
+    class TSInput : public TriangulatedSurfaceInput< dimension >
     {
     public:
-        TSInput( TriangulatedSurface< dimension >& surface, std::string filename )
-            : TriangulatedSurfaceInput< dimension >( surface, std::move( filename ) )
+        TSInput(
+            TriangulatedSurface< dimension >& surface, std::string filename )
+            : TriangulatedSurfaceInput< dimension >(
+                  surface, std::move( filename ) )
         {
         }
 

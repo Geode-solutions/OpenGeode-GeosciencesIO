@@ -26,8 +26,8 @@
 #include <geode/geosciences/detail/ml_input.h>
 #include <geode/geosciences/detail/ts_input.h>
 
-#include <geode/mesh/io/triangulated_surface_input.h>
 #include <geode/geosciences/representation/io/structural_model_input.h>
+#include <geode/mesh/io/triangulated_surface_input.h>
 
 namespace
 {
