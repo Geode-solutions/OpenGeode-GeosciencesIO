@@ -28,13 +28,12 @@
 
 namespace geode
 {
-    class opengeode_geosciencesio_geosciences_api TSInput : public TriangulatedSurfaceInput< 3 >
+    class opengeode_geosciencesio_geosciences_api TSInput
+        : public TriangulatedSurfaceInput< 3 >
     {
     public:
-        TSInput(
-            TriangulatedSurface< 3 >& surface, std::string filename )
-            : TriangulatedSurfaceInput< 3 >(
-                  surface, std::move( filename ) )
+        TSInput( TriangulatedSurface< 3 >& surface, std::string filename )
+            : TriangulatedSurfaceInput< 3 >( surface, std::move( filename ) )
         {
         }
 

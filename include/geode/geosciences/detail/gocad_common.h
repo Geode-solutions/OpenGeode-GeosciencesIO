@@ -36,52 +36,52 @@ namespace geode
     bool opengeode_geosciencesio_geosciences_api string_starts_with(
         const std::string& string, const std::string& check );
 
-    void opengeode_geosciencesio_geosciences_api check_keyword( 
+    void opengeode_geosciencesio_geosciences_api check_keyword(
         std::ifstream& file, const std::string& keyword );
 
-    std::string opengeode_geosciencesio_geosciences_api read_name( std::istringstream& iss );
+    std::string opengeode_geosciencesio_geosciences_api read_name(
+        std::istringstream& iss );
 
     struct opengeode_geosciencesio_geosciences_api HeaderData
     {
         std::string name = std::string( "unknown" );
     };
-    HeaderData opengeode_geosciencesio_geosciences_api read_header( 
-        std::ifstream& file);
+    HeaderData opengeode_geosciencesio_geosciences_api read_header(
+        std::ifstream& file );
 
     struct opengeode_geosciencesio_geosciences_api CRSData
     {
         int z_sign{ 1 };
     };
-    CRSData opengeode_geosciencesio_geosciences_api read_CRS( 
-        std::ifstream& file);
+    CRSData opengeode_geosciencesio_geosciences_api read_CRS(
+        std::ifstream& file );
 
-    void opengeode_geosciencesio_geosciences_api goto_keyword( std::ifstream& file, const std::string& word );
+    void opengeode_geosciencesio_geosciences_api goto_keyword(
+        std::ifstream& file, const std::string& word );
 
     struct opengeode_geosciencesio_geosciences_api TSurfBorderData
     {
-        TSurfBorderData(
-        index_t corner_id_in,
-        index_t next_id_in) :  
-         corner_id(corner_id_in),
-         next_id(next_id_in) {}
+        TSurfBorderData( index_t corner_id_in, index_t next_id_in )
+            : corner_id( corner_id_in ), next_id( next_id_in )
+        {
+        }
         index_t corner_id;
         index_t next_id;
     };
 
     struct opengeode_geosciencesio_geosciences_api TSurfData
     {
-
-            geode::index_t tface_id( geode::index_t vertex_id ) const
+        geode::index_t tface_id( geode::index_t vertex_id ) const
+        {
+            for( auto i : geode::Range{ 1, tface_vertices_offset.size() } )
             {
-                for( auto i : geode::Range{ 1, tface_vertices_offset.size() } )
+                if( vertex_id < tface_vertices_offset[i] )
                 {
-                    if( vertex_id < tface_vertices_offset[i] )
-                    {
-                        return i - 1;
-                    }
+                    return i - 1;
                 }
-                return tface_vertices_offset.size() - 1;
             }
+            return tface_vertices_offset.size() - 1;
+        }
 
         static constexpr index_t OFFSET_START{ 1 };
         HeaderData header;
@@ -93,6 +93,6 @@ namespace geode
         std::deque< index_t > bstones;
         std::deque< TSurfBorderData > borders;
     };
-    TSurfData opengeode_geosciencesio_geosciences_api read_tsurf( 
-        std::ifstream& file);
+    TSurfData opengeode_geosciencesio_geosciences_api read_tsurf(
+        std::ifstream& file );
 } // namespace geode

@@ -44,9 +44,9 @@
 #include <geode/mesh/core/edged_curve.h>
 #include <geode/mesh/core/geode_triangulated_surface.h>
 
+#include <geode/geosciences/detail/gocad_common.h>
 #include <geode/geosciences/representation/builder/structural_model_builder.h>
 #include <geode/geosciences/representation/core/structural_model.h>
-#include <geode/geosciences/detail/gocad_common.h>
 
 namespace std
 {
@@ -186,14 +186,15 @@ namespace
                 for( auto corner : data.bstones )
                 {
                     corner_points.push_back( data.points[corner] );
-                auto tface_id = data.tface_id( corner );
-            const auto& surface = model_.surface( tsurf.tfaces[tface_id] );
-            auto vertex_id = corner - data.tface_vertices_offset[tface_id];
-            corner_surface_index.emplace_back(
-                surface.component_id(), vertex_id );
+                    auto tface_id = data.tface_id( corner );
+                    const auto& surface =
+                        model_.surface( tsurf.tfaces[tface_id] );
+                    auto vertex_id =
+                        corner - data.tface_vertices_offset[tface_id];
+                    corner_surface_index.emplace_back(
+                        surface.component_id(), vertex_id );
                 }
             }
-        
 
             geode::NNSearch3D ann{ std::move( corner_points ) };
             auto colocated_info = ann.colocated_index_mapping( epsilon_ );
@@ -219,22 +220,27 @@ namespace
         void build_lines()
         {
             std::vector< std::pair< geode::MeshComponentVertex,
-                geode::MeshComponentVertex > > line_surface_index;
+                geode::MeshComponentVertex > >
+                line_surface_index;
             for( const auto& tsurf : tsurfs_ )
             {
                 const auto& data = tsurf.data;
                 for( auto border : data.borders )
                 {
-            auto tface_id = data.tface_id( border.corner_id );
-            const auto& surface = model_.surface( tsurf.tfaces[tface_id] );
-            auto corner_id = border.corner_id - data.tface_vertices_offset[tface_id];
-            auto next_id = border.next_id - data.tface_vertices_offset[tface_id];
-            line_surface_index.emplace_back(
-                geode::MeshComponentVertex{ surface.component_id(), corner_id },
-                geode::MeshComponentVertex{ surface.component_id(), next_id } );
+                    auto tface_id = data.tface_id( border.corner_id );
+                    const auto& surface =
+                        model_.surface( tsurf.tfaces[tface_id] );
+                    auto corner_id =
+                        border.corner_id - data.tface_vertices_offset[tface_id];
+                    auto next_id =
+                        border.next_id - data.tface_vertices_offset[tface_id];
+                    line_surface_index.emplace_back(
+                        geode::MeshComponentVertex{
+                            surface.component_id(), corner_id },
+                        geode::MeshComponentVertex{
+                            surface.component_id(), next_id } );
                 }
             }
-
 
             std::unordered_map< geode::uuid, std::vector< LineData > >
                 surface2lines;
@@ -336,24 +342,33 @@ namespace
             return true;
         }
 
-
         void build_surfaces( const TSurfMLData& tsurf )
         {
-            for( auto i : geode::Range{tsurf.tfaces.size()} )
+            for( auto i : geode::Range{ tsurf.tfaces.size() } )
             {
                 const auto& uuid = tsurf.tfaces[i];
-            std::unique_ptr< geode::TriangulatedSurfaceBuilder3D > builder{ dynamic_cast< geode::TriangulatedSurfaceBuilder3D* >(builder_.surface_mesh_builder( uuid ).release()) };
-            const auto& data = tsurf.data;
-            for( auto p  : geode::Range{ data.tface_vertices_offset[i], data.tface_vertices_offset[i+1]} )
-            {
-                builder->create_point( data.points[p] );
-            }
-            for( auto t  : geode::Range{ data.tface_triangles_offset[i], data.tface_triangles_offset[i+1]} )
-            {
-                builder->create_triangle( { data.triangles[t][0] - data.tface_vertices_offset[i], data.triangles[t][1] - data.tface_vertices_offset[i], data.triangles[t][2] - data.tface_vertices_offset[i] });
-            }
+                std::unique_ptr< geode::TriangulatedSurfaceBuilder3D > builder{
+                    dynamic_cast< geode::TriangulatedSurfaceBuilder3D* >(
+                        builder_.surface_mesh_builder( uuid ).release() )
+                };
+                const auto& data = tsurf.data;
+                for( auto p : geode::Range{ data.tface_vertices_offset[i],
+                         data.tface_vertices_offset[i + 1] } )
+                {
+                    builder->create_point( data.points[p] );
+                }
+                for( auto t : geode::Range{ data.tface_triangles_offset[i],
+                         data.tface_triangles_offset[i + 1] } )
+                {
+                    builder->create_triangle(
+                        { data.triangles[t][0] - data.tface_vertices_offset[i],
+                            data.triangles[t][1]
+                                - data.tface_vertices_offset[i],
+                            data.triangles[t][2]
+                                - data.tface_vertices_offset[i] } );
+                }
 
-            builder->compute_polygon_adjacencies();
+                builder->compute_polygon_adjacencies();
             }
         }
 
@@ -693,7 +708,7 @@ namespace
                 }
             }
         }
-        
+
     private:
         std::ifstream file_;
         geode::StructuralModel& model_;

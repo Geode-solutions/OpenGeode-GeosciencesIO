@@ -32,7 +32,6 @@
 
 #include <geode/geosciences/detail/gocad_common.h>
 
-
 namespace
 {
     class TSInputImpl
