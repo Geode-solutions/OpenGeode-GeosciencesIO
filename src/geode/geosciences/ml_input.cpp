@@ -74,7 +74,7 @@ namespace
         if( !found )
         {
             throw geode::OpenGeodeException{
-                "Starting edge Line from Corner not found.",
+                "[MLInput] Starting edge Line from Corner not found.",
                 "Looking for edge: ", mesh.point( v0 ), " - ", mesh.point( v1 )
             };
         }
@@ -90,8 +90,8 @@ namespace
             const std::string& filename, geode::StructuralModel& model )
             : file_( filename ), model_( model ), builder_( model )
         {
-            OPENGEODE_EXCEPTION(
-                file_.good(), "Error while opening file: " + filename );
+            OPENGEODE_EXCEPTION( file_.good(),
+                "[MLInput] Error while opening file: " + filename );
         }
 
         void read_file()
@@ -525,7 +525,7 @@ namespace
                 }
             }
             throw geode::OpenGeodeException{
-                "Cannot find the end of component section"
+                "[MLInput] Cannot find the end of component section"
             };
         }
 
