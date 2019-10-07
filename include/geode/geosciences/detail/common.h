@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <geode/basic/common.h>
 #include <geode/geosciences/opengeode_geosciencesio_geosciences_export.h>
 
 namespace geode

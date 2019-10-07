@@ -39,10 +39,8 @@ namespace
 
     void register_triangulated_surface_input()
     {
-        geode::TriangulatedSurfaceInputFactory2D::register_creator<
-            geode::TSInput2D >( geode::TSInput2D::extension() );
         geode::TriangulatedSurfaceInputFactory3D::register_creator<
-            geode::TSInput3D >( geode::TSInput3D::extension() );
+            geode::TSInput >( geode::TSInput::extension() );
     }
 
     OPENGEODE_LIBRARY_INITIALIZE( OpenGeode_GeosciencesIO_geosciences )

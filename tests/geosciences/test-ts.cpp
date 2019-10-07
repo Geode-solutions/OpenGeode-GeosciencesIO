@@ -34,35 +34,6 @@
 #include <geode/mesh/io/triangulated_surface_input.h>
 #include <geode/mesh/io/triangulated_surface_output.h>
 
-void test_tsurf_2d()
-{
-    auto surface = geode::TriangulatedSurface2D::create();
-
-    // Load file
-    load_triangulated_surface( *surface, geode::test_path
-                                             + "geosciences/data/surf2d."
-                                             + geode::TSInput2D::extension() );
-
-    OPENGEODE_EXCEPTION( surface->nb_vertices() == 46,
-        "Number of vertices in the loaded TSurf 2D is not correct" );
-    OPENGEODE_EXCEPTION( surface->nb_polygons() == 46,
-        "Number of polygons in the loaded TSurf 2D is not correct" );
-
-    // Save triangulated tsurf
-    std::string output_file_native{ "surf2d." + surface->native_extension() };
-    save_triangulated_surface( *surface, output_file_native );
-
-    // Reload
-    auto reloaded_surface = geode::TriangulatedSurface2D::create();
-
-    // Load file
-    load_triangulated_surface( *reloaded_surface, output_file_native );
-    OPENGEODE_EXCEPTION( reloaded_surface->nb_vertices() == 46,
-        "Number of vertices in the reloaded TSurf 2D is not correct" );
-    OPENGEODE_EXCEPTION( reloaded_surface->nb_polygons() == 46,
-        "Number of polygons in the reloaded TSurf 2D is not correct" );
-}
-
 void test_tsurf_3d()
 {
     auto surface = geode::TriangulatedSurface3D::create();
@@ -70,7 +41,7 @@ void test_tsurf_3d()
     // Load file
     load_triangulated_surface( *surface, geode::test_path
                                              + "geosciences/data/surf2d."
-                                             + geode::TSInput3D::extension() );
+                                             + geode::TSInput::extension() );
 
     OPENGEODE_EXCEPTION( surface->nb_vertices() == 46,
         "Number of vertices in the loaded TSurf 3D is not correct" );
@@ -99,7 +70,6 @@ int main()
     try
     {
         initialize_geosciences_io();
-        test_tsurf_2d();
         test_tsurf_3d();
 
         Logger::info( "TEST SUCCESS" );

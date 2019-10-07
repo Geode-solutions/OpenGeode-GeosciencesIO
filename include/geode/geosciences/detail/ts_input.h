@@ -28,13 +28,12 @@
 
 namespace geode
 {
-    template < index_t dimension >
-    class TSInput : public TriangulatedSurfaceInput< dimension >
+    class opengeode_geosciencesio_geosciences_api TSInput : public TriangulatedSurfaceInput< 3 >
     {
     public:
         TSInput(
-            TriangulatedSurface< dimension >& surface, std::string filename )
-            : TriangulatedSurfaceInput< dimension >(
+            TriangulatedSurface< 3 >& surface, std::string filename )
+            : TriangulatedSurfaceInput< 3 >(
                   surface, std::move( filename ) )
         {
         }
@@ -46,5 +45,4 @@ namespace geode
 
         void do_read();
     };
-    ALIAS_2D_AND_3D( TSInput );
 } // namespace geode
