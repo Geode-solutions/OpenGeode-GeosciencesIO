@@ -44,7 +44,7 @@ namespace geode
 
     struct opengeode_geosciencesio_geosciences_api HeaderData
     {
-        std::string name = std::string( "unknown" );
+        std::string name{ "unknown" };
     };
     HeaderData opengeode_geosciencesio_geosciences_api read_header(
         std::ifstream& file );
