@@ -165,7 +165,7 @@ namespace geode
             }
         }
         throw geode::OpenGeodeException(
-            "Cannot find the requested word: ", word );
+            "Cannot find the requested keyword: ", word );
     }
 
     std::string read_name( std::istringstream& iss )
