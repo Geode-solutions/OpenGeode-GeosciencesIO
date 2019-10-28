@@ -44,6 +44,7 @@
 #include <geode/mesh/core/edged_curve.h>
 #include <geode/mesh/core/geode_triangulated_surface.h>
 
+#include <geode/geosciences/detail/gocad_common.h>
 #include <geode/geosciences/representation/builder/structural_model_builder.h>
 #include <geode/geosciences/representation/core/structural_model.h>
 
@@ -63,12 +64,6 @@ namespace std
 
 namespace
 {
-    bool string_starts_with(
-        const std::string& string, const std::string& check )
-    {
-        return !string.compare( 0, check.length(), check );
-    }
-
     geode::PolygonEdge find_edge( const geode::PolygonalSurface3D& mesh,
         geode::index_t v0,
         geode::index_t v1 )
@@ -101,13 +96,14 @@ namespace
 
         void read_file()
         {
-            check_keyword( "GOCAD Model3d" );
-            read_header();
-            read_CRS();
+            geode::check_keyword( file_, "GOCAD Model3d" );
+            geode::read_header( file_ );
+            geode::read_CRS( file_ );
             read_model_components();
             for( auto& tsurf : tsurfs_ )
             {
-                read_tsurf( tsurf );
+                tsurf.data = geode::read_tsurf( file_ );
+                build_surfaces( tsurf );
             }
             compute_epsilon();
             build_corners();
@@ -116,38 +112,17 @@ namespace
         }
 
     private:
-        struct TSurfData
+        struct TSurfMLData
         {
-            TSurfData( std::string input_name )
+            TSurfMLData( std::string input_name )
                 : name( std::move( input_name ) )
             {
             }
 
-            geode::index_t tface_id( geode::index_t vertex_id ) const
-            {
-                for( auto i : geode::Range{ 1, tface_vertices_offset.size() } )
-                {
-                    if( vertex_id < tface_vertices_offset[i] )
-                    {
-                        return i - 1;
-                    }
-                }
-                return tface_vertices_offset.size() - 1;
-            }
-
+            geode::TSurfData data;
             std::vector< geode::uuid > tfaces{};
-            std::vector< geode::index_t > tface_vertices_offset{ 0 };
             std::string feature;
             std::string name = std::string( "unknown" );
-        };
-
-        struct TopoInfo
-        {
-            std::vector< geode::Point3D > corner_points;
-            std::vector< geode::MeshComponentVertex > corner_surface_index;
-            using LineStart = std::pair< geode::MeshComponentVertex,
-                geode::MeshComponentVertex >;
-            std::vector< LineStart > line_surface_index;
         };
 
         struct LineData
@@ -180,7 +155,7 @@ namespace
             epsilon_ =
                 1e-7
                 * std::min( diagonal.value( 0 ),
-                      std::min( diagonal.value( 1 ), diagonal.value( 2 ) ) );
+                    std::min( diagonal.value( 1 ), diagonal.value( 2 ) ) );
         }
 
         void complete_vertex_identifier()
@@ -203,7 +178,25 @@ namespace
 
         void build_corners()
         {
-            geode::NNSearch3D ann{ std::move( info_.corner_points ) };
+            std::vector< geode::Point3D > corner_points;
+            std::vector< geode::MeshComponentVertex > corner_surface_index;
+            for( const auto& tsurf : tsurfs_ )
+            {
+                const auto& data = tsurf.data;
+                for( auto corner : data.bstones )
+                {
+                    corner_points.push_back( data.points[corner] );
+                    auto tface_id = data.tface_id( corner );
+                    const auto& surface =
+                        model_.surface( tsurf.tfaces[tface_id] );
+                    auto vertex_id =
+                        corner - data.tface_vertices_offset[tface_id];
+                    corner_surface_index.emplace_back(
+                        surface.component_id(), vertex_id );
+                }
+            }
+
+            geode::NNSearch3D ann{ std::move( corner_points ) };
             auto colocated_info = ann.colocated_index_mapping( epsilon_ );
             for( auto& point : colocated_info.unique_points )
             {
@@ -219,16 +212,39 @@ namespace
                 geode::Range{ colocated_info.colocated_mapping.size() } )
             {
                 builder_.set_unique_vertex(
-                    std::move( info_.corner_surface_index[i] ),
+                    std::move( corner_surface_index[i] ),
                     colocated_info.colocated_mapping[i] );
             }
         }
 
         void build_lines()
         {
+            std::vector< std::pair< geode::MeshComponentVertex,
+                geode::MeshComponentVertex > >
+                line_surface_index;
+            for( const auto& tsurf : tsurfs_ )
+            {
+                const auto& data = tsurf.data;
+                for( auto border : data.borders )
+                {
+                    auto tface_id = data.tface_id( border.corner_id );
+                    const auto& surface =
+                        model_.surface( tsurf.tfaces[tface_id] );
+                    auto corner_id =
+                        border.corner_id - data.tface_vertices_offset[tface_id];
+                    auto next_id =
+                        border.next_id - data.tface_vertices_offset[tface_id];
+                    line_surface_index.emplace_back(
+                        geode::MeshComponentVertex{
+                            surface.component_id(), corner_id },
+                        geode::MeshComponentVertex{
+                            surface.component_id(), next_id } );
+                }
+            }
+
             std::unordered_map< geode::uuid, std::vector< LineData > >
                 surface2lines;
-            for( auto& line_start : info_.line_surface_index )
+            for( auto& line_start : line_surface_index )
             {
                 const auto& surface_id = line_start.first.component_id.id();
                 const auto& surface = model_.surface( surface_id );
@@ -326,6 +342,36 @@ namespace
             return true;
         }
 
+        void build_surfaces( const TSurfMLData& tsurf )
+        {
+            for( auto i : geode::Range{ tsurf.tfaces.size() } )
+            {
+                const auto& uuid = tsurf.tfaces[i];
+                std::unique_ptr< geode::TriangulatedSurfaceBuilder3D > builder{
+                    dynamic_cast< geode::TriangulatedSurfaceBuilder3D* >(
+                        builder_.surface_mesh_builder( uuid ).release() )
+                };
+                const auto& data = tsurf.data;
+                for( auto p : geode::Range{ data.tface_vertices_offset[i],
+                         data.tface_vertices_offset[i + 1] } )
+                {
+                    builder->create_point( data.points[p] );
+                }
+                for( auto t : geode::Range{ data.tface_triangles_offset[i],
+                         data.tface_triangles_offset[i + 1] } )
+                {
+                    builder->create_triangle(
+                        { data.triangles[t][0] - data.tface_vertices_offset[i],
+                            data.triangles[t][1]
+                                - data.tface_vertices_offset[i],
+                            data.triangles[t][2]
+                                - data.tface_vertices_offset[i] } );
+                }
+
+                builder->compute_polygon_adjacencies();
+            }
+        }
+
         const geode::uuid& create_line( const LineData& line_data )
         {
             const auto& line_id = builder_.add_line();
@@ -409,7 +455,8 @@ namespace
         }
 
         LineData compute_line( const geode::Surface3D& surface,
-            const TopoInfo::LineStart& line_start )
+            const std::pair< geode::MeshComponentVertex,
+                geode::MeshComponentVertex >& line_start )
         {
             LineData result;
             result.surface = surface.id();
@@ -450,62 +497,12 @@ namespace
             return result;
         }
 
-        void check_keyword( std::string keyword )
-        {
-            std::string line;
-            std::getline( file_, line );
-            OPENGEODE_EXCEPTION( string_starts_with( line, keyword ),
-                "[MLInput] Line should starts with \"" + keyword + "\"" );
-        }
-
-        void read_header()
-        {
-            check_keyword( "HEADER" );
-            std::string line;
-            while( std::getline( file_, line ) )
-            {
-                if( string_starts_with( line, "}" ) )
-                {
-                    return;
-                }
-            }
-            throw geode::OpenGeodeException(
-                "[MLInput] Cannot find the end of \"HEADER\" section" );
-        }
-
-        void read_CRS()
-        {
-            check_keyword( "GOCAD_ORIGINAL_COORDINATE_SYSTEM" );
-            std::string line;
-            while( std::getline( file_, line ) )
-            {
-                if( string_starts_with(
-                        line, "END_ORIGINAL_COORDINATE_SYSTEM" ) )
-                {
-                    return;
-                }
-
-                std::istringstream iss{ line };
-                std::string keyword;
-                iss >> keyword;
-                if( keyword == "ZPOSITIVE" )
-                {
-                    std::string sign;
-                    iss >> sign;
-                    z_sign = sign == "Elevation" ? 1 : -1;
-                }
-            }
-            throw geode::OpenGeodeException{
-                "[MLInput] Cannot find the end of CRS section"
-            };
-        }
-
         void read_model_components()
         {
             std::string line;
             while( std::getline( file_, line ) )
             {
-                if( string_starts_with( line, "END" ) )
+                if( geode::string_starts_with( line, "END" ) )
                 {
                     create_tsurfs();
                     return;
@@ -608,21 +605,9 @@ namespace
 
         void process_TSURF_keyword( std::istringstream& iss )
         {
-            auto name = read_name( iss );
+            auto name = geode::read_name( iss );
             tsurf_names2index_.emplace( name, tsurfs_.size() );
             tsurfs_.emplace_back( std::move( name ) );
-        }
-
-        std::string read_name( std::istringstream& iss )
-        {
-            std::string name;
-            iss >> name;
-            std::string token;
-            while( iss >> token )
-            {
-                name += "_" + token;
-            }
-            return name;
         }
 
         void process_TFACE_keyword( std::istringstream& iss )
@@ -630,7 +615,7 @@ namespace
             geode::index_t id;
             std::string feature;
             iss >> id >> feature;
-            std::string name = read_name( iss );
+            std::string name = geode::read_name( iss );
             const auto& surface_id = builder_.add_surface(
                 geode::OpenGeodeTriangulatedSurface3D::type_name_static() );
             auto& tsurf = tsurfs_[tsurf_names2index_.at( name )];
@@ -643,7 +628,7 @@ namespace
         {
             geode::index_t id;
             iss >> id;
-            auto name = read_name( iss );
+            auto name = geode::read_name( iss );
             if( name == "Universe" )
             {
                 read_universe();
@@ -724,171 +709,17 @@ namespace
             }
         }
 
-        void read_tsurf( TSurfData& tsurf )
-        {
-            check_keyword( "GOCAD TSurf" );
-            read_header();
-            read_CRS();
-            read_surfaces( tsurf );
-            read_topological_information( tsurf );
-        }
-
-        void read_topological_information( TSurfData& tsurf )
-        {
-            std::string line;
-            while( std::getline( file_, line ) )
-            {
-                if( string_starts_with( line, "END" ) )
-                {
-                    return;
-                }
-
-                std::istringstream iss{ line };
-                std::string keyword;
-                iss >> keyword;
-                if( keyword == "BSTONE" )
-                {
-                    process_BSTONE_keyword( iss, tsurf );
-                }
-                else if( keyword == "BORDER" )
-                {
-                    process_BORDER_keyword( iss, tsurf );
-                }
-            }
-        }
-
-        void process_BSTONE_keyword( std::istringstream& iss, TSurfData& tsurf )
-        {
-            geode::index_t corner;
-            iss >> corner;
-            corner -= OFFSET_START;
-            auto tface_id = tsurf.tface_id( corner );
-            const auto& surface = model_.surface( tsurf.tfaces[tface_id] );
-            auto vertex_id = corner - tsurf.tface_vertices_offset[tface_id];
-            info_.corner_points.push_back( surface.mesh().point( vertex_id ) );
-            info_.corner_surface_index.emplace_back(
-                surface.component_id(), vertex_id );
-        }
-
-        void process_BORDER_keyword( std::istringstream& iss, TSurfData& tsurf )
-        {
-            geode::index_t id, corner, next;
-            iss >> id >> corner >> next;
-            corner -= OFFSET_START;
-            next -= OFFSET_START;
-            auto tface_id = tsurf.tface_id( corner );
-            const auto& surface = model_.surface( tsurf.tfaces[tface_id] );
-            auto corner_id = corner - tsurf.tface_vertices_offset[tface_id];
-            auto next_id = next - tsurf.tface_vertices_offset[tface_id];
-            info_.line_surface_index.emplace_back(
-                geode::MeshComponentVertex{ surface.component_id(), corner_id },
-                geode::MeshComponentVertex{ surface.component_id(), next_id } );
-        }
-
-        void read_surfaces( TSurfData& tsurf )
-        {
-            goto_keyword( "TFACE" );
-            for( const auto& uuid : tsurf.tfaces )
-            {
-                std::unique_ptr< geode::TriangulatedSurfaceBuilder3D >
-                    mesh_builder{
-                        dynamic_cast< geode::TriangulatedSurfaceBuilder3D* >(
-                            builder_.surface_mesh_builder( uuid ).release() )
-                    };
-                std::string line;
-                geode::index_t nb_vertices{ 0 };
-                auto vertex_offset = tsurf.tface_vertices_offset.back();
-                auto previous_file_position = file_.tellg();
-                while( std::getline( file_, line ) )
-                {
-                    std::istringstream iss{ line };
-                    std::string keyword;
-                    iss >> keyword;
-                    if( keyword == "VRTX" || keyword == "PVRTX" )
-                    {
-                        mesh_builder->create_point(
-                            process_VRTX_keyword( iss ) );
-                        nb_vertices++;
-                    }
-                    else if( keyword == "ATOM" || keyword == "PATOM" )
-                    {
-                        mesh_builder->create_point(
-                            process_ATOM_keyword( iss, tsurf ) );
-                        nb_vertices++;
-                    }
-                    else if( keyword == "TRGL" )
-                    {
-                        geode::index_t v0, v1, v2;
-                        iss >> v0 >> v1 >> v2;
-                        mesh_builder->create_triangle(
-                            { v0 - OFFSET_START - vertex_offset,
-                                v1 - OFFSET_START - vertex_offset,
-                                v2 - OFFSET_START - vertex_offset } );
-                    }
-                    else if( keyword == "TFACE" )
-                    {
-                        tsurf.tface_vertices_offset.push_back(
-                            vertex_offset + nb_vertices );
-                        break;
-                    }
-                    else
-                    {
-                        file_.seekg( previous_file_position );
-                        break;
-                    }
-                    previous_file_position = file_.tellg();
-                }
-                mesh_builder->compute_polygon_adjacencies();
-            }
-        }
-
-        geode::Point3D process_VRTX_keyword( std::istringstream& iss )
-        {
-            geode::index_t dummy;
-            double x, y, z;
-            iss >> dummy >> x >> y >> z;
-            return { { x, y, z_sign * z } };
-        }
-
-        const geode::Point3D& process_ATOM_keyword(
-            std::istringstream& iss, TSurfData& tsurf )
-        {
-            geode::index_t dummy, atom_id;
-            iss >> dummy >> atom_id;
-            atom_id -= OFFSET_START;
-            auto tface_id = tsurf.tface_id( atom_id );
-            const auto& surface = model_.surface( tsurf.tfaces[tface_id] );
-            auto vertex_id = atom_id - tsurf.tface_vertices_offset[tface_id];
-            return surface.mesh().point( vertex_id );
-        }
-
-        void goto_keyword( std::string word )
-        {
-            std::string line;
-            while( std::getline( file_, line ) )
-            {
-                if( string_starts_with( line, word ) )
-                {
-                    return;
-                }
-            }
-            throw geode::OpenGeodeException(
-                "Cannot find the requested word: ", word );
-        }
-
     private:
         std::ifstream file_;
         geode::StructuralModel& model_;
         geode::StructuralModelBuilder builder_;
         std::unordered_map< std::string, geode::index_t > tsurf_names2index_;
-        std::vector< TSurfData > tsurfs_;
-        TopoInfo info_;
+        std::vector< TSurfMLData > tsurfs_;
         std::unordered_map< std::pair< geode::uuid, geode::uuid >, geode::uuid >
             corners2line_;
         std::vector< geode::uuid > surfaces_;
         std::vector< geode::uuid > universe_;
         double epsilon_;
-        int z_sign{ 1 };
         std::unordered_map< std::string, geode::Fault3D::FAULT_TYPE >
             fault_map_ = { { "fault", geode::Fault3D::FAULT_TYPE::NO_TYPE },
                 { "reverse_fault", geode::Fault3D::FAULT_TYPE::REVERSE },
