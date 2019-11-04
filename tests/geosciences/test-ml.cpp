@@ -95,7 +95,7 @@ int main()
                     model.collections( surface.id() ) )
                 {
                     const auto& name =
-                        model.model_boundary( collection ).name();
+                        model.model_boundary( collection.id() ).name();
                     OPENGEODE_EXCEPTION( name == "voi_top_boundary"
                                              || name == "voi_bottom_boundary",
                         "[Test] ModelBoundary name is not correct" );

@@ -28,10 +28,10 @@
 #include <functional>
 #include <unordered_map>
 
-#include <geode/basic/bounding_box.h>
-#include <geode/basic/nn_search.h>
-#include <geode/basic/point.h>
-#include <geode/basic/vector.h>
+#include <geode/geometry/bounding_box.h>
+#include <geode/geometry/nn_search.h>
+#include <geode/geometry/point.h>
+#include <geode/geometry/vector.h>
 
 #include <geode/model/mixin/core/corner.h>
 #include <geode/model/mixin/core/line.h>
@@ -387,9 +387,9 @@ namespace
             const LineData& line_data, const geode::uuid& line_id )
         {
             const auto& line = model_.line( line_id );
-            builder_.add_corner_line_relationship(
+            builder_.add_corner_line_boundary_relationship(
                 model_.corner( line_data.corner0 ), line );
-            builder_.add_corner_line_relationship(
+            builder_.add_corner_line_boundary_relationship(
                 model_.corner( line_data.corner1 ), line );
 
             auto line_component_id = line.component_id();
@@ -427,7 +427,7 @@ namespace
         void register_line_data( const LineData& line_data )
         {
             const auto& surface = model_.surface( line_data.surface );
-            builder_.add_line_surface_relationship(
+            builder_.add_line_surface_boundary_relationship(
                 model_.line( line_data.line ), surface );
             register_line_surface_vertex_identifier(
                 line_data, surface.component_id() );
@@ -679,7 +679,7 @@ namespace
                         {
                             if( surfaces[s - 1] != surfaces[s] )
                             {
-                                builder_.add_surface_block_relationship(
+                                builder_.add_surface_block_boundary_relationship(
                                     model_.surface(
                                         surfaces_[surfaces[s - 1]] ),
                                     block );
@@ -697,7 +697,7 @@ namespace
                         auto size = surfaces.size() - 1;
                         if( surfaces[size - 1] != surfaces[size] )
                         {
-                            builder_.add_surface_block_relationship(
+                            builder_.add_surface_block_boundary_relationship(
                                 model_.surface( surfaces_[surfaces[size]] ),
                                 block );
                         }

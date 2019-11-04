@@ -27,7 +27,7 @@
 #include <deque>
 #include <string>
 
-#include <geode/basic/point.h>
+#include <geode/geometry/point.h>
 
 #include <geode/geosciences/detail/common.h>
 
