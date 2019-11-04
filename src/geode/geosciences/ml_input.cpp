@@ -679,10 +679,11 @@ namespace
                         {
                             if( surfaces[s - 1] != surfaces[s] )
                             {
-                                builder_.add_surface_block_boundary_relationship(
-                                    model_.surface(
-                                        surfaces_[surfaces[s - 1]] ),
-                                    block );
+                                builder_
+                                    .add_surface_block_boundary_relationship(
+                                        model_.surface(
+                                            surfaces_[surfaces[s - 1]] ),
+                                        block );
                             }
                             else
                             {
