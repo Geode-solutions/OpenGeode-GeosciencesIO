@@ -23,8 +23,9 @@
 
 #pragma once
 
-#include <geode/geosciences/detail/common.h>
 #include <geode/mesh/io/triangulated_surface_input.h>
+
+#include <geode/geosciences/detail/common.h>
 
 namespace geode
 {

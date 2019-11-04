@@ -26,13 +26,14 @@
 #include <geode/basic/assert.h>
 #include <geode/basic/logger.h>
 
-#include <geode/model/mixin/core/surface.h>
-
-#include <geode/geosciences/detail/ts_input.h>
 #include <geode/mesh/core/geode_triangulated_surface.h>
 #include <geode/mesh/core/triangulated_surface.h>
 #include <geode/mesh/io/triangulated_surface_input.h>
 #include <geode/mesh/io/triangulated_surface_output.h>
+
+#include <geode/model/mixin/core/surface.h>
+
+#include <geode/geosciences/detail/ts_input.h>
 
 void test_tsurf_3d()
 {
