@@ -31,9 +31,11 @@ set(public_headers
     "${lib_include_dir}/detail/ts_input.h"
 )
 target_link_libraries(${target_name}
-    PRIVATE
+    PUBLIC
         OpenGeode::basic
         OpenGeode::geometry
-        OpenGeode::model
+        OpenGeode::mesh
         OpenGeode_Geosciences::geosciences
+    PRIVATE
+        OpenGeode::model
 )
