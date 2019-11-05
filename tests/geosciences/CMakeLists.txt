@@ -19,14 +19,14 @@
 # SOFTWARE.
 
 add_geode_test(test-ml.cpp 
-    ${PROJECT_NAME}::geosciences
     OpenGeode::basic
     OpenGeode::model
     OpenGeode_Geosciences::geosciences
+    ${PROJECT_NAME}::geosciences
 )
 add_geode_test(test-ts.cpp 
-    ${PROJECT_NAME}::geosciences
     OpenGeode::basic
     OpenGeode::mesh
     OpenGeode_Geosciences::geosciences
+    ${PROJECT_NAME}::geosciences
 )
