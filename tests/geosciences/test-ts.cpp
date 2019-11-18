@@ -50,7 +50,8 @@ void test_tsurf_3d()
         "Number of polygons in the loaded TSurf 3D is not correct" );
 
     // Save triangulated tsurf
-    std::string output_file_native{ "surf3d." + surface->native_extension() };
+    const std::string output_file_native{ "surf3d."
+                                          + surface->native_extension() };
     save_triangulated_surface( *surface, output_file_native );
 
     // Reload

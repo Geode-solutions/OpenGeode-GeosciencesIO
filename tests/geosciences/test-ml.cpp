@@ -72,7 +72,7 @@ int main()
         index_t nb_block_internals{ 0 };
         for( const auto& block : model.blocks() )
         {
-            auto nb_internals = model.nb_internals( block.id() );
+            const auto nb_internals = model.nb_internals( block.id() );
             if( nb_internals )
             {
                 auto token = block.name().substr( block.name().size() - 3 );
@@ -88,7 +88,7 @@ int main()
         index_t nb_surface_internals{ 0 };
         for( const auto& surface : model.surfaces() )
         {
-            auto nb_internals = model.nb_internals( surface.id() );
+            const auto nb_internals = model.nb_internals( surface.id() );
             if( nb_internals )
             {
                 for( const auto& collection :
@@ -108,8 +108,7 @@ int main()
             "is not correct" );
 
         // Save structural model
-        std::string output_file_native{ "modelA4." + model.native_extension() };
-        save_structural_model( model, output_file_native );
+        save_structural_model( model, "modelA4." + model.native_extension() );
 
         Logger::info( "TEST SUCCESS" );
         return 0;
