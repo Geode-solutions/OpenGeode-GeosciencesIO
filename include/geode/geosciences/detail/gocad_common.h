@@ -71,9 +71,9 @@ namespace geode
 
     struct opengeode_geosciencesio_geosciences_api TSurfData
     {
-        geode::index_t tface_id( geode::index_t vertex_id ) const
+        index_t tface_id( index_t vertex_id ) const
         {
-            for( auto i : geode::Range{ 1, tface_vertices_offset.size() } )
+            for( const auto i : Range{ 1, tface_vertices_offset.size() } )
             {
                 if( vertex_id < tface_vertices_offset[i] )
                 {

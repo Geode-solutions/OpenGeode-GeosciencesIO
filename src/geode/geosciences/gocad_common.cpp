@@ -86,8 +86,9 @@ namespace
                 return;
             }
         }
-        throw geode::OpenGeodeException(
-            "Cannot find the end of TSurf section" );
+        throw geode::OpenGeodeException{
+            "Cannot find the end of TSurf section"
+        };
     }
 } // namespace
 
@@ -126,8 +127,9 @@ namespace geode
                 header.name = read_name( iss );
             }
         }
-        throw geode::OpenGeodeException(
-            "Cannot find the end of \"HEADER\" section" );
+        throw geode::OpenGeodeException{
+            "Cannot find the end of \"HEADER\" section"
+        };
     }
 
     CRSData read_CRS( std::ifstream& file )
@@ -164,8 +166,8 @@ namespace geode
                 return;
             }
         }
-        throw geode::OpenGeodeException(
-            "Cannot find the requested keyword: ", word );
+        throw geode::OpenGeodeException{ "Cannot find the requested keyword: ",
+            word };
     }
 
     std::string read_name( std::istringstream& iss )
