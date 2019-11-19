@@ -87,7 +87,7 @@ namespace
             }
         }
         throw geode::OpenGeodeException{
-            "Cannot find the end of TSurf section"
+            "[read_tfaces] Cannot find the end of TSurf section"
         };
     }
 } // namespace
@@ -128,7 +128,7 @@ namespace geode
             }
         }
         throw geode::OpenGeodeException{
-            "Cannot find the end of \"HEADER\" section"
+            "[read_header] Cannot find the end of \"HEADER\" section"
         };
     }
 
@@ -166,7 +166,7 @@ namespace geode
                 return;
             }
         }
-        throw geode::OpenGeodeException{ "Cannot find the requested keyword: ",
+        throw geode::OpenGeodeException{ "[goto_keyword] Cannot find the requested keyword: ",
             word };
     }
 
