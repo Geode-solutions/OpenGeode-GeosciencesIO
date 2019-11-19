@@ -166,8 +166,9 @@ namespace geode
                 return;
             }
         }
-        throw geode::OpenGeodeException{ "[goto_keyword] Cannot find the requested keyword: ",
-            word };
+        throw geode::OpenGeodeException{
+            "[goto_keyword] Cannot find the requested keyword: ", word
+        };
     }
 
     std::string read_name( std::istringstream& iss )
