@@ -10,3 +10,4 @@ Homogenize CMake project and macro names with repository name.
 
 - Replace `OpenGeode_GeosciencesIO` by `OpenGeode-GeosciencesIO`. For example:
 `OpenGeode_GeosciencesIO::geosciences` is replaced by `OpenGeode-GeosciencesIO::geosciences`.
+
