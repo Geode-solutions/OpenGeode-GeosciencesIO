@@ -35,7 +35,7 @@ target_link_libraries(${target_name}
         OpenGeode::basic
         OpenGeode::geometry
         OpenGeode::mesh
-        OpenGeode_Geosciences::geosciences
+        OpenGeode-Geosciences::geosciences
     PRIVATE
         OpenGeode::model
 )
