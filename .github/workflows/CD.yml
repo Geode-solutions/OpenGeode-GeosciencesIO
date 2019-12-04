@@ -36,7 +36,7 @@ jobs:
     - name: Upload
       uses: softprops/action-gh-release@v1
       with:
-        files: "build/OpenGeode_GeosciencesIO-${{ steps.package.outputs.version }}-Linux.tar.gz"
+        files: "build/OpenGeode-GeosciencesIO-${{ steps.package.outputs.version }}-Linux.tar.gz"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Doc
@@ -82,7 +82,7 @@ jobs:
     - name: Upload
       uses: softprops/action-gh-release@v1
       with:
-        files: "build/OpenGeode_GeosciencesIO-${{ steps.package.outputs.version }}-Darwin.tar.gz"
+        files: "build/OpenGeode-GeosciencesIO-${{ steps.package.outputs.version }}-Darwin.tar.gz"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Notify slack
@@ -125,7 +125,7 @@ jobs:
     - name: Upload
       uses: softprops/action-gh-release@v1
       with:
-        files: "build/OpenGeode_GeosciencesIO-${{ steps.package.outputs.version }}-win64.zip"
+        files: "build/OpenGeode-GeosciencesIO-${{ steps.package.outputs.version }}-win64.zip"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Notify slack

@@ -21,12 +21,12 @@
 add_geode_test(test-ml.cpp 
     OpenGeode::basic
     OpenGeode::model
-    OpenGeode_Geosciences::geosciences
+    OpenGeode-Geosciences::geosciences
     ${PROJECT_NAME}::geosciences
 )
 add_geode_test(test-ts.cpp 
     OpenGeode::basic
     OpenGeode::mesh
-    OpenGeode_Geosciences::geosciences
+    OpenGeode-Geosciences::geosciences
     ${PROJECT_NAME}::geosciences
 )
