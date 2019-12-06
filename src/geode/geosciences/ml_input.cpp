@@ -142,20 +142,12 @@ namespace
 
         void compute_epsilon()
         {
-            geode::BoundingBox3D box;
-            for( const auto& surface : model_.surfaces() )
-            {
-                const auto& mesh = surface.mesh();
-                for( const auto v : geode::Range{ mesh.nb_vertices() } )
-                {
-                    box.add_point( mesh.point( v ) );
-                }
-            }
+            const auto box = model_.bounding_box();
             const geode::Vector3D diagonal{ box.min(), box.max() };
             epsilon_ =
                 1e-7
                 * std::min( diagonal.value( 0 ),
-                    std::min( diagonal.value( 1 ), diagonal.value( 2 ) ) );
+                      std::min( diagonal.value( 1 ), diagonal.value( 2 ) ) );
         }
 
         void complete_vertex_identifier()
