@@ -31,7 +31,7 @@ OpenGeode-GeosciencesIO provides input and output formats for [OpenGeode-Geoscie
 
 ## Documentation
 
-To check out our live documentation, visit https://docs.geode-solutions.com/opengeode-geosciencesio.
+To check out our live documentation, visit [docs.geode-solutions.com](https://docs.geode-solutions.com).
 
 ## Questions
 For questions and support please use the official [slack](https://slackin-opengeode.herokuapp.com) and go to the channel #geosciences_io. The issue list of this repo is exclusively for bug reports and feature requests. 
