@@ -29,12 +29,9 @@ option(OPENGEODE_GEOSCIENCESIO_WITH_TESTS "Compile test projects" ON)
 find_package(OpenGeode REQUIRED)
 find_package(OpenGeode-Geosciences REQUIRED)
 
-copy_windows_binaries(OpenGeode::basic)
-copy_windows_binaries(OpenGeode-Geosciences::geosciences)
-
 #------------------------------------------------------------------------------------------------
 # Configure the OpenGeode-GeosciencesIO libraries
-add_geode_library(geode/geosciences)
+add_subdirectory(src/geode)
 
 #------------------------------------------------------------------------------------------------
 # Optional modules configuration

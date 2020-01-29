@@ -23,25 +23,30 @@
 
 #pragma once
 
+#include <geode/mesh/io/triangulated_surface_input.h>
+
 #include <geode/geosciences/detail/common.h>
-#include <geode/geosciences/representation/io/structural_model_input.h>
 
 namespace geode
 {
-    class opengeode_geosciencesio_geosciences_api MLInput final
-        : public StructuralModelInput
+    namespace detail
     {
-    public:
-        MLInput( StructuralModel& structural_model, std::string filename )
-            : StructuralModelInput( structural_model, std::move( filename ) )
+        class TSInput : public TriangulatedSurfaceInput< 3 >
         {
-        }
+        public:
+            TSInput(
+                TriangulatedSurface< 3 >& surface, absl::string_view filename )
+                : TriangulatedSurfaceInput< 3 >( surface, filename )
+            {
+            }
 
-        static std::string extension()
-        {
-            return "ml";
-        }
+            static absl::string_view extension()
+            {
+                static constexpr auto ext = "ts";
+                return ext;
+            }
 
-        void read() final;
-    };
+            void do_read();
+        };
+    } // namespace detail
 } // namespace geode

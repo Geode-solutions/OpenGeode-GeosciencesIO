@@ -18,24 +18,25 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-set(sources
-    "${lib_source_dir}/common.cpp"
-    "${lib_source_dir}/gocad_common.cpp"
-    "${lib_source_dir}/ml_input.cpp"
-    "${lib_source_dir}/ts_input.cpp"
-)
-set(public_headers
-    "${lib_include_dir}/detail/common.h"
-    "${lib_include_dir}/detail/gocad_common.h"
-    "${lib_include_dir}/detail/ml_input.h"
-    "${lib_include_dir}/detail/ts_input.h"
-)
-target_link_libraries(${target_name}
-    PUBLIC
+add_geode_library(
+    NAME geosciences
+    FOLDER "geode/geosciences"
+    SOURCES
+        "common.cpp"
+        "gocad_common.cpp"
+        "ml_input.cpp"
+        "ts_input.cpp"
+    ADVANCED_HEADERS
+        "detail/common.h"
+    PRIVATE_HEADERS
+        "private/gocad_common.h"
+        "private/ml_input.h"
+        "private/ts_input.h"
+    PUBLIC_DEPENDENCIES
         OpenGeode::basic
         OpenGeode::geometry
         OpenGeode::mesh
         OpenGeode-Geosciences::geosciences
-    PRIVATE
+    PRIVATE_DEPENDENCIES
         OpenGeode::model
 )

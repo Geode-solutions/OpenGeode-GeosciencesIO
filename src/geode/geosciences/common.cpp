@@ -25,22 +25,24 @@
 
 #include <geode/mesh/io/triangulated_surface_input.h>
 
-#include <geode/geosciences/detail/ml_input.h>
-#include <geode/geosciences/detail/ts_input.h>
+#include <geode/geosciences/private/ml_input.h>
+#include <geode/geosciences/private/ts_input.h>
 #include <geode/geosciences/representation/io/structural_model_input.h>
 
 namespace
 {
     void register_structural_model_input()
     {
-        geode::StructuralModelInputFactory::register_creator< geode::MLInput >(
-            geode::MLInput::extension() );
+        geode::StructuralModelInputFactory::register_creator<
+            geode::detail::MLInput >(
+            geode::detail::MLInput::extension().data() );
     }
 
     void register_triangulated_surface_input()
     {
         geode::TriangulatedSurfaceInputFactory3D::register_creator<
-            geode::TSInput >( geode::TSInput::extension() );
+            geode::detail::TSInput >(
+            geode::detail::TSInput::extension().data() );
     }
 
     OPENGEODE_LIBRARY_INITIALIZE( OpenGeode_GeosciencesIO_geosciences )
@@ -52,5 +54,8 @@ namespace
 
 namespace geode
 {
-    void initialize_geosciences_io() {}
+    namespace detail
+    {
+        void initialize_geosciences_io() {}
+    } // namespace detail
 } // namespace geode

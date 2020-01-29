@@ -21,15 +21,15 @@
  *
  */
 
-#include <geode/geosciences/detail/gocad_common.h>
+#include <geode/geosciences/private/gocad_common.h>
 
 #include <fstream>
 
 namespace
 {
-    void read_tfaces( std::ifstream& file, geode::TSurfData& tsurf )
+    void read_tfaces( std::ifstream& file, geode::detail::TSurfData& tsurf )
     {
-        geode::goto_keyword( file, "TFACE" );
+        geode::detail::goto_keyword( file, "TFACE" );
         std::string line;
         while( std::getline( file, line ) )
         {
@@ -94,102 +94,108 @@ namespace
 
 namespace geode
 {
-    bool string_starts_with(
-        const std::string& string, const std::string& check )
+    namespace detail
     {
-        return !string.compare( 0, check.length(), check );
-    }
-
-    void check_keyword( std::ifstream& file, const std::string& keyword )
-    {
-        std::string line;
-        std::getline( file, line );
-        OPENGEODE_EXCEPTION( string_starts_with( line, keyword ),
-            "Line should starts with \"" + keyword + "\"" );
-    }
-
-    HeaderData read_header( std::ifstream& file )
-    {
-        check_keyword( file, "HEADER" );
-        HeaderData header;
-        std::string line;
-        while( std::getline( file, line ) )
+        bool string_starts_with(
+            const std::string& string, const std::string& check )
         {
-            if( string_starts_with( line, "}" ) )
-            {
-                return header;
-            }
-            std::istringstream iss{ line };
-            std::string keyword;
-            iss >> keyword;
-            if( keyword == "name:" )
-            {
-                header.name = read_name( iss );
-            }
+            return !string.compare( 0, check.length(), check );
         }
-        throw geode::OpenGeodeException{
-            "[read_header] Cannot find the end of \"HEADER\" section"
-        };
-    }
 
-    CRSData read_CRS( std::ifstream& file )
-    {
-        check_keyword( file, "GOCAD_ORIGINAL_COORDINATE_SYSTEM" );
-        CRSData crs;
-        std::string line;
-        while( std::getline( file, line ) )
+        void check_keyword( std::ifstream& file, const std::string& keyword )
         {
-            if( string_starts_with( line, "END_ORIGINAL_COORDINATE_SYSTEM" ) )
-            {
-                return crs;
-            }
-            std::istringstream iss{ line };
-            std::string keyword;
-            iss >> keyword;
-            if( keyword == "ZPOSITIVE" )
-            {
-                std::string sign;
-                iss >> sign;
-                crs.z_sign = sign == "Elevation" ? 1 : -1;
-            }
+            std::string line;
+            std::getline( file, line );
+            OPENGEODE_EXCEPTION( string_starts_with( line, keyword ),
+                "Line should starts with \"" + keyword + "\"" );
         }
-        throw geode::OpenGeodeException{ "Cannot find the end of CRS section" };
-    }
 
-    void goto_keyword( std::ifstream& file, const std::string& word )
-    {
-        std::string line;
-        while( std::getline( file, line ) )
+        HeaderData read_header( std::ifstream& file )
         {
-            if( string_starts_with( line, word ) )
+            check_keyword( file, "HEADER" );
+            HeaderData header;
+            std::string line;
+            while( std::getline( file, line ) )
             {
-                return;
+                if( string_starts_with( line, "}" ) )
+                {
+                    return header;
+                }
+                std::istringstream iss{ line };
+                std::string keyword;
+                iss >> keyword;
+                if( keyword == "name:" )
+                {
+                    header.name = read_name( iss );
+                }
             }
+            throw geode::OpenGeodeException{
+                "[read_header] Cannot find the end of \"HEADER\" section"
+            };
         }
-        throw geode::OpenGeodeException{
-            "[goto_keyword] Cannot find the requested keyword: ", word
-        };
-    }
 
-    std::string read_name( std::istringstream& iss )
-    {
-        std::string name;
-        iss >> name;
-        std::string token;
-        while( iss >> token )
+        CRSData read_CRS( std::ifstream& file )
         {
-            name += "_" + token;
+            check_keyword( file, "GOCAD_ORIGINAL_COORDINATE_SYSTEM" );
+            CRSData crs;
+            std::string line;
+            while( std::getline( file, line ) )
+            {
+                if( string_starts_with(
+                        line, "END_ORIGINAL_COORDINATE_SYSTEM" ) )
+                {
+                    return crs;
+                }
+                std::istringstream iss{ line };
+                std::string keyword;
+                iss >> keyword;
+                if( keyword == "ZPOSITIVE" )
+                {
+                    std::string sign;
+                    iss >> sign;
+                    crs.z_sign = sign == "Elevation" ? 1 : -1;
+                }
+            }
+            throw geode::OpenGeodeException{
+                "Cannot find the end of CRS section"
+            };
         }
-        return name;
-    }
 
-    TSurfData read_tsurf( std::ifstream& file )
-    {
-        check_keyword( file, "GOCAD TSurf" );
-        TSurfData tsurf;
-        tsurf.header = read_header( file );
-        tsurf.crs = read_CRS( file );
-        read_tfaces( file, tsurf );
-        return tsurf;
-    }
+        void goto_keyword( std::ifstream& file, const std::string& word )
+        {
+            std::string line;
+            while( std::getline( file, line ) )
+            {
+                if( string_starts_with( line, word ) )
+                {
+                    return;
+                }
+            }
+            throw geode::OpenGeodeException{
+                "[goto_keyword] Cannot find the requested keyword: ", word
+            };
+        }
+
+        std::string read_name( std::istringstream& iss )
+        {
+            std::string name;
+            iss >> name;
+            std::string token;
+            while( iss >> token )
+            {
+                name += "_" + token;
+            }
+            return name;
+        }
+
+        TSurfData read_tsurf( std::ifstream& file )
+        {
+            check_keyword( file, "GOCAD TSurf" );
+            TSurfData tsurf;
+            tsurf.header = read_header( file );
+            tsurf.crs = read_CRS( file );
+            read_tfaces( file, tsurf );
+            return tsurf;
+        }
+    } // namespace detail
 } // namespace geode

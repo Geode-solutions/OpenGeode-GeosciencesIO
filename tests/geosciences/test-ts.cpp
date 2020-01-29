@@ -33,16 +33,16 @@
 
 #include <geode/model/mixin/core/surface.h>
 
-#include <geode/geosciences/detail/ts_input.h>
+#include <geode/geosciences/private/ts_input.h>
 
 void test_tsurf_3d()
 {
     auto surface = geode::TriangulatedSurface3D::create();
 
     // Load file
-    load_triangulated_surface( *surface, geode::test_path
-                                             + "geosciences/data/surf2d."
-                                             + geode::TSInput::extension() );
+    load_triangulated_surface(
+        *surface, absl::StrCat( geode::data_path, "/surf2d.",
+                      geode::detail::TSInput::extension() ) );
 
     OPENGEODE_EXCEPTION( surface->nb_vertices() == 46,
         "Number of vertices in the loaded TSurf 3D is not correct" );
@@ -50,8 +50,8 @@ void test_tsurf_3d()
         "Number of polygons in the loaded TSurf 3D is not correct" );
 
     // Save triangulated tsurf
-    const std::string output_file_native{ "surf3d."
-                                          + surface->native_extension() };
+    const auto output_file_native =
+        absl::StrCat( "surf3d.", surface->native_extension() );
     save_triangulated_surface( *surface, output_file_native );
 
     // Reload
@@ -71,7 +71,7 @@ int main()
 
     try
     {
-        initialize_geosciences_io();
+        detail::initialize_geosciences_io();
         test_tsurf_3d();
 
         Logger::info( "TEST SUCCESS" );

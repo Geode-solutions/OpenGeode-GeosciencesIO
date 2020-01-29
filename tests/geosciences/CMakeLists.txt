@@ -18,15 +18,19 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-add_geode_test(test-ml.cpp 
-    OpenGeode::basic
-    OpenGeode::model
-    OpenGeode-Geosciences::geosciences
-    ${PROJECT_NAME}::geosciences
+add_geode_test(
+    SOURCE "test-ml.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::model
+        OpenGeode-Geosciences::geosciences
+        ${PROJECT_NAME}::geosciences
 )
-add_geode_test(test-ts.cpp 
-    OpenGeode::basic
-    OpenGeode::mesh
-    OpenGeode-Geosciences::geosciences
-    ${PROJECT_NAME}::geosciences
+add_geode_test(
+    SOURCE "test-ts.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
+        OpenGeode-Geosciences::geosciences
+        ${PROJECT_NAME}::geosciences
 )
