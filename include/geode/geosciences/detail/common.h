@@ -29,5 +29,9 @@
 
 namespace geode
 {
-    void opengeode_geosciencesio_geosciences_api initialize_geosciences_io();
+    namespace detail
+    {
+        void opengeode_geosciencesio_geosciences_api
+            initialize_geosciences_io();
+    }
 } // namespace geode

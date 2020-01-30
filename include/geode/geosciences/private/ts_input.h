@@ -29,20 +29,24 @@
 
 namespace geode
 {
-    class opengeode_geosciencesio_geosciences_api TSInput
-        : public TriangulatedSurfaceInput< 3 >
+    namespace detail
     {
-    public:
-        TSInput( TriangulatedSurface< 3 >& surface, std::string filename )
-            : TriangulatedSurfaceInput< 3 >( surface, std::move( filename ) )
+        class TSInput : public TriangulatedSurfaceInput< 3 >
         {
-        }
+        public:
+            TSInput(
+                TriangulatedSurface< 3 >& surface, absl::string_view filename )
+                : TriangulatedSurfaceInput< 3 >( surface, filename )
+            {
+            }
 
-        static std::string extension()
-        {
-            return "ts";
-        }
+            static absl::string_view extension()
+            {
+                static constexpr auto ext = "ts";
+                return ext;
+            }
 
-        void do_read();
-    };
+            void do_read();
+        };
+    } // namespace detail
 } // namespace geode

@@ -30,7 +30,7 @@
 #include <geode/model/mixin/core/model_boundary.h>
 #include <geode/model/mixin/core/surface.h>
 
-#include <geode/geosciences/detail/ml_input.h>
+#include <geode/geosciences/private/ml_input.h>
 #include <geode/geosciences/representation/core/structural_model.h>
 #include <geode/geosciences/representation/io/structural_model_output.h>
 
@@ -40,12 +40,12 @@ int main()
 
     try
     {
-        initialize_geosciences_io();
+        detail::initialize_geosciences_io();
         StructuralModel model;
 
         // Load structural model
-        load_structural_model( model,
-            test_path + "geosciences/data/modelA4." + MLInput::extension() );
+        load_structural_model( model, absl::StrCat( data_path, "/modelA4.",
+                                          detail::MLInput::extension() ) );
 
         OPENGEODE_EXCEPTION( model.nb_corners() == 52,
             "[Test] Number of Corners in the loaded "
@@ -108,7 +108,8 @@ int main()
             "is not correct" );
 
         // Save structural model
-        save_structural_model( model, "modelA4." + model.native_extension() );
+        save_structural_model(
+            model, absl::StrCat( "modelA4.", model.native_extension() ) );
 
         Logger::info( "TEST SUCCESS" );
         return 0;

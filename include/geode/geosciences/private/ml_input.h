@@ -28,20 +28,24 @@
 
 namespace geode
 {
-    class opengeode_geosciencesio_geosciences_api MLInput final
-        : public StructuralModelInput
+    namespace detail
     {
-    public:
-        MLInput( StructuralModel& structural_model, std::string filename )
-            : StructuralModelInput( structural_model, std::move( filename ) )
+        class MLInput final : public StructuralModelInput
         {
-        }
+        public:
+            MLInput(
+                StructuralModel& structural_model, absl::string_view filename )
+                : StructuralModelInput( structural_model, filename )
+            {
+            }
 
-        static std::string extension()
-        {
-            return "ml";
-        }
+            static absl::string_view extension()
+            {
+                static constexpr auto ext = "ml";
+                return ext;
+            }
 
-        void read() final;
-    };
+            void read() final;
+        };
+    } // namespace detail
 } // namespace geode

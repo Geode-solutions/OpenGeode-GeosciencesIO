@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences/detail/ts_input.h>
+#include <geode/geosciences/private/ts_input.h>
 
 #include <fstream>
 
@@ -30,28 +30,28 @@
 #include <geode/mesh/builder/triangulated_surface_builder.h>
 #include <geode/mesh/core/triangulated_surface.h>
 
-#include <geode/geosciences/detail/gocad_common.h>
+#include <geode/geosciences/private/gocad_common.h>
 
 namespace
 {
     class TSInputImpl
     {
     public:
-        TSInputImpl( const std::string& filename,
+        TSInputImpl( absl::string_view filename,
             geode::TriangulatedSurfaceBuilder3D& builder )
-            : file_( filename ), builder_( builder )
+            : file_( filename.data() ), builder_( builder )
         {
             OPENGEODE_EXCEPTION(
-                file_.good(), "Error while opening file: " + filename );
+                file_.good(), "Error while opening file: ", filename );
         }
 
         void read_file()
         {
-            build_surface( geode::read_tsurf( file_ ) );
+            build_surface( geode::detail::read_tsurf( file_ ) );
         }
 
     private:
-        void build_surface( const geode::TSurfData& tsurf )
+        void build_surface( const geode::detail::TSurfData& tsurf )
         {
             for( const auto& point : tsurf.points )
             {
@@ -74,11 +74,14 @@ namespace
 
 namespace geode
 {
-    void TSInput::do_read()
+    namespace detail
     {
-        auto builder = TriangulatedSurfaceBuilder< 3 >::create(
-            this->triangulated_surface() );
-        TSInputImpl impl{ this->filename(), *builder };
-        impl.read_file();
-    }
+        void TSInput::do_read()
+        {
+            auto builder = TriangulatedSurfaceBuilder< 3 >::create(
+                this->triangulated_surface() );
+            TSInputImpl impl{ this->filename(), *builder };
+            impl.read_file();
+        }
+    } // namespace detail
 } // namespace geode

@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences/detail/ml_input.h>
+#include <geode/geosciences/private/ml_input.h>
 
 #include <algorithm>
 #include <fstream>
@@ -44,7 +44,7 @@
 #include <geode/model/mixin/core/surface.h>
 #include <geode/model/mixin/core/vertex_identifier.h>
 
-#include <geode/geosciences/detail/gocad_common.h>
+#include <geode/geosciences/private/gocad_common.h>
 #include <geode/geosciences/representation/builder/structural_model_builder.h>
 #include <geode/geosciences/representation/core/structural_model.h>
 
@@ -68,17 +68,16 @@ namespace
         geode::index_t v0,
         geode::index_t v1 )
     {
-        bool found;
-        geode::PolygonEdge edge;
-        std::tie( found, edge ) = mesh.polygon_edge_from_vertices( v0, v1 );
-        if( !found )
+        auto edge = mesh.polygon_edge_from_vertices( v0, v1 );
+        if( !edge )
         {
             throw geode::OpenGeodeException{
                 "[MLInput] Starting edge Line from Corner not found.",
-                "Looking for edge: ", mesh.point( v0 ), " - ", mesh.point( v1 )
+                "Looking for edge: ", mesh.point( v0 ).string(), " - ",
+                mesh.point( v1 ).string()
             };
         }
-        return edge;
+        return edge.value();
     }
 
     class MLInputImpl
@@ -86,23 +85,22 @@ namespace
     public:
         static constexpr geode::index_t OFFSET_START{ 1 };
 
-        MLInputImpl(
-            const std::string& filename, geode::StructuralModel& model )
-            : file_( filename ), model_( model ), builder_( model )
+        MLInputImpl( absl::string_view filename, geode::StructuralModel& model )
+            : file_( filename.data() ), model_( model ), builder_( model )
         {
             OPENGEODE_EXCEPTION( file_.good(),
-                "[MLInput] Error while opening file: " + filename );
+                "[MLInput] Error while opening file: ", filename );
         }
 
         void read_file()
         {
-            geode::check_keyword( file_, "GOCAD Model3d" );
-            geode::read_header( file_ );
-            geode::read_CRS( file_ );
+            geode::detail::check_keyword( file_, "GOCAD Model3d" );
+            geode::detail::read_header( file_ );
+            geode::detail::read_CRS( file_ );
             read_model_components();
             for( auto& tsurf : tsurfs_ )
             {
-                tsurf.data = geode::read_tsurf( file_ );
+                tsurf.data = geode::detail::read_tsurf( file_ );
                 build_surfaces( tsurf );
             }
             compute_epsilon();
@@ -119,7 +117,7 @@ namespace
             {
             }
 
-            geode::TSurfData data;
+            geode::detail::TSurfData data;
             std::vector< geode::uuid > tfaces;
             std::string feature;
             std::string name = std::string( "unknown" );
@@ -495,7 +493,7 @@ namespace
             std::string line;
             while( std::getline( file_, line ) )
             {
-                if( geode::string_starts_with( line, "END" ) )
+                if( geode::detail::string_starts_with( line, "END" ) )
                 {
                     create_tsurfs();
                     return;
@@ -598,7 +596,7 @@ namespace
 
         void process_TSURF_keyword( std::istringstream& iss )
         {
-            auto name = geode::read_name( iss );
+            auto name = geode::detail::read_name( iss );
             tsurf_names2index_.emplace( name, tsurfs_.size() );
             tsurfs_.emplace_back( std::move( name ) );
         }
@@ -608,7 +606,7 @@ namespace
             geode::index_t id;
             std::string feature;
             iss >> id >> feature;
-            std::string name = geode::read_name( iss );
+            std::string name = geode::detail::read_name( iss );
             const auto& surface_id = builder_.add_surface(
                 geode::OpenGeodeTriangulatedSurface3D::type_name_static() );
             auto& tsurf = tsurfs_[tsurf_names2index_.at( name )];
@@ -621,7 +619,7 @@ namespace
         {
             geode::index_t id;
             iss >> id;
-            auto name = geode::read_name( iss );
+            auto name = geode::detail::read_name( iss );
             if( name == "Universe" )
             {
                 read_universe();
@@ -729,9 +727,12 @@ namespace
 
 namespace geode
 {
-    void MLInput::read()
+    namespace detail
     {
-        MLInputImpl impl{ filename(), structural_model() };
-        impl.read_file();
-    }
+        void MLInput::read()
+        {
+            MLInputImpl impl{ filename(), structural_model() };
+            impl.read_file();
+        }
+    } // namespace detail
 } // namespace geode
