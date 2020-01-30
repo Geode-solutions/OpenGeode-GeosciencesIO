@@ -5,14 +5,14 @@ on:
     tags: 'v*'
 
 jobs:      
-  release-ubuntu:
+  release-linux:
     runs-on: ubuntu-18.04
     container: ${{ matrix.config.container }}
     strategy:
       matrix:
         config:
-        - {container: "geodesolutions/ubuntu", system: "ubuntu"}
-        - {container: "geodesolutions/centos", system: "RHEL"}
+        - {container: "geodesolutions/ubuntu", system: "ubuntu", doc: true}
+        - {container: "geodesolutions/centos", system: "rhel", doc: false}
 
 
     steps:
@@ -21,18 +21,17 @@ jobs:
       id: opengeode
       with:
         repository: OpenGeode
-        file: '-Linux.tar.gz'
+        file: '-${{ matrix.config.system }}.tar.gz'
         token: ${{ secrets.TOKEN }}
     - uses: Geode-solutions/actions/get-release@master
       id: opengeode-geosciences
       with:
         repository: OpenGeode-Geosciences
-        file: '-Linux.tar.gz'
+        file: '-${{ matrix.config.system }}.tar.gz'
         token: ${{ secrets.TOKEN }}
     - name: Generate package
       id: package
       run: |
-        sudo apt install doxygen
         mkdir -p build
         cd build
         version="${GITHUB_REF##*/*/}"
@@ -47,6 +46,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Doc
+      if: matrix.config.doc
       run: curl -s https://raw.githubusercontent.com/Geode-solutions/actions/master/doc/doc.sh | bash -s -- ${GITHUB_WORKSPACE}/build
       env:
         GITHUB_TOKEN: ${{ secrets.TOKEN }}
@@ -68,13 +68,13 @@ jobs:
       id: opengeode
       with:
         repository: OpenGeode
-        file: '-Darwin.tar.gz'
+        file: '-darwin.tar.gz'
         token: ${{ secrets.TOKEN }}
     - uses: Geode-solutions/actions/get-release@master
       id: opengeode-geosciences
       with:
         repository: OpenGeode-Geosciences
-        file: '-Darwin.tar.gz'
+        file: '-darwin.tar.gz'
         token: ${{ secrets.TOKEN }}
     - name: Generate package
       id: package
@@ -83,7 +83,7 @@ jobs:
         cd build
         version="${GITHUB_REF##*/*/}"
         echo ::set-output name=version::$version
-        cmake -G "Xcode" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH:PATH="${{ steps.opengeode.outputs.path }};${{ steps.opengeode-geosciences.outputs.path }}" -DOPENGEODE_GEOSCIENCESIO_WITH_TESTS:BOOL=OFF -DCPACK_PACKAGE_VERSION:STRING=$version ..
+        cmake -G "Xcode" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH:PATH="${{ steps.opengeode.outputs.path }};${{ steps.opengeode-geosciences.outputs.path }}" -DOPENGEODE_GEOSCIENCESIO_WITH_TESTS:BOOL=OFF -DCPACK_PACKAGE_VERSION:STRING=$version -DCPACK_SYSTEM_NAME:STRING=darwin ..
         cmake --build . --config Release
         cmake --build . --target package --config Release
     - name: Upload
@@ -125,7 +125,7 @@ jobs:
         cd build
         version="${GITHUB_REF##*/*/}"
         echo ::set-output name=version::$version
-        cmake -G "Visual Studio 15 2017 Win64" -DCMAKE_PREFIX_PATH:PATH="${{ steps.opengeode.outputs.path }};${{ steps.opengeode-geosciences.outputs.path }}" -DOPENGEODE_GEOSCIENCESIO_WITH_TESTS:BOOL=OFF -DCPACK_PACKAGE_VERSION:STRING=$version ..
+        cmake -G "Visual Studio 15 2017 Win64" -DCMAKE_PREFIX_PATH:PATH="${{ steps.opengeode.outputs.path }};${{ steps.opengeode-geosciences.outputs.path }}" -DOPENGEODE_GEOSCIENCESIO_WITH_TESTS:BOOL=OFF -DCPACK_PACKAGE_VERSION:STRING=$version -DCPACK_SYSTEM_NAME:STRING=win64 ..
         cmake --build . --config Release
         cmake --build . --target PACKAGE --config Release
       shell: bash
