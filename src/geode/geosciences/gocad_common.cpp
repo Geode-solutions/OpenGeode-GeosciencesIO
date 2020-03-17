@@ -102,11 +102,16 @@ namespace geode
             return !string.compare( 0, check.length(), check );
         }
 
-        void check_keyword( std::ifstream& file, const std::string& keyword )
+        bool line_starts_with( std::ifstream& file, const std::string& check )
         {
             std::string line;
             std::getline( file, line );
-            OPENGEODE_EXCEPTION( string_starts_with( line, keyword ),
+            return string_starts_with( line, check );
+        }
+
+        void check_keyword( std::ifstream& file, const std::string& keyword )
+        {
+            OPENGEODE_EXCEPTION( line_starts_with( file, keyword ),
                 "Line should starts with \"" + keyword + "\"" );
         }
 
@@ -136,8 +141,11 @@ namespace geode
 
         CRSData read_CRS( std::ifstream& file )
         {
-            check_keyword( file, "GOCAD_ORIGINAL_COORDINATE_SYSTEM" );
             CRSData crs;
+            if( !line_starts_with( file, "GOCAD_ORIGINAL_COORDINATE_SYSTEM" ) )
+            {
+                return crs;
+            }
             std::string line;
             while( std::getline( file, line ) )
             {
