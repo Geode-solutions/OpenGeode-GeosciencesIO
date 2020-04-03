@@ -31,6 +31,7 @@
 #include <geode/model/mixin/core/surface.h>
 
 #include <geode/geosciences/private/ml_input.h>
+#include <geode/geosciences/private/ml_output.h>
 #include <geode/geosciences/representation/core/structural_model.h>
 #include <geode/geosciences/representation/io/structural_model_output.h>
 
@@ -110,6 +111,15 @@ int main()
         // Save structural model
         save_structural_model(
             model, absl::StrCat( "modelA4.", model.native_extension() ) );
+
+        save_structural_model( model, "modelA4_saved.ml" );
+        DEBUG( "save done" );
+        StructuralModel reload;
+        load_structural_model( reload, "modelA4_saved.ml" );
+
+        StructuralModel model2;
+        load_brep( model2, "/home/anquez/Bureau/brep_mengsu.og_brep" );
+        save_structural_model( model2, "brep_mengsu.ml" );
 
         Logger::info( "TEST SUCCESS" );
         return 0;

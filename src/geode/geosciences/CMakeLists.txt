@@ -25,12 +25,14 @@ add_geode_library(
         "common.cpp"
         "gocad_common.cpp"
         "ml_input.cpp"
+        "ml_output.cpp"
         "ts_input.cpp"
     ADVANCED_HEADERS
         "detail/common.h"
     PRIVATE_HEADERS
         "private/gocad_common.h"
         "private/ml_input.h"
+        "private/ml_output.h"
         "private/ts_input.h"
     PUBLIC_DEPENDENCIES
         OpenGeode::basic

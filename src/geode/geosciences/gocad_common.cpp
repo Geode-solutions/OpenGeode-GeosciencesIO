@@ -27,6 +27,9 @@
 
 namespace
 {
+    static constexpr char EOL{ '\n' };
+    static constexpr char SPACE{ ' ' };
+
     void read_tfaces( std::ifstream& file, geode::detail::TSurfData& tsurf )
     {
         geode::detail::goto_keyword( file, "TFACE" );
@@ -139,6 +142,13 @@ namespace geode
             };
         }
 
+        void write_header( std::ofstream& file, const HeaderData& data )
+        {
+            file << "HEADER {" << EOL;
+            file << "name:" << data.name << EOL;
+            file << "}" << EOL;
+        }
+
         CRSData read_CRS( std::ifstream& file )
         {
             CRSData crs;
@@ -167,6 +177,19 @@ namespace geode
             throw geode::OpenGeodeException{
                 "Cannot find the end of CRS section"
             };
+        }
+
+        void write_CRS( std::ofstream& file, const CRSData& data )
+        {
+            file << "GOCAD_ORIGINAL_COORDINATE_SYSTEM" << EOL;
+            file << "NAME " << data.name << EOL;
+            file << "AXIS_NAME " << data.axis_names[0] << SPACE
+                 << data.axis_names[1] << SPACE << data.axis_names[2] << EOL;
+            file << "AXIS_UNIT " << data.axis_units[0] << SPACE
+                 << data.axis_units[1] << SPACE << data.axis_units[2] << EOL;
+            file << "ZPOSITIVE " << ( data.z_sign == 1 ? "Elevation" : "Depth" )
+                 << EOL;
+            file << "END_ORIGINAL_COORDINATE_SYSTEM" << EOL;
         }
 
         void goto_keyword( std::ifstream& file, const std::string& word )

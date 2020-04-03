@@ -84,6 +84,7 @@ namespace
     {
     public:
         static constexpr geode::index_t OFFSET_START{ 1 };
+        static constexpr char EOL{ 1 };
 
         MLInputImpl( absl::string_view filename, geode::StructuralModel& model )
             : file_( filename.data() ), model_( model ), builder_( model )
@@ -100,6 +101,7 @@ namespace
             read_model_components();
             for( auto& tsurf : tsurfs_ )
             {
+                DEBUG( "new tsurf" );
                 tsurf.data = geode::detail::read_tsurf( file_ );
                 build_surfaces( tsurf );
             }
