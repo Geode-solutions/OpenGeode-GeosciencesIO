@@ -26,7 +26,6 @@
 #include <algorithm>
 #include <fstream>
 #include <functional>
-#include <unordered_map>
 
 #include <geode/geometry/bounding_box.h>
 #include <geode/geometry/nn_search.h>
@@ -48,20 +47,6 @@
 #include <geode/geosciences/representation/builder/structural_model_builder.h>
 #include <geode/geosciences/representation/core/structural_model.h>
 
-namespace std
-{
-    template <>
-    struct hash< std::pair< geode::uuid, geode::uuid > >
-    {
-    public:
-        size_t operator()( const pair< geode::uuid, geode::uuid >& x ) const
-        {
-            return std::hash< geode::uuid >{}( x.first )
-                   ^ std::hash< geode::uuid >{}( x.second );
-        }
-    };
-} // namespace std
-
 namespace
 {
     geode::PolygonEdge find_edge( const geode::PolygonalSurface3D& mesh,
@@ -72,7 +57,7 @@ namespace
         if( !edge )
         {
             throw geode::OpenGeodeException{
-                "[MLInput] Starting edge Line from Corner not found.",
+                "[MLInput] Starting edge Line from Corner not found. ",
                 "Looking for edge: ", mesh.point( v0 ).string(), " - ",
                 mesh.point( v1 ).string()
             };
@@ -101,7 +86,6 @@ namespace
             read_model_components();
             for( auto& tsurf : tsurfs_ )
             {
-                DEBUG( "new tsurf" );
                 tsurf.data = geode::detail::read_tsurf( file_ );
                 build_surfaces( tsurf );
             }
@@ -234,7 +218,7 @@ namespace
                 }
             }
 
-            std::unordered_map< geode::uuid, std::vector< LineData > >
+            absl::flat_hash_map< geode::uuid, std::vector< LineData > >
                 surface2lines;
             for( const auto& line_start : line_surface_index )
             {
@@ -461,7 +445,6 @@ namespace
                         geode::Corner3D::component_type_static() )
                     .front()
                     .component_id.id();
-
             const auto& mesh = surface.mesh();
             result.indices.push_back( line_start.first.vertex );
             result.points.emplace_back( mesh.point( result.indices.back() ) );
@@ -515,6 +498,14 @@ namespace
                 else if( component_type == "REGION" )
                 {
                     process_REGION_keyword( iss );
+                }
+                else if( component_type == "LAYER" )
+                {
+                    process_LAYER_keyword( iss );
+                }
+                else if( component_type == "FAULT_BLOCK" )
+                {
+                    process_FAULT_BLOCK_keyword( iss );
                 }
             }
             throw geode::OpenGeodeException{
@@ -630,10 +621,30 @@ namespace
             const auto& block_id = builder_.add_block();
             builder_.set_block_name( block_id, std::move( name ) );
             create_block_topology( block_id );
+            blocks_.emplace_back( block_id );
+        }
+
+        void process_LAYER_keyword( std::istringstream& iss )
+        {
+            auto name = geode::detail::read_name( iss );
+            const auto& stratigraphic_unit_id =
+                builder_.add_stratigraphic_unit();
+            builder_.set_stratigraphic_unit_name(
+                stratigraphic_unit_id, std::move( name ) );
+            create_stratigraphic_unit_topology( stratigraphic_unit_id );
+        }
+
+        void process_FAULT_BLOCK_keyword( std::istringstream& iss )
+        {
+            auto name = geode::detail::read_name( iss );
+            const auto& fault_block_id = builder_.add_fault_block();
+            builder_.set_fault_block_name( fault_block_id, std::move( name ) );
+            create_fault_block_topology( fault_block_id );
         }
 
         void read_universe()
         {
+            blocks_.emplace_back( geode::uuid{} );
             while( true )
             {
                 std::string boundary_line;
@@ -703,22 +714,112 @@ namespace
             }
         }
 
+        void create_stratigraphic_unit_topology(
+            const geode::uuid& stratigraphic_unit_id )
+        {
+            const auto& stratigraphic_unit =
+                model_.stratigraphic_unit( stratigraphic_unit_id );
+            std::vector< geode::index_t > blocks;
+            const auto blocks_offset = OFFSET_START + surfaces_.size();
+            {
+                std::string boundary_line;
+                std::getline( file_, boundary_line );
+                std::istringstream boundary_iss{ boundary_line };
+                geode::index_t block_id;
+                while( boundary_iss >> block_id )
+                {
+                    if( block_id == 0 )
+                    {
+                        for( const auto b : blocks )
+                        {
+                            if( b == 0 )
+                            {
+                                continue; // Universe
+                            }
+                            if( b < blocks_.size() )
+                            {
+                                builder_.add_block_in_stratigraphic_unit(
+                                    model_.block( blocks_[b] ),
+                                    stratigraphic_unit );
+                            }
+                            else
+                            {
+                                geode::Logger::warn(
+                                    "[MLInput] Stated in LAYER ",
+                                    stratigraphic_unit.name(), ", Block id ",
+                                    b + blocks_offset,
+                                    " does not match an existing REGION" );
+                            }
+                        }
+                        return;
+                    }
+                    block_id = block_id - blocks_offset;
+                    blocks.push_back( block_id );
+                }
+            }
+        }
+
+        void create_fault_block_topology( const geode::uuid& fault_block_id )
+        {
+            const auto& fault_block = model_.fault_block( fault_block_id );
+            std::vector< geode::index_t > blocks;
+            const auto blocks_offset = OFFSET_START + surfaces_.size();
+            while( true )
+            {
+                std::string boundary_line;
+                std::getline( file_, boundary_line );
+                std::istringstream boundary_iss{ boundary_line };
+                geode::index_t block_id;
+                while( boundary_iss >> block_id )
+                {
+                    if( block_id == 0 )
+                    {
+                        for( const auto b : blocks )
+                        {
+                            if( b == 0 )
+                            {
+                                continue; // Universe
+                            }
+                            if( b < blocks_.size() )
+                            {
+                                builder_.add_block_in_fault_block(
+                                    model_.block( blocks_[b] ), fault_block );
+                            }
+                            else
+                            {
+                                geode::Logger::warn(
+                                    "[MLInput] Stated in FAULT_BLOCK ",
+                                    fault_block.name(), ", Block id ",
+                                    b + blocks_offset,
+                                    " does not match an existing REGION" );
+                            }
+                        }
+                        return;
+                    }
+                    block_id = block_id - blocks_offset;
+                    blocks.push_back( block_id );
+                }
+            }
+        }
+
     private:
         std::ifstream file_;
         geode::StructuralModel& model_;
         geode::StructuralModelBuilder builder_;
-        std::unordered_map< std::string, geode::index_t > tsurf_names2index_;
+        absl::flat_hash_map< std::string, geode::index_t > tsurf_names2index_;
         std::vector< TSurfMLData > tsurfs_;
-        std::unordered_map< std::pair< geode::uuid, geode::uuid >, geode::uuid >
+        absl::flat_hash_map< std::pair< geode::uuid, geode::uuid >,
+            geode::uuid >
             corners2line_;
         std::vector< geode::uuid > surfaces_;
+        std::vector< geode::uuid > blocks_;
         std::vector< geode::uuid > universe_;
         double epsilon_;
-        const std::unordered_map< std::string, geode::Fault3D::FAULT_TYPE >
+        const absl::flat_hash_map< std::string, geode::Fault3D::FAULT_TYPE >
             fault_map_ = { { "fault", geode::Fault3D::FAULT_TYPE::NO_TYPE },
                 { "reverse_fault", geode::Fault3D::FAULT_TYPE::REVERSE },
                 { "normal_fault", geode::Fault3D::FAULT_TYPE::NORMAL } };
-        const std::unordered_map< std::string, geode::Horizon3D::HORIZON_TYPE >
+        const absl::flat_hash_map< std::string, geode::Horizon3D::HORIZON_TYPE >
             horizon_map_ = { { "top", geode::Horizon3D::HORIZON_TYPE::NO_TYPE },
                 { "none", geode::Horizon3D::HORIZON_TYPE::NO_TYPE },
                 { "topographic", geode::Horizon3D::HORIZON_TYPE::NO_TYPE },
