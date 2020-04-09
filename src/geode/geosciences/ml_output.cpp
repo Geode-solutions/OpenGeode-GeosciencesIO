@@ -100,7 +100,7 @@ namespace
         }
 
         absl::flat_hash_map< std::pair< geode::uuid, geode::uuid >, bool >
-            determine_paired_signs()
+            determine_paired_signs() const
         {
             absl::flat_hash_map< std::pair< geode::uuid, geode::uuid >, bool >
                 paired_signs;
@@ -168,7 +168,7 @@ namespace
         absl::FixedArray< bool > determine_relative_signs(
             absl::Span< const geode::uuid > universe_boundaries,
             const absl::flat_hash_map< std::pair< geode::uuid, geode::uuid >,
-                bool >& paired_signs )
+                bool >& paired_signs ) const
         {
             const auto nb_surfaces = universe_boundaries.size();
             absl::FixedArray< bool > signs( nb_surfaces, true );
@@ -212,13 +212,13 @@ namespace
 
         bool are_correct_sides(
             absl::Span< const geode::uuid > universe_boundaries,
-            const absl::FixedArray< bool >& relative_signs )
+            const absl::FixedArray< bool >& relative_signs ) const
         {
             double signed_volume{ 0 };
             const auto& first_surface_mesh =
                 model_.surface( universe_boundaries[0] ).mesh();
             const auto& bbox = first_surface_mesh.bounding_box();
-            const auto center = bbox.min() * 0.5 + bbox.max() * 0.5;
+            const auto center = ( bbox.min() + bbox.max() ) * 0.5;
             for( const auto s : geode::Range{ universe_boundaries.size() } )
             {
                 const auto sign = relative_signs[s];
@@ -421,8 +421,6 @@ namespace
             {
                 return;
             }
-            DEBUG( components_.size() );
-            DEBUG( model_.nb_surfaces() );
             for( const auto& surface : model_.surfaces() )
             {
                 if( components_.find( surface.id() ) != components_.end() )
@@ -482,12 +480,7 @@ namespace
                 geode::index_t counter{ 0 };
                 for( const auto& surface : model_.boundaries( region ) )
                 {
-                    char sign{ '-' };
-                    if( regions_surface_sides_.at(
-                            { region.id(), surface.id() } ) )
-                    {
-                        sign = '+';
-                    }
+                    const auto sign = regions_surface_sides_.at({ region.id(), surface.id() }) ? '+' : '-';
                     file_ << sign << components_.at( surface.id() ) << SPACE
                           << SPACE;
                     counter++;
@@ -630,18 +623,17 @@ namespace
                 const auto corner_mcvs1 = model_.mesh_component_vertices(
                     uid1, geode::Corner3D::component_type_static() );
                 cur = mesh.previous_on_border( cur );
-                if( corner_mcvs1.empty() )
+                if( !corner_mcvs1.empty() )
                 {
-                    continue;
+                    line_starts.emplace_back( std::array< geode::index_t, 2 >{
+                        v1 + current_offset, v0 + current_offset } );
                 }
-                line_starts.emplace_back( std::array< geode::index_t, 2 >{
-                    v1 + current_offset, v0 + current_offset } );
             }
         }
 
         void find_boundary_corners_and_line_starts(
             const geode::ModelBoundary3D& surface_collection,
-            std::vector< std::array< geode::index_t, 2 > >& line_starts )
+            std::vector< std::array< geode::index_t, 2 > >& line_starts ) const
         {
             geode::index_t current_offset{ OFFSET_START };
             for( const auto& surface :
@@ -656,7 +648,7 @@ namespace
         template < typename CollectionType >
         void find_corners_and_line_starts(
             const CollectionType& surface_collection,
-            std::vector< std::array< geode::index_t, 2 > >& line_starts )
+            std::vector< std::array< geode::index_t, 2 > >& line_starts ) const
         {
             geode::index_t current_offset{ OFFSET_START };
             for( const auto& surface : model_.items( surface_collection ) )
@@ -668,7 +660,7 @@ namespace
         }
 
         void find_corners_and_line_starts_for_unclassified_surfaces(
-            std::vector< std::array< geode::index_t, 2 > >& line_starts )
+            std::vector< std::array< geode::index_t, 2 > >& line_starts ) const
         {
             geode::index_t current_offset{ OFFSET_START };
             for( const auto& surface_id : unclassified_surfaces_ )

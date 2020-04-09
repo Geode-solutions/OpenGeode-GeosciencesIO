@@ -69,7 +69,7 @@ namespace
     {
     public:
         static constexpr geode::index_t OFFSET_START{ 1 };
-        static constexpr char EOL{ 1 };
+        static constexpr char EOL{ '\n' };
 
         MLInputImpl( absl::string_view filename, geode::StructuralModel& model )
             : file_( filename.data() ), model_( model ), builder_( model )
