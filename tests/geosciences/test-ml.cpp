@@ -138,9 +138,12 @@ int main()
             "[Test] Number of ModelBoundary in the reloaded StructuralModel is "
             "not correct" );
 
-        // StructuralModel model2;
-        // load_brep( model2, "/home/anquez/Bureau/brep_mengsu.og_brep" );
-        // save_structural_model( model2, "brep_mengsu.ml" );
+        StructuralModel model2;
+        load_brep( model2, "/home/anquez/Bureau/brep_mengsu.og_brep" );
+        save_structural_model( model2, "brep_mengsu.ml" );
+        StructuralModel model3;
+        DEBUG( "=========== reload mangsu" );
+        load_structural_model( model3, "brep_mengsu.ml" );
 
         Logger::info( "TEST SUCCESS" );
         return 0;

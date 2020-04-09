@@ -480,7 +480,10 @@ namespace
                 geode::index_t counter{ 0 };
                 for( const auto& surface : model_.boundaries( region ) )
                 {
-                    const auto sign = regions_surface_sides_.at({ region.id(), surface.id() }) ? '+' : '-';
+                    const auto sign = regions_surface_sides_.at(
+                                          { region.id(), surface.id() } )
+                                          ? '+'
+                                          : '-';
                     file_ << sign << components_.at( surface.id() ) << SPACE
                           << SPACE;
                     counter++;
@@ -587,7 +590,7 @@ namespace
 
         void add_corners_and_line_starts( const geode::Surface3D& surface,
             const geode::index_t current_offset,
-            std::vector< std::array< geode::index_t, 2 > >& line_starts )
+            std::vector< std::array< geode::index_t, 2 > >& line_starts ) const
         {
             // todo several times to process all border edges
             const auto& mesh = surface.mesh();
