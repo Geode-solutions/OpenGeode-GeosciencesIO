@@ -66,7 +66,7 @@ namespace
         return true;
     }
 
-    geode::PolygonEdge get_one_border_edge(
+    absl::optional< geode::PolygonEdge > get_one_border_edge(
         const geode::PolygonalSurface3D& mesh )
     {
         for( const auto p : geode::Range{ mesh.nb_polygons() } )
@@ -75,11 +75,11 @@ namespace
             {
                 if( mesh.is_edge_on_border( { p, e } ) )
                 {
-                    return { p, e };
+                    return geode::PolygonEdge{ p, e };
                 }
             }
         }
-        return geode::PolygonEdge{};
+        return absl::nullopt;
     }
 
     class MLOutputImpl
@@ -96,7 +96,7 @@ namespace
             file_.precision( 12 );
             OPENGEODE_EXCEPTION( file_.good(),
                 "[MLOutput] Error while opening file: ", filename );
-            model_name_ = geode::filename_from_path( filename, false );
+            model_name_ = geode::filename_without_extension( filename );
         }
 
         absl::flat_hash_map< std::pair< geode::uuid, geode::uuid >, bool >
@@ -588,6 +588,26 @@ namespace
             return current_offset + mesh.nb_vertices();
         }
 
+        void process_surface_edge( const geode::Surface3D& surface,
+            const geode::PolygonEdge& edge,
+            const geode::index_t current_offset,
+            std::vector< std::array< geode::index_t, 2 > >& line_starts ) const
+        {
+            const auto& mesh = surface.mesh();
+            const auto v0 = mesh.polygon_vertex( edge );
+            const auto v1 = mesh.polygon_vertex(
+                { edge.polygon_id, ( edge.edge_id + 1 ) % 3 } );
+            const auto uid1 =
+                model_.unique_vertex( { surface.component_id(), v1 } );
+            const auto corner_mcvs1 = model_.mesh_component_vertices(
+                uid1, geode::Corner3D::component_type_static() );
+            if( !corner_mcvs1.empty() )
+            {
+                line_starts.emplace_back( std::array< geode::index_t, 2 >{
+                    v1 + current_offset, v0 + current_offset } );
+            }
+        }
+
         void add_corners_and_line_starts( const geode::Surface3D& surface,
             const geode::index_t current_offset,
             std::vector< std::array< geode::index_t, 2 > >& line_starts ) const
@@ -595,42 +615,19 @@ namespace
             // todo several times to process all border edges
             const auto& mesh = surface.mesh();
             const auto first_on_border = get_one_border_edge( mesh );
-            if( first_on_border.polygon_id == geode::NO_ID )
+            if( !first_on_border )
             {
                 return;
             }
-            {
-                const auto v0 = mesh.polygon_vertex( first_on_border );
-                const auto v1 =
-                    mesh.polygon_vertex( { first_on_border.polygon_id,
-                        ( first_on_border.edge_id + 1 ) % 3 } );
-                const auto uid1 =
-                    model_.unique_vertex( { surface.component_id(), v1 } );
-                const auto corner_mcvs1 = model_.mesh_component_vertices(
-                    uid1, geode::Corner3D::component_type_static() );
-                if( !corner_mcvs1.empty() )
-                {
-                    line_starts.emplace_back( std::array< geode::index_t, 2 >{
-                        v1 + current_offset, v0 + current_offset } );
-                }
-            }
+            process_surface_edge(
+                surface, first_on_border.value(), current_offset, line_starts );
 
-            auto cur = mesh.previous_on_border( first_on_border );
+            auto cur = mesh.previous_on_border( first_on_border.value() );
             while( cur != first_on_border )
             {
-                const auto v0 = mesh.polygon_vertex( cur );
-                const auto v1 = mesh.polygon_vertex(
-                    { cur.polygon_id, ( cur.edge_id + 1 ) % 3 } );
-                const auto uid1 =
-                    model_.unique_vertex( { surface.component_id(), v1 } );
-                const auto corner_mcvs1 = model_.mesh_component_vertices(
-                    uid1, geode::Corner3D::component_type_static() );
+                process_surface_edge(
+                    surface, cur, current_offset, line_starts );
                 cur = mesh.previous_on_border( cur );
-                if( !corner_mcvs1.empty() )
-                {
-                    line_starts.emplace_back( std::array< geode::index_t, 2 >{
-                        v1 + current_offset, v0 + current_offset } );
-                }
             }
         }
 
