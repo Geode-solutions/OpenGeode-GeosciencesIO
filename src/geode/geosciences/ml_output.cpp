@@ -480,7 +480,10 @@ namespace
                 geode::index_t counter{ 0 };
                 for( const auto& surface : model_.boundaries( region ) )
                 {
-                    const auto sign = regions_surface_sides_.at({ region.id(), surface.id() }) ? '+' : '-';
+                    const auto sign = regions_surface_sides_.at(
+                                          { region.id(), surface.id() } )
+                                          ? '+'
+                                          : '-';
                     file_ << sign << components_.at( surface.id() ) << SPACE
                           << SPACE;
                     counter++;
