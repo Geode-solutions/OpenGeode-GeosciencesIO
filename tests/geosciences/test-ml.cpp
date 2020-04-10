@@ -31,6 +31,7 @@
 #include <geode/model/mixin/core/surface.h>
 
 #include <geode/geosciences/private/ml_input.h>
+#include <geode/geosciences/private/ml_output.h>
 #include <geode/geosciences/representation/core/structural_model.h>
 #include <geode/geosciences/representation/io/structural_model_output.h>
 
@@ -110,6 +111,32 @@ int main()
         // Save structural model
         save_structural_model(
             model, absl::StrCat( "modelA4.", model.native_extension() ) );
+
+        save_structural_model( model, "modelA4_saved.ml" );
+        StructuralModel reload;
+        load_structural_model( reload, "modelA4_saved.ml" );
+
+        OPENGEODE_EXCEPTION( reload.nb_corners() == 52,
+            "[Test] Number of Corners in the reloaded "
+            "StructuralModel is not correct" );
+        OPENGEODE_EXCEPTION( reload.nb_lines() == 98,
+            "[Test] Number of Lines in the reloaded "
+            "StructuralModel is not correct" );
+        OPENGEODE_EXCEPTION( reload.nb_surfaces() == 55,
+            "[Test] Number of Surfaces in the reloaded StructuralModel is not "
+            "correct" );
+        OPENGEODE_EXCEPTION( reload.nb_blocks() == 8,
+            "[Test] Number of Blocks in the reloaded "
+            "StructuralModel is not correct" );
+        OPENGEODE_EXCEPTION( reload.nb_faults() == 2,
+            "[Test] Number of Faults in the reloaded "
+            "StructuralModel is not correct" );
+        OPENGEODE_EXCEPTION( reload.nb_horizons() == 3,
+            "[Test] Number of Horizons in the reloaded "
+            "StructuralModel is not correct" );
+        OPENGEODE_EXCEPTION( reload.nb_model_boundaries() == 6,
+            "[Test] Number of ModelBoundary in the reloaded StructuralModel is "
+            "not correct" );
 
         Logger::info( "TEST SUCCESS" );
         return 0;

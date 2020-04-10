@@ -48,11 +48,18 @@ namespace geode
         };
         HeaderData read_header( std::ifstream& file );
 
+        void write_header( std::ofstream& file, const HeaderData& data );
+
         struct CRSData
         {
+            std::string name{ "Default" };
+            std::array< std::string, 3 > axis_names{ { "X", "Y", "Z" } };
+            std::array< std::string, 3 > axis_units{ { "m", "m", "m" } };
             int z_sign{ 1 };
         };
         CRSData read_CRS( std::ifstream& file );
+
+        void write_CRS( std::ofstream& file, const CRSData& data );
 
         void goto_keyword( std::ifstream& file, const std::string& word );
 
