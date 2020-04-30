@@ -721,38 +721,42 @@ namespace
                 model_.stratigraphic_unit( stratigraphic_unit_id );
             std::vector< geode::index_t > blocks;
             const auto blocks_offset = OFFSET_START + surfaces_.size();
-            std::string boundary_line;
-            std::getline( file_, boundary_line );
-            std::istringstream boundary_iss{ boundary_line };
-            geode::index_t block_id;
-            while( boundary_iss >> block_id )
+            while( true )
             {
-                if( block_id == 0 )
+                std::string boundary_line;
+                std::getline( file_, boundary_line );
+                std::istringstream boundary_iss{ boundary_line };
+                geode::index_t block_id;
+                while( boundary_iss >> block_id )
                 {
-                    for( const auto b : blocks )
+                    if( block_id == 0 )
                     {
-                        if( b == 0 )
+                        for( const auto b : blocks )
                         {
-                            continue; // Universe
+                            if( b == 0 )
+                            {
+                                continue; // Universe
+                            }
+                            if( b < blocks_.size() )
+                            {
+                                builder_.add_block_in_stratigraphic_unit(
+                                    model_.block( blocks_[b] ),
+                                    stratigraphic_unit );
+                            }
+                            else
+                            {
+                                geode::Logger::warn(
+                                    "[MLInput] Stated in LAYER ",
+                                    stratigraphic_unit.name(), ", Block id ",
+                                    b + blocks_offset,
+                                    " does not match an existing REGION" );
+                            }
                         }
-                        if( b < blocks_.size() )
-                        {
-                            builder_.add_block_in_stratigraphic_unit(
-                                model_.block( blocks_[b] ),
-                                stratigraphic_unit );
-                        }
-                        else
-                        {
-                            geode::Logger::warn( "[MLInput] Stated in LAYER ",
-                                stratigraphic_unit.name(), ", Block id ",
-                                b + blocks_offset,
-                                " does not match an existing REGION" );
-                        }
+                        return;
                     }
-                    return;
+                    block_id = block_id - blocks_offset;
+                    blocks.push_back( block_id );
                 }
-                block_id = block_id - blocks_offset;
-                blocks.push_back( block_id );
             }
         }
 
