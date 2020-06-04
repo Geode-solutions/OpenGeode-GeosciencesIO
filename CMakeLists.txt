@@ -18,12 +18,13 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-cmake_minimum_required(VERSION 3.7.2)
+cmake_minimum_required(VERSION 3.13)
 
 # Define the project
 project(OpenGeode-GeosciencesIO CXX)
 
 option(OPENGEODE_GEOSCIENCESIO_WITH_TESTS "Compile test projects" ON)
+option(OPENGEODE_GEOSCIENCESIO_WITH_PYTHON "Compile Python bindings" OFF)
 
 # Get OpenGeode-GeosciencesIO dependencies
 find_package(OpenGeode REQUIRED)
@@ -40,6 +41,11 @@ if(OPENGEODE_GEOSCIENCESIO_WITH_TESTS)
     enable_testing()
     message(STATUS "Configuring OpenGeode-GeosciencesIO with tests")
     add_subdirectory(tests)
+endif()
+
+if(OPENGEODE_GEOSCIENCESIO_WITH_PYTHON)
+    message(STATUS "Configuring OpenGeode-GeosciencesIO with Python bindings")
+    add_subdirectory(bindings/python)
 endif()
 
 #------------------------------------------------------------------------------------------------
