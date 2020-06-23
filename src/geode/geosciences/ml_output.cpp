@@ -67,7 +67,7 @@ namespace
     }
 
     absl::optional< geode::PolygonEdge > get_one_border_edge(
-        const geode::PolygonalSurface3D& mesh )
+        const geode::SurfaceMesh3D& mesh )
     {
         for( const auto p : geode::Range{ mesh.nb_polygons() } )
         {
@@ -255,7 +255,8 @@ namespace
                 std::vector< geode::uuid > universe_boundaries;
                 for( const auto& boundary : model_.model_boundaries() )
                 {
-                    for( const auto& item : model_.BRep::items( boundary ) )
+                    for( const auto& item :
+                        model_.model_boundary_items( boundary ) )
                     {
                         universe_boundaries.push_back( item.id() );
                     }
@@ -339,7 +340,8 @@ namespace
         {
             for( const auto& boundary : model_.model_boundaries() )
             {
-                for( const auto& item : model_.BRep::items( boundary ) )
+                for( const auto& item :
+                    model_.model_boundary_items( boundary ) )
                 {
                     if( components_.find( item.id() ) != components_.end() )
                     {
@@ -365,7 +367,7 @@ namespace
             }
             for( const auto& fault : model_.faults() )
             {
-                for( const auto& item : model_.items( fault ) )
+                for( const auto& item : model_.fault_items( fault ) )
                 {
                     if( components_.find( item.id() ) != components_.end() )
                     {
@@ -392,7 +394,7 @@ namespace
             }
             for( const auto& horizon : model_.horizons() )
             {
-                for( const auto& item : model_.items( horizon ) )
+                for( const auto& item : model_.horizon_items( horizon ) )
                 {
                     if( components_.find( item.id() ) != components_.end() )
                     {
@@ -450,7 +452,8 @@ namespace
             geode::index_t counter{ 0 };
             for( const auto& boundary : model_.model_boundaries() )
             {
-                for( const auto& item : model_.BRep::items( boundary ) )
+                for( const auto& item :
+                    model_.model_boundary_items( boundary ) )
                 {
                     char sign{ '-' };
                     if( universe_surface_sides_.at( item.id() ) )
@@ -521,7 +524,8 @@ namespace
                 file_ << "LAYER " << stratigraphic_unit.name() << EOL << SPACE
                       << SPACE;
                 geode::index_t counter{ 0 };
-                for( const auto& item : model_.items( stratigraphic_unit ) )
+                for( const auto& item :
+                    model_.stratigraphic_unit_items( stratigraphic_unit ) )
                 {
                     file_ << components_.at( item.id() ) << SPACE << SPACE;
                     counter++;
@@ -541,7 +545,8 @@ namespace
                 file_ << "FAULT_BLOCK " << fault_block.name() << EOL << SPACE
                       << SPACE;
                 geode::index_t counter{ 0 };
-                for( const auto& item : model_.items( fault_block ) )
+                for( const auto& item :
+                    model_.fault_block_items( fault_block ) )
                 {
                     file_ << components_.at( item.id() ) << SPACE << SPACE;
                     counter++;
@@ -637,7 +642,7 @@ namespace
         {
             geode::index_t current_offset{ OFFSET_START };
             for( const auto& surface :
-                model_.BRep::items( surface_collection ) )
+                model_.model_boundary_items( surface_collection ) )
             {
                 add_corners_and_line_starts(
                     surface, current_offset, line_starts );
@@ -645,13 +650,12 @@ namespace
             }
         }
 
-        template < typename CollectionType >
-        void find_corners_and_line_starts(
-            const CollectionType& surface_collection,
+        template < typename ItemRange >
+        void find_corners_and_line_starts( const ItemRange& item_range,
             std::vector< std::array< geode::index_t, 2 > >& line_starts ) const
         {
             geode::index_t current_offset{ OFFSET_START };
-            for( const auto& surface : model_.items( surface_collection ) )
+            for( const auto& surface : item_range )
             {
                 add_corners_and_line_starts(
                     surface, current_offset, line_starts );
@@ -703,7 +707,8 @@ namespace
                 file_ << "GEOLOGICAL_FEATURE " << boundary.name() << EOL;
                 file_ << "GEOLOGICAL_TYPE boundary" << EOL;
                 geode::index_t current_offset{ OFFSET_START };
-                for( const auto& item : model_.BRep::items( boundary ) )
+                for( const auto& item :
+                    model_.model_boundary_items( boundary ) )
                 {
                     file_ << "TFACE" << EOL;
                     current_offset = write_surface( item, current_offset );
@@ -725,14 +730,15 @@ namespace
                 file_ << "GEOLOGICAL_TYPE " << fault_map_.at( fault.type() )
                       << EOL;
                 geode::index_t current_offset{ OFFSET_START };
-                for( const auto& item : model_.items( fault ) )
+                for( const auto& item : model_.fault_items( fault ) )
                 {
                     file_ << "TFACE" << EOL;
                     current_offset = write_surface( item, current_offset );
                 }
                 std::vector< std::array< geode::index_t, 2 > > line_starts;
 
-                find_corners_and_line_starts( fault, line_starts );
+                find_corners_and_line_starts(
+                    model_.fault_items( fault ), line_starts );
                 write_corners( line_starts );
                 write_line_starts( current_offset, line_starts );
                 file_ << "END" << EOL;
@@ -748,14 +754,15 @@ namespace
                 file_ << "GEOLOGICAL_TYPE " << horizon_map_.at( horizon.type() )
                       << EOL;
                 geode::index_t current_offset{ OFFSET_START };
-                for( const auto& item : model_.items( horizon ) )
+                for( const auto& item : model_.horizon_items( horizon ) )
                 {
                     file_ << "TFACE" << EOL;
                     current_offset = write_surface( item, current_offset );
                 }
                 std::vector< std::array< geode::index_t, 2 > > line_starts;
 
-                find_corners_and_line_starts( horizon, line_starts );
+                find_corners_and_line_starts(
+                    model_.horizon_items( horizon ), line_starts );
                 write_corners( line_starts );
                 write_line_starts( current_offset, line_starts );
                 file_ << "END" << EOL;

@@ -49,9 +49,8 @@
 
 namespace
 {
-    geode::PolygonEdge find_edge( const geode::PolygonalSurface3D& mesh,
-        geode::index_t v0,
-        geode::index_t v1 )
+    geode::PolygonEdge find_edge(
+        const geode::SurfaceMesh3D& mesh, geode::index_t v0, geode::index_t v1 )
     {
         auto edge = mesh.polygon_edge_from_vertices( v0, v1 );
         if( !edge )
@@ -131,7 +130,7 @@ namespace
             epsilon_ =
                 1e-7
                 * std::min( diagonal.value( 0 ),
-                    std::min( diagonal.value( 1 ), diagonal.value( 2 ) ) );
+                      std::min( diagonal.value( 1 ), diagonal.value( 2 ) ) );
         }
 
         void complete_vertex_identifier()
@@ -323,10 +322,7 @@ namespace
             for( const auto i : geode::Range{ tsurf.tfaces.size() } )
             {
                 const auto& uuid = tsurf.tfaces[i];
-                std::unique_ptr< geode::TriangulatedSurfaceBuilder3D > builder{
-                    dynamic_cast< geode::TriangulatedSurfaceBuilder3D* >(
-                        builder_.surface_mesh_builder( uuid ).release() )
-                };
+                auto builder = builder_.surface_mesh_builder( uuid );
                 const auto& data = tsurf.data;
                 for( const auto p : geode::Range{ data.tface_vertices_offset[i],
                          data.tface_vertices_offset[i + 1] } )
@@ -337,7 +333,7 @@ namespace
                     geode::Range{ data.tface_triangles_offset[i],
                         data.tface_triangles_offset[i + 1] } )
                 {
-                    builder->create_triangle(
+                    builder->create_polygon(
                         { data.triangles[t][0] - data.tface_vertices_offset[i],
                             data.triangles[t][1]
                                 - data.tface_vertices_offset[i],
@@ -601,7 +597,7 @@ namespace
             iss >> id >> feature;
             std::string name = geode::detail::read_name( iss );
             const auto& surface_id = builder_.add_surface(
-                geode::OpenGeodeTriangulatedSurface3D::type_name_static() );
+                geode::OpenGeodeTriangulatedSurface3D::impl_name_static() );
             auto& tsurf = tsurfs_[tsurf_names2index_.at( name )];
             tsurf.feature = feature;
             tsurf.tfaces.emplace_back( surface_id );

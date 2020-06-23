@@ -37,12 +37,9 @@
 
 void test_tsurf_3d()
 {
-    auto surface = geode::TriangulatedSurface3D::create();
-
     // Load file
-    load_triangulated_surface(
-        *surface, absl::StrCat( geode::data_path, "/surf2d.",
-                      geode::detail::TSInput::extension() ) );
+    auto surface = geode::load_triangulated_surface< 3 >( absl::StrCat(
+        geode::data_path, "/surf2d.", geode::detail::TSInput::extension() ) );
 
     OPENGEODE_EXCEPTION( surface->nb_vertices() == 46,
         "Number of vertices in the loaded TSurf 3D is not correct" );
@@ -52,13 +49,11 @@ void test_tsurf_3d()
     // Save triangulated tsurf
     const auto output_file_native =
         absl::StrCat( "surf3d.", surface->native_extension() );
-    save_triangulated_surface( *surface, output_file_native );
-
-    // Reload
-    auto reloaded_surface = geode::TriangulatedSurface3D::create();
+    geode::save_triangulated_surface( *surface, output_file_native );
 
     // Load file
-    load_triangulated_surface( *reloaded_surface, output_file_native );
+    auto reloaded_surface =
+        geode::load_triangulated_surface< 3 >( output_file_native );
     OPENGEODE_EXCEPTION( reloaded_surface->nb_vertices() == 46,
         "Number of vertices in the reloaded TSurf 3D is not correct" );
     OPENGEODE_EXCEPTION( reloaded_surface->nb_polygons() == 46,
