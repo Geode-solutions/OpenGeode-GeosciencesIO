@@ -42,11 +42,10 @@ int main()
     try
     {
         detail::initialize_geosciences_io();
-        StructuralModel model;
 
         // Load structural model
-        load_structural_model( model, absl::StrCat( data_path, "/modelA4.",
-                                          detail::MLInput::extension() ) );
+        auto model = load_structural_model( absl::StrCat(
+            data_path, "/modelA4.", detail::MLInput::extension() ) );
 
         OPENGEODE_EXCEPTION( model.nb_corners() == 52,
             "[Test] Number of Corners in the loaded "
@@ -113,8 +112,7 @@ int main()
             model, absl::StrCat( "modelA4.", model.native_extension() ) );
 
         save_structural_model( model, "modelA4_saved.ml" );
-        StructuralModel reload;
-        load_structural_model( reload, "modelA4_saved.ml" );
+        auto reload = load_structural_model( "modelA4_saved.ml" );
 
         OPENGEODE_EXCEPTION( reload.nb_corners() == 52,
             "[Test] Number of Corners in the reloaded "
