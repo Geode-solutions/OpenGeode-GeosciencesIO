@@ -110,17 +110,17 @@ namespace geode
             return absl::StartsWith( string, check );
         }
 
-        bool line_starts_with( std::ifstream& file, const std::string& check )
+        bool line_starts_with( std::ifstream& file, absl::string_view check )
         {
             std::string line;
             std::getline( file, line );
             return string_starts_with( line, check );
         }
 
-        void check_keyword( std::ifstream& file, const std::string& keyword )
+        void check_keyword( std::ifstream& file, absl::string_view keyword )
         {
             OPENGEODE_EXCEPTION( line_starts_with( file, keyword ),
-                "Line should starts with \"" + keyword + "\"" );
+                absl::StrCat( "Line should starts with \"", keyword, "\"" ) );
         }
 
         HeaderData read_header( std::ifstream& file )
@@ -197,7 +197,7 @@ namespace geode
             file << "END_ORIGINAL_COORDINATE_SYSTEM" << EOL;
         }
 
-        std::string goto_keyword( std::ifstream& file, const std::string& word )
+        std::string goto_keyword( std::ifstream& file, absl::string_view word )
         {
             std::string line;
             while( std::getline( file, line ) )

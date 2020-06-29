@@ -73,7 +73,12 @@ namespace
               builder_( model ),
               solid_{ geode::TetrahedralSolid3D::create() },
               solid_builder_{ geode::TetrahedralSolidBuilder3D::create(
-                  *solid_ ) }
+                  *solid_ ) },
+              vertex_id_{
+                  solid_->vertex_attribute_manager()
+                      .find_or_create_attribute< geode::VariableAttribute,
+                          geode::index_t >( "vertex_id", geode::NO_ID )
+              }
         {
             OPENGEODE_EXCEPTION( file_.good(),
                 "[LSOInput] Error while opening file: ", filename );
@@ -96,10 +101,6 @@ namespace
     private:
         void read_vertices()
         {
-            vertex_id_ =
-                solid_->vertex_attribute_manager()
-                    .find_or_create_attribute< geode::VariableAttribute,
-                        geode::index_t >( "vertex_id", geode::NO_ID );
             line_ = geode::detail::goto_keywords(
                 file_, std::array< absl::string_view, 2 >{ "VRTX", "PVRTX" } );
             geode::index_t nb_unique_vertices{ 0 };
@@ -358,7 +359,7 @@ namespace
                         {
                             continue;
                         }
-                        if( !facet_matchs_key_vertices(
+                        if( !facet_matches_key_vertices(
                                 key_vertices, polyhedron_facet, side ) )
                         {
                             continue;
@@ -491,7 +492,7 @@ namespace
             std::getline( file_, line_ );
         }
 
-        bool facet_matchs_key_vertices(
+        bool facet_matches_key_vertices(
             const std::array< geode::index_t, 3 >& key_vertices,
             const geode::PolyhedronFacet& facet,
             bool side ) const

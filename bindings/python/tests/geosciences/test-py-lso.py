@@ -1,0 +1,54 @@
+# -*- coding: utf-8 -*-
+# Copyright (c) 2019 - 2020 Geode-solutions
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+import os 
+
+import opengeode_py_basic
+import opengeode_py_geometry as geom
+import opengeode_py_mesh as mesh
+import opengeode_py_model as model
+import opengeode_geosciences_py_geosciences as geosciences
+import opengeode_geosciencesio_py_geosciences as geosciences_io
+
+if __name__ != '__main__':
+    geosciences_io.initialize_geosciences_io()
+    test_dir = os.path.dirname(__file__)
+    data_dir = os.path.abspath(os.path.join(test_dir, "../../../../tests/data"))
+
+    model = geosciences.StructuralModel()
+    geosciences.load_structural_model( model, os.path.join(data_dir, "test.lso"))
+
+    if model.nb_corners() != 22:
+        raise ValueError("[Test] Number of Corners in the loaded StructuralModel is not correct" )
+    if model.nb_lines() != 39:
+        raise ValueError("[Test] Number of Lines in the loaded StructuralModel is not correct" )
+    if model.nb_surfaces() != 23:
+        raise ValueError("[Test] Number of Surfaces in the loaded StructuralModel is not correct" )
+    if model.nb_blocks() != 4:
+        raise ValueError("[Test] Number of Blocks in the loaded StructuralModel is not correct" )
+    if model.nb_horizons() != 4:
+        raise ValueError("[Test] Number of Horizons in the loaded StructuralModel is not correct" )
+
+    nb_block_internals = 0
+    for block in model.blocks():
+        nb_block_internals += model.nb_block_internals( block.id() )
+    if nb_block_internals != 2:
+        raise ValueError("[Test] Number of Block internals in the loaded StructuralModel is not correct" )
