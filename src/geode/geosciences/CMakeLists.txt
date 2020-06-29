@@ -24,6 +24,7 @@ add_geode_library(
     SOURCES
         "common.cpp"
         "gocad_common.cpp"
+        "lso_input.cpp"
         "ml_input.cpp"
         "ml_output.cpp"
         "ts_input.cpp"
@@ -31,6 +32,7 @@ add_geode_library(
         "detail/common.h"
     PRIVATE_HEADERS
         "private/gocad_common.h"
+        "private/lso_input.h"
         "private/ml_input.h"
         "private/ml_output.h"
         "private/ts_input.h"

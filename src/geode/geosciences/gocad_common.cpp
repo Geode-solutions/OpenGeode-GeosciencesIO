@@ -25,6 +25,11 @@
 
 #include <fstream>
 
+#include <absl/strings/match.h>
+#include <absl/strings/str_replace.h>
+
+#include <geode/basic/logger.h>
+
 namespace
 {
     static constexpr char EOL{ '\n' };
@@ -100,9 +105,9 @@ namespace geode
     namespace detail
     {
         bool string_starts_with(
-            const std::string& string, const std::string& check )
+            absl::string_view string, absl::string_view check )
         {
-            return !string.compare( 0, check.length(), check );
+            return absl::StartsWith( string, check );
         }
 
         bool line_starts_with( std::ifstream& file, const std::string& check )
@@ -192,19 +197,40 @@ namespace geode
             file << "END_ORIGINAL_COORDINATE_SYSTEM" << EOL;
         }
 
-        void goto_keyword( std::ifstream& file, const std::string& word )
+        std::string goto_keyword( std::ifstream& file, const std::string& word )
         {
             std::string line;
             while( std::getline( file, line ) )
             {
                 if( string_starts_with( line, word ) )
                 {
-                    return;
+                    return line;
                 }
             }
             throw geode::OpenGeodeException{
                 "[goto_keyword] Cannot find the requested keyword: ", word
             };
+            return "";
+        }
+
+        std::string goto_keywords(
+            std::ifstream& file, absl::Span< const absl::string_view > words )
+        {
+            std::string line;
+            while( std::getline( file, line ) )
+            {
+                for( const auto word : words )
+                {
+                    if( string_starts_with( line, word ) )
+                    {
+                        return line;
+                    }
+                }
+            }
+            throw geode::OpenGeodeException{
+                "[goto_keyword] Cannot find the requested keyword"
+            };
+            return "";
         }
 
         std::string read_name( std::istringstream& iss )
@@ -214,9 +240,9 @@ namespace geode
             std::string token;
             while( iss >> token )
             {
-                name += "_" + token;
+                absl::StrAppend( &name, " ", token );
             }
-            return name;
+            return absl::StrReplaceAll( name, { { "\"", "" } } );
         }
 
         TSurfData read_tsurf( std::ifstream& file )
