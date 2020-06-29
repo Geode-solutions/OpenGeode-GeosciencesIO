@@ -19,6 +19,13 @@
 # SOFTWARE.
 
 add_geode_python_test(
+    SOURCE "test-py-lso.py"
+    DEPENDENCIES
+        OpenGeode::model
+        OpenGeode-Geosciences::geosciences
+        ${PROJECT_NAME}::py_geosciences
+)
+add_geode_python_test(
     SOURCE "test-py-ml.py"
     DEPENDENCIES
         OpenGeode::model

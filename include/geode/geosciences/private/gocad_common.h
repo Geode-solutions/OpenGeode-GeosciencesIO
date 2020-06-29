@@ -38,7 +38,7 @@ namespace geode
         bool string_starts_with(
             absl::string_view string, absl::string_view check );
 
-        void check_keyword( std::ifstream& file, const std::string& keyword );
+        void check_keyword( std::ifstream& file, absl::string_view keyword );
 
         std::string read_name( std::istringstream& iss );
 
@@ -61,8 +61,7 @@ namespace geode
 
         void write_CRS( std::ofstream& file, const CRSData& data );
 
-        std::string goto_keyword(
-            std::ifstream& file, const std::string& word );
+        std::string goto_keyword( std::ifstream& file, absl::string_view word );
 
         std::string goto_keywords(
             std::ifstream& file, absl::Span< const absl::string_view > words );
