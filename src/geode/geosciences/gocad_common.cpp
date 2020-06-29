@@ -228,7 +228,7 @@ namespace geode
                 }
             }
             throw geode::OpenGeodeException{
-                "[goto_keyword] Cannot find the requested keyword"
+                "[goto_keywords] Cannot find one of the requested keywords"
             };
             return "";
         }
