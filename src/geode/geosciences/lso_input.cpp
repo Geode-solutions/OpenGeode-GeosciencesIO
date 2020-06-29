@@ -96,6 +96,8 @@ namespace
             build_model_boundaries();
             build_corners();
             build_lines();
+            geode::Logger::info(
+                "[LSOInput] Properties are not supported yet" );
         }
 
     private:
@@ -232,7 +234,7 @@ namespace
                     geode::index_t value;
                     auto ok = absl::SimpleAtoi( tokens[i + 1], &value );
                     OPENGEODE_EXCEPTION(
-                        ok, "[LSOInput] Error while reading tetra" );
+                        ok, "[LSOInput] Error while reading triangles" );
                     value -= OFFSET_START;
                     facet_vertices[i] = value;
                     const auto it = vertex_mapping.find( value );
