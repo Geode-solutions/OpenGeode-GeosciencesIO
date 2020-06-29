@@ -27,6 +27,14 @@ add_geode_test(
         ${PROJECT_NAME}::geosciences
 )
 add_geode_test(
+    SOURCE "test-lso.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::model
+        OpenGeode-Geosciences::geosciences
+        ${PROJECT_NAME}::geosciences
+)
+add_geode_test(
     SOURCE "test-ts.cpp"
     DEPENDENCIES
         OpenGeode::basic

@@ -36,7 +36,7 @@ namespace geode
     namespace detail
     {
         bool string_starts_with(
-            const std::string& string, const std::string& check );
+            absl::string_view string, absl::string_view check );
 
         void check_keyword( std::ifstream& file, const std::string& keyword );
 
@@ -61,7 +61,11 @@ namespace geode
 
         void write_CRS( std::ofstream& file, const CRSData& data );
 
-        void goto_keyword( std::ifstream& file, const std::string& word );
+        std::string goto_keyword(
+            std::ifstream& file, const std::string& word );
+
+        std::string goto_keywords(
+            std::ifstream& file, absl::Span< const absl::string_view > words );
 
         struct TSurfBorderData
         {

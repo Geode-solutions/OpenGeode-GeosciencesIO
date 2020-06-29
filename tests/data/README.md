@@ -6,4 +6,7 @@ Source: Pellerin et al., Computers and Geosciences 2015. doi: 10.1016/j.cageo.20
 
 Found: http://www.ring-team.org/expertise
 
+## Test Ligth TSolid
+
+Courtesy of Total S.A.
 
