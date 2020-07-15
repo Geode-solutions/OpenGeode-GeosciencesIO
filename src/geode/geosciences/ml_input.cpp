@@ -130,7 +130,7 @@ namespace
             epsilon_ =
                 1e-7
                 * std::min( diagonal.value( 0 ),
-                    std::min( diagonal.value( 1 ), diagonal.value( 2 ) ) );
+                      std::min( diagonal.value( 1 ), diagonal.value( 2 ) ) );
         }
 
         void complete_vertex_identifier()
@@ -322,7 +322,10 @@ namespace
             for( const auto i : geode::Range{ tsurf.tfaces.size() } )
             {
                 const auto& uuid = tsurf.tfaces[i];
-                auto builder = builder_.surface_mesh_builder( uuid );
+                auto builder =
+                    builder_
+                        .surface_mesh_builder< geode::TriangulatedSurface3D >(
+                            uuid );
                 const auto& data = tsurf.data;
                 for( const auto p : geode::Range{ data.tface_vertices_offset[i],
                          data.tface_vertices_offset[i + 1] } )
@@ -333,7 +336,7 @@ namespace
                     geode::Range{ data.tface_triangles_offset[i],
                         data.tface_triangles_offset[i + 1] } )
                 {
-                    builder->create_polygon(
+                    builder->create_triangle(
                         { data.triangles[t][0] - data.tface_vertices_offset[i],
                             data.triangles[t][1]
                                 - data.tface_vertices_offset[i],
