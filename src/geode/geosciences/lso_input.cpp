@@ -220,7 +220,9 @@ namespace
         {
             absl::flat_hash_map< geode::index_t, geode::index_t >
                 vertex_mapping;
-            auto builder = builder_.surface_mesh_builder( surface_id );
+            auto builder =
+                builder_.surface_mesh_builder< geode::TriangulatedSurface3D >(
+                    surface_id );
             const auto component_id =
                 model_.surface( surface_id ).component_id();
             while( std::getline( file_, line_ )
@@ -252,7 +254,7 @@ namespace
                             vertex_id_->value( value ) );
                     }
                 }
-                builder->create_polygon( vertices );
+                builder->create_triangle( vertices );
                 for( const auto& facet :
                     facets_from_key_vertices( facet_vertices ) )
                 {
@@ -423,7 +425,9 @@ namespace
         void build_solid( const geode::uuid& block_id,
             const absl::flat_hash_set< geode::index_t >& tetras )
         {
-            auto builder = builder_.block_mesh_builder( block_id );
+            auto builder =
+                builder_.block_mesh_builder< geode::TetrahedralSolid3D >(
+                    block_id );
             const auto component_id = model_.block( block_id ).component_id();
             absl::flat_hash_map< geode::index_t, geode::index_t >
                 vertex_mapping;
@@ -449,7 +453,7 @@ namespace
                             vertex_id_->value( vertex ) );
                     }
                 }
-                builder->create_polyhedron( vertices, {} );
+                builder->create_tetrahedron( vertices );
             }
             builder->compute_polyhedron_adjacencies();
         }
@@ -484,7 +488,6 @@ namespace
             const std::array< geode::index_t, 3 >& key_vertices,
             bool side )
         {
-            auto builder = builder_.block_mesh_builder( block_id );
             const auto& block = model_.block( block_id );
             const auto component_id = block.component_id();
             const auto polyhedron_facet = find_facet( key_vertices, side );
