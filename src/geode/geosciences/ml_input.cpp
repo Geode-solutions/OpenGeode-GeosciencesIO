@@ -130,7 +130,7 @@ namespace
             epsilon_ =
                 1e-7
                 * std::min( diagonal.value( 0 ),
-                    std::min( diagonal.value( 1 ), diagonal.value( 2 ) ) );
+                      std::min( diagonal.value( 1 ), diagonal.value( 2 ) ) );
         }
 
         void complete_vertex_identifier()
@@ -820,9 +820,11 @@ namespace
                 { "reverse_fault", geode::Fault3D::FAULT_TYPE::REVERSE },
                 { "normal_fault", geode::Fault3D::FAULT_TYPE::NORMAL } };
         const absl::flat_hash_map< std::string, geode::Horizon3D::HORIZON_TYPE >
-            horizon_map_ = { { "top", geode::Horizon3D::HORIZON_TYPE::NO_TYPE },
+            horizon_map_ = { { "top",
+                                 geode::Horizon3D::HORIZON_TYPE::CONFORMAL },
                 { "none", geode::Horizon3D::HORIZON_TYPE::NO_TYPE },
-                { "topographic", geode::Horizon3D::HORIZON_TYPE::NO_TYPE },
+                { "topographic", geode::Horizon3D::HORIZON_TYPE::TOPOGRAPHY },
+                { "intrusive", geode::Horizon3D::HORIZON_TYPE::INTRUSION },
                 { "unconformity",
                     geode::Horizon3D::HORIZON_TYPE::NON_CONFORMAL } };
     };

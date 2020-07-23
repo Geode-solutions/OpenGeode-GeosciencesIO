@@ -814,6 +814,8 @@ namespace
             horizon_map_ = { { geode::Horizon3D::HORIZON_TYPE::NO_TYPE,
                                  "none" },
                 { geode::Horizon3D::HORIZON_TYPE::CONFORMAL, "top" },
+                { geode::Horizon3D::HORIZON_TYPE::TOPOGRAPHY, "topographic" },
+                { geode::Horizon3D::HORIZON_TYPE::INTRUSION, "intrusive" },
                 { geode::Horizon3D::HORIZON_TYPE::NON_CONFORMAL,
                     "unconformity" } };
         geode::index_t component_id_{ OFFSET_START };
