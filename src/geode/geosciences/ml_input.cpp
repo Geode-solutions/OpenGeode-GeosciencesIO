@@ -130,7 +130,7 @@ namespace
             epsilon_ =
                 1e-7
                 * std::min( diagonal.value( 0 ),
-                      std::min( diagonal.value( 1 ), diagonal.value( 2 ) ) );
+                    std::min( diagonal.value( 1 ), diagonal.value( 2 ) ) );
         }
 
         void complete_vertex_identifier()
