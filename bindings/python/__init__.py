@@ -18,18 +18,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-add_geode_python_test(
-    SOURCE "test-py-lso.py"
-    DEPENDENCIES
-        ${PROJECT_NAME}::py_geosciences
-)
-add_geode_python_test(
-    SOURCE "test-py-ml.py"
-    DEPENDENCIES
-        ${PROJECT_NAME}::py_geosciences
-)
-add_geode_python_test(
-    SOURCE "test-py-ts.py"
-    DEPENDENCIES
-        ${PROJECT_NAME}::py_geosciences
-)
+import opengeode
+import opengeode_geosciences
+
+from .opengeode_geosciencesio_py_geosciences import *
+initialize_geosciences_io()
