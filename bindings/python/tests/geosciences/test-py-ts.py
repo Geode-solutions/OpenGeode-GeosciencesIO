@@ -21,9 +21,8 @@
 
 import os 
 
-import opengeode_py_basic
-import opengeode_py_geometry as geom
-import opengeode_py_mesh as mesh
+import opengeode
+import opengeode_geosciences as geosciences
 import opengeode_geosciencesio_py_geosciences as geosciences_io
 
 if __name__ != '__main__':
@@ -31,17 +30,17 @@ if __name__ != '__main__':
     test_dir = os.path.dirname(__file__)
     data_dir = os.path.abspath(os.path.join(test_dir, "../../../../tests/data"))
 
-    surface = mesh.TriangulatedSurface3D.create()
-    mesh.load_triangulated_surface( surface, os.path.join(data_dir, "surf2d.ts"))
+    surface = opengeode.TriangulatedSurface3D.create()
+    opengeode.load_triangulated_surface( surface, os.path.join(data_dir, "surf2d.ts"))
 
     if surface.nb_vertices() != 46:
         raise ValueError("Number of vertices in the loaded TSurf 3D is not correct" )
     if surface.nb_polygons() != 46:
         raise ValueError("Number of polygons in the loaded TSurf 3D is not correct" )
 
-    mesh.save_triangulated_surface( surface, "surf3d.og_tsf3d" )
-    reloaded_surface = mesh.TriangulatedSurface3D.create()
-    mesh.load_triangulated_surface( reloaded_surface, "surf3d.og_tsf3d" )
+    opengeode.save_triangulated_surface( surface, "surf3d.og_tsf3d" )
+    reloaded_surface = opengeode.TriangulatedSurface3D.create()
+    opengeode.load_triangulated_surface( reloaded_surface, "surf3d.og_tsf3d" )
     if reloaded_surface.nb_vertices() != 46:
         raise ValueError("Number of vertices in the reloaded TSurf 3D is not correct" )
     if reloaded_surface.nb_polygons() != 46:

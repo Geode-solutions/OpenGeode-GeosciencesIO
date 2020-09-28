@@ -21,11 +21,8 @@
 
 import os 
 
-import opengeode_py_basic
-import opengeode_py_geometry as geom
-import opengeode_py_mesh as mesh
-import opengeode_py_model as model
-import opengeode_geosciences_py_geosciences as geosciences
+import opengeode
+import opengeode_geosciences as geosciences
 import opengeode_geosciencesio_py_geosciences as geosciences_io
 
 if __name__ != '__main__':
