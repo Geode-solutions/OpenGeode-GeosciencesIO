@@ -286,7 +286,7 @@ jobs:
     - name: Generate package
       id: package
       run: |
-        file: '-win64.zip'
+        pip install wheel
         if(!(test-path build)) { mkdir build }
         cd build
         $version = ${env:GITHUB_REF} -replace 'refs\/tags\/v', ''
