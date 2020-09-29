@@ -1,2 +1,2 @@
-OpenGeode-core >= 5.9.9, == 5.*
-OpenGeode-Geosciences >= 4.1.0, == 4.*
+OpenGeode-core >= 6.0.0, == 6.*
+OpenGeode-Geosciences >= 5.0.0, == 5.*
