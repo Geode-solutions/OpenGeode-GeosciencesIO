@@ -66,7 +66,7 @@ jobs:
       
   build-linux-wheel:
     runs-on: ubuntu-18.04
-    container: "dockcross/manylinux2014-x64"
+    container: "geodesolutions/centos8"
     needs: format
     strategy:
       matrix:
@@ -81,13 +81,13 @@ jobs:
       id: opengeode
       with:
         repository: OpenGeode
-        file: 'rhel.tar.gz'
+        file: 'ubuntu.tar.gz'
         token: ${{ secrets.TOKEN }}
     - uses: Geode-solutions/actions/get-release@master
       id: opengeode-geosciences
       with:
         repository: OpenGeode-Geosciences
-        file: 'rhel.tar.gz'
+        file: 'ubuntu.tar.gz'
         token: ${{ secrets.TOKEN }}
     - name: Compile
       run: |
@@ -96,6 +96,7 @@ jobs:
         cd build
         cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH:PATH="$GITHUB_WORKSPACE/${{ steps.opengeode.outputs.path }};$GITHUB_WORKSPACE/${{ steps.opengeode-geosciences.outputs.path }}" -DOPENGEODE_GEOSCIENCESIO_WITH_PYTHON:BOOL=ON -DPYTHON_VERSION:STRING=${{ matrix.config.python }} ..
         cmake --build . -- -j2
+        ctest --output-on-failure -R -py-
         cmake --build . --target wheel --config Debug
     - name: Notify slack
       if: failure() && github.ref == 'refs/heads/master'
@@ -196,7 +197,7 @@ jobs:
     strategy:
       matrix:
         config: [Debug, Release]
-        python: [3.6, 3.7]
+        python: [3.6, 3.7, 3.8]
 
     steps:
     - uses: actions/checkout@v1
