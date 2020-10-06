@@ -49,19 +49,22 @@
 
 namespace
 {
-    geode::PolygonEdge find_edge(
+    std::tuple< geode::PolygonEdge, bool > find_edge(
         const geode::SurfaceMesh3D& mesh, geode::index_t v0, geode::index_t v1 )
     {
-        auto edge = mesh.polygon_edge_from_vertices( v0, v1 );
-        if( !edge )
+        if( const auto edge = mesh.polygon_edge_from_vertices( v0, v1 ) )
         {
-            throw geode::OpenGeodeException{
-                "[MLInput] Starting edge Line from Corner not found. ",
-                "Looking for edge: ", mesh.point( v0 ).string(), " - ",
-                mesh.point( v1 ).string()
-            };
+            return std::make_tuple( edge.value(), true );
         }
-        return edge.value();
+        if( const auto edge = mesh.polygon_edge_from_vertices( v1, v0 ) )
+        {
+            return std::make_tuple( edge.value(), false );
+        }
+        throw geode::OpenGeodeException{
+            "[MLInput] Starting edge Line from Corner not found. ",
+            "Looking for edge: ", mesh.point( v0 ).string(), " - ",
+            mesh.point( v1 ).string()
+        };
     }
 
     class MLInputImpl
@@ -184,8 +187,16 @@ namespace
                     vertex_id );
             }
             for( const auto i :
-                geode::Range{ colocated_info.colocated_mapping.size() } )
+                geode::Indices{ colocated_info.colocated_mapping } )
             {
+                if( model_.unique_vertex( corner_surface_index[i] )
+                    != geode::NO_ID )
+                {
+                    geode::Logger::warn(
+                        "[MLInput::build_corners] Overriding Corner/Surface "
+                        "topological information. Please verify "
+                        "StructuralModel validity." );
+                }
                 builder_.set_unique_vertex(
                     std::move( corner_surface_index[i] ),
                     colocated_info.colocated_mapping[i] );
@@ -447,20 +458,42 @@ namespace
             const auto& mesh = surface.mesh();
             result.indices.push_back( line_start.first.vertex );
             result.points.emplace_back( mesh.point( result.indices.back() ) );
-            auto edge = find_edge(
+            bool orientation;
+            geode::PolygonEdge edge;
+            std::tie( edge, orientation ) = find_edge(
                 mesh, line_start.second.vertex, line_start.first.vertex );
-            while( model_.unique_vertex( { surface.component_id(),
-                       mesh.polygon_edge_vertex( edge, 0 ) } )
-                   == geode::NO_ID )
+            if( orientation )
             {
-                result.indices.push_back( mesh.polygon_edge_vertex( edge, 0 ) );
+                while( model_.unique_vertex( { surface.component_id(),
+                           mesh.polygon_vertex( edge ) } )
+                       == geode::NO_ID )
+                {
+                    result.indices.push_back( mesh.polygon_vertex( edge ) );
+                    result.points.emplace_back(
+                        mesh.point( result.indices.back() ) );
+                    edge = mesh.previous_on_border( edge );
+                }
+                result.indices.push_back( mesh.polygon_vertex( edge ) );
                 result.points.emplace_back(
                     mesh.point( result.indices.back() ) );
-                edge = mesh.previous_on_border( edge );
+            }
+            else
+            {
+                while( model_.unique_vertex( { surface.component_id(),
+                           mesh.polygon_edge_vertex( edge, 1 ) } )
+                       == geode::NO_ID )
+                {
+                    result.indices.push_back(
+                        mesh.polygon_edge_vertex( edge, 1 ) );
+                    result.points.emplace_back(
+                        mesh.point( result.indices.back() ) );
+                    edge = mesh.next_on_border( edge );
+                }
+                result.indices.push_back( mesh.polygon_edge_vertex( edge, 1 ) );
+                result.points.emplace_back(
+                    mesh.point( result.indices.back() ) );
             }
 
-            result.indices.push_back( mesh.polygon_edge_vertex( edge, 0 ) );
-            result.points.emplace_back( mesh.point( result.indices.back() ) );
             result.corner1 =
                 model_
                     .mesh_component_vertices(

@@ -1,6 +1,6 @@
 # Data source and licence
 
-## Model A1
+## Model A4
 
 Source: Pellerin et al., Computers and Geosciences 2015. doi: 10.1016/j.cageo.2015.01.002
 
