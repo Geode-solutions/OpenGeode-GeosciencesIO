@@ -33,8 +33,7 @@ if __name__ == '__main__':
     test_dir = os.path.dirname(__file__)
     data_dir = os.path.abspath(os.path.join(test_dir, "../../../../tests/data"))
 
-    model = geosciences.StructuralModel()
-    geosciences.load_structural_model( model, os.path.join(data_dir, "modelA4.ml"))
+    model = geosciences.load_structural_model(os.path.join(data_dir, "modelA4.ml"))
 
     if model.nb_corners() != 52:
         raise ValueError("[Test] Number of Corners in the loaded StructuralModel is not correct" )
@@ -51,33 +50,9 @@ if __name__ == '__main__':
     if model.nb_model_boundaries() != 6:
         raise ValueError("[Test] Number of ModelBoundary in the loaded StructuralModel is not correct" )
 
-    nb_block_internals = 0
-    for block in model.blocks():
-        nb_internals = model.nb_block_internals( block.id() )
-        if nb_internals != 0:
-            token = block.name().substr( block.name().size() - 3 )
-            if token != "b_2":
-                raise ValueError("[Test] Block name should end by b_2" )
-        nb_block_internals += nb_internals
-    if nb_block_internals != 4:
-        raise ValueError("[Test] Number of Block internals in the loaded StructuralModel is not correct" )
-
-    nb_surface_internals = 0
-    for surface in model.surfaces():
-        nb_internals = model.nb_surface_internals( surface.id() )
-        if nb_internals != 0:
-            for collection in model.collections( surface.id() ):
-                name = model.model_boundary( collection.id() ).name()
-                if name != "voi_top_boundary" and name != "voi_bottom_boundary":
-                    raise ValueError("[Test] ModelBoundary name is not correct" )
-        nb_surface_internals += model.nb_internals( surface.id() )
-    if nb_surface_internals != 2:
-        raise ValueError("[Test] Number of Surface internals in the loaded StructuralModel is not correct" )
-
     geosciences.save_structural_model( model, "modelA4.og_strm" )
     geosciences.save_structural_model( model, "modelA4_saved.ml" )
-    reload = geosciences.StructuralModel()
-    geosciences.load_structural_model( reload, "modelA4_saved.ml" )
+    reload = geosciences.load_structural_model( "modelA4_saved.ml" )
 
     if reload.nb_corners() != 52:
         raise ValueError("[Test] Number of Corners in the reloaded StructuralModel is not correct" )

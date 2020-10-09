@@ -33,8 +33,7 @@ if __name__ == '__main__':
     test_dir = os.path.dirname(__file__)
     data_dir = os.path.abspath(os.path.join(test_dir, "../../../../tests/data"))
 
-    model = geosciences.StructuralModel()
-    geosciences.load_structural_model( model, os.path.join(data_dir, "test.lso"))
+    model = geosciences.load_structural_model( os.path.join(data_dir, "test.lso"))
 
     if model.nb_corners() != 22:
         raise ValueError("[Test] Number of Corners in the loaded StructuralModel is not correct" )
@@ -46,9 +45,3 @@ if __name__ == '__main__':
         raise ValueError("[Test] Number of Blocks in the loaded StructuralModel is not correct" )
     if model.nb_horizons() != 4:
         raise ValueError("[Test] Number of Horizons in the loaded StructuralModel is not correct" )
-
-    nb_block_internals = 0
-    for block in model.blocks():
-        nb_block_internals += model.nb_block_internals( block.id() )
-    if nb_block_internals != 2:
-        raise ValueError("[Test] Number of Block internals in the loaded StructuralModel is not correct" )
