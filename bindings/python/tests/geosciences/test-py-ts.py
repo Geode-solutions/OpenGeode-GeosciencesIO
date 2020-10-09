@@ -28,7 +28,7 @@ import opengeode
 import opengeode_geosciences as geosciences
 import opengeode_geosciencesio_py_geosciences as geosciences_io
 
-if __name__ != '__main__':
+if __name__ == '__main__':
     geosciences_io.initialize_geosciences_io()
     test_dir = os.path.dirname(__file__)
     data_dir = os.path.abspath(os.path.join(test_dir, "../../../../tests/data"))
@@ -40,7 +40,7 @@ if __name__ != '__main__':
     if surface.nb_polygons() != 46:
         raise ValueError("Number of polygons in the loaded TSurf 3D is not correct" )
 
-    opengeode.save_triangulated_surface( surface, "surf3d.og_tsf3d" )
+    opengeode.save_triangulated_surface3D( surface, "surf3d.og_tsf3d" )
     reloaded_surface = opengeode.load_triangulated_surface3D( "surf3d.og_tsf3d" )
     if reloaded_surface.nb_vertices() != 46:
         raise ValueError("Number of vertices in the reloaded TSurf 3D is not correct" )

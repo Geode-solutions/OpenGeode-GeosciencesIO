@@ -28,7 +28,7 @@ import opengeode
 import opengeode_geosciences as geosciences
 import opengeode_geosciencesio_py_geosciences as geosciences_io
 
-if __name__ != '__main__':
+if __name__ == '__main__':
     geosciences_io.initialize_geosciences_io()
     test_dir = os.path.dirname(__file__)
     data_dir = os.path.abspath(os.path.join(test_dir, "../../../../tests/data"))
@@ -45,9 +45,3 @@ if __name__ != '__main__':
         raise ValueError("[Test] Number of Blocks in the loaded StructuralModel is not correct" )
     if model.nb_horizons() != 4:
         raise ValueError("[Test] Number of Horizons in the loaded StructuralModel is not correct" )
-
-    nb_block_internals = 0
-    for block in model.blocks():
-        nb_block_internals += model.nb_block_internals( block.id() )
-    if nb_block_internals != 2:
-        raise ValueError("[Test] Number of Block internals in the loaded StructuralModel is not correct" )
