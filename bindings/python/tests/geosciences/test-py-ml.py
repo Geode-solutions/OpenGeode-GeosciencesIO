@@ -33,8 +33,7 @@ if __name__ == '__main__':
     test_dir = os.path.dirname(__file__)
     data_dir = os.path.abspath(os.path.join(test_dir, "../../../../tests/data"))
 
-    model = geosciences.StructuralModel()
-    geosciences.load_structural_model( model, os.path.join(data_dir, "modelA4.ml"))
+    model = geosciences.load_structural_model(os.path.join(data_dir, "modelA4.ml"))
 
     if model.nb_corners() != 52:
         raise ValueError("[Test] Number of Corners in the loaded StructuralModel is not correct" )
@@ -76,8 +75,7 @@ if __name__ == '__main__':
 
     geosciences.save_structural_model( model, "modelA4.og_strm" )
     geosciences.save_structural_model( model, "modelA4_saved.ml" )
-    reload = geosciences.StructuralModel()
-    geosciences.load_structural_model( reload, "modelA4_saved.ml" )
+    reload = geosciences.load_structural_model( "modelA4_saved.ml" )
 
     if reload.nb_corners() != 52:
         raise ValueError("[Test] Number of Corners in the reloaded StructuralModel is not correct" )
