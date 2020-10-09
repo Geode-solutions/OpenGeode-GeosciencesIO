@@ -33,8 +33,7 @@ if __name__ != '__main__':
     test_dir = os.path.dirname(__file__)
     data_dir = os.path.abspath(os.path.join(test_dir, "../../../../tests/data"))
 
-    model = geosciences.StructuralModel()
-    geosciences.load_structural_model( model, os.path.join(data_dir, "test.lso"))
+    model = geosciences.load_structural_model( os.path.join(data_dir, "test.lso"))
 
     if model.nb_corners() != 22:
         raise ValueError("[Test] Number of Corners in the loaded StructuralModel is not correct" )
