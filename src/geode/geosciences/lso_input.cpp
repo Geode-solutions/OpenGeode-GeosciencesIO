@@ -45,6 +45,7 @@
 #include <geode/mesh/core/edged_curve.h>
 #include <geode/mesh/core/geode_triangulated_surface.h>
 #include <geode/mesh/core/mesh_factory.h>
+#include <geode/mesh/core/solid_facets.h>
 #include <geode/mesh/core/tetrahedral_solid.h>
 
 #include <geode/model/mixin/core/block.h>
@@ -80,6 +81,7 @@ namespace
                           geode::index_t >( "vertex_id", geode::NO_ID )
               }
         {
+            solid_->enable_facets();
             OPENGEODE_EXCEPTION( file_.good(),
                 "[LSOInput] Error while opening file: ", filename );
         }
@@ -182,7 +184,8 @@ namespace
             {
                 geode::detail::goto_keyword( file_, "MODEL" );
             }
-            facet_id_ = solid_->facet_attribute_manager()
+            facet_id_ = solid_->facets()
+                            .facet_attribute_manager()
                             .find_or_create_attribute< geode::VariableAttribute,
                                 geode::uuid >( "facet_id", default_id_ );
             std::getline( file_, line_ );
@@ -298,7 +301,8 @@ namespace
                     for( const auto v2 : vertex_mapping_[vertices[2]] )
                     {
                         if( const auto facet_id =
-                                solid_->facet_from_vertices( { v0, v1, v2 } ) )
+                                solid_->facets().facet_from_vertices(
+                                    { v0, v1, v2 } ) )
                         {
                             facets.emplace_back( facet_id.value(),
                                 std::array< geode::index_t, 3 >{
@@ -348,8 +352,8 @@ namespace
         {
             for( const auto& facet : facets_from_key_vertices( key_vertices ) )
             {
-                for( const auto& polyhedron :
-                    solid_->polyhedra_from_facet( facet.first ) )
+                for( const auto& polyhedron : solid_->polyhedra_from_facet(
+                         solid_->facets().facet_vertices( facet.first ) ) )
                 {
                     const auto& key_vertices = facet.second;
                     for( const auto f : geode::Range{
@@ -358,7 +362,9 @@ namespace
                         const geode::PolyhedronFacet polyhedron_facet{
                             polyhedron, f
                         };
-                        if( solid_->polyhedron_facet( polyhedron_facet )
+                        if( solid_->facets().facet_from_vertices(
+                                solid_->polyhedron_facet_vertices(
+                                    polyhedron_facet ) )
                             != facet.first )
                         {
                             continue;
@@ -395,7 +401,11 @@ namespace
                 for( const auto f : geode::Range{ 4 } )
                 {
                     const auto facet_id =
-                        solid_->polyhedron_facet( { tetra, f } );
+                        solid_->facets()
+                            .facet_from_vertices(
+                                solid_->polyhedron_facet_vertices(
+                                    { tetra, f } ) )
+                            .value();
                     const auto& facet_uuid = facet_id_->value( facet_id );
                     if( facet_uuid != default_id_ )
                     {
