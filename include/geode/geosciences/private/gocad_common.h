@@ -100,6 +100,6 @@ namespace geode
             std::deque< index_t > bstones;
             std::deque< TSurfBorderData > borders;
         };
-        TSurfData read_tsurf( std::ifstream& file );
+        absl::optional< TSurfData > read_tsurf( std::ifstream& file );
     } // namespace detail
 } // namespace geode

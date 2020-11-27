@@ -37,9 +37,12 @@ namespace
     class TSInputImpl
     {
     public:
-        TSInputImpl( absl::string_view filename,
-            geode::TriangulatedSurfaceBuilder3D& builder )
-            : file_( filename.data() ), builder_( builder )
+        TSInputImpl(
+            absl::string_view filename, geode::TriangulatedSurface3D& surface )
+            : file_( filename.data() ),
+              surface_( surface ),
+              builder_(
+                  geode::TriangulatedSurfaceBuilder< 3 >::create( surface ) )
         {
             OPENGEODE_EXCEPTION(
                 file_.good(), "Error while opening file: ", filename );
@@ -47,28 +50,45 @@ namespace
 
         void read_file()
         {
-            build_surface( geode::detail::read_tsurf( file_ ) );
+            while( const auto tsurf = geode::detail::read_tsurf( file_ ) )
+            {
+                build_surface( tsurf.value() );
+            }
+            builder_->compute_polygon_adjacencies();
         }
 
     private:
         void build_surface( const geode::detail::TSurfData& tsurf )
         {
+            const auto offset = surface_.nb_vertices();
             for( const auto& point : tsurf.points )
             {
-                builder_.create_point( point );
+                builder_->create_point( point );
             }
-
-            for( const auto& triangle : tsurf.triangles )
+            if( offset == 0 )
             {
-                builder_.create_triangle( triangle );
+                for( const auto& triangle : tsurf.triangles )
+                {
+                    builder_->create_triangle( triangle );
+                }
             }
-
-            builder_.compute_polygon_adjacencies();
+            else
+            {
+                for( auto triangle : tsurf.triangles )
+                {
+                    for( auto& vertex : triangle )
+                    {
+                        vertex += offset;
+                    }
+                    builder_->create_triangle( triangle );
+                }
+            }
         }
 
     private:
         std::ifstream file_;
-        geode::TriangulatedSurfaceBuilder3D& builder_;
+        geode::TriangulatedSurface3D& surface_;
+        std::unique_ptr< geode::TriangulatedSurfaceBuilder3D > builder_;
     };
 } // namespace
 
@@ -78,9 +98,7 @@ namespace geode
     {
         void TSInput::do_read()
         {
-            auto builder = TriangulatedSurfaceBuilder< 3 >::create(
-                this->triangulated_surface() );
-            TSInputImpl impl{ this->filename(), *builder };
+            TSInputImpl impl{ this->filename(), this->triangulated_surface() };
             impl.read_file();
         }
     } // namespace detail
