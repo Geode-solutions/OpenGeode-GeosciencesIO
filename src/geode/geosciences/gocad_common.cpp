@@ -245,9 +245,12 @@ namespace geode
             return absl::StrReplaceAll( name, { { "\"", "" } } );
         }
 
-        TSurfData read_tsurf( std::ifstream& file )
+        absl::optional< TSurfData > read_tsurf( std::ifstream& file )
         {
-            check_keyword( file, "GOCAD TSurf" );
+            if( !line_starts_with( file, "GOCAD TSurf" ) )
+            {
+                return absl::nullopt;
+            }
             TSurfData tsurf;
             tsurf.header = read_header( file );
             tsurf.crs = read_CRS( file );
