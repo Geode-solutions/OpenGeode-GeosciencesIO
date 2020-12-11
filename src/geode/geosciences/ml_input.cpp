@@ -88,7 +88,7 @@ namespace
             read_model_components();
             for( auto& tsurf : tsurfs_ )
             {
-                tsurf.data = geode::detail::read_tsurf( file_ );
+                tsurf.data = geode::detail::read_tsurf( file_ ).value();
                 build_surfaces( tsurf );
             }
             compute_epsilon();
