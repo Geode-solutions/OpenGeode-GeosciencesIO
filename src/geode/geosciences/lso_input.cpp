@@ -355,8 +355,8 @@ namespace
                 for( const auto& polyhedron : solid_->polyhedra_from_facet(
                          solid_->facets().facet_vertices( facet.first ) ) )
                 {
-                    const auto& key_vertices = facet.second;
-                    for( const auto f : geode::Range{
+                    const auto& key = facet.second;
+                    for( const auto f : geode::LRange{
                              solid_->nb_polyhedron_facets( polyhedron ) } )
                     {
                         const geode::PolyhedronFacet polyhedron_facet{
@@ -370,7 +370,7 @@ namespace
                             continue;
                         }
                         if( !facet_matches_key_vertices(
-                                key_vertices, polyhedron_facet, side ) )
+                                key, polyhedron_facet, side ) )
                         {
                             continue;
                         }
@@ -398,7 +398,7 @@ namespace
             {
                 const auto tetra = tetras.top();
                 tetras.pop();
-                for( const auto f : geode::Range{ 4 } )
+                for( const auto f : geode::LRange{ 4 } )
                 {
                     const auto facet_id =
                         solid_->facets()
@@ -444,7 +444,7 @@ namespace
             for( const auto tetra : tetras )
             {
                 std::array< geode::index_t, 4 > vertices;
-                for( const auto i : geode::Range{ 4 } )
+                for( const auto i : geode::LRange{ 4 } )
                 {
                     const auto vertex =
                         solid_->polyhedron_vertex( { tetra, i } );
@@ -518,7 +518,7 @@ namespace
                         solid_->polyhedron_facet_vertex( { facet, 0 } ) ) ) );
             if( side )
             {
-                for( const auto v : geode::Range{ 3 } )
+                for( const auto v : geode::LRange{ 3 } )
                 {
                     const auto v_id =
                         solid_->polyhedron_facet_vertex( { facet, v } );
@@ -530,7 +530,7 @@ namespace
             }
             else
             {
-                for( const auto v : geode::Range{ 3 } )
+                for( const auto v : geode::LRange{ 3 } )
                 {
                     const auto v_id =
                         solid_->polyhedron_facet_vertex( { facet, v } );

@@ -71,7 +71,7 @@ namespace
     {
         for( const auto p : geode::Range{ mesh.nb_polygons() } )
         {
-            for( const auto e : geode::Range{ 3 } )
+            for( const auto e : geode::LRange{ 3 } )
             {
                 if( mesh.is_edge_on_border( { p, e } ) )
                 {
@@ -226,7 +226,8 @@ namespace
                     model_.surface( universe_boundaries[s] ).mesh();
                 for( const auto t : geode::Range{ surface_mesh.nb_polygons() } )
                 {
-                    std::array< geode::index_t, 3 > vertex_order{ 0, 1, 2 };
+                    std::array< geode::local_index_t, 3 > vertex_order{ 0, 1,
+                        2 };
                     if( !sign )
                     {
                         vertex_order[1] = 2;
@@ -354,7 +355,7 @@ namespace
                     file_ << "TFACE " << component_id_ << SPACE << "boundary"
                           << SPACE << boundary.name() << EOL;
                     const auto& mesh = item.mesh();
-                    for( const auto v : geode::Range{ 3 } )
+                    for( const auto v : geode::LRange{ 3 } )
                     {
                         const auto& coords =
                             mesh.point( mesh.polygon_vertex( { 0, v } ) );
@@ -381,7 +382,7 @@ namespace
                           << fault_map_.at( fault.type() ) << SPACE
                           << fault.name() << EOL;
                     const auto& mesh = item.mesh();
-                    for( const auto v : geode::Range{ 3 } )
+                    for( const auto v : geode::LRange{ 3 } )
                     {
                         const auto& coords =
                             mesh.point( mesh.polygon_vertex( { 0, v } ) );
@@ -408,7 +409,7 @@ namespace
                           << horizon_map_.at( horizon.type() ) << SPACE
                           << horizon.name() << EOL;
                     const auto& mesh = item.mesh();
-                    for( const auto v : geode::Range{ 3 } )
+                    for( const auto v : geode::LRange{ 3 } )
                     {
                         const auto& coords =
                             mesh.point( mesh.polygon_vertex( { 0, v } ) );
@@ -432,7 +433,7 @@ namespace
                 file_ << "TFACE " << component_id_ << SPACE << "boundary"
                       << SPACE << unclassified_surfaces_name_ << EOL;
                 const auto& mesh = surface.mesh();
-                for( const auto v : geode::Range{ 3 } )
+                for( const auto v : geode::LRange{ 3 } )
                 {
                     const auto& coords =
                         mesh.point( mesh.polygon_vertex( { 0, v } ) );
@@ -601,7 +602,8 @@ namespace
             const auto& mesh = surface.mesh();
             const auto v0 = mesh.polygon_vertex( edge );
             const auto v1 = mesh.polygon_vertex(
-                { edge.polygon_id, ( edge.edge_id + 1 ) % 3 } );
+                { edge.polygon_id, static_cast< geode::local_index_t >(
+                                       ( edge.edge_id + 1 ) % 3 ) } );
             const auto uid1 =
                 model_.unique_vertex( { surface.component_id(), v1 } );
             const auto corner_mcvs1 = model_.mesh_component_vertices(
