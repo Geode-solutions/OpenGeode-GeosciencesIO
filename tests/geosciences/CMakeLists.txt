@@ -42,3 +42,11 @@ add_geode_test(
         OpenGeode-Geosciences::geosciences
         ${PROJECT_NAME}::geosciences
 )
+add_geode_test(
+    SOURCE "test-pl.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
+        OpenGeode-Geosciences::geosciences
+        ${PROJECT_NAME}::geosciences
+)

@@ -61,6 +61,38 @@ namespace geode
 
         void write_CRS( std::ofstream& file, const CRSData& data );
 
+        struct PropHeaderData
+        {
+            std::vector< std::string > names;
+            std::vector< std::pair< std::string, std::string > >
+                prop_legal_ranges;
+            std::vector< double > no_data_values;
+            std::vector< std::string > property_classes;
+            std::vector< std::string > kinds;
+            std::vector< std::pair< std::string, std::string > >
+                property_subclass;
+            std::vector< index_t > esizes;
+            std::vector< std::string > units;
+            bool empty()
+            {
+                return names.size() == 0;
+            }
+        };
+        // PropHeaderData read_prop_headers( std::ifstream& file );
+
+        void write_prop_header(
+            std::ofstream& file, const PropHeaderData& data );
+
+        struct PropClassHeaderData
+        {
+            std::string name{ "Default" };
+            std::string kind{ " Real Number" };
+            std::string unit{ "unitless" };
+            bool is_z{ false };
+        };
+        void write_property_class_header(
+            std::ofstream& file, const PropClassHeaderData& data );
+
         std::string goto_keyword( std::ifstream& file, absl::string_view word );
 
         std::string goto_keywords(

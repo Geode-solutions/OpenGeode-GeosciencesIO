@@ -30,12 +30,12 @@ namespace geode
 {
     namespace detail
     {
-        class PLOutput final : public EdgedCurveOutput3D
+        class PLOutput final : public geode::EdgedCurveOutput< 3 >
         {
         public:
-            PLOutput(
-                const EdgedCurve3D& edge_curve, absl::string_view filename )
-                : EdgedCurveOutput3D( edge_curve, filename )
+            PLOutput( const geode::EdgedCurve< 3 >& edge_curve,
+                absl::string_view filename )
+                : geode::EdgedCurveOutput< 3 >( edge_curve, filename )
             {
             }
 
