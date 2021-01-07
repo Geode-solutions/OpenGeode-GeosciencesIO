@@ -126,7 +126,7 @@ namespace
             file_ << "ILINE" << EOL;
             for( const auto v : geode::Range{ edged_curve_.nb_vertices() } )
             {
-                file_ << "VRTX" << SPACE << current_offset + v << SPACE
+                file_ << "PVRTX" << SPACE << current_offset + v << SPACE
                       << edged_curve_.point( v ).value( 0 ) << SPACE
                       << edged_curve_.point( v ).value( 1 ) << SPACE
                       << edged_curve_.point( v ).value( 2 );
