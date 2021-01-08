@@ -203,11 +203,10 @@ namespace
                             current_offset + cur_v );
                         ++cur_v;
                     }
-                    for( auto cur_v : geode::Range{ ev_on_iline.size() - 1 } )
+                    for( auto cur_seg : geode::Range{ ev_on_iline.size() - 1 } )
                     {
-                        file_ << "SEG" << SPACE << current_offset + cur_v
-                              << SPACE << current_offset + cur_v + 1 << EOL;
-                        ++cur_v;
+                        file_ << "SEG" << SPACE << current_offset + cur_seg
+                              << SPACE << current_offset + cur_seg + 1 << EOL;
                     }
                     current_offset += ev_on_iline.size();
                 }
