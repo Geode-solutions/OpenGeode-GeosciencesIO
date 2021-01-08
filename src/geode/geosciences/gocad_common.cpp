@@ -264,7 +264,7 @@ namespace geode
             }
             file << EOL;
             file << "PROPERTY_SUBCLASSES";
-            for( const auto prop_subclasse : data.property_subclass )
+            for( const auto& prop_subclasse : data.property_subclass )
             {
                 file << SPACE << prop_subclasse.first << SPACE
                      << prop_subclasse.second;
