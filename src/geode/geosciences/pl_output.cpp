@@ -72,8 +72,8 @@ namespace
                 prop_header.no_data_values.push_back( -99999. );
                 prop_header.property_classes.push_back( name.data() );
                 prop_header.kinds.push_back( " Real Number" );
-                prop_header.property_subclass.push_back(
-                    std::make_pair( "QUANTITY", "Float" ) );
+                prop_header.property_subclass.emplace_back(
+                    "QUANTITY", "Float" );
                 prop_header.esizes.push_back( 1 );
                 prop_header.units.push_back( "unitless" );
 
