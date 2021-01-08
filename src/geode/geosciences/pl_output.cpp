@@ -67,8 +67,8 @@ namespace
                 }
                 generic_att_.push_back( attribute );
                 prop_header.names.push_back( name.data() );
-                prop_header.prop_legal_ranges.push_back(
-                    std::make_pair( "**none**", "**none**" ) );
+                prop_header.prop_legal_ranges.emplace_back(
+                     "**none**", "**none**" );
                 prop_header.no_data_values.push_back( -99999. );
                 prop_header.property_classes.push_back( name.data() );
                 prop_header.kinds.push_back( " Real Number" );
