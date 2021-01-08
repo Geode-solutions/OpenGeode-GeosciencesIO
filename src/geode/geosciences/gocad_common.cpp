@@ -277,7 +277,7 @@ namespace geode
             }
             file << EOL;
             file << "UNITS";
-            for( const auto unit : data.units )
+            for( const auto& unit : data.units )
             {
                 file << SPACE << unit;
             }
