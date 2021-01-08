@@ -126,7 +126,7 @@ namespace
                   << edged_curve_.point( v ).value( 0 ) << SPACE
                   << edged_curve_.point( v ).value( 1 ) << SPACE
                   << edged_curve_.point( v ).value( 2 );
-            for( const auto att : generic_att_ )
+            for( const auto& att : generic_att_ )
             {
                 file_ << SPACE << att->generic_value( v );
             }
@@ -144,7 +144,9 @@ namespace
                 ev_on_iline.push_back( next_ev );
                 done[next_ev.edge_id] = true;
 
-                next_ev = { next_ev.edge_id, ( next_ev.vertex_id + 1 ) % 2 };
+                next_ev = { next_ev.edge_id,
+                    static_cast< geode::local_index_t >(
+                        ( next_ev.vertex_id + 1 ) % 2 ) };
                 auto edges_around = edged_curve_.edges_around_vertex(
                     edged_curve_.edge_vertex( next_ev ) );
 
@@ -171,7 +173,7 @@ namespace
         void write_ilines()
         {
             std::vector< geode::index_t > start_point;
-            for( const auto& v : geode::Range{ edged_curve_.nb_vertices() } )
+            for( auto v : geode::Range{ edged_curve_.nb_vertices() } )
             {
                 const auto neigh = edged_curve_.edges_around_vertex( v );
                 if( neigh.size() != 2 )
@@ -201,9 +203,7 @@ namespace
                             current_offset + cur_v );
                         ++cur_v;
                     }
-                    cur_v = 0;
-                    for( const auto& edge :
-                        geode::Range{ ev_on_iline.size() - 1 } )
+                    for( auto cur_v : geode::Range{ ev_on_iline.size() - 1 } )
                     {
                         file_ << "SEG" << SPACE << current_offset + cur_v
                               << SPACE << current_offset + cur_v + 1 << EOL;
