@@ -355,7 +355,7 @@ namespace
                 for( const auto& polyhedron : solid_->polyhedra_from_facet(
                          solid_->facets().facet_vertices( facet.first ) ) )
                 {
-                    const auto& key_vertices = facet.second;
+                    const auto& key_v = facet.second;
                     for( const auto f : geode::Range{
                              solid_->nb_polyhedron_facets( polyhedron ) } )
                     {
@@ -370,7 +370,7 @@ namespace
                             continue;
                         }
                         if( !facet_matches_key_vertices(
-                                key_vertices, polyhedron_facet, side ) )
+                                key_v, polyhedron_facet, side ) )
                         {
                             continue;
                         }
@@ -404,7 +404,7 @@ namespace
                         solid_->facets()
                             .facet_from_vertices(
                                 solid_->polyhedron_facet_vertices(
-                                    { tetra, f } ) )
+                                    { tetra, geode::local_index_t > ( f ) } ) )
                             .value();
                     const auto& facet_uuid = facet_id_->value( facet_id );
                     if( facet_uuid != default_id_ )
@@ -419,8 +419,8 @@ namespace
                             surface_relations.emplace( facet_uuid, 1 );
                         }
                     }
-                    else if( const auto adj =
-                                 solid_->polyhedron_adjacent( { tetra, f } ) )
+                    else if( const auto adj = solid_->polyhedron_adjacent(
+                                 { tetra, geode::local_index_t > ( f ) } ) )
                     {
                         if( visited.emplace( adj.value() ).second )
                         {
@@ -446,8 +446,8 @@ namespace
                 std::array< geode::index_t, 4 > vertices;
                 for( const auto i : geode::Range{ 4 } )
                 {
-                    const auto vertex =
-                        solid_->polyhedron_vertex( { tetra, i } );
+                    const auto vertex = solid_->polyhedron_vertex(
+                        { tetra, geode::local_index_t > ( i ) } );
                     const auto it = vertex_mapping.find( vertex );
                     if( it != vertex_mapping.end() )
                     {
@@ -520,8 +520,8 @@ namespace
             {
                 for( const auto v : geode::Range{ 3 } )
                 {
-                    const auto v_id =
-                        solid_->polyhedron_facet_vertex( { facet, v } );
+                    const auto v_id = solid_->polyhedron_facet_vertex(
+                        { facet, geode::local_index_t > ( v ) } );
                     if( v_id != key_vertices[( pos + v ) % 3] )
                     {
                         return false;
@@ -532,8 +532,8 @@ namespace
             {
                 for( const auto v : geode::Range{ 3 } )
                 {
-                    const auto v_id =
-                        solid_->polyhedron_facet_vertex( { facet, v } );
+                    const auto v_id = solid_->polyhedron_facet_vertex(
+                        { facet, geode::local_index_t > ( v ) } );
                     if( v_id != key_vertices[( pos + 3 - v ) % 3] )
                     {
                         return false;
