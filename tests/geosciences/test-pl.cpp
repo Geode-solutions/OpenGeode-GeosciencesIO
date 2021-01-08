@@ -44,7 +44,7 @@ namespace
         builder.set_edge_vertex( { 0, 1 }, 1 );
         builder.set_edge_vertex( { 1, 0 }, 1 );
         builder.set_edge_vertex( { 1, 1 }, 2 );
-        builder.set_edge_vertex( { 2, 0 }, 2 );
+        builder.set_edge_vertex( { 2, 0 }, 1 );
         builder.set_edge_vertex( { 2, 1 }, 3 );
 
         std::shared_ptr< geode::VariableAttribute< double > > attribut =
