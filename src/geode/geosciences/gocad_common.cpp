@@ -234,7 +234,7 @@ namespace geode
             std::ofstream& file, const PropHeaderData& data )
         {
             file << "PROPERTIES";
-            for( const auto name : data.names )
+            for( const auto& name : data.names )
             {
                 file << SPACE << name;
             }
