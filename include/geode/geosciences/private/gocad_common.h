@@ -73,9 +73,10 @@ namespace geode
                 property_subclass;
             std::vector< index_t > esizes;
             std::vector< std::string > units;
-            bool empty()
+
+            bool empty() const
             {
-                return names.size() == 0;
+                return names.empty();
             }
         };
 
