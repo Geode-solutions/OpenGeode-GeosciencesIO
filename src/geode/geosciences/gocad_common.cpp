@@ -234,13 +234,13 @@ namespace geode
             std::ofstream& file, const PropHeaderData& data )
         {
             file << "PROPERTIES";
-            for( const auto name : data.names )
+            for( const auto& name : data.names )
             {
                 file << SPACE << name;
             }
             file << EOL;
             file << "PROP_LEGAL_RANGES";
-            for( const auto prop_range : data.prop_legal_ranges )
+            for( const auto& prop_range : data.prop_legal_ranges )
             {
                 file << SPACE << prop_range.first << SPACE << prop_range.second;
             }
@@ -252,19 +252,19 @@ namespace geode
             }
             file << EOL;
             file << "PROPERTY_CLASSES";
-            for( const auto prop_class : data.property_classes )
+            for( const auto& prop_class : data.property_classes )
             {
                 file << SPACE << prop_class;
             }
             file << EOL;
             file << "PROPERTY_KINDS";
-            for( const auto kind : data.kinds )
+            for( const auto& kind : data.kinds )
             {
                 file << SPACE << kind;
             }
             file << EOL;
             file << "PROPERTY_SUBCLASSES";
-            for( const auto prop_subclasse : data.property_subclass )
+            for( const auto& prop_subclasse : data.property_subclass )
             {
                 file << SPACE << prop_subclasse.first << SPACE
                      << prop_subclasse.second;
@@ -277,7 +277,7 @@ namespace geode
             }
             file << EOL;
             file << "UNITS";
-            for( const auto unit : data.units )
+            for( const auto& unit : data.units )
             {
                 file << SPACE << unit;
             }

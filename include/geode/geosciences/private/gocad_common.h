@@ -73,12 +73,12 @@ namespace geode
                 property_subclass;
             std::vector< index_t > esizes;
             std::vector< std::string > units;
-            bool empty()
+
+            bool empty() const
             {
-                return names.size() == 0;
+                return names.empty();
             }
         };
-        // PropHeaderData read_prop_headers( std::ifstream& file );
 
         void write_prop_header(
             std::ofstream& file, const PropHeaderData& data );

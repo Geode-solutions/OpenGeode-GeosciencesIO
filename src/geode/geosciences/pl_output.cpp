@@ -168,9 +168,10 @@ namespace
                         next_ev = edge;
                     }
                 }
-                else{
+                else
+                {
                     ev_on_iline.push_back( next_ev );
-				}                    
+                }
             }
             return ev_on_iline;
         }
@@ -210,10 +211,11 @@ namespace
                         ++cur_v;
                     }
                     cur_v = 0;
-                    for( const auto edge : geode::Range(ev_on_iline.size()-1) )
+                    for( const auto edge :
+                        geode::Range( ev_on_iline.size() - 1 ) )
                     {
                         file_ << "SEG" << SPACE << current_offset + cur_v
-                              << SPACE << current_offset + cur_v+1 << EOL;
+                              << SPACE << current_offset + cur_v + 1 << EOL;
                         ++cur_v;
                     }
                     current_offset += ev_on_iline.size();
@@ -253,7 +255,9 @@ namespace
 
                      while( next_edge_around.size() == 2 )
                      {
-                         
+
+
+
                          v_id.push_back( next_vid );
                          const auto next_edge_arround =
          edged_curve_.edges_around_vertex( next_vid ); if (next_ev.size() != 2)
