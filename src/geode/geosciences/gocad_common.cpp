@@ -196,39 +196,6 @@ namespace geode
                  << EOL;
             file << "END_ORIGINAL_COORDINATE_SYSTEM" << EOL;
         }
-        /*   PropHeaderData read_prop_header( std::ifstream& file )
-           {
-               check_keyword( file, "PROPERTY_CLASS_HEADER" );
-               PropHeaderData header;
-               // header.name = next to  "PROPERTY_CLASS_HEADER"
-               std::string line;
-               while( std::getline( file, line ) )
-               {
-                   if( string_starts_with( line, "}" ) )
-                   {
-                       return header;
-                   }
-                   std::istringstream iss{ line };
-                   std::string keyword;
-                   iss >> keyword;
-                   if( keyword == "kind:" )
-                   {
-                       header.kind = read_name( iss );
-                   }
-                   if( keyword == "unit:" )
-                   {
-                       header.unit = read_name( iss );
-                   }
-                   if( keyword == "is_z:" )
-                   {
-                       header.is_z = true;
-                   }
-               }
-               throw geode::OpenGeodeException{
-                   "[read_header] Cannot find the end of "
-                   "\"PROPERTY_CLASS_HEADER\" section"
-               };
-           }*/
 
         void write_prop_header(
             std::ofstream& file, const PropHeaderData& data )

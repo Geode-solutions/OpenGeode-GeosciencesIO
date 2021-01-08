@@ -86,7 +86,7 @@ namespace geode
         struct PropClassHeaderData
         {
             std::string name{ "Default" };
-            std::string kind{ " Real Number" };
+            std::string kind{ "Real Number" };
             std::string unit{ "unitless" };
             bool is_z{ false };
         };

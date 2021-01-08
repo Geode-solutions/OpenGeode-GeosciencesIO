@@ -56,7 +56,8 @@ namespace
             const auto names =
                 edged_curve_.vertex_attribute_manager().attribute_names();
             geode::detail::PropHeaderData prop_header;
-            std::vector< geode::detail::PropClassHeaderData > prop_class_header;
+            std::vector< geode::detail::PropClassHeaderData > prop_class_header(
+                names.size() );
 
             for( const auto& name : names )
             {
@@ -72,7 +73,7 @@ namespace
                     std::make_pair( "**none**", "**none**" ) );
                 prop_header.no_data_values.push_back( -99999. );
                 prop_header.property_classes.push_back( name.data() );
-                prop_header.kinds.push_back( " Real Number" );
+                prop_header.kinds.push_back( "Real Number" );
                 prop_header.property_subclass.push_back(
                     std::make_pair( "QUANTITY", "Float" ) );
                 prop_header.esizes.push_back( 1 );
@@ -80,11 +81,8 @@ namespace
 
                 geode::detail::PropClassHeaderData tmp_prop_class_header;
                 tmp_prop_class_header.name = name.data();
-                tmp_prop_class_header.kind = " Real Number";
-                tmp_prop_class_header.unit = "unitless";
-                tmp_prop_class_header.is_z = false;
 
-                prop_class_header.push_back( tmp_prop_class_header );
+                prop_class_header.emplace_back( tmp_prop_class_header );
             }
             if( !prop_header.empty() )
             {
@@ -139,12 +137,6 @@ namespace
         {
             std::vector< geode::EdgeVertex > ev_on_iline;
             geode::EdgeVertex next_ev = ev;
-            /*  ev_on_iline.push_back( ev );
-              done[ev.edge_id] = true;*/
-
-            /*auto previous_vertex = edged_curve_.edge_vertex( ev );
-            auto edges_around =
-                edged_curve_.edges_around_vertex( previous_vertex );*/
 
             auto propagate = true;
             while( propagate )
@@ -159,7 +151,7 @@ namespace
                 propagate = edges_around.size() == 2;
                 if( propagate )
                 {
-                    for( const auto edge : edges_around )
+                    for( const auto& edge : edges_around )
                     {
                         if( done[edge.edge_id] )
                         {
@@ -179,7 +171,7 @@ namespace
         void write_ilines()
         {
             std::vector< geode::index_t > start_point;
-            for( const auto v : geode::Range{ edged_curve_.nb_vertices() } )
+            for( const auto& v : geode::Range{ edged_curve_.nb_vertices() } )
             {
                 const auto neigh = edged_curve_.edges_around_vertex( v );
                 if( neigh.size() != 2 )
@@ -189,30 +181,29 @@ namespace
             }
             std::vector< bool > done( edged_curve_.nb_edges(), false );
 
-            geode::index_t current_offset = OFFSET_START;
-            for( const auto v_id : start_point )
+            auto current_offset = OFFSET_START;
+            for( const auto& v_id : start_point )
             {
                 const auto edges_around =
                     edged_curve_.edges_around_vertex( v_id );
-                for( const auto edge : edges_around )
+                for( const auto& edge : edges_around )
                 {
                     if( done[edge.edge_id] )
                     {
                         continue;
                     }
                     file_ << "ILINE" << EOL;
-                    // write_pvrtx( v_id, current_offset );
                     auto ev_on_iline = get_edged_vertex_on_iline( edge, done );
                     geode::index_t cur_v = 0;
-                    for( const auto ev : ev_on_iline )
+                    for( const auto& ev : ev_on_iline )
                     {
                         write_pvrtx( edged_curve_.edge_vertex( ev ),
                             current_offset + cur_v );
                         ++cur_v;
                     }
                     cur_v = 0;
-                    for( const auto edge :
-                        geode::Range( ev_on_iline.size() - 1 ) )
+                    for( const auto& edge :
+                        geode::Range{ ev_on_iline.size() - 1 } )
                     {
                         file_ << "SEG" << SPACE << current_offset + cur_v
                               << SPACE << current_offset + cur_v + 1 << EOL;
@@ -220,78 +211,6 @@ namespace
                     }
                     current_offset += ev_on_iline.size();
                 }
-            }
-        }
-
-        /*             geode::index_t nb_vertex = 1;
-
-
-                     if( next_ev.vertex_id ==0 )
-                     {
-                         v_ids.push_back( v_id );
-                         const auto next_vid =
-                             edged_curve_.edge_vertex( next_ev );
-                         const auto next_edge_around =
-                             edged_curve_.edges_around_vertex( next_vid );
-
-                     while( next_edge_around2.size() == 2 ) {
-                         for( const auto next_ev2 : next_edge_around )
-                         {
-                             if( next_ev2.vertex_id == 0 )
-                             {
-                                 v_ids.push_back( v_id );
-                                 const auto next_vid =
-                                     edged_curve_.edge_vertex( next_ev );
-                                 const auto next_edge_around =
-                                     edged_curve_.edges_around_vertex(
-                                         next_vid );
-                                 }}
-                     }
-
-                     }
-                     const auto next_vid = edged_curve_.edge_vertex( next_ev );
-                     const auto next_edge_around =
-                         edged_curve_.edges_around_vertex( next_vid );
-
-                     while( next_edge_around.size() == 2 )
-                     {
-
-
-
-                         v_id.push_back( next_vid );
-                         const auto next_edge_arround =
-         edged_curve_.edges_around_vertex( next_vid ); if (next_ev.size() != 2)
-         { break;
-                         }
-                         ev
-
-                     }
-                     else
-                     {
-                         //file_ << "ILINE" << EOL;
-
-                         while(ev.)
-                     }
-                 }
-             }
-         }*/
-
-        void write_iline()
-        {
-            geode::index_t current_offset = OFFSET_START;
-            file_ << "ILINE" << EOL;
-            for( const auto v : geode::Range{ edged_curve_.nb_vertices() } )
-            {
-                write_pvrtx( v, current_offset );
-            }
-
-            for( const auto s : geode::Range{ edged_curve_.nb_edges() } )
-            {
-                file_ << "SEG" << SPACE
-                      << OFFSET_START + edged_curve_.edge_vertex( { s, 0 } )
-                      << SPACE
-                      << OFFSET_START + edged_curve_.edge_vertex( { s, 1 } )
-                      << EOL;
             }
         }
 
