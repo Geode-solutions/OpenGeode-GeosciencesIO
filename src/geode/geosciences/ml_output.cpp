@@ -74,10 +74,10 @@ namespace
             for( const auto e : geode::Range{ 3 } )
             {
                 if( mesh.is_edge_on_border(
-                        { p, static_cast< local_index_t >( e ) } ) )
+                        { p, static_cast< geode::local_index_t >( e ) } ) )
                 {
                     return geode::PolygonEdge{ p,
-                        static_cast< local_index_t >( e ) };
+                        static_cast< geode::local_index_t >( e ) };
                 }
             }
         }
@@ -236,13 +236,13 @@ namespace
                     }
                     geode::Tetra tetra{
                         surface_mesh.point( surface_mesh.polygon_vertex(
-                            { t, static_cast< local_index_t >(
+                            { t, static_cast< geode::local_index_t >(
                                      vertex_order[0] ) } ) ),
                         surface_mesh.point( surface_mesh.polygon_vertex(
-                            { t, static_cast< local_index_t >(
+                            { t, static_cast< geode::local_index_t >(
                                      vertex_order[1] ) } ) ),
                         surface_mesh.point( surface_mesh.polygon_vertex(
-                            { t, static_cast< local_index_t >(
+                            { t, static_cast< geode::local_index_t >(
                                      vertex_order[2] ) } ) ),
                         center
                     };
@@ -363,7 +363,7 @@ namespace
                     for( const auto v : geode::Range{ 3 } )
                     {
                         const auto& coords = mesh.point( mesh.polygon_vertex(
-                            { 0, static_cast< local_index_t >( v ) } ) );
+                            { 0, static_cast< geode::local_index_t >( v ) } ) );
                         file_ << SPACE << SPACE << coords.value( 0 ) << SPACE
                               << coords.value( 1 ) << SPACE << coords.value( 2 )
                               << EOL;
@@ -390,7 +390,7 @@ namespace
                     for( const auto v : geode::Range{ 3 } )
                     {
                         const auto& coords = mesh.point( mesh.polygon_vertex(
-                            { 0, static_cast< local_index_t >( v ) } ) );
+                            { 0, static_cast< geode::local_index_t >( v ) } ) );
                         file_ << SPACE << SPACE << coords.value( 0 ) << SPACE
                               << coords.value( 1 ) << SPACE << coords.value( 2 )
                               << EOL;
@@ -417,7 +417,7 @@ namespace
                     for( const auto v : geode::Range{ 3 } )
                     {
                         const auto& coords = mesh.point( mesh.polygon_vertex(
-                            { 0, static_cast< local_index_t >( v ) } ) );
+                            { 0, static_cast< geode::local_index_t >( v ) } ) );
                         file_ << SPACE << SPACE << coords.value( 0 ) << SPACE
                               << coords.value( 1 ) << SPACE << coords.value( 2 )
                               << EOL;
@@ -606,8 +606,9 @@ namespace
         {
             const auto& mesh = surface.mesh();
             const auto v0 = mesh.polygon_vertex( edge );
-            const auto v1 = mesh.polygon_vertex( { edge.polygon_id,
-                static_cast< local_index_t >( ( edge.edge_id + 1 ) % 3 ) } );
+            const auto v1 = mesh.polygon_vertex(
+                { edge.polygon_id, static_cast< geode::local_index_t >(
+                                       ( edge.edge_id + 1 ) % 3 ) } );
             const auto uid1 =
                 model_.unique_vertex( { surface.component_id(), v1 } );
             const auto corner_mcvs1 = model_.mesh_component_vertices(
