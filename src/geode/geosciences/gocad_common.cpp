@@ -252,7 +252,7 @@ namespace geode
             }
             file << EOL;
             file << "PROPERTY_CLASSES";
-            for( const auto prop_class : data.property_classes )
+            for( const auto& prop_class : data.property_classes )
             {
                 file << SPACE << prop_class;
             }
