@@ -78,7 +78,6 @@ namespace geode
                 return names.size() == 0;
             }
         };
-        // PropHeaderData read_prop_headers( std::ifstream& file );
 
         void write_prop_header(
             std::ofstream& file, const PropHeaderData& data );
