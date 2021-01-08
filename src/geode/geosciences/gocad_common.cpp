@@ -240,7 +240,7 @@ namespace geode
             }
             file << EOL;
             file << "PROP_LEGAL_RANGES";
-            for( const auto prop_range : data.prop_legal_ranges )
+            for( const auto& prop_range : data.prop_legal_ranges )
             {
                 file << SPACE << prop_range.first << SPACE << prop_range.second;
             }
