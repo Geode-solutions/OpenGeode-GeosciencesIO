@@ -441,7 +441,7 @@ namespace
                 for( const auto v : geode::Range{ 3 } )
                 {
                     const auto& coords = mesh.point( mesh.polygon_vertex(
-                        { 0, static_cast< local_index_t >( v ) } ) );
+                        { 0, static_cast< geode::local_index_t >( v ) } ) );
                     file_ << SPACE << SPACE << coords.value( 0 ) << SPACE
                           << coords.value( 1 ) << SPACE << coords.value( 2 )
                           << EOL;
