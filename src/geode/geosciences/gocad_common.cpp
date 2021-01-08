@@ -258,7 +258,7 @@ namespace geode
             }
             file << EOL;
             file << "PROPERTY_KINDS";
-            for( const auto kind : data.kinds )
+            for( const auto& kind : data.kinds )
             {
                 file << SPACE << kind;
             }
