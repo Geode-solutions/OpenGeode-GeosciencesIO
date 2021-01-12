@@ -356,11 +356,11 @@ namespace
                          solid_->facets().facet_vertices( facet.first ) ) )
                 {
                     const auto& key_v = facet.second;
-                    for( const auto f : geode::Range{
+                    for( const auto f : geode::LRange{
                              solid_->nb_polyhedron_facets( polyhedron ) } )
                     {
                         const geode::PolyhedronFacet polyhedron_facet{
-                            polyhedron, static_cast< geode::local_index_t >( f )
+                            polyhedron, f
                         };
                         if( solid_->facets().facet_from_vertices(
                                 solid_->polyhedron_facet_vertices(
@@ -398,14 +398,13 @@ namespace
             {
                 const auto tetra = tetras.top();
                 tetras.pop();
-                for( const auto f : geode::Range{ 4 } )
+                for( const auto f : geode::LRange{ 4 } )
                 {
                     const auto facet_id =
                         solid_->facets()
                             .facet_from_vertices(
-                                solid_->polyhedron_facet_vertices( { tetra,
-                                    static_cast< geode::local_index_t >(
-                                        f ) } ) )
+                                solid_->polyhedron_facet_vertices(
+                                    { tetra, f } ) )
                             .value();
                     const auto& facet_uuid = facet_id_->value( facet_id );
                     if( facet_uuid != default_id_ )
@@ -420,9 +419,8 @@ namespace
                             surface_relations.emplace( facet_uuid, 1 );
                         }
                     }
-                    else if( const auto adj = solid_->polyhedron_adjacent(
-                                 { tetra, static_cast< geode::local_index_t >(
-                                              f ) } ) )
+                    else if( const auto adj =
+                                 solid_->polyhedron_adjacent( { tetra, f } ) )
                     {
                         if( visited.emplace( adj.value() ).second )
                         {
@@ -446,10 +444,10 @@ namespace
             for( const auto tetra : tetras )
             {
                 std::array< geode::index_t, 4 > vertices;
-                for( const auto i : geode::Range{ 4 } )
+                for( const auto i : geode::LRange{ 4 } )
                 {
-                    const auto vertex = solid_->polyhedron_vertex(
-                        { tetra, static_cast< geode::local_index_t >( i ) } );
+                    const auto vertex =
+                        solid_->polyhedron_vertex( { tetra, i } );
                     const auto it = vertex_mapping.find( vertex );
                     if( it != vertex_mapping.end() )
                     {
@@ -520,10 +518,10 @@ namespace
                         solid_->polyhedron_facet_vertex( { facet, 0 } ) ) ) );
             if( side )
             {
-                for( const auto v : geode::Range{ 3 } )
+                for( const auto v : geode::LRange{ 3 } )
                 {
-                    const auto v_id = solid_->polyhedron_facet_vertex(
-                        { facet, static_cast< geode::local_index_t >( v ) } );
+                    const auto v_id =
+                        solid_->polyhedron_facet_vertex( { facet, v } );
                     if( v_id != key_vertices[( pos + v ) % 3] )
                     {
                         return false;
@@ -532,10 +530,10 @@ namespace
             }
             else
             {
-                for( const auto v : geode::Range{ 3 } )
+                for( const auto v : geode::LRange{ 3 } )
                 {
-                    const auto v_id = solid_->polyhedron_facet_vertex(
-                        { facet, static_cast< geode::local_index_t >( v ) } );
+                    const auto v_id =
+                        solid_->polyhedron_facet_vertex( { facet, v } );
                     if( v_id != key_vertices[( pos + 3 - v ) % 3] )
                     {
                         return false;
