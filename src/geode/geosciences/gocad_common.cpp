@@ -197,6 +197,72 @@ namespace geode
             file << "END_ORIGINAL_COORDINATE_SYSTEM" << EOL;
         }
 
+        void write_prop_header(
+            std::ofstream& file, const PropHeaderData& data )
+        {
+            file << "PROPERTIES";
+            for( const auto& name : data.names )
+            {
+                file << SPACE << name;
+            }
+            file << EOL;
+            file << "PROP_LEGAL_RANGES";
+            for( const auto& prop_range : data.prop_legal_ranges )
+            {
+                file << SPACE << prop_range.first << SPACE << prop_range.second;
+            }
+            file << EOL;
+            file << "NO_DATA_VALUES";
+            for( const auto prop_ndv : data.no_data_values )
+            {
+                file << SPACE << prop_ndv;
+            }
+            file << EOL;
+            file << "PROPERTY_CLASSES";
+            for( const auto& prop_class : data.property_classes )
+            {
+                file << SPACE << prop_class;
+            }
+            file << EOL;
+            file << "PROPERTY_KINDS";
+            for( const auto& kind : data.kinds )
+            {
+                file << SPACE << kind;
+            }
+            file << EOL;
+            file << "PROPERTY_SUBCLASSES";
+            for( const auto& prop_subclasse : data.property_subclass )
+            {
+                file << SPACE << prop_subclasse.first << SPACE
+                     << prop_subclasse.second;
+            }
+            file << EOL;
+            file << "ESIZES";
+            for( const auto esize : data.esizes )
+            {
+                file << SPACE << esize;
+            }
+            file << EOL;
+            file << "UNITS";
+            for( const auto& unit : data.units )
+            {
+                file << SPACE << unit;
+            }
+            file << EOL;
+        }
+        void write_property_class_header(
+            std::ofstream& file, const PropClassHeaderData& data )
+        {
+            file << "PROPERTY_CLASS_HEADER" << SPACE << data.name << SPACE
+                 << "{" << EOL;
+            file << "kind:" << data.kind << EOL;
+            file << "unit:" << data.unit << EOL;
+            if( data.is_z )
+            {
+                file << "is_Z: on" << EOL;
+            }
+            file << "}" << EOL;
+        }
         std::string goto_keyword( std::ifstream& file, absl::string_view word )
         {
             std::string line;

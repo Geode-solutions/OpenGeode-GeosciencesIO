@@ -370,6 +370,7 @@ namespace
                             continue;
                         }
                         if( !facet_matches_key_vertices(
+
                                 key, polyhedron_facet, side ) )
                         {
                             continue;
