@@ -185,7 +185,8 @@ namespace
             auto current_offset = OFFSET_START;
             for( const auto& v_id : start_point )
             {
-                for( const auto& edge : edged_curve_.edges_around_vertex( v_id ))
+                for( const auto& edge :
+                    edged_curve_.edges_around_vertex( v_id ) )
                 {
                     if( done[edge.edge_id] )
                     {
