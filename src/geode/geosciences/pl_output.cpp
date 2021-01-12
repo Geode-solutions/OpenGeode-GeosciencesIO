@@ -56,8 +56,8 @@ namespace
             const auto names =
                 edged_curve_.vertex_attribute_manager().attribute_names();
             geode::detail::PropHeaderData prop_header;
-            std::vector< geode::detail::PropClassHeaderData > prop_class_header(
-                names.size() );
+            std::vector< geode::detail::PropClassHeaderData > prop_class_header;
+            prop_class_header.reserve( names.size() );
 
             for( const auto& name : names )
             {
