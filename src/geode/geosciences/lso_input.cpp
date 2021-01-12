@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2020 Geode-solutions
+ * Copyright (c) 2019 - 2021 Geode-solutions
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -355,7 +355,7 @@ namespace
                 for( const auto& polyhedron : solid_->polyhedra_from_facet(
                          solid_->facets().facet_vertices( facet.first ) ) )
                 {
-                    const auto& key_v = facet.second;
+                    const auto& key = facet.second;
                     for( const auto f : geode::LRange{
                              solid_->nb_polyhedron_facets( polyhedron ) } )
                     {
@@ -370,7 +370,8 @@ namespace
                             continue;
                         }
                         if( !facet_matches_key_vertices(
-                                key_v, polyhedron_facet, side ) )
+
+                                key, polyhedron_facet, side ) )
                         {
                             continue;
                         }
