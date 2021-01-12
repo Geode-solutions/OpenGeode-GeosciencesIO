@@ -45,7 +45,9 @@ namespace
         static constexpr char SPACE{ ' ' };
         PLOutputImpl(
             absl::string_view filename, const geode::EdgedCurve3D& edged_curve )
-            : file_( filename.data() ), edged_curve_( edged_curve )
+            : file_( filename.data() ),
+              edged_curve_( edged_curve ),
+              edge_done_( edged_curve.nb_edges(), false )
         {
             OPENGEODE_EXCEPTION(
                 file_.good(), "Error while opening file: ", filename );
@@ -82,7 +84,7 @@ namespace
                 geode::detail::PropClassHeaderData tmp_prop_class_header;
                 tmp_prop_class_header.name = name.data();
 
-                prop_class_header.emplace_back( tmp_prop_class_header );
+                prop_class_header.push_back( tmp_prop_class_header );
             }
             if( !prop_header.empty() )
             {
@@ -133,7 +135,7 @@ namespace
             file_ << EOL;
         }
         std::vector< geode::EdgeVertex > get_edged_vertex_on_iline(
-            const geode::EdgeVertex& ev, std::vector< bool >& done )
+            const geode::EdgeVertex& ev )
         {
             std::vector< geode::EdgeVertex > ev_on_iline;
             geode::EdgeVertex next_ev = ev;
@@ -142,7 +144,7 @@ namespace
             while( propagate )
             {
                 ev_on_iline.push_back( next_ev );
-                done[next_ev.edge_id] = true;
+                edge_done_[next_ev.edge_id] = true;
 
                 next_ev = { next_ev.edge_id,
                     static_cast< geode::local_index_t >(
@@ -155,7 +157,7 @@ namespace
                 {
                     for( const auto& edge : edges_around )
                     {
-                        if( done[edge.edge_id] )
+                        if( edge_done_[edge.edge_id] )
                         {
                             continue;
                         }
@@ -180,20 +182,18 @@ namespace
                     start_point.push_back( v );
                 }
             }
-            std::vector< bool > done( edged_curve_.nb_edges(), false );
-
             auto current_offset = OFFSET_START;
             for( const auto& v_id : start_point )
             {
                 for( const auto& edge :
                     edged_curve_.edges_around_vertex( v_id ) )
                 {
-                    if( done[edge.edge_id] )
+                    if( edge_done_[edge.edge_id] )
                     {
                         continue;
                     }
                     file_ << "ILINE" << EOL;
-                    auto ev_on_iline = get_edged_vertex_on_iline( edge, done );
+                    auto ev_on_iline = get_edged_vertex_on_iline( edge );
                     geode::index_t cur_v = 0;
                     for( const auto& ev : ev_on_iline )
                     {
@@ -213,8 +213,7 @@ namespace
 
         void write_file()
         {
-            geode::Logger::info( "[PLOutput::write] Do what have to be done." );
-
+            geode::Logger::info( "[PLOutput::write] Writting pl file." );
             file_ << "GOCAD PLine 1" << EOL;
             geode::detail::HeaderData header;
             header.name = "edged_curve_name";
@@ -230,6 +229,7 @@ namespace
         std::ofstream file_;
         const geode::EdgedCurve3D& edged_curve_;
         std::vector< std::shared_ptr< geode::AttributeBase > > generic_att_;
+        std::vector< bool > edge_done_;
     };
 } // namespace
 
