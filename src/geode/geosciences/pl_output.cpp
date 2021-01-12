@@ -175,8 +175,7 @@ namespace
             std::vector< geode::index_t > start_point;
             for( auto v : geode::Range{ edged_curve_.nb_vertices() } )
             {
-                const auto neigh = edged_curve_.edges_around_vertex( v );
-                if( neigh.size() != 2 )
+                if( edged_curve_.edges_around_vertex( v ).size() != 2 )
                 {
                     start_point.push_back( v );
                 }
