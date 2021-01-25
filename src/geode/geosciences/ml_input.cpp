@@ -27,6 +27,8 @@
 #include <fstream>
 #include <functional>
 
+#include <absl/container/flat_hash_set.h>
+
 #include <geode/geometry/bounding_box.h>
 #include <geode/geometry/nn_search.h>
 #include <geode/geometry/point.h>
@@ -106,10 +108,14 @@ namespace
             }
 
             geode::detail::TSurfData data;
-            std::vector< geode::uuid > tfaces;
+            std::vector< std::reference_wrapper< const geode::uuid > > tfaces;
             std::string feature;
             std::string name = std::string( "unknown" );
         };
+
+        using LinesID =
+            absl::InlinedVector< std::reference_wrapper< const geode::uuid >,
+                1 >;
 
         struct LineData
         {
@@ -272,19 +278,29 @@ namespace
         {
             const auto it = corners2line_.find(
                 std::make_pair( line_data.corner0, line_data.corner1 ) );
-            if( it != corners2line_.end()
-                && are_lines_equal( line_data, it->second ) )
+            if( it != corners2line_.end() )
             {
-                return it->second;
+                for( const auto& line_id : it->second )
+                {
+                    if( are_lines_equal( line_data, line_id ) )
+                    {
+                        return line_id;
+                    }
+                }
             }
             const auto it_reverse = corners2line_.find(
                 std::make_pair( line_data.corner1, line_data.corner0 ) );
-            if( it_reverse != corners2line_.end()
-                && are_lines_reverse_equal( line_data, it_reverse->second ) )
+            if( it_reverse != corners2line_.end() )
             {
-                std::reverse(
-                    line_data.indices.begin(), line_data.indices.end() );
-                return it_reverse->second;
+                for( const auto& line_id : it_reverse->second )
+                {
+                    if( are_lines_reverse_equal( line_data, line_id ) )
+                    {
+                        std::reverse( line_data.indices.begin(),
+                            line_data.indices.end() );
+                        return line_id;
+                    }
+                }
             }
             return create_line( line_data );
         }
@@ -362,9 +378,13 @@ namespace
         const geode::uuid& create_line( const LineData& line_data )
         {
             const auto& line_id = builder_.add_line();
-            corners2line_.emplace(
+            auto it = corners2line_.try_emplace(
                 std::make_pair( line_data.corner0, line_data.corner1 ),
-                line_id );
+                LinesID{ line_id } );
+            if( !it.second )
+            {
+                it.first->second.push_back( line_id );
+            }
             create_line_geometry( line_data, line_id );
             create_line_topology( line_data, line_id );
             return line_id;
@@ -597,25 +617,28 @@ namespace
         void process_unassigned_model_boundaries(
             std::vector< geode::uuid >& boundaries )
         {
-            std::sort( boundaries.begin(), boundaries.end() );
-            std::vector< geode::uuid > diff(
-                boundaries.size() + universe_.size() );
-            diff.resize(
-                std::set_difference( boundaries.begin(), boundaries.end(),
-                    universe_.begin(), universe_.end(), diff.begin() )
-                - diff.begin() );
-            if( !diff.empty() )
+            std::vector< geode::uuid > diff;
+            diff.reserve( boundaries.size() );
+            for( auto&& id : geode::EraserRange< geode::uuid >{ boundaries } )
             {
-                const auto& model_boundary_uuid = builder_.add_model_boundary();
-                builder_.set_model_boundary_name(
-                    model_boundary_uuid, "undefined boundary" );
-                const auto& model_boundary =
-                    model_.model_boundary( model_boundary_uuid );
-                for( const auto& uuid : diff )
+                if( !universe_.contains( id ) )
                 {
-                    builder_.add_surface_in_model_boundary(
-                        model_.surface( uuid ), model_boundary );
+                    diff.emplace_back( std::move( id ) );
                 }
+            }
+            if( diff.empty() )
+            {
+                return;
+            }
+            const auto& model_boundary_uuid = builder_.add_model_boundary();
+            builder_.set_model_boundary_name(
+                model_boundary_uuid, "undefined boundary" );
+            const auto& model_boundary =
+                model_.model_boundary( model_boundary_uuid );
+            for( const auto& uuid : diff )
+            {
+                builder_.add_surface_in_model_boundary(
+                    model_.surface( uuid ), model_boundary );
             }
         }
 
@@ -676,7 +699,6 @@ namespace
 
         void read_universe()
         {
-            blocks_.emplace_back( geode::uuid{} );
             while( true )
             {
                 std::string boundary_line;
@@ -687,11 +709,10 @@ namespace
                 {
                     if( surface_id == 0 )
                     {
-                        std::sort( universe_.begin(), universe_.end() );
                         return;
                     }
                     surface_id = std::abs( surface_id ) - OFFSET_START;
-                    universe_.push_back( surfaces_[surface_id] );
+                    universe_.emplace( surfaces_[surface_id] );
                 }
             }
         }
@@ -769,10 +790,10 @@ namespace
                             {
                                 continue; // Universe
                             }
-                            if( b < blocks_.size() )
+                            if( b - OFFSET_START < blocks_.size() )
                             {
                                 builder_.add_block_in_stratigraphic_unit(
-                                    model_.block( blocks_[b] ),
+                                    model_.block( blocks_[b - OFFSET_START] ),
                                     stratigraphic_unit );
                             }
                             else
@@ -813,10 +834,11 @@ namespace
                             {
                                 continue; // Universe
                             }
-                            if( b < blocks_.size() )
+                            if( b - OFFSET_START < blocks_.size() )
                             {
                                 builder_.add_block_in_fault_block(
-                                    model_.block( blocks_[b] ), fault_block );
+                                    model_.block( blocks_[b - OFFSET_START] ),
+                                    fault_block );
                             }
                             else
                             {
@@ -841,12 +863,11 @@ namespace
         geode::StructuralModelBuilder builder_;
         absl::flat_hash_map< std::string, geode::index_t > tsurf_names2index_;
         std::vector< TSurfMLData > tsurfs_;
-        absl::flat_hash_map< std::pair< geode::uuid, geode::uuid >,
-            geode::uuid >
+        absl::flat_hash_map< std::pair< geode::uuid, geode::uuid >, LinesID >
             corners2line_;
-        std::vector< geode::uuid > surfaces_;
-        std::vector< geode::uuid > blocks_;
-        std::vector< geode::uuid > universe_;
+        std::vector< std::reference_wrapper< const geode::uuid > > surfaces_;
+        std::vector< std::reference_wrapper< const geode::uuid > > blocks_;
+        absl::flat_hash_set< geode::uuid > universe_;
         double epsilon_;
         const absl::flat_hash_map< std::string, geode::Fault3D::FAULT_TYPE >
             fault_map_ = { { "fault", geode::Fault3D::FAULT_TYPE::NO_TYPE },
