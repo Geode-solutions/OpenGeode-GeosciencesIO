@@ -24,18 +24,18 @@
 #pragma once
 
 #include <geode/geosciences/detail/common.h>
-#include <geode/geosciences/representation/io/structural_model_output.h>
+#include <geode/model/representation/io/brep_output.h>
 
 namespace geode
 {
     namespace detail
     {
-        class MLOutput final : public StructuralModelOutput
+        class MLOutput final : public BRepOutput
         {
         public:
-            MLOutput( const StructuralModel& structural_model,
+            MLOutput( const BRep& brep,
                 absl::string_view filename )
-                : StructuralModelOutput( structural_model, filename )
+                : BRepOutput( brep, filename )
             {
             }
 

@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences/private/ml_output.h>
+#pragma once
 
 #include <algorithm>
 #include <fstream>
@@ -43,19 +43,20 @@
 #include <geode/model/mixin/core/model_boundary.h>
 #include <geode/model/mixin/core/surface.h>
 #include <geode/model/mixin/core/vertex_identifier.h>
+#include <geode/model/representation/core/brep.h>
 
 #include <geode/geosciences/private/gocad_common.h>
-#include <geode/geosciences/representation/core/structural_model.h>
 
-namespace
+namespace geode
 {
+    namespace detail{
     bool check_structural_model_polygons(
-        const geode::StructuralModel& structural_model )
+        const BRep& structural_model )
     {
         for( const auto& surface : structural_model.surfaces() )
         {
             const auto& mesh = surface.mesh();
-            for( const auto p : geode::Range{ mesh.nb_polygons() } )
+            for( const auto p : Range{ mesh.nb_polygons() } )
             {
                 if( mesh.nb_polygon_vertices( p ) != 3 )
                 {
@@ -66,43 +67,119 @@ namespace
         return true;
     }
 
-    absl::optional< geode::PolygonEdge > get_one_border_edge(
-        const geode::SurfaceMesh3D& mesh )
+    absl::optional< PolygonEdge > get_one_border_edge(
+        const SurfaceMesh3D& mesh )
     {
-        for( const auto p : geode::Range{ mesh.nb_polygons() } )
+        for( const auto p : Range{ mesh.nb_polygons() } )
         {
-            for( const auto e : geode::LRange{ 3 } )
+            for( const auto e : LRange{ 3 } )
             {
                 if( mesh.is_edge_on_border( { p, e } ) )
                 {
-                    return geode::PolygonEdge{ p, e };
+                    return PolygonEdge{ p, e };
                 }
             }
         }
         return absl::nullopt;
     }
 
+template < typename Model >
     class MLOutputImpl
     {
     public:
-        static constexpr geode::index_t OFFSET_START{ 1 };
+        static constexpr index_t OFFSET_START{ 1 };
         static constexpr char EOL{ '\n' };
         static constexpr char SPACE{ ' ' };
 
-        MLOutputImpl(
-            absl::string_view filename, const geode::StructuralModel& model )
-            : file_( filename.data() ), model_( model )
+        virtual ~MLOutputImpl() = default;
+
+        void determine_surface_to_regions_signs()
         {
-            file_.precision( 12 );
-            OPENGEODE_EXCEPTION( file_.good(),
-                "[MLOutput] Error while opening file: ", filename );
-            model_name_ = geode::filename_without_extension( filename );
+            const auto paired_signs = determine_paired_signs();
+            {
+                std::vector< uuid > universe_boundaries;
+                for( const auto& boundary : model_.model_boundaries() )
+                {
+                    for( const auto& item :
+                        model_.model_boundary_items( boundary ) )
+                    {
+                        universe_boundaries.push_back( item.id() );
+                    }
+                }
+                const auto relative_signs = determine_relative_signs(
+                    universe_boundaries, paired_signs );
+                const auto correct =
+                    are_correct_sides( universe_boundaries, relative_signs );
+
+                for( const auto& b :
+                    Range{ universe_boundaries.size() } )
+                {
+                    universe_surface_sides_.emplace( universe_boundaries[b],
+                        correct ? !relative_signs[b] : relative_signs[b] );
+                }
+            }
+            for( const auto& block : model_.blocks() )
+            {
+                std::vector< uuid > block_boundaries;
+                for( const auto& surface : model_.boundaries( block ) )
+                {
+                    block_boundaries.push_back( surface.id() );
+                }
+                const auto relative_signs =
+                    determine_relative_signs( block_boundaries, paired_signs );
+                const auto correct =
+                    are_correct_sides( block_boundaries, relative_signs );
+
+                for( const auto& b : Range{ block_boundaries.size() } )
+                {
+                    regions_surface_sides_.emplace(
+                        std::pair< uuid, uuid >{
+                            block.id(), block_boundaries[b] },
+                        correct ? relative_signs[b] : !relative_signs[b] );
+                }
+            }
         }
 
-        absl::flat_hash_map< std::pair< geode::uuid, geode::uuid >, bool >
+        void write_file()
+        {
+            file_ << "GOCAD Model3d 1" << EOL;
+            detail::HeaderData header;
+            header.name = model_name_;
+            detail::write_header( file_, header );
+            detail::write_CRS( file_, {} );
+            write_model_components();
+            write_model_surfaces();
+        }
+
+	protected:
+        MLOutputImpl( absl::string_view filename, const Model& model )
+            : file_( filename.data() ), model_( model )
+        {
+            OPENGEODE_EXCEPTION( file_.good(),
+                "[MLOutput] Error while opening file: ", filename );
+            model_name_ = filename_without_extension( filename );
+        }
+
+		index_t& component_id()
+        {
+            return component_id_;
+        }
+
+		absl::flat_hash_map< uuid, index_t >& components
+        {
+            return components_;
+        }
+
+        std::ofstream& file()
+        {
+            return file_;
+        }
+
+    private:
+        absl::flat_hash_map< std::pair< uuid, uuid >, bool >
             determine_paired_signs() const
         {
-            absl::flat_hash_map< std::pair< geode::uuid, geode::uuid >, bool >
+            absl::flat_hash_map< std::pair< uuid, uuid >, bool >
                 paired_signs;
             for( const auto& line : model_.lines() )
             {
@@ -111,10 +188,10 @@ namespace
                 const auto uid1 =
                     model_.unique_vertex( { line.component_id(), 1 } );
                 const auto surface_mcvs0 = model_.mesh_component_vertices(
-                    uid0, geode::Surface3D::component_type_static() );
+                    uid0, Surface3D::component_type_static() );
                 const auto surface_mcvs1 = model_.mesh_component_vertices(
-                    uid1, geode::Surface3D::component_type_static() );
-                absl::flat_hash_map< geode::uuid, bool > surface_direct_edges;
+                    uid1, Surface3D::component_type_static() );
+                absl::flat_hash_map< uuid, bool > surface_direct_edges;
                 for( const auto& surface_mcv0 : surface_mcvs0 )
                 {
                     for( const auto& surface_mcv1 : surface_mcvs1 )
@@ -155,7 +232,7 @@ namespace
                         if( s0.first < s1.first )
                         {
                             paired_signs.emplace(
-                                std::pair< geode::uuid, geode::uuid >{
+                                std::pair< uuid, uuid >{
                                     s0.first, s1.first },
                                 s0.second != s1.second );
                         }
@@ -166,8 +243,8 @@ namespace
         }
 
         absl::FixedArray< bool > determine_relative_signs(
-            absl::Span< const geode::uuid > universe_boundaries,
-            const absl::flat_hash_map< std::pair< geode::uuid, geode::uuid >,
+            absl::Span< const uuid > universe_boundaries,
+            const absl::flat_hash_map< std::pair< uuid, uuid >,
                 bool >& paired_signs ) const
         {
             const auto nb_surfaces = universe_boundaries.size();
@@ -178,14 +255,14 @@ namespace
             }
             absl::FixedArray< bool > determined( nb_surfaces, false );
             determined[0] = true;
-            std::queue< geode::index_t > to_process;
+            std::queue< index_t > to_process;
             to_process.push( 0 );
             while( !to_process.empty() )
             {
                 const auto determined_s = to_process.front();
                 const auto determined_s_id = universe_boundaries[determined_s];
                 to_process.pop();
-                for( const auto s : geode::Range{ nb_surfaces } )
+                for( const auto s : Range{ nb_surfaces } )
                 {
                     if( determined[s] )
                     {
@@ -211,7 +288,7 @@ namespace
         }
 
         bool are_correct_sides(
-            absl::Span< const geode::uuid > universe_boundaries,
+            absl::Span< const uuid > universe_boundaries,
             const absl::FixedArray< bool >& relative_signs ) const
         {
             double signed_volume{ 0 };
@@ -219,21 +296,21 @@ namespace
                 model_.surface( universe_boundaries[0] ).mesh();
             const auto& bbox = first_surface_mesh.bounding_box();
             const auto center = ( bbox.min() + bbox.max() ) * 0.5;
-            for( const auto s : geode::Range{ universe_boundaries.size() } )
+            for( const auto s : Range{ universe_boundaries.size() } )
             {
                 const auto sign = relative_signs[s];
                 const auto& surface_mesh =
                     model_.surface( universe_boundaries[s] ).mesh();
-                for( const auto t : geode::Range{ surface_mesh.nb_polygons() } )
+                for( const auto t : Range{ surface_mesh.nb_polygons() } )
                 {
-                    std::array< geode::local_index_t, 3 > vertex_order{ 0, 1,
+                    std::array< local_index_t, 3 > vertex_order{ 0, 1,
                         2 };
                     if( !sign )
                     {
                         vertex_order[1] = 2;
                         vertex_order[2] = 1;
                     }
-                    geode::Tetra tetra{ surface_mesh.point(
+                    Tetra tetra{ surface_mesh.point(
                                             surface_mesh.polygon_vertex(
                                                 { t, vertex_order[0] } ) ),
                         surface_mesh.point( surface_mesh.polygon_vertex(
@@ -241,7 +318,7 @@ namespace
                         surface_mesh.point( surface_mesh.polygon_vertex(
                             { t, vertex_order[2] } ) ),
                         center };
-                    signed_volume += geode::tetra_signed_volume( tetra );
+                    signed_volume += tetra_signed_volume( tetra );
                 }
             }
             OPENGEODE_ASSERT( std::fabs( signed_volume ) > 0,
@@ -249,79 +326,15 @@ namespace
             return signed_volume > 0;
         }
 
-        void determine_surface_to_regions_signs()
-        {
-            const auto paired_signs = determine_paired_signs();
-            {
-                std::vector< geode::uuid > universe_boundaries;
-                for( const auto& boundary : model_.model_boundaries() )
-                {
-                    for( const auto& item :
-                        model_.model_boundary_items( boundary ) )
-                    {
-                        universe_boundaries.push_back( item.id() );
-                    }
-                }
-                const auto relative_signs = determine_relative_signs(
-                    universe_boundaries, paired_signs );
-                const auto correct =
-                    are_correct_sides( universe_boundaries, relative_signs );
+        virtual void write_geological_tsurfs() = 0;
 
-                for( const auto& b :
-                    geode::Range{ universe_boundaries.size() } )
-                {
-                    universe_surface_sides_.emplace( universe_boundaries[b],
-                        correct ? !relative_signs[b] : relative_signs[b] );
-                }
-            }
-            for( const auto& block : model_.blocks() )
-            {
-                std::vector< geode::uuid > block_boundaries;
-                for( const auto& surface : model_.boundaries( block ) )
-                {
-                    block_boundaries.push_back( surface.id() );
-                }
-                const auto relative_signs =
-                    determine_relative_signs( block_boundaries, paired_signs );
-                const auto correct =
-                    are_correct_sides( block_boundaries, relative_signs );
-
-                for( const auto& b : geode::Range{ block_boundaries.size() } )
-                {
-                    regions_surface_sides_.emplace(
-                        std::pair< geode::uuid, geode::uuid >{
-                            block.id(), block_boundaries[b] },
-                        correct ? relative_signs[b] : !relative_signs[b] );
-                }
-            }
-        }
-
-        void write_file()
-        {
-            file_ << "GOCAD Model3d 1" << EOL;
-            geode::detail::HeaderData header;
-            header.name = model_name_;
-            geode::detail::write_header( file_, header );
-            geode::detail::write_CRS( file_, {} );
-            write_model_components();
-            write_model_surfaces();
-        }
-
-    private:
         void write_tsurfs()
         {
             for( const auto& boundary : model_.model_boundaries() )
             {
                 file_ << "TSURF " << boundary.name() << EOL;
             }
-            for( const auto& fault : model_.faults() )
-            {
-                file_ << "TSURF " << fault.name() << EOL;
-            }
-            for( const auto& horizon : model_.horizons() )
-            {
-                file_ << "TSURF " << horizon.name() << EOL;
-            }
+            write_geological_tsurfs();
             bool unclassified_surfaces{ false };
             for( const auto& surface : model_.surfaces() )
             {
@@ -337,6 +350,19 @@ namespace
             }
         }
 
+template < typename Item >
+        void write_key_triangle( const Item& item)
+        {
+                    const auto& mesh = item.mesh();
+                    for( const auto v : LRange{ 3 } )
+                    {
+                        file_ << SPACE << SPACE << mesh.point( mesh.polygon_vertex( { 0, v } ) ).string()
+                              << EOL;
+                    }
+                    }
+
+        virtual void write_geological_tfaces() = 0;
+
         void write_tfaces()
         {
             for( const auto& boundary : model_.model_boundaries() )
@@ -346,7 +372,7 @@ namespace
                 {
                     if( components_.find( item.id() ) != components_.end() )
                     {
-                        geode::Logger::warn( "[MLOutput] A Surface from ",
+                        Logger::warn( "[MLOutput] A Surface from ",
                             boundary.name(),
                             " belongs to several collections. It has been "
                             "exported only once" );
@@ -354,72 +380,11 @@ namespace
                     }
                     file_ << "TFACE " << component_id_ << SPACE << "boundary"
                           << SPACE << boundary.name() << EOL;
-                    const auto& mesh = item.mesh();
-                    for( const auto v : geode::LRange{ 3 } )
-                    {
-                        const auto& coords =
-                            mesh.point( mesh.polygon_vertex( { 0, v } ) );
-                        file_ << SPACE << SPACE << coords.value( 0 ) << SPACE
-                              << coords.value( 1 ) << SPACE << coords.value( 2 )
-                              << EOL;
-                    }
+                          write_key_triangle(item);
                     components_.emplace( item.id(), component_id_++ );
                 }
             }
-            for( const auto& fault : model_.faults() )
-            {
-                for( const auto& item : model_.fault_items( fault ) )
-                {
-                    if( components_.find( item.id() ) != components_.end() )
-                    {
-                        geode::Logger::warn( "[MLOutput] A Surface from ",
-                            fault.name(),
-                            " belongs to several collections. It has been "
-                            "exported only once" );
-                        continue;
-                    }
-                    file_ << "TFACE " << component_id_ << SPACE
-                          << fault_map_.at( fault.type() ) << SPACE
-                          << fault.name() << EOL;
-                    const auto& mesh = item.mesh();
-                    for( const auto v : geode::LRange{ 3 } )
-                    {
-                        const auto& coords =
-                            mesh.point( mesh.polygon_vertex( { 0, v } ) );
-                        file_ << SPACE << SPACE << coords.value( 0 ) << SPACE
-                              << coords.value( 1 ) << SPACE << coords.value( 2 )
-                              << EOL;
-                    }
-                    components_.emplace( item.id(), component_id_++ );
-                }
-            }
-            for( const auto& horizon : model_.horizons() )
-            {
-                for( const auto& item : model_.horizon_items( horizon ) )
-                {
-                    if( components_.find( item.id() ) != components_.end() )
-                    {
-                        geode::Logger::warn( "[MLOutput] A Surface from ",
-                            horizon.name(),
-                            " belongs to several collections. It has been "
-                            "exported only once" );
-                        continue;
-                    }
-                    file_ << "TFACE " << component_id_ << SPACE
-                          << horizon_map_.at( horizon.type() ) << SPACE
-                          << horizon.name() << EOL;
-                    const auto& mesh = item.mesh();
-                    for( const auto v : geode::LRange{ 3 } )
-                    {
-                        const auto& coords =
-                            mesh.point( mesh.polygon_vertex( { 0, v } ) );
-                        file_ << SPACE << SPACE << coords.value( 0 ) << SPACE
-                              << coords.value( 1 ) << SPACE << coords.value( 2 )
-                              << EOL;
-                    }
-                    components_.emplace( item.id(), component_id_++ );
-                }
-            }
+            write_geological_tfaces();
             if( components_.size() == model_.nb_surfaces() )
             {
                 return;
@@ -432,15 +397,7 @@ namespace
                 }
                 file_ << "TFACE " << component_id_ << SPACE << "boundary"
                       << SPACE << unclassified_surfaces_name_ << EOL;
-                const auto& mesh = surface.mesh();
-                for( const auto v : geode::LRange{ 3 } )
-                {
-                    const auto& coords =
-                        mesh.point( mesh.polygon_vertex( { 0, v } ) );
-                    file_ << SPACE << SPACE << coords.value( 0 ) << SPACE
-                          << coords.value( 1 ) << SPACE << coords.value( 2 )
-                          << EOL;
-                }
+                          write_key_triangle(item);
                 components_.emplace( surface.id(), component_id_++ );
                 unclassified_surfaces_.emplace_back( surface.id() );
             }
@@ -450,7 +407,7 @@ namespace
         {
             file_ << "REGION " << component_id_ << SPACE << SPACE << "Universe "
                   << EOL << SPACE << SPACE;
-            geode::index_t counter{ 0 };
+            index_t counter{ 0 };
             for( const auto& boundary : model_.model_boundaries() )
             {
                 for( const auto& item :
@@ -481,7 +438,7 @@ namespace
             {
                 file_ << "REGION " << component_id_ << SPACE << region.name()
                       << EOL << SPACE << SPACE;
-                geode::index_t counter{ 0 };
+                index_t counter{ 0 };
                 for( const auto& surface : model_.boundaries( region ) )
                 {
                     const auto sign = regions_surface_sides_.at(
@@ -516,72 +473,29 @@ namespace
                 file_ << 0 << EOL;
                 components_.emplace( region.id(), component_id_++ );
             }
+            write_geological_regions();
         }
 
-        void write_stratigraphic_units()
-        {
-            for( const auto& stratigraphic_unit : model_.stratigraphic_units() )
-            {
-                file_ << "LAYER " << stratigraphic_unit.name() << EOL << SPACE
-                      << SPACE;
-                geode::index_t counter{ 0 };
-                for( const auto& item :
-                    model_.stratigraphic_unit_items( stratigraphic_unit ) )
-                {
-                    file_ << components_.at( item.id() ) << SPACE << SPACE;
-                    counter++;
-                    if( counter % 5 == 0 )
-                    {
-                        file_ << EOL << SPACE << SPACE;
-                    }
-                }
-                file_ << 0 << EOL;
-            }
-        }
-
-        void write_fault_blocks()
-        {
-            for( const auto& fault_block : model_.fault_blocks() )
-            {
-                file_ << "FAULT_BLOCK " << fault_block.name() << EOL << SPACE
-                      << SPACE;
-                geode::index_t counter{ 0 };
-                for( const auto& item :
-                    model_.fault_block_items( fault_block ) )
-                {
-                    file_ << components_.at( item.id() ) << SPACE << SPACE;
-                    counter++;
-                    if( counter % 5 == 0 )
-                    {
-                        file_ << EOL << SPACE << SPACE;
-                    }
-                }
-                file_ << 0 << EOL;
-            }
-        }
+        virtual void write_geological_regions() = 0;
 
         void write_model_components()
         {
             write_tsurfs();
             write_tfaces();
             write_regions();
-            write_stratigraphic_units();
-            write_fault_blocks();
             file_ << "END" << EOL;
         }
 
-        geode::index_t write_surface( const geode::Surface3D& surface,
-            const geode::index_t current_offset )
+        index_t write_surface( const Surface3D& surface,
+            const index_t current_offset )
         {
             const auto& mesh = surface.mesh();
-            for( const auto v : geode::Range{ mesh.nb_vertices() } )
+            for( const auto v : Range{ mesh.nb_vertices() } )
             {
                 file_ << "VRTX " << current_offset + v << SPACE
-                      << mesh.point( v ).value( 0 ) << SPACE
-                      << mesh.point( v ).value( 1 ) << SPACE
-                      << mesh.point( v ).value( 2 ) << EOL;
+                      << mesh.point( v ).string() << EOL;
             }
-            for( const auto t : geode::Range{ mesh.nb_polygons() } )
+            for( const auto t : Range{ mesh.nb_polygons() } )
             {
                 file_ << "TRGL "
                       << current_offset + mesh.polygon_vertex( { t, 0 } )
@@ -594,30 +508,30 @@ namespace
             return current_offset + mesh.nb_vertices();
         }
 
-        void process_surface_edge( const geode::Surface3D& surface,
-            const geode::PolygonEdge& edge,
-            const geode::index_t current_offset,
-            std::vector< std::array< geode::index_t, 2 > >& line_starts ) const
+        void process_surface_edge( const Surface3D& surface,
+            const PolygonEdge& edge,
+            const index_t current_offset,
+            std::vector< std::array< index_t, 2 > >& line_starts ) const
         {
             const auto& mesh = surface.mesh();
             const auto v0 = mesh.polygon_vertex( edge );
             const auto v1 = mesh.polygon_vertex(
-                { edge.polygon_id, static_cast< geode::local_index_t >(
+                { edge.polygon_id, static_cast< local_index_t >(
                                        ( edge.edge_id + 1 ) % 3 ) } );
             const auto uid1 =
                 model_.unique_vertex( { surface.component_id(), v1 } );
             const auto corner_mcvs1 = model_.mesh_component_vertices(
-                uid1, geode::Corner3D::component_type_static() );
+                uid1, Corner3D::component_type_static() );
             if( !corner_mcvs1.empty() )
             {
-                line_starts.emplace_back( std::array< geode::index_t, 2 >{
+                line_starts.emplace_back( std::array< index_t, 2 >{
                     v1 + current_offset, v0 + current_offset } );
             }
         }
 
-        void add_corners_and_line_starts( const geode::Surface3D& surface,
-            const geode::index_t current_offset,
-            std::vector< std::array< geode::index_t, 2 > >& line_starts ) const
+        void add_corners_and_line_starts( const Surface3D& surface,
+            const index_t current_offset,
+            std::vector< std::array< index_t, 2 > >& line_starts ) const
         {
             // todo several times to process all border edges
             const auto& mesh = surface.mesh();
@@ -639,10 +553,10 @@ namespace
         }
 
         void find_boundary_corners_and_line_starts(
-            const geode::ModelBoundary3D& surface_collection,
-            std::vector< std::array< geode::index_t, 2 > >& line_starts ) const
+            const ModelBoundary3D& surface_collection,
+            std::vector< std::array< index_t, 2 > >& line_starts ) const
         {
-            geode::index_t current_offset{ OFFSET_START };
+            index_t current_offset{ OFFSET_START };
             for( const auto& surface :
                 model_.model_boundary_items( surface_collection ) )
             {
@@ -654,9 +568,9 @@ namespace
 
         template < typename ItemRange >
         void find_corners_and_line_starts( const ItemRange& item_range,
-            std::vector< std::array< geode::index_t, 2 > >& line_starts ) const
+            std::vector< std::array< index_t, 2 > >& line_starts ) const
         {
-            geode::index_t current_offset{ OFFSET_START };
+            index_t current_offset{ OFFSET_START };
             for( const auto& surface : item_range )
             {
                 add_corners_and_line_starts(
@@ -666,9 +580,9 @@ namespace
         }
 
         void find_corners_and_line_starts_for_unclassified_surfaces(
-            std::vector< std::array< geode::index_t, 2 > >& line_starts ) const
+            std::vector< std::array< index_t, 2 > >& line_starts ) const
         {
-            geode::index_t current_offset{ OFFSET_START };
+            index_t current_offset{ OFFSET_START };
             for( const auto& surface_id : unclassified_surfaces_ )
             {
                 const auto& surface = model_.surface( surface_id );
@@ -679,7 +593,7 @@ namespace
         }
 
         void write_corners(
-            const std::vector< std::array< geode::index_t, 2 > >& line_starts )
+            const std::vector< std::array< index_t, 2 > >& line_starts )
         {
             for( const auto& line_start : line_starts )
             {
@@ -687,8 +601,8 @@ namespace
             }
         }
 
-        void write_line_starts( geode::index_t current_offset,
-            const std::vector< std::array< geode::index_t, 2 > >& line_starts )
+        void write_line_starts( index_t current_offset,
+            const std::vector< std::array< index_t, 2 > >& line_starts )
         {
             for( const auto& line_start : line_starts )
             {
@@ -697,99 +611,54 @@ namespace
             }
         }
 
+        virtual void write_geological_model_surfaces() = 0;
+
         void write_model_surfaces()
         {
             for( const auto& boundary : model_.model_boundaries() )
             {
                 file_ << "GOCAD TSurf 1" << EOL;
-                geode::detail::HeaderData header;
+                detail::HeaderData header;
                 header.name = boundary.name().data();
-                geode::detail::write_header( file_, header );
-                geode::detail::write_CRS( file_, {} );
+                detail::write_header( file_, header );
+                detail::write_CRS( file_, {} );
                 file_ << "GEOLOGICAL_FEATURE " << boundary.name() << EOL;
                 file_ << "GEOLOGICAL_TYPE boundary" << EOL;
-                geode::index_t current_offset{ OFFSET_START };
+                index_t current_offset{ OFFSET_START };
                 for( const auto& item :
                     model_.model_boundary_items( boundary ) )
                 {
                     file_ << "TFACE" << EOL;
                     current_offset = write_surface( item, current_offset );
                 }
-                std::vector< std::array< geode::index_t, 2 > > line_starts;
+                std::vector< std::array< index_t, 2 > > line_starts;
                 find_boundary_corners_and_line_starts( boundary, line_starts );
                 write_corners( line_starts );
                 write_line_starts( current_offset, line_starts );
                 file_ << "END" << EOL;
             }
-            for( const auto& fault : model_.faults() )
-            {
-                file_ << "GOCAD TSurf 1" << EOL;
-                geode::detail::HeaderData header;
-                header.name = fault.name().data();
-                geode::detail::write_header( file_, header );
-                geode::detail::write_CRS( file_, {} );
-                file_ << "GEOLOGICAL_FEATURE " << fault.name() << EOL;
-                file_ << "GEOLOGICAL_TYPE " << fault_map_.at( fault.type() )
-                      << EOL;
-                geode::index_t current_offset{ OFFSET_START };
-                for( const auto& item : model_.fault_items( fault ) )
-                {
-                    file_ << "TFACE" << EOL;
-                    current_offset = write_surface( item, current_offset );
-                }
-                std::vector< std::array< geode::index_t, 2 > > line_starts;
-
-                find_corners_and_line_starts(
-                    model_.fault_items( fault ), line_starts );
-                write_corners( line_starts );
-                write_line_starts( current_offset, line_starts );
-                file_ << "END" << EOL;
-            }
-            for( const auto& horizon : model_.horizons() )
-            {
-                file_ << "GOCAD TSurf 1" << EOL;
-                geode::detail::HeaderData header;
-                header.name = horizon.name().data();
-                geode::detail::write_header( file_, header );
-                geode::detail::write_CRS( file_, {} );
-                file_ << "GEOLOGICAL_FEATURE " << horizon.name() << EOL;
-                file_ << "GEOLOGICAL_TYPE " << horizon_map_.at( horizon.type() )
-                      << EOL;
-                geode::index_t current_offset{ OFFSET_START };
-                for( const auto& item : model_.horizon_items( horizon ) )
-                {
-                    file_ << "TFACE" << EOL;
-                    current_offset = write_surface( item, current_offset );
-                }
-                std::vector< std::array< geode::index_t, 2 > > line_starts;
-
-                find_corners_and_line_starts(
-                    model_.horizon_items( horizon ), line_starts );
-                write_corners( line_starts );
-                write_line_starts( current_offset, line_starts );
-                file_ << "END" << EOL;
-            }
+            write_geological_model_surfaces();
             if( unclassified_surfaces_.empty() )
             {
                 return;
             }
             file_ << "GOCAD TSurf 1" << EOL;
-            geode::detail::HeaderData header;
+            detail::HeaderData header;
             header.name = unclassified_surfaces_name_;
-            geode::detail::write_header( file_, header );
-            geode::detail::write_CRS( file_, {} );
+            detail::write_header( file_, header );
+            detail::write_CRS( file_, {} );
             file_ << "GEOLOGICAL_FEATURE " << unclassified_surfaces_name_
                   << EOL;
             file_ << "GEOLOGICAL_TYPE "
                   << "boundary" << EOL;
-            geode::index_t current_offset{ OFFSET_START };
+            index_t current_offset{ OFFSET_START };
             for( const auto& surface_id : unclassified_surfaces_ )
             {
                 file_ << "TFACE" << EOL;
                 current_offset = write_surface(
                     model_.surface( surface_id ), current_offset );
             }
-            std::vector< std::array< geode::index_t, 2 > > line_starts;
+            std::vector< std::array< index_t, 2 > > line_starts;
             find_corners_and_line_starts_for_unclassified_surfaces(
                 line_starts );
             write_corners( line_starts );
@@ -800,52 +669,16 @@ namespace
     private:
         std::ofstream file_;
         std::string model_name_;
-        const geode::StructuralModel& model_;
-        absl::flat_hash_map< geode::uuid, geode::index_t > components_;
-        absl::flat_hash_map< geode::uuid, bool > universe_surface_sides_;
-        absl::flat_hash_map< std::pair< geode::uuid, geode::uuid >, bool >
+        const Model& model_;
+        absl::flat_hash_map< uuid, index_t > components_;
+        absl::flat_hash_map< uuid, bool > universe_surface_sides_;
+        absl::flat_hash_map< std::pair< uuid, uuid >, bool >
             regions_surface_sides_;
-        const absl::flat_hash_map< geode::Fault3D::FAULT_TYPE, std::string >
-            fault_map_ = { { geode::Fault3D::FAULT_TYPE::NO_TYPE, "fault" },
-                { geode::Fault3D::FAULT_TYPE::NORMAL, "normal_fault" },
-                { geode::Fault3D::FAULT_TYPE::REVERSE, "reverse_fault" },
-                { geode::Fault3D::FAULT_TYPE::STRIKE_SLIP, "fault" },
-                { geode::Fault3D::FAULT_TYPE::LISTRIC, "fault" },
-                { geode::Fault3D::FAULT_TYPE::DECOLLEMENT, "fault" } };
-        const absl::flat_hash_map< geode::Horizon3D::HORIZON_TYPE, std::string >
-            horizon_map_ = { { geode::Horizon3D::HORIZON_TYPE::NO_TYPE,
-                                 "none" },
-                { geode::Horizon3D::HORIZON_TYPE::CONFORMAL, "top" },
-                { geode::Horizon3D::HORIZON_TYPE::TOPOGRAPHY, "topographic" },
-                { geode::Horizon3D::HORIZON_TYPE::INTRUSION, "intrusive" },
-                { geode::Horizon3D::HORIZON_TYPE::NON_CONFORMAL,
-                    "unconformity" } };
-        geode::index_t component_id_{ OFFSET_START };
+        index_t component_id_{ OFFSET_START };
         const std::string unclassified_surfaces_name_{
             "unclassified_surfaces"
         };
-        std::vector< geode::uuid > unclassified_surfaces_;
+        std::vector< uuid > unclassified_surfaces_;
     };
-} // namespace
-
-namespace geode
-{
-    namespace detail
-    {
-        void MLOutput::write() const
-        {
-            const auto only_triangles =
-                check_structural_model_polygons( structural_model() );
-            if( !only_triangles )
-            {
-                geode::Logger::info(
-                    "[MLOutput::write] Can not export into .ml a "
-                    "StructuralModel with non triangular surface polygons." );
-                return;
-            }
-            MLOutputImpl impl{ filename(), structural_model() };
-            impl.determine_surface_to_regions_signs();
-            impl.write_file();
-        }
     } // namespace detail
 } // namespace geode
