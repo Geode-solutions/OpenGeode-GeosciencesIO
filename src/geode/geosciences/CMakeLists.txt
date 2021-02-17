@@ -26,6 +26,7 @@ add_geode_library(
         "gocad_common.cpp"
         "lso_input.cpp"
         "ml_input.cpp"
+        "ml_output_brep.cpp"
         "ml_output_structural_model.cpp"
         "ts_input.cpp"
         "pl_output.cpp"

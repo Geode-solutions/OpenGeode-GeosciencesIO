@@ -23,26 +23,7 @@
 
 #include <geode/geosciences/private/ml_output_structural_model.h>
 
-#include <algorithm>
-#include <fstream>
-#include <functional>
-#include <iomanip>
-#include <queue>
-
-#include <geode/basic/filename.h>
-
-#include <geode/geometry/basic_objects.h>
-#include <geode/geometry/bounding_box.h>
-#include <geode/geometry/signed_mensuration.h>
-
-#include <geode/mesh/core/polygonal_surface.h>
-
-#include <geode/model/mixin/core/block.h>
-#include <geode/model/mixin/core/corner.h>
-#include <geode/model/mixin/core/line.h>
-#include <geode/model/mixin/core/model_boundary.h>
-#include <geode/model/mixin/core/surface.h>
-#include <geode/model/mixin/core/vertex_identifier.h>
+#include <geode/mesh/core/surface_mesh.h>
 
 #include <geode/geosciences/private/gocad_common.h>
 #include <geode/geosciences/private/ml_output_impl.h>
@@ -81,7 +62,7 @@ namespace
                             "exported only once" );
                         continue;
                     }
-                    this->file() << "TFACE " << component_id() << SPACE
+                    file() << "TFACE " << component_id() << SPACE
                                  << fault_map_.at( fault.type() ) << SPACE
                                  << fault.name() << EOL;
                     write_key_triangle( item );
@@ -100,7 +81,7 @@ namespace
                             "exported only once" );
                         continue;
                     }
-                    this->file() << "TFACE " << component_id() << SPACE
+                    file() << "TFACE " << component_id() << SPACE
                                  << horizon_map_.at( horizon.type() ) << SPACE
                                  << horizon.name() << EOL;
                     write_key_triangle( item );
@@ -113,11 +94,11 @@ namespace
         {
             for( const auto& fault : model_.faults() )
             {
-                this->file() << "TSURF " << fault.name() << EOL;
+                file() << "TSURF " << fault.name() << EOL;
             }
             for( const auto& horizon : model_.horizons() )
             {
-                this->file() << "TSURF " << horizon.name() << EOL;
+                file() << "TSURF " << horizon.name() << EOL;
             }
         }
 
@@ -125,59 +106,59 @@ namespace
         {
             for( const auto& stratigraphic_unit : model_.stratigraphic_units() )
             {
-                this->file() << "LAYER " << stratigraphic_unit.name() << EOL
+                file() << "LAYER " << stratigraphic_unit.name() << EOL
                              << SPACE << SPACE;
                 geode::index_t counter{ 0 };
                 for( const auto& item :
                     model_.stratigraphic_unit_items( stratigraphic_unit ) )
                 {
-                    this->file()
+                    file()
                         << components().at( item.id() ) << SPACE << SPACE;
                     counter++;
                     if( counter % 5 == 0 )
                     {
-                        this->file() << EOL << SPACE << SPACE;
+                        file() << EOL << SPACE << SPACE;
                     }
                 }
-                this->file() << 0 << EOL;
+                file() << 0 << EOL;
             }
 
             for( const auto& fault_block : model_.fault_blocks() )
             {
-                this->file() << "FAULT_BLOCK " << fault_block.name() << EOL
+                file() << "FAULT_BLOCK " << fault_block.name() << EOL
                              << SPACE << SPACE;
                 geode::index_t counter{ 0 };
                 for( const auto& item :
                     model_.fault_block_items( fault_block ) )
                 {
-                    this->file()
+                    file()
                         << components().at( item.id() ) << SPACE << SPACE;
                     counter++;
                     if( counter % 5 == 0 )
                     {
-                        this->file() << EOL << SPACE << SPACE;
+                        file() << EOL << SPACE << SPACE;
                     }
                 }
-                this->file() << 0 << EOL;
+                file() << 0 << EOL;
             }
         }
 
-        void write_geological_model_surfaces()
+        void write_geological_model_surfaces() override
         {
             for( const auto& fault : model_.faults() )
             {
-                this->file() << "GOCAD TSurf 1" << EOL;
+                file() << "GOCAD TSurf 1" << EOL;
                 geode::detail::HeaderData header;
                 header.name = fault.name().data();
-                geode::detail::write_header( this->file(), header );
-                geode::detail::write_CRS( this->file(), {} );
-                this->file() << "GEOLOGICAL_FEATURE " << fault.name() << EOL;
-                this->file() << "GEOLOGICAL_TYPE "
+                geode::detail::write_header( file(), header );
+                geode::detail::write_CRS( file(), {} );
+                file() << "GEOLOGICAL_FEATURE " << fault.name() << EOL;
+                file() << "GEOLOGICAL_TYPE "
                              << fault_map_.at( fault.type() ) << EOL;
                 geode::index_t current_offset{ OFFSET_START };
                 for( const auto& item : model_.fault_items( fault ) )
                 {
-                    this->file() << "TFACE" << EOL;
+                    file() << "TFACE" << EOL;
                     current_offset = write_surface( item, current_offset );
                 }
                 std::vector< std::array< geode::index_t, 2 > > line_starts;
@@ -186,22 +167,22 @@ namespace
                     model_.fault_items( fault ), line_starts );
                 write_corners( line_starts );
                 write_line_starts( current_offset, line_starts );
-                this->file() << "END" << EOL;
+                file() << "END" << EOL;
             }
             for( const auto& horizon : model_.horizons() )
             {
-                this->file() << "GOCAD TSurf 1" << EOL;
+                file() << "GOCAD TSurf 1" << EOL;
                 geode::detail::HeaderData header;
                 header.name = horizon.name().data();
-                geode::detail::write_header( this->file(), header );
-                geode::detail::write_CRS( this->file(), {} );
-                this->file() << "GEOLOGICAL_FEATURE " << horizon.name() << EOL;
-                this->file() << "GEOLOGICAL_TYPE "
+                geode::detail::write_header( file(), header );
+                geode::detail::write_CRS( file(), {} );
+                file() << "GEOLOGICAL_FEATURE " << horizon.name() << EOL;
+                file() << "GEOLOGICAL_TYPE "
                              << horizon_map_.at( horizon.type() ) << EOL;
                 geode::index_t current_offset{ OFFSET_START };
                 for( const auto& item : model_.horizon_items( horizon ) )
                 {
-                    this->file() << "TFACE" << EOL;
+                    file() << "TFACE" << EOL;
                     current_offset = write_surface( item, current_offset );
                 }
                 std::vector< std::array< geode::index_t, 2 > > line_starts;
@@ -210,7 +191,7 @@ namespace
                     model_.horizon_items( horizon ), line_starts );
                 write_corners( line_starts );
                 write_line_starts( current_offset, line_starts );
-                this->file() << "END" << EOL;
+                file() << "END" << EOL;
             }
         }
 
@@ -241,7 +222,7 @@ namespace geode
         void MLOutputStructuralModel::write() const
         {
             const auto only_triangles =
-                check_structural_model_polygons( structural_model() );
+                check_brep_polygons( structural_model() );
             if( !only_triangles )
             {
                 geode::Logger::info(
@@ -251,7 +232,7 @@ namespace geode
             }
             MLOutputImplSM impl{ filename(), structural_model() };
             impl.determine_surface_to_regions_signs();
-            impl.write_this->file();
+            impl.write_file();
         }
     } // namespace detail
 } // namespace geode

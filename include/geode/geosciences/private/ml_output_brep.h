@@ -30,10 +30,10 @@ namespace geode
 {
     namespace detail
     {
-        class MLOutput final : public BRepOutput
+        class MLOutputBRep final : public BRepOutput
         {
         public:
-            MLOutput( const BRep& brep, absl::string_view filename )
+            MLOutputBRep( const BRep& brep, absl::string_view filename )
                 : BRepOutput( brep, filename )
             {
             }

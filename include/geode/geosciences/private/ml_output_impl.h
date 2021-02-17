@@ -51,9 +51,9 @@ namespace geode
 {
     namespace detail
     {
-        bool check_structural_model_polygons( const BRep& structural_model )
+        inline bool check_brep_polygons( const BRep& brep )
         {
-            for( const auto& surface : structural_model.surfaces() )
+            for( const auto& surface : brep.surfaces() )
             {
                 const auto& mesh = surface.mesh();
                 for( const auto p : Range{ mesh.nb_polygons() } )
@@ -67,7 +67,7 @@ namespace geode
             return true;
         }
 
-        absl::optional< PolygonEdge > get_one_border_edge(
+        inline absl::optional< PolygonEdge > get_one_border_edge(
             const SurfaceMesh3D& mesh )
         {
             for( const auto p : Range{ mesh.nb_polygons() } )
@@ -164,7 +164,7 @@ namespace geode
                 return component_id_;
             }
 
-            absl::flat_hash_map< uuid, index_t >& components
+            absl::flat_hash_map< uuid, index_t >& components()
             {
                 return components_;
             }
@@ -174,7 +174,19 @@ namespace geode
                 return file_;
             }
 
-        private:
+            template < typename Component >
+            void write_key_triangle( const Component& component )
+            {
+                const auto& mesh = component.mesh();
+                for( const auto v : LRange{ 3 } )
+                {
+                    file_ << SPACE << SPACE
+                          << mesh.point( mesh.polygon_vertex( { 0, v } ) )
+                                 .string()
+                          << EOL;
+                }
+            }
+
             absl::flat_hash_map< std::pair< uuid, uuid >, bool >
                 determine_paired_signs() const
             {
@@ -351,19 +363,6 @@ namespace geode
                 }
             }
 
-            template < typename Item >
-            void write_key_triangle( const Item& item )
-            {
-                const auto& mesh = item.mesh();
-                for( const auto v : LRange{ 3 } )
-                {
-                    file_ << SPACE << SPACE
-                          << mesh.point( mesh.polygon_vertex( { 0, v } ) )
-                                 .string()
-                          << EOL;
-                }
-            }
-
             virtual void write_geological_tfaces() = 0;
 
             void write_tfaces()
@@ -400,7 +399,7 @@ namespace geode
                     }
                     file_ << "TFACE " << component_id_ << SPACE << "boundary"
                           << SPACE << unclassified_surfaces_name_ << EOL;
-                    write_key_triangle( item );
+                    write_key_triangle( surface );
                     components_.emplace( surface.id(), component_id_++ );
                     unclassified_surfaces_.emplace_back( surface.id() );
                 }
