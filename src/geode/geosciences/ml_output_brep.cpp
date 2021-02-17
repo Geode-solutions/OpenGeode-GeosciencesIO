@@ -30,33 +30,22 @@
 
 namespace
 {
-    class MLOutputImplBRep
-        : public geode::detail::MLOutputImpl< geode::BRep >
+    class MLOutputImplBRep : public geode::detail::MLOutputImpl< geode::BRep >
     {
     public:
-        MLOutputImplBRep(
-            absl::string_view filename, const geode::BRep& model )
-            : geode::detail::MLOutputImpl< geode::BRep >(
-                filename, model )
+        MLOutputImplBRep( absl::string_view filename, const geode::BRep& model )
+            : geode::detail::MLOutputImpl< geode::BRep >( filename, model )
         {
         }
 
     private:
-        void write_geological_tfaces() override
-        {
-        }
+        void write_geological_tfaces() override {}
 
-        void write_geological_tsurfs() override
-        {
-        }
+        void write_geological_tsurfs() override {}
 
-        void write_geological_regions() override
-        {
-        }
+        void write_geological_regions() override {}
 
-        void write_geological_model_surfaces() override
-        {
-        }
+        void write_geological_model_surfaces() override {}
     };
 } // namespace
 
@@ -66,8 +55,7 @@ namespace geode
     {
         void MLOutputBRep::write() const
         {
-            const auto only_triangles =
-                check_brep_polygons( brep() );
+            const auto only_triangles = check_brep_polygons( brep() );
             if( !only_triangles )
             {
                 geode::Logger::info(

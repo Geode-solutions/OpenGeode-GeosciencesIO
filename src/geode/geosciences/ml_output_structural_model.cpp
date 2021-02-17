@@ -63,8 +63,8 @@ namespace
                         continue;
                     }
                     file() << "TFACE " << component_id() << SPACE
-                                 << fault_map_.at( fault.type() ) << SPACE
-                                 << fault.name() << EOL;
+                           << fault_map_.at( fault.type() ) << SPACE
+                           << fault.name() << EOL;
                     write_key_triangle( item );
                     components().emplace( item.id(), component_id()++ );
                 }
@@ -82,8 +82,8 @@ namespace
                         continue;
                     }
                     file() << "TFACE " << component_id() << SPACE
-                                 << horizon_map_.at( horizon.type() ) << SPACE
-                                 << horizon.name() << EOL;
+                           << horizon_map_.at( horizon.type() ) << SPACE
+                           << horizon.name() << EOL;
                     write_key_triangle( item );
                     components().emplace( item.id(), component_id()++ );
                 }
@@ -106,14 +106,13 @@ namespace
         {
             for( const auto& stratigraphic_unit : model_.stratigraphic_units() )
             {
-                file() << "LAYER " << stratigraphic_unit.name() << EOL
-                             << SPACE << SPACE;
+                file() << "LAYER " << stratigraphic_unit.name() << EOL << SPACE
+                       << SPACE;
                 geode::index_t counter{ 0 };
                 for( const auto& item :
                     model_.stratigraphic_unit_items( stratigraphic_unit ) )
                 {
-                    file()
-                        << components().at( item.id() ) << SPACE << SPACE;
+                    file() << components().at( item.id() ) << SPACE << SPACE;
                     counter++;
                     if( counter % 5 == 0 )
                     {
@@ -125,14 +124,13 @@ namespace
 
             for( const auto& fault_block : model_.fault_blocks() )
             {
-                file() << "FAULT_BLOCK " << fault_block.name() << EOL
-                             << SPACE << SPACE;
+                file() << "FAULT_BLOCK " << fault_block.name() << EOL << SPACE
+                       << SPACE;
                 geode::index_t counter{ 0 };
                 for( const auto& item :
                     model_.fault_block_items( fault_block ) )
                 {
-                    file()
-                        << components().at( item.id() ) << SPACE << SPACE;
+                    file() << components().at( item.id() ) << SPACE << SPACE;
                     counter++;
                     if( counter % 5 == 0 )
                     {
@@ -153,8 +151,8 @@ namespace
                 geode::detail::write_header( file(), header );
                 geode::detail::write_CRS( file(), {} );
                 file() << "GEOLOGICAL_FEATURE " << fault.name() << EOL;
-                file() << "GEOLOGICAL_TYPE "
-                             << fault_map_.at( fault.type() ) << EOL;
+                file() << "GEOLOGICAL_TYPE " << fault_map_.at( fault.type() )
+                       << EOL;
                 geode::index_t current_offset{ OFFSET_START };
                 for( const auto& item : model_.fault_items( fault ) )
                 {
@@ -178,7 +176,7 @@ namespace
                 geode::detail::write_CRS( file(), {} );
                 file() << "GEOLOGICAL_FEATURE " << horizon.name() << EOL;
                 file() << "GEOLOGICAL_TYPE "
-                             << horizon_map_.at( horizon.type() ) << EOL;
+                       << horizon_map_.at( horizon.type() ) << EOL;
                 geode::index_t current_offset{ OFFSET_START };
                 for( const auto& item : model_.horizon_items( horizon ) )
                 {
