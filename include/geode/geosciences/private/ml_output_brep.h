@@ -33,8 +33,7 @@ namespace geode
         class MLOutput final : public BRepOutput
         {
         public:
-            MLOutput( const BRep& brep,
-                absl::string_view filename )
+            MLOutput( const BRep& brep, absl::string_view filename )
                 : BRepOutput( brep, filename )
             {
             }
