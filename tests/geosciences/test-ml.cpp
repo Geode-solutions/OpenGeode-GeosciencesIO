@@ -31,7 +31,7 @@
 #include <geode/model/mixin/core/surface.h>
 
 #include <geode/geosciences/private/ml_input.h>
-#include <geode/geosciences/private/ml_output.h>
+#include <geode/geosciences/private/ml_output_structural_model.h>
 #include <geode/geosciences/representation/core/structural_model.h>
 #include <geode/geosciences/representation/io/structural_model_output.h>
 

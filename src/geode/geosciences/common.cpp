@@ -27,7 +27,7 @@
 
 #include <geode/geosciences/private/lso_input.h>
 #include <geode/geosciences/private/ml_input.h>
-#include <geode/geosciences/private/ml_output.h>
+#include <geode/geosciences/private/ml_output_structural_model.h>
 #include <geode/geosciences/private/pl_output.h>
 #include <geode/geosciences/private/ts_input.h>
 #include <geode/geosciences/representation/io/structural_model_input.h>
@@ -48,8 +48,8 @@ namespace
     void register_structural_model_output()
     {
         geode::StructuralModelOutputFactory::register_creator<
-            geode::detail::MLOutput >(
-            geode::detail::MLOutput::extension().data() );
+            geode::detail::MLOutputStructuralModel >(
+            geode::detail::MLOutputStructuralModel::extension().data() );
     }
 
     void register_triangulated_surface_input()
