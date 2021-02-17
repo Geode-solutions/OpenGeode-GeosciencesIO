@@ -50,7 +50,8 @@
 
 namespace
 {
-    class MLOutputImplSM : public geode::detail::MLOutputImpl<geode::StructuralModel>
+    class MLOutputImplSM
+        : public geode::detail::MLOutputImpl< geode::StructuralModel >
     {
     public:
         static constexpr geode::index_t OFFSET_START{ 1 };
@@ -60,13 +61,12 @@ namespace
         MLOutputImplSM(
             absl::string_view filename, const geode::StructuralModel& model )
             : geode::detail::MLOutputImpl< geode::StructuralModel >(
-                  filename, model ),
-              model_(model)
+                filename, model ),
+              model_( model )
         {
         }
 
     private:
-		
         void write_geological_tfaces() override
         {
             for( const auto& fault : model_.faults() )
@@ -82,9 +82,9 @@ namespace
                         continue;
                     }
                     this->file() << "TFACE " << component_id() << SPACE
-                          << fault_map_.at( fault.type() ) << SPACE
-                          << fault.name() << EOL;
-                          write_key_triangle(item);
+                                 << fault_map_.at( fault.type() ) << SPACE
+                                 << fault.name() << EOL;
+                    write_key_triangle( item );
                     components().emplace( item.id(), component_id()++ );
                 }
             }
@@ -101,9 +101,9 @@ namespace
                         continue;
                     }
                     this->file() << "TFACE " << component_id() << SPACE
-                          << horizon_map_.at( horizon.type() ) << SPACE
-                          << horizon.name() << EOL;
-                          write_key_triangle(item);
+                                 << horizon_map_.at( horizon.type() ) << SPACE
+                                 << horizon.name() << EOL;
+                    write_key_triangle( item );
                     components().emplace( item.id(), component_id()++ );
                 }
             }
@@ -122,17 +122,17 @@ namespace
         }
 
         void write_geological_regions() override
-        { 
-            
+        {
             for( const auto& stratigraphic_unit : model_.stratigraphic_units() )
             {
-                this->file() << "LAYER " << stratigraphic_unit.name() << EOL << SPACE
-                      << SPACE;
+                this->file() << "LAYER " << stratigraphic_unit.name() << EOL
+                             << SPACE << SPACE;
                 geode::index_t counter{ 0 };
                 for( const auto& item :
                     model_.stratigraphic_unit_items( stratigraphic_unit ) )
                 {
-                    this->file() << components().at( item.id() ) << SPACE << SPACE;
+                    this->file()
+                        << components().at( item.id() ) << SPACE << SPACE;
                     counter++;
                     if( counter % 5 == 0 )
                     {
@@ -141,16 +141,17 @@ namespace
                 }
                 this->file() << 0 << EOL;
             }
-            
+
             for( const auto& fault_block : model_.fault_blocks() )
             {
-                this->file() << "FAULT_BLOCK " << fault_block.name() << EOL << SPACE
-                      << SPACE;
+                this->file() << "FAULT_BLOCK " << fault_block.name() << EOL
+                             << SPACE << SPACE;
                 geode::index_t counter{ 0 };
                 for( const auto& item :
                     model_.fault_block_items( fault_block ) )
                 {
-                    this->file() << components().at( item.id() ) << SPACE << SPACE;
+                    this->file()
+                        << components().at( item.id() ) << SPACE << SPACE;
                     counter++;
                     if( counter % 5 == 0 )
                     {
@@ -160,7 +161,6 @@ namespace
                 this->file() << 0 << EOL;
             }
         }
-
 
         void write_geological_model_surfaces()
         {
@@ -172,8 +172,8 @@ namespace
                 geode::detail::write_header( this->file(), header );
                 geode::detail::write_CRS( this->file(), {} );
                 this->file() << "GEOLOGICAL_FEATURE " << fault.name() << EOL;
-                this->file() << "GEOLOGICAL_TYPE " << fault_map_.at( fault.type() )
-                      << EOL;
+                this->file() << "GEOLOGICAL_TYPE "
+                             << fault_map_.at( fault.type() ) << EOL;
                 geode::index_t current_offset{ OFFSET_START };
                 for( const auto& item : model_.fault_items( fault ) )
                 {
@@ -196,8 +196,8 @@ namespace
                 geode::detail::write_header( this->file(), header );
                 geode::detail::write_CRS( this->file(), {} );
                 this->file() << "GEOLOGICAL_FEATURE " << horizon.name() << EOL;
-                this->file() << "GEOLOGICAL_TYPE " << horizon_map_.at( horizon.type() )
-                      << EOL;
+                this->file() << "GEOLOGICAL_TYPE "
+                             << horizon_map_.at( horizon.type() ) << EOL;
                 geode::index_t current_offset{ OFFSET_START };
                 for( const auto& item : model_.horizon_items( horizon ) )
                 {
