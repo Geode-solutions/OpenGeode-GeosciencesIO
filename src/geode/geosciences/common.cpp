@@ -27,6 +27,7 @@
 
 #include <geode/geosciences/private/lso_input.h>
 #include <geode/geosciences/private/ml_input.h>
+#include <geode/geosciences/private/ml_output_brep.h>
 #include <geode/geosciences/private/ml_output_structural_model.h>
 #include <geode/geosciences/private/pl_output.h>
 #include <geode/geosciences/private/ts_input.h>
@@ -52,6 +53,13 @@ namespace
             geode::detail::MLOutputStructuralModel::extension().data() );
     }
 
+    void register_brep_output()
+    {
+        geode::BRepOutputFactory::register_creator<
+            geode::detail::MLOutputBRep >(
+            geode::detail::MLOutputBRep::extension().data() );
+    }
+
     void register_triangulated_surface_input()
     {
         geode::TriangulatedSurfaceInputFactory3D::register_creator<
@@ -59,7 +67,7 @@ namespace
             geode::detail::TSInput::extension().data() );
     }
 
-    void register_pline_output()
+    void register_edged_curve_output()
     {
         geode::EdgedCurveOutputFactory3D::register_creator<
             geode::detail::PLOutput >(
@@ -70,8 +78,9 @@ namespace
     {
         register_structural_model_input();
         register_structural_model_output();
+        register_brep_output();
         register_triangulated_surface_input();
-        register_pline_output();
+        register_edged_curve_output();
     }
 } // namespace
 
