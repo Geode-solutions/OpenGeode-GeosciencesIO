@@ -348,18 +348,13 @@ namespace geode
                     file_ << "TSURF " << boundary.name() << EOL;
                 }
                 write_geological_tsurfs();
-                bool unclassified_surfaces{ false };
                 for( const auto& surface : model_.surfaces() )
                 {
                     if( model_.nb_collections( surface.id() ) == 0 )
                     {
-                        unclassified_surfaces = true;
-                        break;
+                        file_ << "TSURF " << surface.name() << EOL;
+                        unclassified_surfaces_.emplace_back( surface.id() );
                     }
-                }
-                if( unclassified_surfaces )
-                {
-                    file_ << "TSURF " << unclassified_surfaces_name_ << EOL;
                 }
             }
 
@@ -387,21 +382,13 @@ namespace geode
                     }
                 }
                 write_geological_tfaces();
-                if( components_.size() == model_.nb_surfaces() )
+                for( const auto& surface_id : unclassified_surfaces_ )
                 {
-                    return;
-                }
-                for( const auto& surface : model_.surfaces() )
-                {
-                    if( components_.find( surface.id() ) != components_.end() )
-                    {
-                        continue;
-                    }
+                    const auto& surface = model_.surface( surface_id );
                     file_ << "TFACE " << component_id_ << SPACE << "boundary"
-                          << SPACE << unclassified_surfaces_name_ << EOL;
+                          << SPACE << surface.name() << EOL;
                     write_key_triangle( surface );
-                    components_.emplace( surface.id(), component_id_++ );
-                    unclassified_surfaces_.emplace_back( surface.id() );
+                    components_.emplace( surface_id, component_id_++ );
                 }
             }
 
@@ -582,21 +569,19 @@ namespace geode
                 }
             }
 
-            void find_corners_and_line_starts_for_unclassified_surfaces(
-                std::vector< std::array< index_t, 2 > >& line_starts ) const
+            std::vector< std::array< index_t, 2 > >
+                find_corners_and_line_starts_for_unclassified_surface(
+                    const uuid& surface_id ) const
             {
-                index_t current_offset{ OFFSET_START };
-                for( const auto& surface_id : unclassified_surfaces_ )
-                {
-                    const auto& surface = model_.surface( surface_id );
-                    add_corners_and_line_starts(
-                        surface, current_offset, line_starts );
-                    current_offset += surface.mesh().nb_vertices();
-                }
+                std::vector< std::array< index_t, 2 > > line_starts;
+                const auto& surface = model_.surface( surface_id );
+                add_corners_and_line_starts(
+                    surface, OFFSET_START, line_starts );
+                return line_starts;
             }
 
             void write_corners(
-                const std::vector< std::array< index_t, 2 > >& line_starts )
+                absl::Span< const std::array< index_t, 2 > > line_starts )
             {
                 for( const auto& line_start : line_starts )
                 {
@@ -605,7 +590,7 @@ namespace geode
             }
 
             void write_line_starts( index_t current_offset,
-                const std::vector< std::array< index_t, 2 > >& line_starts )
+                absl::Span< const std::array< index_t, 2 > > line_starts )
             {
                 for( const auto& line_start : line_starts )
                 {
@@ -642,32 +627,27 @@ namespace geode
                     file_ << "END" << EOL;
                 }
                 write_geological_model_surfaces();
-                if( unclassified_surfaces_.empty() )
-                {
-                    return;
-                }
-                file_ << "GOCAD TSurf 1" << EOL;
-                detail::HeaderData header;
-                header.name = unclassified_surfaces_name_;
-                detail::write_header( file_, header );
-                detail::write_CRS( file_, {} );
-                file_ << "GEOLOGICAL_FEATURE " << unclassified_surfaces_name_
-                      << EOL;
-                file_ << "GEOLOGICAL_TYPE "
-                      << "boundary" << EOL;
-                index_t current_offset{ OFFSET_START };
                 for( const auto& surface_id : unclassified_surfaces_ )
                 {
+                    file_ << "GOCAD TSurf 1" << EOL;
+                    const auto& surface = model_.surface( surface_id );
+                    detail::HeaderData header;
+                    header.name = surface.name().data();
+                    detail::write_header( file_, header );
+                    detail::write_CRS( file_, {} );
+                    file_ << "GEOLOGICAL_FEATURE " << surface.name() << EOL;
+                    file_ << "GEOLOGICAL_TYPE "
+                          << "boundary" << EOL;
+                    index_t current_offset{ OFFSET_START };
                     file_ << "TFACE" << EOL;
-                    current_offset = write_surface(
-                        model_.surface( surface_id ), current_offset );
+                    current_offset = write_surface( surface, current_offset );
+                    const auto line_starts =
+                        find_corners_and_line_starts_for_unclassified_surface(
+                            surface_id );
+                    write_corners( line_starts );
+                    write_line_starts( current_offset, line_starts );
+                    file_ << "END" << EOL;
                 }
-                std::vector< std::array< index_t, 2 > > line_starts;
-                find_corners_and_line_starts_for_unclassified_surfaces(
-                    line_starts );
-                write_corners( line_starts );
-                write_line_starts( current_offset, line_starts );
-                file_ << "END" << EOL;
             }
 
         private:
@@ -679,9 +659,6 @@ namespace geode
             absl::flat_hash_map< std::pair< uuid, uuid >, bool >
                 regions_surface_sides_;
             index_t component_id_{ OFFSET_START };
-            const std::string unclassified_surfaces_name_{
-                "unclassified_surfaces"
-            };
             std::vector< uuid > unclassified_surfaces_;
         };
     } // namespace detail
