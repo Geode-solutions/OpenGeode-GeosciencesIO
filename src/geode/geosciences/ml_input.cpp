@@ -354,6 +354,7 @@ namespace
                         .surface_mesh_builder< geode::TriangulatedSurface3D >(
                             uuid );
                 const auto& data = tsurf.data;
+                builder->set_name( data.header.name );
                 for( const auto p : geode::Range{ data.tface_vertices_offset[i],
                          data.tface_vertices_offset[i + 1] } )
                 {
@@ -657,6 +658,7 @@ namespace
             std::string name = geode::detail::read_name( iss );
             const auto& surface_id = builder_.add_surface(
                 geode::OpenGeodeTriangulatedSurface3D::impl_name_static() );
+            builder_.set_surface_name( surface_id, name );
             auto& tsurf = tsurfs_[tsurf_names2index_.at( name )];
             tsurf.feature = feature;
             tsurf.tfaces.emplace_back( surface_id );
