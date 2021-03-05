@@ -28,8 +28,9 @@ add_geode_library(
         "ml_input.cpp"
         "ml_output_brep.cpp"
         "ml_output_structural_model.cpp"
-        "ts_input.cpp"
         "pl_output.cpp"
+        "ts_input.cpp"
+        "wl_input.cpp"
     ADVANCED_HEADERS
         "detail/common.h"
     PRIVATE_HEADERS
@@ -39,8 +40,9 @@ add_geode_library(
         "private/ml_output_brep.h"
         "private/ml_output_impl.h"
         "private/ml_output_structural_model.h"
-        "private/ts_input.h"
         "private/pl_output.h"
+        "private/ts_input.h"
+        "private/wl_input.h"
     PUBLIC_DEPENDENCIES
         OpenGeode::basic
         OpenGeode::geometry
