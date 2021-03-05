@@ -29,6 +29,8 @@
 #include <iomanip>
 #include <queue>
 
+#include <absl/strings/str_replace.h>
+
 #include <geode/basic/filename.h>
 
 #include <geode/geometry/basic_objects.h>
@@ -95,6 +97,7 @@ namespace geode
 
             void determine_surface_to_regions_signs()
             {
+                return;
                 const auto paired_signs = determine_paired_signs();
                 {
                     std::vector< uuid > universe_boundaries;
@@ -345,14 +348,14 @@ namespace geode
             {
                 for( const auto& boundary : model_.model_boundaries() )
                 {
-                    file_ << "TSURF " << boundary.name() << EOL;
+                    file_ << "TSURF " << component_name( boundary ) << EOL;
                 }
                 write_geological_tsurfs();
                 for( const auto& surface : model_.surfaces() )
                 {
                     if( model_.nb_collections( surface.id() ) == 0 )
                     {
-                        file_ << "TSURF " << surface.name() << EOL;
+                        file_ << "TSURF " << component_name( surface ) << EOL;
                         unclassified_surfaces_.emplace_back( surface.id() );
                     }
                 }
@@ -370,13 +373,14 @@ namespace geode
                         if( components_.find( item.id() ) != components_.end() )
                         {
                             Logger::warn( "[MLOutput] A Surface from ",
-                                boundary.name(),
+                                component_name( boundary ),
                                 " belongs to several collections. It has been "
                                 "exported only once" );
                             continue;
                         }
                         file_ << "TFACE " << component_id_ << SPACE
-                              << "boundary" << SPACE << boundary.name() << EOL;
+                              << "boundary" << SPACE
+                              << component_name( boundary ) << EOL;
                         write_key_triangle( item );
                         components_.emplace( item.id(), component_id_++ );
                     }
@@ -386,7 +390,7 @@ namespace geode
                 {
                     const auto& surface = model_.surface( surface_id );
                     file_ << "TFACE " << component_id_ << SPACE << "boundary"
-                          << SPACE << surface.name() << EOL;
+                          << SPACE << component_name( surface ) << EOL;
                     write_key_triangle( surface );
                     components_.emplace( surface_id, component_id_++ );
                 }
@@ -426,7 +430,7 @@ namespace geode
                 for( const auto& region : model_.blocks() )
                 {
                     file_ << "REGION " << component_id_ << SPACE
-                          << region.name() << EOL << SPACE << SPACE;
+                          << component_name( region ) << EOL << SPACE << SPACE;
                     index_t counter{ 0 };
                     for( const auto& surface : model_.boundaries( region ) )
                     {
@@ -472,7 +476,7 @@ namespace geode
             {
                 write_tsurfs();
                 write_tfaces();
-                write_regions();
+                // write_regions();
                 file_ << "END" << EOL;
             }
 
@@ -607,10 +611,11 @@ namespace geode
                 {
                     file_ << "GOCAD TSurf 1" << EOL;
                     detail::HeaderData header;
-                    header.name = boundary.name().data();
+                    header.name = component_name( boundary );
                     detail::write_header( file_, header );
                     detail::write_CRS( file_, {} );
-                    file_ << "GEOLOGICAL_FEATURE " << boundary.name() << EOL;
+                    file_ << "GEOLOGICAL_FEATURE " << component_name( boundary )
+                          << EOL;
                     file_ << "GEOLOGICAL_TYPE boundary" << EOL;
                     index_t current_offset{ OFFSET_START };
                     for( const auto& item :
@@ -632,10 +637,11 @@ namespace geode
                     file_ << "GOCAD TSurf 1" << EOL;
                     const auto& surface = model_.surface( surface_id );
                     detail::HeaderData header;
-                    header.name = surface.name().data();
+                    header.name = component_name( surface );
                     detail::write_header( file_, header );
                     detail::write_CRS( file_, {} );
-                    file_ << "GEOLOGICAL_FEATURE " << surface.name() << EOL;
+                    file_ << "GEOLOGICAL_FEATURE " << component_name( surface )
+                          << EOL;
                     file_ << "GEOLOGICAL_TYPE "
                           << "boundary" << EOL;
                     index_t current_offset{ OFFSET_START };
@@ -648,6 +654,13 @@ namespace geode
                     write_line_starts( current_offset, line_starts );
                     file_ << "END" << EOL;
                 }
+            }
+
+            template < typename Component >
+            std::string component_name( const Component& component ) const
+            {
+                return absl::StrReplaceAll(
+                    component.name(), { { " ", "_" } } );
             }
 
         private:
