@@ -97,7 +97,6 @@ namespace geode
 
             void determine_surface_to_regions_signs()
             {
-                return;
                 const auto paired_signs = determine_paired_signs();
                 {
                     std::vector< uuid > universe_boundaries;
@@ -476,7 +475,7 @@ namespace geode
             {
                 write_tsurfs();
                 write_tfaces();
-                // write_regions();
+                write_regions();
                 file_ << "END" << EOL;
             }
 
