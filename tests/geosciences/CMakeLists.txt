@@ -39,7 +39,6 @@ add_geode_test(
     DEPENDENCIES
         OpenGeode::basic
         OpenGeode::mesh
-        OpenGeode-Geosciences::geosciences
         ${PROJECT_NAME}::geosciences
 )
 add_geode_test(
@@ -47,6 +46,12 @@ add_geode_test(
     DEPENDENCIES
         OpenGeode::basic
         OpenGeode::mesh
-        OpenGeode-Geosciences::geosciences
+        ${PROJECT_NAME}::geosciences
+)
+add_geode_test(
+    SOURCE "test-wl.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
         ${PROJECT_NAME}::geosciences
 )

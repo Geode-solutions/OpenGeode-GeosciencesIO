@@ -31,6 +31,7 @@
 #include <geode/geosciences/private/ml_output_structural_model.h>
 #include <geode/geosciences/private/pl_output.h>
 #include <geode/geosciences/private/ts_input.h>
+#include <geode/geosciences/private/wl_input.h>
 #include <geode/geosciences/representation/io/structural_model_input.h>
 #include <geode/geosciences/representation/io/structural_model_output.h>
 
@@ -74,12 +75,20 @@ namespace
             geode::detail::PLOutput::extension().data() );
     }
 
+    void register_edged_curve_input()
+    {
+        geode::EdgedCurveInputFactory3D::register_creator<
+            geode::detail::WLInput >(
+            geode::detail::WLInput::extension().data() );
+    }
+
     OPENGEODE_LIBRARY_INITIALIZE( OpenGeode_GeosciencesIO_geosciences )
     {
         register_structural_model_input();
         register_structural_model_output();
         register_brep_output();
         register_triangulated_surface_input();
+        register_edged_curve_input();
         register_edged_curve_output();
     }
 } // namespace
