@@ -37,7 +37,8 @@
 #include <geode/geometry/bounding_box.h>
 #include <geode/geometry/signed_mensuration.h>
 
-#include <geode/mesh/core/polygonal_surface.h>
+#include <geode/mesh/core/edged_curve.h>
+#include <geode/mesh/core/surface_mesh.h>
 
 #include <geode/model/mixin/core/block.h>
 #include <geode/model/mixin/core/corner.h>
@@ -113,7 +114,7 @@ namespace geode
                     const auto correct = are_correct_sides(
                         universe_boundaries, relative_signs );
 
-                    for( const auto& b : Range{ universe_boundaries.size() } )
+                    for( const auto b : Indices{ universe_boundaries } )
                     {
                         universe_surface_sides_.emplace( universe_boundaries[b],
                             correct ? !relative_signs[b] : relative_signs[b] );
@@ -131,11 +132,10 @@ namespace geode
                     const auto correct =
                         are_correct_sides( block_boundaries, relative_signs );
 
-                    for( const auto& b : Range{ block_boundaries.size() } )
+                    for( const auto b : Indices{ block_boundaries } )
                     {
                         regions_surface_sides_.emplace(
-                            std::pair< uuid, uuid >{
-                                block.id(), block_boundaries[b] },
+                            std::make_pair( block.id(), block_boundaries[b] ),
                             correct ? relative_signs[b] : !relative_signs[b] );
                     }
                 }
@@ -196,10 +196,11 @@ namespace geode
                     paired_signs;
                 for( const auto& line : model_.lines() )
                 {
-                    const auto uid0 =
-                        model_.unique_vertex( { line.component_id(), 0 } );
-                    const auto uid1 =
-                        model_.unique_vertex( { line.component_id(), 1 } );
+                    const auto& mesh = line.mesh();
+                    const auto uid0 = model_.unique_vertex(
+                        { line.component_id(), mesh.edge_vertex( { 0, 0 } ) } );
+                    const auto uid1 = model_.unique_vertex(
+                        { line.component_id(), mesh.edge_vertex( { 0, 1 } ) } );
                     const auto surface_mcvs0 = model_.mesh_component_vertices(
                         uid0, Surface3D::component_type_static() );
                     const auto surface_mcvs1 = model_.mesh_component_vertices(
@@ -235,8 +236,7 @@ namespace geode
                             }
                         }
                     }
-                    const auto nb_adj_surfaces = surface_direct_edges.size();
-                    if( nb_adj_surfaces < 2 )
+                    if( surface_direct_edges.size() < 2 )
                     {
                         continue;
                     }
@@ -247,8 +247,7 @@ namespace geode
                             if( s0.first < s1.first )
                             {
                                 paired_signs.emplace(
-                                    std::pair< uuid, uuid >{
-                                        s0.first, s1.first },
+                                    std::make_pair( s0.first, s1.first ),
                                     s0.second != s1.second );
                             }
                         }
