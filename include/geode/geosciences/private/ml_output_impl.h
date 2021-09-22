@@ -145,7 +145,7 @@ namespace geode
             {
                 file_ << "GOCAD Model3d 1" << EOL;
                 detail::HeaderData header;
-                header.name = model_name_;
+                header.name = model_.name().data();
                 detail::write_header( file_, header );
                 detail::write_CRS( file_, {} );
                 write_model_components();
@@ -158,7 +158,6 @@ namespace geode
             {
                 OPENGEODE_EXCEPTION( file_.good(),
                     "[MLOutput] Error while opening file: ", filename );
-                model_name_ = filename_without_extension( filename );
             }
 
             index_t& component_id()
@@ -663,7 +662,6 @@ namespace geode
 
         private:
             std::ofstream file_;
-            std::string model_name_;
             const Model& model_;
             absl::flat_hash_map< uuid, index_t > components_;
             absl::flat_hash_map< uuid, bool > universe_surface_sides_;
