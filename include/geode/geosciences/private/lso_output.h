@@ -21,50 +21,31 @@
  *
  */
 
-#include <geode/geosciences/private/ml_output_brep.h>
+#pragma once
 
-#include <geode/mesh/core/surface_mesh.h>
-
-#include <geode/geosciences/private/gocad_common.h>
-#include <geode/geosciences/private/ml_output_impl.h>
-
-namespace
-{
-    class MLOutputImplBRep : public geode::detail::MLOutputImpl< geode::BRep >
-    {
-    public:
-        MLOutputImplBRep( absl::string_view filename, const geode::BRep& model )
-            : geode::detail::MLOutputImpl< geode::BRep >( filename, model )
-        {
-        }
-
-    private:
-        void write_geological_tfaces() override {}
-
-        void write_geological_tsurfs() override {}
-
-        void write_geological_regions() override {}
-
-        void write_geological_model_surfaces() override {}
-    };
-} // namespace
+#include <geode/geosciences/detail/common.h>
+#include <geode/geosciences/representation/io/structural_model_output.h>
 
 namespace geode
 {
     namespace detail
     {
-        void MLOutputBRep::write() const
+        class LSOOutput final : public StructuralModelOutput
         {
-            const auto only_triangles = check_brep_polygons( brep() );
-            if( !only_triangles )
+        public:
+            LSOOutput( const StructuralModel& structural_model,
+                absl::string_view filename )
+                : StructuralModelOutput( structural_model, filename )
             {
-                geode::Logger::info(
-                    "[MLOutput::write] Can not export into .ml a "
-                    "BRep with non triangular surface polygons." );
-                return;
             }
-            MLOutputImplBRep impl{ filename(), brep() };
-            impl.write_file();
-        }
+
+            static absl::string_view extension()
+            {
+                static constexpr auto ext = "lso";
+                return ext;
+            }
+
+            void write() const final;
+        };
     } // namespace detail
 } // namespace geode

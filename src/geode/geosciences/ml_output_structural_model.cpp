@@ -147,7 +147,7 @@ namespace
             {
                 file() << "GOCAD TSurf 1" << EOL;
                 geode::detail::HeaderData header;
-                header.name = fault.name().data();
+                header.name = geode::to_string( fault.name() );
                 geode::detail::write_header( file(), header );
                 geode::detail::write_CRS( file(), {} );
                 file() << "GEOLOGICAL_FEATURE " << fault.name() << EOL;
@@ -171,7 +171,7 @@ namespace
             {
                 file() << "GOCAD TSurf 1" << EOL;
                 geode::detail::HeaderData header;
-                header.name = horizon.name().data();
+                header.name = geode::to_string( horizon.name() );
                 geode::detail::write_header( file(), header );
                 geode::detail::write_CRS( file(), {} );
                 file() << "GEOLOGICAL_FEATURE " << horizon.name() << EOL;
@@ -229,7 +229,6 @@ namespace geode
                 return;
             }
             MLOutputImplSM impl{ filename(), structural_model() };
-            impl.determine_surface_to_regions_signs();
             impl.write_file();
         }
     } // namespace detail

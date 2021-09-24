@@ -27,9 +27,16 @@
 #include <deque>
 #include <string>
 
+#include <geode/basic/uuid.h>
+
 #include <geode/geometry/point.h>
 
 #include <geode/geosciences/detail/common.h>
+
+namespace geode
+{
+    class BRep;
+} // namespace geode
 
 namespace geode
 {
@@ -133,5 +140,14 @@ namespace geode
             std::deque< TSurfBorderData > borders;
         };
         absl::optional< TSurfData > read_tsurf( std::ifstream& file );
+
+        struct RegionSurfaceSide
+        {
+            absl::flat_hash_map< uuid, bool > universe_surface_sides;
+            absl::flat_hash_map< std::pair< uuid, uuid >, bool >
+                regions_surface_sides;
+        };
+        RegionSurfaceSide determine_surface_to_regions_sides(
+            const BRep& brep );
     } // namespace detail
 } // namespace geode
