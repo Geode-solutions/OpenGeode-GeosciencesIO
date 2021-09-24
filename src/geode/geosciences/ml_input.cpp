@@ -76,7 +76,9 @@ namespace
         static constexpr char EOL{ '\n' };
 
         MLInputImpl( absl::string_view filename, geode::StructuralModel& model )
-            : file_( filename.data() ), model_( model ), builder_( model )
+            : file_{ geode::to_string( filename ) },
+              model_( model ),
+              builder_( model )
         {
             OPENGEODE_EXCEPTION( file_.good(),
                 "[MLInput] Error while opening file: ", filename );
@@ -85,7 +87,8 @@ namespace
         void read_file()
         {
             geode::detail::check_keyword( file_, "GOCAD Model3d" );
-            geode::detail::read_header( file_ );
+            const auto header = geode::detail::read_header( file_ );
+            builder_.set_name( header.name );
             geode::detail::read_CRS( file_ );
             read_model_components();
             for( auto& tsurf : tsurfs_ )

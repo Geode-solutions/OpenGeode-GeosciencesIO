@@ -45,7 +45,7 @@ namespace
         static constexpr char SPACE{ ' ' };
         PLOutputImpl(
             absl::string_view filename, const geode::EdgedCurve3D& edged_curve )
-            : file_( filename.data() ),
+            : file_{ geode::to_string( filename ) },
               edged_curve_( edged_curve ),
               edge_done_( edged_curve.nb_edges(), false )
         {
@@ -70,11 +70,12 @@ namespace
                     continue;
                 }
                 generic_att_.push_back( attribute );
-                prop_header.names.push_back( name.data() );
+                prop_header.names.emplace_back( geode::to_string( name ) );
                 prop_header.prop_legal_ranges.push_back(
                     std::make_pair( "**none**", "**none**" ) );
                 prop_header.no_data_values.push_back( -99999. );
-                prop_header.property_classes.push_back( name.data() );
+                prop_header.property_classes.emplace_back(
+                    geode::to_string( name ) );
                 prop_header.kinds.push_back( "Real Number" );
                 prop_header.property_subclass.push_back(
                     std::make_pair( "QUANTITY", "Float" ) );
@@ -82,7 +83,7 @@ namespace
                 prop_header.units.push_back( "unitless" );
 
                 geode::detail::PropClassHeaderData tmp_prop_class_header;
-                tmp_prop_class_header.name = name.data();
+                tmp_prop_class_header.name = geode::to_string( name );
 
                 prop_class_header.push_back( tmp_prop_class_header );
             }

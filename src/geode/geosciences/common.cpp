@@ -26,6 +26,7 @@
 #include <geode/mesh/io/triangulated_surface_input.h>
 
 #include <geode/geosciences/private/lso_input.h>
+#include <geode/geosciences/private/lso_output.h>
 #include <geode/geosciences/private/ml_input.h>
 #include <geode/geosciences/private/ml_output_brep.h>
 #include <geode/geosciences/private/ml_output_structural_model.h>
@@ -52,6 +53,9 @@ namespace
         geode::StructuralModelOutputFactory::register_creator<
             geode::detail::MLOutputStructuralModel >(
             geode::detail::MLOutputStructuralModel::extension().data() );
+        geode::StructuralModelOutputFactory::register_creator<
+            geode::detail::LSOOutput >(
+            geode::detail::LSOOutput::extension().data() );
     }
 
     void register_brep_output()

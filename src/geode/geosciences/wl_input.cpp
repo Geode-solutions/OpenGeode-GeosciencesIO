@@ -40,7 +40,7 @@ namespace
     {
     public:
         WLInputImpl( absl::string_view filename, geode::EdgedCurve3D& curve )
-            : file_( filename.data() ),
+            : file_{ geode::to_string( filename ) },
               curve_( curve ),
               builder_( geode::EdgedCurveBuilder3D::create( curve ) )
         {

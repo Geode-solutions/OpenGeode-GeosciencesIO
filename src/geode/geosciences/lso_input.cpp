@@ -23,37 +23,29 @@
 
 #include <geode/geosciences/private/lso_input.h>
 
-#include <algorithm>
 #include <fstream>
-#include <functional>
 
 #include <absl/container/flat_hash_set.h>
-#include <absl/strings/numbers.h>
 #include <absl/strings/str_split.h>
 
 #include <geode/basic/attribute_manager.h>
 
-#include <geode/geometry/bounding_box.h>
-#include <geode/geometry/nn_search.h>
 #include <geode/geometry/point.h>
-#include <geode/geometry/vector.h>
 
 #include <geode/mesh/builder/edged_curve_builder.h>
 #include <geode/mesh/builder/point_set_builder.h>
 #include <geode/mesh/builder/tetrahedral_solid_builder.h>
 #include <geode/mesh/builder/triangulated_surface_builder.h>
 #include <geode/mesh/core/edged_curve.h>
-#include <geode/mesh/core/geode_triangulated_surface.h>
 #include <geode/mesh/core/mesh_factory.h>
 #include <geode/mesh/core/solid_facets.h>
 #include <geode/mesh/core/tetrahedral_solid.h>
+#include <geode/mesh/core/triangulated_surface.h>
 
 #include <geode/model/mixin/core/block.h>
 #include <geode/model/mixin/core/corner.h>
 #include <geode/model/mixin/core/line.h>
 #include <geode/model/mixin/core/surface.h>
-#include <geode/model/mixin/core/vertex_identifier.h>
-#include <geode/model/representation/io/brep_output.h>
 
 #include <geode/geosciences/private/gocad_common.h>
 #include <geode/geosciences/representation/builder/structural_model_builder.h>
@@ -69,9 +61,9 @@ namespace
 
         LSOInputImpl(
             absl::string_view filename, geode::StructuralModel& model )
-            : file_( filename.data() ),
+            : file_{ geode::to_string( filename ) },
               model_( model ),
-              builder_( model ),
+              builder_{ model },
               solid_{ geode::TetrahedralSolid3D::create() },
               solid_builder_{ geode::TetrahedralSolidBuilder3D::create(
                   *solid_ ) },
@@ -89,7 +81,8 @@ namespace
         void read_file()
         {
             geode::detail::check_keyword( file_, "GOCAD LightTSolid" );
-            geode::detail::read_header( file_ );
+            const auto header = geode::detail::read_header( file_ );
+            builder_.set_name( header.name );
             crs_ = geode::detail::read_CRS( file_ );
             read_vertices();
             read_tetra();
@@ -370,7 +363,6 @@ namespace
                             continue;
                         }
                         if( !facet_matches_key_vertices(
-
                                 key, polyhedron_facet, side ) )
                         {
                             continue;

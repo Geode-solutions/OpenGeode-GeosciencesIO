@@ -23,21 +23,12 @@
 
 #pragma once
 
-#include <algorithm>
 #include <fstream>
-#include <functional>
-#include <iomanip>
-#include <queue>
 
 #include <absl/strings/str_replace.h>
 
 #include <geode/basic/filename.h>
 
-#include <geode/geometry/basic_objects.h>
-#include <geode/geometry/bounding_box.h>
-#include <geode/geometry/signed_mensuration.h>
-
-#include <geode/mesh/core/edged_curve.h>
 #include <geode/mesh/core/surface_mesh.h>
 
 #include <geode/model/mixin/core/block.h>
@@ -45,7 +36,6 @@
 #include <geode/model/mixin/core/line.h>
 #include <geode/model/mixin/core/model_boundary.h>
 #include <geode/model/mixin/core/surface.h>
-#include <geode/model/mixin/core/vertex_identifier.h>
 #include <geode/model/representation/core/brep.h>
 
 #include <geode/geosciences/private/gocad_common.h>
@@ -96,56 +86,11 @@ namespace geode
 
             virtual ~MLOutputImpl() = default;
 
-            void determine_surface_to_regions_signs()
-            {
-                const auto paired_signs = determine_paired_signs();
-                {
-                    std::vector< uuid > universe_boundaries;
-                    for( const auto& boundary : model_.model_boundaries() )
-                    {
-                        for( const auto& item :
-                            model_.model_boundary_items( boundary ) )
-                        {
-                            universe_boundaries.push_back( item.id() );
-                        }
-                    }
-                    const auto relative_signs = determine_relative_signs(
-                        universe_boundaries, paired_signs );
-                    const auto correct = are_correct_sides(
-                        universe_boundaries, relative_signs );
-
-                    for( const auto b : Indices{ universe_boundaries } )
-                    {
-                        universe_surface_sides_.emplace( universe_boundaries[b],
-                            correct ? !relative_signs[b] : relative_signs[b] );
-                    }
-                }
-                for( const auto& block : model_.blocks() )
-                {
-                    std::vector< uuid > block_boundaries;
-                    for( const auto& surface : model_.boundaries( block ) )
-                    {
-                        block_boundaries.push_back( surface.id() );
-                    }
-                    const auto relative_signs = determine_relative_signs(
-                        block_boundaries, paired_signs );
-                    const auto correct =
-                        are_correct_sides( block_boundaries, relative_signs );
-
-                    for( const auto b : Indices{ block_boundaries } )
-                    {
-                        regions_surface_sides_.emplace(
-                            std::make_pair( block.id(), block_boundaries[b] ),
-                            correct ? relative_signs[b] : !relative_signs[b] );
-                    }
-                }
-            }
-
             void write_file()
             {
                 file_ << "GOCAD Model3d 1" << EOL;
                 detail::HeaderData header;
-                header.name = model_.name().data();
+                header.name = to_string( model_.name() );
                 detail::write_header( file_, header );
                 detail::write_CRS( file_, {} );
                 write_model_components();
@@ -154,7 +99,9 @@ namespace geode
 
         protected:
             MLOutputImpl( absl::string_view filename, const Model& model )
-                : file_( filename.data() ), model_( model )
+                : file_{ to_string( filename ) },
+                  model_( model ),
+                  sides_( determine_surface_to_regions_sides( model ) )
             {
                 OPENGEODE_EXCEPTION( file_.good(),
                     "[MLOutput] Error while opening file: ", filename );
@@ -186,157 +133,6 @@ namespace geode
                                  .string()
                           << EOL;
                 }
-            }
-
-            absl::flat_hash_map< std::pair< uuid, uuid >, bool >
-                determine_paired_signs() const
-            {
-                absl::flat_hash_map< std::pair< uuid, uuid >, bool >
-                    paired_signs;
-                for( const auto& line : model_.lines() )
-                {
-                    const auto& mesh = line.mesh();
-                    const auto uid0 = model_.unique_vertex(
-                        { line.component_id(), mesh.edge_vertex( { 0, 0 } ) } );
-                    const auto uid1 = model_.unique_vertex(
-                        { line.component_id(), mesh.edge_vertex( { 0, 1 } ) } );
-                    const auto surface_mcvs0 = model_.mesh_component_vertices(
-                        uid0, Surface3D::component_type_static() );
-                    const auto surface_mcvs1 = model_.mesh_component_vertices(
-                        uid1, Surface3D::component_type_static() );
-                    absl::flat_hash_map< uuid, bool > surface_direct_edges;
-                    for( const auto& surface_mcv0 : surface_mcvs0 )
-                    {
-                        for( const auto& surface_mcv1 : surface_mcvs1 )
-                        {
-                            if( surface_mcv1.component_id.id()
-                                != surface_mcv0.component_id.id() )
-                            {
-                                continue;
-                            }
-                            const auto& surface = model_.surface(
-                                surface_mcv0.component_id.id() );
-                            const auto& surface_mesh = surface.mesh();
-                            const auto v0v1 =
-                                surface_mesh.polygon_edge_from_vertices(
-                                    surface_mcv0.vertex, surface_mcv1.vertex );
-                            const auto v1v0 =
-                                surface_mesh.polygon_edge_from_vertices(
-                                    surface_mcv1.vertex, surface_mcv0.vertex );
-                            if( v0v1 && !v1v0 )
-                            {
-                                surface_direct_edges.emplace(
-                                    surface.id(), true );
-                            }
-                            else if( v1v0 && !v0v1 )
-                            {
-                                surface_direct_edges.emplace(
-                                    surface.id(), false );
-                            }
-                        }
-                    }
-                    if( surface_direct_edges.size() < 2 )
-                    {
-                        continue;
-                    }
-                    for( const auto& s0 : surface_direct_edges )
-                    {
-                        for( const auto& s1 : surface_direct_edges )
-                        {
-                            if( s0.first < s1.first )
-                            {
-                                paired_signs.emplace(
-                                    std::make_pair( s0.first, s1.first ),
-                                    s0.second != s1.second );
-                            }
-                        }
-                    }
-                }
-                return paired_signs;
-            }
-
-            absl::FixedArray< bool > determine_relative_signs(
-                absl::Span< const uuid > universe_boundaries,
-                const absl::flat_hash_map< std::pair< uuid, uuid >, bool >&
-                    paired_signs ) const
-            {
-                const auto nb_surfaces = universe_boundaries.size();
-                absl::FixedArray< bool > signs( nb_surfaces, true );
-                if( nb_surfaces == 1 )
-                {
-                    return signs;
-                }
-                absl::FixedArray< bool > determined( nb_surfaces, false );
-                determined[0] = true;
-                std::queue< index_t > to_process;
-                to_process.push( 0 );
-                while( !to_process.empty() )
-                {
-                    const auto determined_s = to_process.front();
-                    const auto determined_s_id =
-                        universe_boundaries[determined_s];
-                    to_process.pop();
-                    for( const auto s : Range{ nb_surfaces } )
-                    {
-                        if( determined[s] )
-                        {
-                            continue;
-                        }
-                        const auto s_id = universe_boundaries[s];
-                        const auto itr = paired_signs.find(
-                            { std::min( determined_s_id, s_id ),
-                                std::max( determined_s_id, s_id ) } );
-                        if( itr == paired_signs.end() )
-                        {
-                            continue;
-                        }
-                        signs[s] = itr->second ? signs[determined_s]
-                                               : !signs[determined_s];
-                        determined[s] = true;
-                        to_process.push( s );
-                    }
-                }
-                OPENGEODE_ASSERT( absl::c_count( determined, false ) == 0,
-                    "All signs should have been found" );
-                return signs;
-            }
-
-            bool are_correct_sides(
-                absl::Span< const uuid > universe_boundaries,
-                const absl::FixedArray< bool >& relative_signs ) const
-            {
-                double signed_volume{ 0 };
-                const auto& first_surface_mesh =
-                    model_.surface( universe_boundaries[0] ).mesh();
-                const auto& bbox = first_surface_mesh.bounding_box();
-                const auto center = ( bbox.min() + bbox.max() ) * 0.5;
-                for( const auto s : Range{ universe_boundaries.size() } )
-                {
-                    const auto sign = relative_signs[s];
-                    const auto& surface_mesh =
-                        model_.surface( universe_boundaries[s] ).mesh();
-                    for( const auto t : Range{ surface_mesh.nb_polygons() } )
-                    {
-                        std::array< local_index_t, 3 > vertex_order{ 0, 1, 2 };
-                        if( !sign )
-                        {
-                            vertex_order[1] = 2;
-                            vertex_order[2] = 1;
-                        }
-                        Tetra tetra{ surface_mesh.point(
-                                         surface_mesh.polygon_vertex(
-                                             { t, vertex_order[0] } ) ),
-                            surface_mesh.point( surface_mesh.polygon_vertex(
-                                { t, vertex_order[1] } ) ),
-                            surface_mesh.point( surface_mesh.polygon_vertex(
-                                { t, vertex_order[2] } ) ),
-                            center };
-                        signed_volume += tetra_signed_volume( tetra );
-                    }
-                }
-                OPENGEODE_ASSERT( std::fabs( signed_volume ) > 0,
-                    "Null volume block is not valid" );
-                return signed_volume > 0;
             }
 
             virtual void write_geological_tsurfs() = 0;
@@ -404,7 +200,7 @@ namespace geode
                         model_.model_boundary_items( boundary ) )
                     {
                         char sign{ '-' };
-                        if( universe_surface_sides_.at( item.id() ) )
+                        if( sides_.universe_surface_sides.at( item.id() ) )
                         {
                             sign = '+';
                         }
@@ -431,7 +227,7 @@ namespace geode
                     index_t counter{ 0 };
                     for( const auto& surface : model_.boundaries( region ) )
                     {
-                        const auto sign = regions_surface_sides_.at(
+                        const auto sign = sides_.regions_surface_sides.at(
                                               { region.id(), surface.id() } )
                                               ? '+'
                                               : '-';
@@ -663,10 +459,8 @@ namespace geode
         private:
             std::ofstream file_;
             const Model& model_;
+            const RegionSurfaceSide sides_;
             absl::flat_hash_map< uuid, index_t > components_;
-            absl::flat_hash_map< uuid, bool > universe_surface_sides_;
-            absl::flat_hash_map< std::pair< uuid, uuid >, bool >
-                regions_surface_sides_;
             index_t component_id_{ OFFSET_START };
             std::vector< uuid > unclassified_surfaces_;
         };

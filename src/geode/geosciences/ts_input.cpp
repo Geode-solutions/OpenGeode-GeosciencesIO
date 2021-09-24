@@ -39,7 +39,7 @@ namespace
     public:
         TSInputImpl(
             absl::string_view filename, geode::TriangulatedSurface3D& surface )
-            : file_( filename.data() ),
+            : file_{ geode::to_string( filename ) },
               surface_( surface ),
               builder_(
                   geode::TriangulatedSurfaceBuilder< 3 >::create( surface ) )
