@@ -12,7 +12,7 @@ jobs:
       matrix:
         config:
         - {container: "geodesolutions/ubuntu", system: "ubuntu", doc: true}
-        - {container: "geodesolutions/centos", system: "rhel", doc: false}
+        - {container: "geodesolutions/centosrhel", doc: false}
 
     steps:
     - uses: actions/checkout@v1
@@ -60,7 +60,7 @@ jobs:
       
   release-linux-wheel:
     runs-on: ubuntu-18.04
-    container: "geodesolutions/centos8"
+    container: "geodesolutions/centos
     strategy:
       matrix:
         config:
