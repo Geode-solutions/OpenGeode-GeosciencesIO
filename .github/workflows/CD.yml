@@ -12,7 +12,7 @@ jobs:
       matrix:
         config:
         - {container: "geodesolutions/ubuntu", system: "ubuntu", doc: true}
-        - {container: "geodesolutions/centos", system: "rhel", doc: false}
+        - {container: "quay.io/pypa/manylinux2014_x86_64", system: "rhel", doc: false}
 
     steps:
     - uses: actions/checkout@v1
@@ -60,13 +60,15 @@ jobs:
       
   release-linux-wheel:
     runs-on: ubuntu-18.04
-    container: "geodesolutions/centos8"
+    container: "quay.io/pypa/manylinux2014_x86_64"
     strategy:
       matrix:
         config:
-        - {python: 3.6, tag: "cp36-cp36m"}
-        - {python: 3.7, tag: "cp37-cp37m"}
-        - {python: 3.8, tag: "cp38-cp38"}
+        - {python: "3.6", tag: "cp36-cp36m"}
+        - {python: "3.7", tag: "cp37-cp37m"}
+        - {python: "3.8", tag: "cp38-cp38"}
+        - {python: "3.9", tag: "cp39-cp39"}
+        - {python: "3.10", tag: "cp310-cp310"}
 
     steps:
     - uses: actions/checkout@v1
@@ -74,13 +76,13 @@ jobs:
       id: opengeode
       with:
         repository: OpenGeode
-        file: '-ubuntu.tar.gz'
+        file: '-rhel.tar.gz'
         token: ${{ secrets.TOKEN }}
     - uses: Geode-solutions/actions/get-release@master
       id: opengeode-geosciences
       with:
         repository: OpenGeode-Geosciences
-        file: '-ubuntu.tar.gz'
+        file: '-rhel.tar.gz'
         token: ${{ secrets.TOKEN }}
     - name: Generate package
       id: package
@@ -94,18 +96,18 @@ jobs:
         cmake --build . -- -j2
         cmake --build . --target wheel --config Release
         mv wheel/dist/*.whl wheel/dist/OpenGeode_GeosciencesIO-$version-${{ matrix.config.tag }}-manylinux2014_x86_64.whl
-    - name: Upload
-      uses: softprops/action-gh-release@v1
-      with:
-        files: "build/wheel/dist/OpenGeode_GeosciencesIO-${{ steps.package.outputs.version }}-${{ matrix.config.tag }}-manylinux2014_x86_64.whl"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: PyPI
       uses: pypa/gh-action-pypi-publish@master
       with:
         user: __token__
         password: ${{ secrets.PYPI_TOKEN }}
         packages_dir: "build/wheel/dist/"
+    - name: Upload
+      uses: softprops/action-gh-release@v1
+      with:
+        files: "build/wheel/dist/OpenGeode_GeosciencesIO-${{ steps.package.outputs.version }}-${{ matrix.config.tag }}-manylinux2014_x86_64.whl"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Notify slack
       if: failure()
       uses: 8398a7/action-slack@v2
@@ -162,9 +164,11 @@ jobs:
     strategy:
       matrix:
         config:
-        - {python: 3.6, tag: "cp36-cp36m"}
-        - {python: 3.7, tag: "cp37-cp37m"}
-        - {python: 3.8, tag: "cp38-cp38"}
+        - {python: "3.6", tag: "cp36-cp36m"}
+        - {python: "3.7", tag: "cp37-cp37m"}
+        - {python: "3.8", tag: "cp38-cp38"}
+        - {python: "3.9", tag: "cp39-cp39"}
+        - {python: "3.10", tag: "cp310-cp310"}
 
     steps:
     - uses: actions/checkout@v1
@@ -262,9 +266,11 @@ jobs:
     strategy:
       matrix:
         config:
-        - {python: 3.6, tag: "cp36-cp36m"}
-        - {python: 3.7, tag: "cp37-cp37m"}
-        - {python: 3.8, tag: "cp38-cp38"}
+        - {python: "3.6", tag: "cp36-cp36m"}
+        - {python: "3.7", tag: "cp37-cp37m"}
+        - {python: "3.8", tag: "cp38-cp38"}
+        - {python: "3.9", tag: "cp39-cp39"}
+        - {python: "3.10", tag: "cp310-cp310"}
 
     steps:
     - uses: actions/checkout@v1
