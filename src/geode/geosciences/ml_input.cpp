@@ -717,7 +717,7 @@ namespace
                         return;
                     }
                     surface_id = std::abs( surface_id ) - OFFSET_START;
-                    universe_.emplace( surfaces_[surface_id] );
+                    universe_.emplace( surfaces_.at( surface_id ) );
                 }
             }
         }
