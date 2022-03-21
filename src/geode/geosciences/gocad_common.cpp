@@ -31,7 +31,7 @@
 
 #include <geode/basic/logger.h>
 
-#include <geode/geometry/basic_objects.h>
+#include <geode/geometry/basic_objects/tetra.h>
 #include <geode/geometry/bounding_box.h>
 #include <geode/geometry/signed_mensuration.h>
 
