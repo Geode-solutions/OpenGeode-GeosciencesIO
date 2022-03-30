@@ -34,32 +34,56 @@
 #include <geode/geosciences/representation/core/structural_model.h>
 #include <geode/geosciences/representation/io/structural_model_output.h>
 
-void check_model( const geode::StructuralModel& model )
+void check_model( const geode::StructuralModel& model,
+    geode::index_t nb_corners,
+    geode::index_t nb_lines,
+    geode::index_t nb_surfaces,
+    geode::index_t nb_blocks,
+    geode::index_t nb_horizons,
+    geode::index_t nb_block_internals )
 {
-    OPENGEODE_EXCEPTION( model.nb_corners() == 22,
+    OPENGEODE_EXCEPTION( model.nb_corners() == nb_corners,
         "[Test] Number of Corners in the loaded "
         "StructuralModel is not correct" );
-    OPENGEODE_EXCEPTION( model.nb_lines() == 39,
+    OPENGEODE_EXCEPTION( model.nb_lines() == nb_lines,
         "[Test] Number of Lines in the loaded "
         "StructuralModel is not correct" );
-    OPENGEODE_EXCEPTION( model.nb_surfaces() == 23,
+    OPENGEODE_EXCEPTION( model.nb_surfaces() == nb_surfaces,
         "[Test] Number of Surfaces in the loaded StructuralModel is not "
         "correct" );
-    OPENGEODE_EXCEPTION( model.nb_blocks() == 4,
+    OPENGEODE_EXCEPTION( model.nb_blocks() == nb_blocks,
         "[Test] Number of Blocks in the loaded "
         "StructuralModel is not correct" );
-    OPENGEODE_EXCEPTION( model.nb_horizons() == 4,
+    OPENGEODE_EXCEPTION( model.nb_horizons() == nb_horizons,
         "[Test] Number of Horizons in the loaded "
         "StructuralModel is not correct" );
 
-    geode::index_t nb_block_internals{ 0 };
+    geode::index_t count_block_internals{ 0 };
     for( const auto& block : model.blocks() )
     {
-        nb_block_internals += model.nb_internals( block.id() );
+        count_block_internals += model.nb_internals( block.id() );
     }
-    OPENGEODE_EXCEPTION( nb_block_internals == 2,
+    OPENGEODE_EXCEPTION( count_block_internals == nb_block_internals,
         "[Test] Number of Block internals in the "
         "loaded StructuralModel is not correct" );
+}
+
+void test_file( std::string file,
+    geode::index_t nb_corners,
+    geode::index_t nb_lines,
+    geode::index_t nb_surfaces,
+    geode::index_t nb_blocks,
+    geode::index_t nb_horizons,
+    geode::index_t nb_block_internals )
+{
+    const auto model = geode::load_structural_model( file );
+    check_model( model, nb_corners, nb_lines, nb_surfaces, nb_blocks,
+        nb_horizons, nb_block_internals );
+
+    geode::save_structural_model( model, "test.lso" );
+    const auto reload_model = geode::load_structural_model( "test.lso" );
+    check_model( reload_model, nb_corners, nb_lines, nb_surfaces, nb_blocks,
+        nb_horizons, nb_block_internals );
 }
 
 int main()
@@ -68,14 +92,12 @@ int main()
     {
         geode::detail::initialize_geosciences_io();
 
-        // Load structural model
-        auto model = geode::load_structural_model( absl::StrCat(
-            geode::data_path, "test.", geode::detail::LSOInput::extension() ) );
-        check_model( model );
-
-        geode::save_structural_model( model, "test.lso" );
-        auto reload_model = geode::load_structural_model( "test.lso" );
-        check_model( reload_model );
+        test_file( absl::StrCat( geode::data_path, "test.",
+                       geode::detail::LSOInput::extension() ),
+            22, 39, 23, 4, 4, 2 );
+        test_file( absl::StrCat( geode::data_path, "vri.",
+                       geode::detail::LSOInput::extension() ),
+            12, 20, 11, 2, 7, 0 );
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
