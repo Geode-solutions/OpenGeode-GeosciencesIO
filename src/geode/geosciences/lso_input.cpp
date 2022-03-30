@@ -85,6 +85,7 @@ namespace
             builder_.set_name( header.name );
             crs_ = geode::detail::read_CRS( file_ );
             read_vertices();
+            read_vertex_region_indicators();
             read_tetra();
             read_surfaces();
             read_blocks();
@@ -96,6 +97,17 @@ namespace
         }
 
     private:
+        void read_vertex_region_indicators()
+        {
+            if( geode::detail::string_starts_with(
+                    line_, "BEGIN_VERTEX_REGION_INDICATORS" ) )
+            {
+                geode::detail::goto_keyword(
+                    file_, "END_VERTEX_REGION_INDICATORS" );
+                std::getline( file_, line_ );
+            }
+        }
+
         void read_vertices()
         {
             line_ = geode::detail::goto_keywords(
