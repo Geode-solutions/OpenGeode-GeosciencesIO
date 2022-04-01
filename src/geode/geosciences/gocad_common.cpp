@@ -27,7 +27,9 @@
 #include <queue>
 
 #include <absl/strings/match.h>
+#include <absl/strings/str_join.h>
 #include <absl/strings/str_replace.h>
+#include <absl/strings/str_split.h>
 
 #include <geode/basic/logger.h>
 
@@ -261,9 +263,13 @@ namespace
 
             if( keyword == "VRTX" || keyword == "PVRTX" )
             {
-                geode::index_t dummy;
+                geode::index_t index;
                 double x, y, z;
-                iss >> dummy >> x >> y >> z;
+                iss >> index >> x >> y >> z;
+                if( tsurf.points.empty() )
+                {
+                    tsurf.OFFSET_START = index;
+                }
                 tsurf.points.push_back(
                     geode::Point3D{ { x, y, tsurf.crs.z_sign * z } } );
             }
@@ -348,12 +354,13 @@ namespace geode
                 {
                     return header;
                 }
-                std::istringstream iss{ line };
-                std::string keyword;
-                iss >> keyword;
-                if( keyword == "name:" )
+                std::vector< absl::string_view > tokens =
+                    absl::StrSplit( absl::StripAsciiWhitespace( line ), ":" );
+                if( tokens.front() == "name" )
                 {
-                    header.name = read_name( iss );
+                    header.name = absl::StrReplaceAll(
+                        absl::StrJoin( tokens.begin() + 1, tokens.end(), " " ),
+                        { { "\"", "" } } );
                 }
             }
             throw geode::OpenGeodeException{
