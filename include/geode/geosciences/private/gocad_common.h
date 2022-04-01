@@ -129,7 +129,7 @@ namespace geode
                 return tface_vertices_offset.size() - 1;
             }
 
-            static constexpr index_t OFFSET_START{ 1 };
+            index_t OFFSET_START{ 1 };
             HeaderData header;
             CRSData crs;
             std::deque< Point3D > points;
