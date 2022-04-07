@@ -23,6 +23,7 @@ add_geode_library(
     FOLDER "geode/geosciences"
     SOURCES
         "common.cpp"
+        "utils.cpp"
         "gocad_common.cpp"
         "lso_input.cpp"
         "lso_output.cpp"
@@ -32,9 +33,13 @@ add_geode_library(
         "pl_output.cpp"
         "ts_input.cpp"
         "wl_input.cpp"
+        "well_dat_input.cpp"
+        "well_txt_input.cpp"
+        "well_dev_input.cpp"
     ADVANCED_HEADERS
         "detail/common.h"
     PRIVATE_HEADERS
+        "private/utils.h"
         "private/gocad_common.h"
         "private/lso_input.h"
         "private/lso_output.h"
@@ -45,6 +50,10 @@ add_geode_library(
         "private/pl_output.h"
         "private/ts_input.h"
         "private/wl_input.h"
+        "private/well_input.h"
+        "private/well_dat_input.h"
+        "private/well_txt_input.h"
+        "private/well_dev_input.h"
     PUBLIC_DEPENDENCIES
         OpenGeode::basic
         OpenGeode::geometry
