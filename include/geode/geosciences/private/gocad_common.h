@@ -32,6 +32,7 @@
 #include <geode/geometry/point.h>
 
 #include <geode/geosciences/detail/common.h>
+#include <geode/geosciences/private/utils.h>
 
 namespace geode
 {
@@ -42,18 +43,13 @@ namespace geode
 {
     namespace detail
     {
-        bool string_starts_with(
-            absl::string_view string, absl::string_view check );
-
-        void check_keyword( std::ifstream& file, absl::string_view keyword );
-
-        std::string read_name( std::istringstream& iss );
-
         struct HeaderData
         {
             std::string name{ "unknown" };
         };
         HeaderData read_header( std::ifstream& file );
+
+        std::string read_name( std::istringstream& iss );
 
         void write_header( std::ofstream& file, const HeaderData& data );
 
@@ -99,11 +95,6 @@ namespace geode
         };
         void write_property_class_header(
             std::ofstream& file, const PropClassHeaderData& data );
-
-        std::string goto_keyword( std::ifstream& file, absl::string_view word );
-
-        std::string goto_keywords(
-            std::ifstream& file, absl::Span< const absl::string_view > words );
 
         struct TSurfBorderData
         {

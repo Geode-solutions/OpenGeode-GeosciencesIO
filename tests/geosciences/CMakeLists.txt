@@ -55,3 +55,24 @@ add_geode_test(
         OpenGeode::mesh
         ${PROJECT_NAME}::geosciences
 )
+add_geode_test(
+    SOURCE "test-well-dat.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
+        ${PROJECT_NAME}::geosciences
+)
+add_geode_test(
+    SOURCE "test-well-txt.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
+        ${PROJECT_NAME}::geosciences
+)
+add_geode_test(
+    SOURCE "test-well-dev.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
+        ${PROJECT_NAME}::geosciences
+)

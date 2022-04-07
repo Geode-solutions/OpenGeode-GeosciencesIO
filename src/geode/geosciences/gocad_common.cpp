@@ -324,25 +324,6 @@ namespace geode
 {
     namespace detail
     {
-        bool string_starts_with(
-            absl::string_view string, absl::string_view check )
-        {
-            return absl::StartsWith( string, check );
-        }
-
-        bool line_starts_with( std::ifstream& file, absl::string_view check )
-        {
-            std::string line;
-            std::getline( file, line );
-            return string_starts_with( line, check );
-        }
-
-        void check_keyword( std::ifstream& file, absl::string_view keyword )
-        {
-            OPENGEODE_EXCEPTION( line_starts_with( file, keyword ),
-                absl::StrCat( "Line should starts with \"", keyword, "\"" ) );
-        }
-
         HeaderData read_header( std::ifstream& file )
         {
             check_keyword( file, "HEADER" );
@@ -483,41 +464,6 @@ namespace geode
                 file << "is_Z: on" << EOL;
             }
             file << "}" << EOL;
-        }
-        std::string goto_keyword( std::ifstream& file, absl::string_view word )
-        {
-            std::string line;
-            while( std::getline( file, line ) )
-            {
-                if( string_starts_with( line, word ) )
-                {
-                    return line;
-                }
-            }
-            throw geode::OpenGeodeException{
-                "[goto_keyword] Cannot find the requested keyword: ", word
-            };
-            return "";
-        }
-
-        std::string goto_keywords(
-            std::ifstream& file, absl::Span< const absl::string_view > words )
-        {
-            std::string line;
-            while( std::getline( file, line ) )
-            {
-                for( const auto word : words )
-                {
-                    if( string_starts_with( line, word ) )
-                    {
-                        return line;
-                    }
-                }
-            }
-            throw geode::OpenGeodeException{
-                "[goto_keywords] Cannot find one of the requested keywords"
-            };
-            return "";
         }
 
         std::string read_name( std::istringstream& iss )

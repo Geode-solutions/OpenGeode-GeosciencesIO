@@ -32,6 +32,9 @@
 #include <geode/geosciences/private/ml_output_structural_model.h>
 #include <geode/geosciences/private/pl_output.h>
 #include <geode/geosciences/private/ts_input.h>
+#include <geode/geosciences/private/well_dat_input.h>
+#include <geode/geosciences/private/well_dev_input.h>
+#include <geode/geosciences/private/well_txt_input.h>
 #include <geode/geosciences/private/wl_input.h>
 #include <geode/geosciences/representation/io/structural_model_input.h>
 #include <geode/geosciences/representation/io/structural_model_output.h>
@@ -84,6 +87,15 @@ namespace
         geode::EdgedCurveInputFactory3D::register_creator<
             geode::detail::WLInput >(
             geode::detail::WLInput::extension().data() );
+        geode::EdgedCurveInputFactory3D::register_creator<
+            geode::detail::WellDatInput >(
+            geode::detail::WellDatInput::extension().data() );
+        geode::EdgedCurveInputFactory3D::register_creator<
+            geode::detail::WellTxtInput >(
+            geode::detail::WellTxtInput::extension().data() );
+        geode::EdgedCurveInputFactory3D::register_creator<
+            geode::detail::WellDevInput >(
+            geode::detail::WellDevInput::extension().data() );
     }
 
     OPENGEODE_LIBRARY_INITIALIZE( OpenGeode_GeosciencesIO_geosciences )
