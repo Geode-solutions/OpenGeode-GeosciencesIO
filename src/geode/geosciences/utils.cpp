@@ -31,6 +31,8 @@
 #include <absl/strings/str_replace.h>
 #include <absl/strings/str_split.h>
 
+#include <geode/basic/logger.h>
+
 namespace geode
 {
     namespace detail
@@ -88,6 +90,47 @@ namespace geode
                 "[goto_keywords] Cannot find one of the requested keywords"
             };
             return "";
+        }
+
+        absl::optional< std::string > goto_keyword_if_it_exists(
+            std::ifstream& file, absl::string_view word )
+        {
+            std::string line;
+            while( std::getline( file, line ) )
+            {
+                if( string_starts_with( line, word ) )
+                {
+                    return line;
+                }
+            }
+            geode::Logger::debug(
+                "[goto_keyword_if_it_exists] Couldn't find word ", word,
+                " in the file, returning to file begin." );
+            file.clear();
+            file.seekg( std::ios::beg );
+            return absl::nullopt;
+        }
+
+        double read_index_t( absl::string_view token )
+        {
+            index_t value;
+            const auto ok = absl::SimpleAtoi( token, &value );
+            OPENGEODE_EXCEPTION( ok,
+                "[utils::read_index_t] Error while reading "
+                "token, with value '",
+                token, "'" );
+            return value;
+        }
+
+        double read_double( absl::string_view token )
+        {
+            double value;
+            const auto ok = absl::SimpleAtod( token, &value );
+            OPENGEODE_EXCEPTION( ok,
+                "[utils::read_double] Error while reading "
+                "token, with value '",
+                token, "'" );
+            return value;
         }
     } // namespace detail
 } // namespace geode

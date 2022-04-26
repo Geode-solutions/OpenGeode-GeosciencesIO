@@ -83,11 +83,7 @@ namespace
                 "[WLInput::read_coord] Wrong number of tokens" );
             for( const auto i : geode::Range{ 3 } )
             {
-                double value;
-                const auto ok = absl::SimpleAtod( tokens[i + offset], &value );
-                OPENGEODE_EXCEPTION( ok,
-                    "[WLInput::read_coord] Error while "
-                    "reading reference point coordinates" );
+                double value = geode::detail::read_double( tokens[i + offset] );
                 coord.set_value( i, value );
             }
             return coord;

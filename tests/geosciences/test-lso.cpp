@@ -24,7 +24,14 @@
 #include <geode/tests_config.h>
 
 #include <geode/basic/assert.h>
+#include <geode/basic/attribute_manager.h>
+#include <geode/basic/filename.h>
 #include <geode/basic/logger.h>
+
+#include <geode/mesh/core/solid_mesh.h>
+#include <geode/mesh/core/tetrahedral_solid.h>
+#include <geode/mesh/io/tetrahedral_solid_input.h>
+#include <geode/mesh/io/tetrahedral_solid_output.h>
 
 #include <geode/model/mixin/core/block.h>
 #include <geode/model/mixin/core/model_boundary.h>
@@ -40,7 +47,8 @@ void check_model( const geode::StructuralModel& model,
     geode::index_t nb_surfaces,
     geode::index_t nb_blocks,
     geode::index_t nb_horizons,
-    geode::index_t nb_block_internals )
+    geode::index_t nb_block_internals,
+    geode::index_t nb_vertices_attributes )
 {
     OPENGEODE_EXCEPTION( model.nb_corners() == nb_corners,
         "[Test] Number of Corners in the loaded "
@@ -66,6 +74,18 @@ void check_model( const geode::StructuralModel& model,
     OPENGEODE_EXCEPTION( count_block_internals == nb_block_internals,
         "[Test] Number of Block internals in the "
         "loaded StructuralModel is not correct" );
+    for( const auto& block : model.blocks() )
+    {
+        const auto block_attribute_names =
+            block.mesh().vertex_attribute_manager().attribute_names();
+        OPENGEODE_EXCEPTION(
+            block_attribute_names.size() == nb_vertices_attributes + 3,
+            "[Test] Number of Block attributes in the loaded "
+            "StructuralModel "
+            "is not correct: expected ",
+            nb_vertices_attributes + 3, " attributes, got ",
+            block_attribute_names.size(), " attributes." );
+    }
 }
 
 void test_file( std::string file,
@@ -74,16 +94,44 @@ void test_file( std::string file,
     geode::index_t nb_surfaces,
     geode::index_t nb_blocks,
     geode::index_t nb_horizons,
-    geode::index_t nb_block_internals )
+    geode::index_t nb_block_internals,
+    geode::index_t nb_vertices_attributes )
 {
     const auto model = geode::load_structural_model( file );
     check_model( model, nb_corners, nb_lines, nb_surfaces, nb_blocks,
-        nb_horizons, nb_block_internals );
+        nb_horizons, nb_block_internals, nb_vertices_attributes );
+    geode::index_t counter{ 0 };
+    for( const auto& block : model.blocks() )
+    {
+        const auto& block_mesh = block.mesh< geode::TetrahedralSolid3D >();
+        const auto block_mesh_filename =
+            absl::StrCat( geode::filename_without_extension( file ), "_b",
+                counter, ".og_tso3d" );
+        geode::save_tetrahedral_solid( block_mesh, block_mesh_filename );
+        const auto reload_block_mesh =
+            geode::load_tetrahedral_solid< 3 >( block_mesh_filename );
+
+        for( const auto name :
+            block_mesh.vertex_attribute_manager().attribute_names() )
+        {
+            OPENGEODE_EXCEPTION(
+                reload_block_mesh->vertex_attribute_manager().attribute_exists(
+                    name ) );
+            OPENGEODE_EXCEPTION(
+                reload_block_mesh->vertex_attribute_manager().attribute_type(
+                    name )
+                    == block_mesh.vertex_attribute_manager().attribute_type(
+                        name ),
+                "[Test] Wrong attribute type for reloaded mesh" );
+        }
+
+        counter++;
+    }
 
     geode::save_structural_model( model, "test.lso" );
     const auto reload_model = geode::load_structural_model( "test.lso" );
     check_model( reload_model, nb_corners, nb_lines, nb_surfaces, nb_blocks,
-        nb_horizons, nb_block_internals );
+        nb_horizons, nb_block_internals, 0 );
 }
 
 int main()
@@ -92,12 +140,14 @@ int main()
     {
         geode::detail::initialize_geosciences_io();
 
+        geode::Logger::info( "Reading the test.lso file" );
         test_file( absl::StrCat( geode::data_path, "test.",
                        geode::detail::LSOInput::extension() ),
-            22, 39, 23, 4, 4, 2 );
+            22, 39, 23, 4, 4, 2, 1 );
+        geode::Logger::info( "Reading the vri.lso file" );
         test_file( absl::StrCat( geode::data_path, "vri.",
                        geode::detail::LSOInput::extension() ),
-            12, 20, 11, 2, 7, 0 );
+            12, 20, 11, 2, 7, 0, 9 );
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

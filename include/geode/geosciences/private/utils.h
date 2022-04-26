@@ -28,6 +28,7 @@
 #include <string>
 
 #include <geode/basic/bitsery_archive.h>
+#include <geode/basic/uuid.h>
 
 #include <geode/geosciences/detail/common.h>
 
@@ -51,5 +52,12 @@ namespace geode
 
         std::string goto_keywords(
             std::ifstream& file, absl::Span< const absl::string_view > words );
+
+        absl::optional< std::string > goto_keyword_if_it_exists(
+            std::ifstream& file, absl::string_view word );
+
+        double read_index_t( absl::string_view token );
+
+        double read_double( absl::string_view token );
     } // namespace detail
 } // namespace geode

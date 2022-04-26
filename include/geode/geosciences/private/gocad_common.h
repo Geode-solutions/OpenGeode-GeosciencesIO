@@ -23,15 +23,8 @@
 
 #pragma once
 
-#include <array>
-#include <deque>
-#include <string>
-
-#include <geode/basic/uuid.h>
-
 #include <geode/geometry/point.h>
 
-#include <geode/geosciences/detail/common.h>
 #include <geode/geosciences/private/utils.h>
 
 namespace geode
@@ -82,6 +75,7 @@ namespace geode
                 return names.empty();
             }
         };
+        PropHeaderData read_prop_header( std::ifstream& file );
 
         void write_prop_header(
             std::ofstream& file, const PropHeaderData& data );
