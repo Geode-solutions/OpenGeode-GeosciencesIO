@@ -45,17 +45,6 @@ namespace
         std::array< geode::index_t, 3 > xyz_attributes_position;
     };
 
-    double read_double( absl::string_view token )
-    {
-        double value;
-        const auto ok = absl::SimpleAtod( token, &value );
-        OPENGEODE_EXCEPTION( ok,
-            "[WellDevInput::read_coord] Error while reading "
-            "token, with value '",
-            token, "'" );
-        return value;
-    }
-
     class WellDevInputImpl
     {
     public:
@@ -183,10 +172,11 @@ namespace
             absl::Span< const absl::string_view > split_line )
         {
             const geode::Point3D coord{
-                { read_double( split_line[header_.xyz_attributes_position[0]] ),
-                    read_double(
+                { geode::detail::read_double(
+                      split_line[header_.xyz_attributes_position[0]] ),
+                    geode::detail::read_double(
                         split_line[header_.xyz_attributes_position[1]] ),
-                    read_double(
+                    geode::detail::read_double(
                         split_line[header_.xyz_attributes_position[2]] ) }
             };
             return builder_->create_point( coord );
@@ -209,7 +199,8 @@ namespace
                     continue;
                 }
                 attributes_[attr_counter]->set_value(
-                    point_id, read_double( split_line[line_object_position] ) );
+                    point_id, geode::detail::read_double(
+                                  split_line[line_object_position] ) );
                 attr_counter++;
             }
         }

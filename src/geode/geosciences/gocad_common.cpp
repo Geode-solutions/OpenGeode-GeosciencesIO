@@ -318,6 +318,76 @@ namespace
             "[read_tfaces] Cannot find the end of TSurf section"
         };
     }
+
+    void read_property_keyword_with_one_string( std::ifstream& file,
+        absl::string_view keyword,
+        std::vector< std::string >& keyword_data,
+        geode::index_t nb_attributes )
+    {
+        auto line = geode::detail::goto_keyword( file, keyword );
+        std::vector< absl::string_view > split_line = absl::StrSplit(
+            absl::StripAsciiWhitespace( line ), " ", absl::SkipEmpty() );
+        keyword_data.resize( nb_attributes );
+        for( const auto attr_id : geode::Range{ nb_attributes } )
+        {
+            keyword_data[attr_id] = geode::to_string( split_line[attr_id + 1] );
+        }
+    }
+
+    void read_property_keyword_with_two_strings( std::ifstream& file,
+        absl::string_view keyword,
+        std::vector< std::pair< std::string, std::string > >& keyword_data,
+        geode::index_t nb_attributes )
+    {
+        auto line = geode::detail::goto_keyword( file, keyword );
+        std::vector< absl::string_view > split_line = absl::StrSplit(
+            absl::StripAsciiWhitespace( line ), " ", absl::SkipEmpty() );
+        keyword_data.resize( nb_attributes );
+        geode::index_t counter{ 0 };
+        for( const auto attr_id : geode::Range{ nb_attributes } )
+        {
+            keyword_data[attr_id] = {
+                geode::to_string( split_line[2 * attr_id + 1 + counter] ),
+                geode::to_string( split_line[2 * attr_id + 2 + counter] )
+            };
+            if( keyword_data[attr_id].first == "LINEARFUNCTION" )
+            {
+                counter += 2;
+            }
+        }
+    }
+
+    void read_property_keyword_with_one_double( std::ifstream& file,
+        absl::string_view keyword,
+        std::vector< double >& keyword_data,
+        geode::index_t nb_attributes )
+    {
+        auto line = geode::detail::goto_keyword( file, keyword );
+        std::vector< absl::string_view > split_line = absl::StrSplit(
+            absl::StripAsciiWhitespace( line ), " ", absl::SkipEmpty() );
+        keyword_data.resize( nb_attributes );
+        for( const auto attr_id : geode::Range{ nb_attributes } )
+        {
+            keyword_data[attr_id] =
+                geode::detail::read_double( split_line[attr_id + 1] );
+        }
+    }
+
+    void read_property_keyword_with_one_index_t( std::ifstream& file,
+        absl::string_view keyword,
+        std::vector< geode::index_t >& keyword_data,
+        geode::index_t nb_attributes )
+    {
+        auto line = geode::detail::goto_keyword( file, keyword );
+        std::vector< absl::string_view > split_line = absl::StrSplit(
+            absl::StripAsciiWhitespace( line ), " ", absl::SkipEmpty() );
+        keyword_data.resize( nb_attributes );
+        for( const auto attr_id : geode::Range{ nb_attributes } )
+        {
+            keyword_data[attr_id] =
+                geode::detail::read_index_t( split_line[attr_id + 1] );
+        }
+    }
 } // namespace
 
 namespace geode
@@ -397,6 +467,49 @@ namespace geode
             file << "ZPOSITIVE " << ( data.z_sign == 1 ? "Elevation" : "Depth" )
                  << EOL;
             file << "END_ORIGINAL_COORDINATE_SYSTEM" << EOL;
+        }
+
+        PropHeaderData read_prop_header( std::ifstream& file )
+        {
+            PropHeaderData header;
+            auto opt_line =
+                geode::detail::goto_keyword_if_it_exists( file, "PROPERTIES" );
+            if( !opt_line )
+            {
+                geode::Logger::info(
+                    "Token PROPERTIES could not be found in the file, "
+                    "attributes will not be loaded." );
+                return header;
+            }
+            auto line = opt_line.value();
+            std::vector< absl::string_view > split_line = absl::StrSplit(
+                absl::StripAsciiWhitespace( line ), " ", absl::SkipEmpty() );
+            const auto nb_attributes = split_line.size() - 1;
+            if( nb_attributes == 0 )
+            {
+                return header;
+            }
+            header.names.resize( nb_attributes );
+            for( const auto attr_id : geode::Range{ nb_attributes } )
+            {
+                header.names[attr_id] =
+                    geode::to_string( split_line[attr_id + 1] );
+            }
+            read_property_keyword_with_two_strings( file, "PROP_LEGAL_RANGES",
+                header.prop_legal_ranges, nb_attributes );
+            read_property_keyword_with_one_double(
+                file, "NO_DATA_VALUES", header.no_data_values, nb_attributes );
+            read_property_keyword_with_one_string( file, "PROPERTY_CLASSES",
+                header.property_classes, nb_attributes );
+            read_property_keyword_with_one_string(
+                file, "PROPERTY_KINDS", header.kinds, nb_attributes );
+            read_property_keyword_with_two_strings( file, "PROPERTY_SUBCLASSES",
+                header.property_subclass, nb_attributes );
+            read_property_keyword_with_one_index_t(
+                file, "ESIZES", header.esizes, nb_attributes );
+            read_property_keyword_with_one_string(
+                file, "UNITS", header.units, nb_attributes );
+            return header;
         }
 
         void write_prop_header(
