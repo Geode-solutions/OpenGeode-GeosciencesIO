@@ -31,7 +31,7 @@
 
 ## Introduction
 
-OpenGeode-GeosciencesIO provides input and output formats for [OpenGeode-Geosciences] objects
+OpenGeode-GeosciencesIO provides input and output formats for [OpenGeode-Geosciences] objects.
 
 [OpenGeode-Geosciences]: https://github.com/Geode-solutions/OpenGeode-Geosciences
 
