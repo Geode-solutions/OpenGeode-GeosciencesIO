@@ -264,9 +264,9 @@ namespace geode
 {
     namespace detail
     {
-        void LSOOutput::write() const
+        void LSOOutput::write( const StructuralModel& structural_model ) const
         {
-            LSOOutputImpl impl{ filename(), structural_model() };
+            LSOOutputImpl impl{ filename(), structural_model };
             impl.write_file();
         }
     } // namespace detail

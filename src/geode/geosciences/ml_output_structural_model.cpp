@@ -217,10 +217,10 @@ namespace geode
 {
     namespace detail
     {
-        void MLOutputStructuralModel::write() const
+        void MLOutputStructuralModel::write(
+            const StructuralModel& structural_model ) const
         {
-            const auto only_triangles =
-                check_brep_polygons( structural_model() );
+            const auto only_triangles = check_brep_polygons( structural_model );
             if( !only_triangles )
             {
                 geode::Logger::info(
@@ -228,7 +228,7 @@ namespace geode
                     "StructuralModel with non triangular surface polygons." );
                 return;
             }
-            MLOutputImplSM impl{ filename(), structural_model() };
+            MLOutputImplSM impl{ filename(), structural_model };
             impl.write_file();
         }
     } // namespace detail

@@ -33,9 +33,8 @@ namespace geode
         class MLOutputStructuralModel final : public StructuralModelOutput
         {
         public:
-            MLOutputStructuralModel( const StructuralModel& structural_model,
-                absl::string_view filename )
-                : StructuralModelOutput( structural_model, filename )
+            MLOutputStructuralModel( absl::string_view filename )
+                : StructuralModelOutput( filename )
             {
             }
 
@@ -45,7 +44,7 @@ namespace geode
                 return ext;
             }
 
-            void write() const final;
+            void write( const StructuralModel& structural_model ) const final;
         };
     } // namespace detail
 } // namespace geode

@@ -28,14 +28,19 @@
 
 namespace geode
 {
+    FORWARD_DECLARATION_DIMENSION_CLASS( EdgedCurve );
+    ALIAS_3D( EdgedCurve );
+} // namespace geode
+
+namespace geode
+{
     namespace detail
     {
-        class PLOutput final : public geode::EdgedCurveOutput< 3 >
+        class PLOutput final : public EdgedCurveOutput< 3 >
         {
         public:
-            PLOutput( const geode::EdgedCurve< 3 >& edge_curve,
-                absl::string_view filename )
-                : geode::EdgedCurveOutput< 3 >( edge_curve, filename )
+            PLOutput( absl::string_view filename )
+                : EdgedCurveOutput< 3 >( filename )
             {
             }
 
@@ -45,7 +50,7 @@ namespace geode
                 return ext;
             }
 
-            void write() const final;
+            void write( const EdgedCurve3D& edged_curve ) const final;
         };
     } // namespace detail
 } // namespace geode

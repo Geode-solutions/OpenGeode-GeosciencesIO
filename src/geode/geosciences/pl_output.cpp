@@ -238,9 +238,9 @@ namespace geode
 {
     namespace detail
     {
-        void PLOutput::write() const
+        void PLOutput::write( const EdgedCurve3D& edged_curve ) const
         {
-            PLOutputImpl impl{ filename(), edged_curve() };
+            PLOutputImpl impl{ filename(), edged_curve };
             impl.write_file();
         }
     } // namespace detail

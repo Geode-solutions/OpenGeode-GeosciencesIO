@@ -33,6 +33,7 @@
 
 #include <geode/basic/logger.h>
 
+#include <geode/geometry/basic_objects/tetrahedron.h>
 #include <geode/geometry/bounding_box.h>
 #include <geode/geometry/signed_mensuration.h>
 

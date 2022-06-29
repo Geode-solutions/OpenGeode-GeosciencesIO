@@ -53,9 +53,9 @@ namespace geode
 {
     namespace detail
     {
-        void MLOutputBRep::write() const
+        void MLOutputBRep::write( const BRep& brep ) const
         {
-            const auto only_triangles = check_brep_polygons( brep() );
+            const auto only_triangles = check_brep_polygons( brep );
             if( !only_triangles )
             {
                 geode::Logger::info(
@@ -63,7 +63,7 @@ namespace geode
                     "BRep with non triangular surface polygons." );
                 return;
             }
-            MLOutputImplBRep impl{ filename(), brep() };
+            MLOutputImplBRep impl{ filename(), brep };
             impl.write_file();
         }
     } // namespace detail
