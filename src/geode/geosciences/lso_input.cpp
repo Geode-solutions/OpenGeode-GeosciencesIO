@@ -88,7 +88,7 @@ namespace
             vertices_attributes_.resize( prop_header_.names.size() );
             read_vertices();
             read_vertex_region_indicators();
-            read_tetra();
+            read_tetrahedron();
             read_surfaces();
             read_blocks();
             build_model_boundaries();
@@ -194,7 +194,7 @@ namespace
             }
         }
 
-        void read_tetra()
+        void read_tetrahedron()
         {
             do
             {
@@ -422,7 +422,7 @@ namespace
 
         std::tuple< absl::flat_hash_set< geode::index_t >,
             absl::flat_hash_map< geode::uuid, geode::index_t > >
-            build_tetra( geode::index_t first_tetra )
+            build_tetrahedron( geode::index_t first_tetra )
         {
             absl::flat_hash_map< geode::uuid, geode::index_t >
                 surface_relations;
@@ -611,7 +611,8 @@ namespace
             const auto& block = model_.block( block_id );
             const auto component_id = block.component_id();
             const auto polyhedron_facet = find_facet( key_vertices, side );
-            const auto info = build_tetra( polyhedron_facet.polyhedron_id );
+            const auto info =
+                build_tetrahedron( polyhedron_facet.polyhedron_id );
             build_solid( block_id, std::get< 0 >( info ) );
             build_block_relations( block_id, std::get< 1 >( info ) );
             std::getline( file_, line_ );

@@ -33,7 +33,6 @@
 
 #include <geode/basic/logger.h>
 
-#include <geode/geometry/basic_objects/tetra.h>
 #include <geode/geometry/bounding_box.h>
 #include <geode/geometry/signed_mensuration.h>
 
@@ -182,7 +181,7 @@ namespace
                 {
                     std::swap( vertex_order[1], vertex_order[2] );
                 }
-                signed_volume += geode::tetra_signed_volume(
+                signed_volume += geode::tetrahedron_signed_volume(
                     { surface_mesh.point( surface_mesh.polygon_vertex(
                           { t, vertex_order[0] } ) ),
                         surface_mesh.point( surface_mesh.polygon_vertex(

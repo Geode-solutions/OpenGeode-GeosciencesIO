@@ -78,7 +78,7 @@ namespace
             geode::detail::write_header( file_, header );
             geode::detail::write_CRS( file_, {} );
             write_vertices();
-            write_tetra();
+            write_tetrahedron();
             write_model();
             file_ << "END" << EOL;
         }
@@ -168,7 +168,7 @@ namespace
             }
         }
 
-        void write_tetra()
+        void write_tetrahedron()
         {
             for( const auto& block : model_.blocks() )
             {
