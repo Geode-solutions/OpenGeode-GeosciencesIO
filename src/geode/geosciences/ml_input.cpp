@@ -893,10 +893,12 @@ namespace geode
 {
     namespace detail
     {
-        void MLInput::read()
+        StructuralModel MLInput::read()
         {
-            MLInputImpl impl{ filename(), structural_model() };
+            StructuralModel structural_model;
+            MLInputImpl impl{ filename(), structural_model };
             impl.read_file();
+            return structural_model;
         }
     } // namespace detail
 } // namespace geode

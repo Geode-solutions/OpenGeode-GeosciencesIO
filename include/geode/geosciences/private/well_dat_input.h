@@ -29,13 +29,19 @@
 
 namespace geode
 {
+    FORWARD_DECLARATION_DIMENSION_CLASS( EdgedCurve );
+    ALIAS_3D( EdgedCurve );
+} // namespace geode
+
+namespace geode
+{
     namespace detail
     {
         class WellDatInput : public EdgedCurveInput< 3 >
         {
         public:
-            WellDatInput( EdgedCurve< 3 >& curve, absl::string_view filename )
-                : EdgedCurveInput< 3 >( curve, filename )
+            WellDatInput( absl::string_view filename )
+                : EdgedCurveInput< 3 >( filename )
             {
             }
 
@@ -45,7 +51,7 @@ namespace geode
                 return ext;
             }
 
-            void do_read();
+            std::unique_ptr< EdgedCurve3D > read( const MeshImpl& impl ) final;
         };
     } // namespace detail
 } // namespace geode

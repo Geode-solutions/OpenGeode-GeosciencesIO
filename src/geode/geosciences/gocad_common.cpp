@@ -35,7 +35,7 @@
 
 #include <geode/geometry/basic_objects/tetrahedron.h>
 #include <geode/geometry/bounding_box.h>
-#include <geode/geometry/signed_mensuration.h>
+#include <geode/geometry/mensuration.h>
 
 #include <geode/mesh/core/edged_curve.h>
 #include <geode/mesh/core/surface_mesh.h>

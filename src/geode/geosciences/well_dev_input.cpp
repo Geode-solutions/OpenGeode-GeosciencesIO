@@ -219,10 +219,13 @@ namespace geode
 {
     namespace detail
     {
-        void WellDevInput::do_read()
+        std::unique_ptr< EdgedCurve3D > WellDevInput::read(
+            const MeshImpl& impl )
         {
-            WellDevInputImpl impl{ this->filename(), this->edged_curve() };
-            impl.read_file();
+            auto well = EdgedCurve3D::create( impl );
+            WellDevInputImpl reader{ this->filename(), *well };
+            reader.read_file();
+            return well;
         }
     } // namespace detail
 } // namespace geode

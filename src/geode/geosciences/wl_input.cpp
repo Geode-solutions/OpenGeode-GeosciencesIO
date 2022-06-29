@@ -120,10 +120,12 @@ namespace geode
 {
     namespace detail
     {
-        void WLInput::do_read()
+        std::unique_ptr< EdgedCurve3D > WLInput::read( const MeshImpl& impl )
         {
-            WLInputImpl impl{ this->filename(), this->edged_curve() };
-            impl.read_file();
+            auto well = EdgedCurve3D::create( impl );
+            WLInputImpl reader{ this->filename(), *well };
+            reader.read_file();
+            return well;
         }
     } // namespace detail
 } // namespace geode
