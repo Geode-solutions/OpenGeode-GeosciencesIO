@@ -201,13 +201,13 @@ namespace
             std::vector< geode::index_t > atoms;
             for( const auto v : geode::Range{ nb_vertices } )
             {
-                const auto block_vertices = model_.mesh_component_vertices(
+                const auto block_vertices = model_.component_mesh_vertices(
                     v, geode::Block3D::component_type_static() );
-                auto& mcvs = vertices_[v];
-                mcvs.reserve( block_vertices.size() );
+                auto& cmvs = vertices_[v];
+                cmvs.reserve( block_vertices.size() );
                 const auto first = first_block( block_vertices );
                 const auto& first_vertex = block_vertices[first];
-                mcvs.emplace( first_vertex, v + OFFSET_START );
+                cmvs.emplace( first_vertex, v + OFFSET_START );
                 const auto& block =
                     model_.block( first_vertex.component_id.id() );
                 const auto& mesh = block.mesh();
@@ -220,7 +220,7 @@ namespace
                         continue;
                     }
                     atoms.push_back( v + OFFSET_START );
-                    mcvs.emplace(
+                    cmvs.emplace(
                         block_vertices[i], nb_vertices + OFFSET_START );
                     nb_vertices++;
                 }
@@ -232,7 +232,7 @@ namespace
         }
 
         geode::index_t first_block(
-            const std::vector< geode::MeshComponentVertex >& block_vertices )
+            const std::vector< geode::ComponentMeshVertex >& block_vertices )
             const
         {
             geode::index_t id{ 0 };
@@ -254,7 +254,7 @@ namespace
         const geode::StructuralModel& model_;
         const geode::detail::RegionSurfaceSide sides_;
         std::vector<
-            absl::flat_hash_map< geode::MeshComponentVertex, geode::index_t > >
+            absl::flat_hash_map< geode::ComponentMeshVertex, geode::index_t > >
             vertices_;
         absl::flat_hash_map< geode::uuid, geode::index_t > exported_surfaces_;
     };

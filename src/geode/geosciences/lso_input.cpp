@@ -677,13 +677,13 @@ namespace
             const auto vertex0 = mesh.polygon_edge_vertex( border, 0 );
             const auto unique_id0 =
                 model_.unique_vertex( { component_id, vertex0 } );
-            const auto surfaces0 = model_.mesh_component_vertices(
+            const auto surfaces0 = model_.component_mesh_vertices(
                 unique_id0, geode::Surface3D::component_type_static() );
 
             const auto vertex1 = mesh.polygon_edge_vertex( border, 1 );
             const auto unique_id1 =
                 model_.unique_vertex( { component_id, vertex1 } );
-            const auto surfaces1 = model_.mesh_component_vertices(
+            const auto surfaces1 = model_.component_mesh_vertices(
                 unique_id1, geode::Surface3D::component_type_static() );
             if( surfaces0.size() > surfaces1.size() )
             {
@@ -703,8 +703,8 @@ namespace
             }
         }
 
-        bool are_equal( const std::vector< geode::MeshComponentVertex >& lhs,
-            const std::vector< geode::MeshComponentVertex >& rhs ) const
+        bool are_equal( const std::vector< geode::ComponentMeshVertex >& lhs,
+            const std::vector< geode::ComponentMeshVertex >& rhs ) const
         {
             for( const auto& v0 : lhs )
             {
@@ -727,7 +727,7 @@ namespace
 
         void create_corner( const geode::Point3D& point, geode::index_t id )
         {
-            if( !model_.has_mesh_component_vertices(
+            if( !model_.has_component_mesh_vertices(
                     id, geode::Corner3D::component_type_static() ) )
             {
                 const auto& corner_id = builder_.add_corner();
@@ -759,7 +759,7 @@ namespace
                             mesh.polygon_edge_vertex( border, 0 );
                         const auto unique_id0 = model_.unique_vertex(
                             { surface.component_id(), vertex_id0 } );
-                        if( !model_.has_mesh_component_vertices( unique_id0,
+                        if( !model_.has_component_mesh_vertices( unique_id0,
                                 geode::Corner3D::component_type_static() ) )
                         {
                             continue;
@@ -840,11 +840,11 @@ namespace
                     { line.component_id(), v_id }, unique_id );
                 builder->create_edge( v_id - 1, v_id );
             } while(
-                !model_.has_mesh_component_vertices( unique_id, corner_type ) );
+                !model_.has_component_mesh_vertices( unique_id, corner_type ) );
             const auto corner0 =
-                model_.mesh_component_vertices( unique_id0, corner_type )[0];
+                model_.component_mesh_vertices( unique_id0, corner_type )[0];
             const auto corner1 =
-                model_.mesh_component_vertices( unique_id, corner_type )[0];
+                model_.component_mesh_vertices( unique_id, corner_type )[0];
             builder_.add_corner_line_boundary_relationship(
                 model_.corner( corner0.component_id.id() ), line );
             builder_.add_corner_line_boundary_relationship(
@@ -854,21 +854,21 @@ namespace
         absl::optional< geode::uuid > common_line(
             geode::index_t unique_id0, geode::index_t unique_id1 )
         {
-            const auto lines0 = model_.mesh_component_vertices(
+            const auto lines0 = model_.component_mesh_vertices(
                 unique_id0, geode::Line3D::component_type_static() );
-            const auto lines1 = model_.mesh_component_vertices(
+            const auto lines1 = model_.component_mesh_vertices(
                 unique_id1, geode::Line3D::component_type_static() );
-            for( const auto& mcv0 : lines0 )
+            for( const auto& cmv0 : lines0 )
             {
-                for( const auto& mcv1 : lines1 )
+                for( const auto& cmv1 : lines1 )
                 {
-                    if( mcv0.component_id == mcv1.component_id )
+                    if( cmv0.component_id == cmv1.component_id )
                     {
-                        const auto min = std::min( mcv0.vertex, mcv1.vertex );
-                        const auto max = std::max( mcv0.vertex, mcv1.vertex );
+                        const auto min = std::min( cmv0.vertex, cmv1.vertex );
+                        const auto max = std::max( cmv0.vertex, cmv1.vertex );
                         if( max - min == 1 )
                         {
-                            return mcv0.component_id.id();
+                            return cmv0.component_id.id();
                         }
                     }
                 }

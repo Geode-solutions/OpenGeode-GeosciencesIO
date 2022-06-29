@@ -166,7 +166,7 @@ namespace
         void build_corners()
         {
             std::vector< geode::Point3D > corner_points;
-            std::vector< geode::MeshComponentVertex > corner_surface_index;
+            std::vector< geode::ComponentMeshVertex > corner_surface_index;
             for( const auto& tsurf : tsurfs_ )
             {
                 const auto& data = tsurf.data;
@@ -214,8 +214,8 @@ namespace
 
         void build_lines()
         {
-            std::vector< std::pair< geode::MeshComponentVertex,
-                geode::MeshComponentVertex > >
+            std::vector< std::pair< geode::ComponentMeshVertex,
+                geode::ComponentMeshVertex > >
                 line_surface_index;
             for( const auto& tsurf : tsurfs_ )
             {
@@ -230,9 +230,9 @@ namespace
                     const auto next_id =
                         border.next_id - data.tface_vertices_offset[tface_id];
                     line_surface_index.emplace_back(
-                        geode::MeshComponentVertex{
+                        geode::ComponentMeshVertex{
                             surface.component_id(), corner_id },
-                        geode::MeshComponentVertex{
+                        geode::ComponentMeshVertex{
                             surface.component_id(), next_id } );
                 }
             }
@@ -466,14 +466,14 @@ namespace
         }
 
         LineData compute_line( const geode::Surface3D& surface,
-            const std::pair< geode::MeshComponentVertex,
-                geode::MeshComponentVertex >& line_start )
+            const std::pair< geode::ComponentMeshVertex,
+                geode::ComponentMeshVertex >& line_start )
         {
             LineData result;
             result.surface = surface.id();
             result.corner0 =
                 model_
-                    .mesh_component_vertices(
+                    .component_mesh_vertices(
                         model_.unique_vertex( { surface.component_id(),
                             line_start.first.vertex } ),
                         geode::Corner3D::component_type_static() )
@@ -520,7 +520,7 @@ namespace
 
             result.corner1 =
                 model_
-                    .mesh_component_vertices(
+                    .component_mesh_vertices(
                         model_.unique_vertex(
                             { surface.component_id(), result.indices.back() } ),
                         geode::Corner3D::component_type_static() )
