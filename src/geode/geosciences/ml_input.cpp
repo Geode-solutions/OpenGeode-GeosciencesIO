@@ -436,22 +436,22 @@ namespace
         void build_surfaces( const TSurfMLData& tsurf )
         {
             const auto& data = tsurf.data;
-            for( const auto i : geode::Indices{ tsurf.tfaces } )
+            for( const auto triangle_id : geode::Indices{ tsurf.tfaces } )
             {
                 auto builder =
                     builder_
                         .surface_mesh_builder< geode::TriangulatedSurface3D >(
-                            tsurf.tfaces[i] );
+                            tsurf.tfaces[triangle_id] );
                 builder->set_name( data.header.name );
-                const auto current = data.tface_vertices_offset[i];
-                const auto next = data.tface_vertices_offset[i + 1];
+                const auto current = data.tface_vertices_offset[triangle_id];
+                const auto next = data.tface_vertices_offset[triangle_id + 1];
                 for( const auto p : geode::Range{ current, next } )
                 {
                     builder->create_point( data.points[p] );
                 }
                 for( const auto t :
-                    geode::Range{ data.tface_triangles_offset[i],
-                        data.tface_triangles_offset[i + 1] } )
+                    geode::Range{ data.tface_triangles_offset[triangle_id],
+                        data.tface_triangles_offset[triangle_id + 1] } )
                 {
                     builder->create_triangle( { data.triangles[t][0] - current,
                         data.triangles[t][1] - current,
