@@ -23,9 +23,8 @@
 
 #include <fstream>
 
-#include <absl/strings/str_split.h>
-
 #include <geode/basic/filename.h>
+#include <geode/basic/string.h>
 
 #include <geode/geometry/point.h>
 
@@ -67,23 +66,12 @@ namespace geode
         private:
             geode::Point3D read_coord( absl::string_view line ) const
             {
-                geode::Point3D coord;
-                std::vector< absl::string_view > tokens =
-                    absl::StrSplit( absl::StripAsciiWhitespace( line ),
-                        absl::ByAnyChar( " 	" ), absl::SkipEmpty() );
+                const auto tokens = geode::string_split( line );
                 OPENGEODE_ASSERT( tokens.size() == 3,
                     "[WellInput::read_coord] Wrong number of tokens" );
-                for( const auto i : geode::Range{ 3 } )
-                {
-                    double value;
-                    const auto ok = absl::SimpleAtod( tokens[i], &value );
-                    OPENGEODE_EXCEPTION( ok,
-                        "[WellInput::read_coord] Error while reading "
-                        "point coordinates, on axis ",
-                        i, " with value '", tokens[i], "'" );
-                    coord.set_value( i, value );
-                }
-                return coord;
+                return { { geode::string_to_double( tokens[0] ),
+                    geode::string_to_double( tokens[1] ),
+                    geode::string_to_double( tokens[2] ) } };
             }
 
         private:

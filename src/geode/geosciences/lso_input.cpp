@@ -26,9 +26,10 @@
 #include <fstream>
 
 #include <absl/container/flat_hash_set.h>
-#include <absl/strings/str_split.h>
+#include <absl/strings/match.h>
 
 #include <geode/basic/attribute_manager.h>
+#include <geode/basic/string.h>
 
 #include <geode/geometry/point.h>
 
@@ -155,7 +156,7 @@ namespace
             const auto tokens = get_tokens();
             for( const auto i : geode::LRange{ 3 } )
             {
-                const auto value = geode::detail::read_double( tokens[i + 2] );
+                const auto value = geode::string_to_double( tokens[i + 2] );
                 point.set_value( i, value );
             }
             point.set_value( 2, crs_.z_sign * point.value( 2 ) );
@@ -187,7 +188,7 @@ namespace
                         "properties: number of property items is higher than "
                         "number of tokens." );
                     vertices_attributes_[attr_id].push_back(
-                        geode::detail::read_double(
+                        geode::string_to_double(
                             split_line[line_properties_position] ) );
                     line_properties_position++;
                 }
@@ -227,12 +228,12 @@ namespace
             std::getline( file_, line_ );
             while( geode::detail::string_starts_with( line_, "SURFACE" ) )
             {
-                std::istringstream iss{ line_ };
-                std::string keyword;
-                iss >> keyword;
+                const auto tokens = geode::string_split( line_ );
+                absl::Span< const absl::string_view > remaining_tokens(
+                    &tokens[1], tokens.size() - 1 );
                 const auto h_id = builder_.add_horizon();
                 builder_.set_horizon_name(
-                    h_id, geode::detail::read_name( iss ) );
+                    h_id, geode::detail::read_name( remaining_tokens ) );
                 const auto& horizon = model_.horizon( h_id );
                 read_tfaces( horizon );
             }
@@ -740,7 +741,7 @@ namespace
 
         std::vector< absl::string_view > get_tokens() const
         {
-            return absl::StrSplit( line_, ' ' );
+            return geode::string_split( line_ );
         }
 
         void build_lines()
