@@ -326,13 +326,17 @@ namespace
                         OPENGEODE_ASSERT( result.size() == 1,
                             "[MLInput] Several unique vertices found for the "
                             "same point" );
-                        const auto& line =
-                            model_.line( lines.front().component_id.id() );
-                        if( !model_.is_internal( line, surface ) )
+                        for( const auto& line_mcv : lines )
                         {
-                            need_to_cut = true;
-                            builder_.add_line_surface_internal_relationship(
-                                line, surface );
+                            const auto& line =
+                                model_.line( line_mcv.component_id.id() );
+                            if( !model_.is_internal( line, surface )
+                                && should_line_be_internal( line, surface ) )
+                            {
+                                need_to_cut = true;
+                                builder_.add_line_surface_internal_relationship(
+                                    line, surface );
+                            }
                         }
                     }
                 }
@@ -344,6 +348,23 @@ namespace
                     cutter.cut_surface( surface );
                 }
             }
+        }
+
+        bool should_line_be_internal(
+            const geode::Line3D& line, const geode::Surface3D& surface ) const
+        {
+            const auto& mesh = line.mesh();
+            for( const auto v : geode::Range{ mesh.nb_vertices() } )
+            {
+                const auto vertex =
+                    model_.unique_vertex( { line.component_id(), v } );
+                if( !model_.has_mesh_component_vertices(
+                        vertex, surface.id() ) )
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
         geode::NNSearch3D create_unique_vertices_search() const
