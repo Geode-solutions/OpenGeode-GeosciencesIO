@@ -387,7 +387,11 @@ namespace
             const std::array< geode::index_t, 3 >& key_vertices,
             bool side ) const
         {
-            for( const auto& facet : facets_from_key_vertices( key_vertices ) )
+            const auto facets_from_vertices =
+                facets_from_key_vertices( key_vertices );
+            OPENGEODE_EXCEPTION( !facets_from_vertices.empty(),
+                "[LSOInput] Solid is not conformal to surfaces." );
+            for( const auto& facet : facets_from_vertices )
             {
                 for( const auto& polyhedron : solid_->polyhedra_from_facet(
                          solid_->facets().facet_vertices( facet.first ) ) )
