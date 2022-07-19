@@ -388,30 +388,24 @@ namespace
         {
             for( const auto& facet : facets_from_key_vertices( key_vertices ) )
             {
-                for( const auto& polyhedron : solid_->polyhedra_from_facet(
-                         solid_->facets().facet_vertices( facet.first ) ) )
+                const auto& key = facet.second;
+                for( const auto& polyhedron_facet :
+                    solid_->polyhedra_from_facet_vertices(
+                        solid_->facets().facet_vertices( facet.first ) ) )
                 {
-                    const auto& key = facet.second;
-                    for( const auto f : geode::LRange{
-                             solid_->nb_polyhedron_facets( polyhedron ) } )
+                    if( solid_->facets().facet_from_vertices(
+                            solid_->polyhedron_facet_vertices(
+                                polyhedron_facet ) )
+                        != facet.first )
                     {
-                        const geode::PolyhedronFacet polyhedron_facet{
-                            polyhedron, f
-                        };
-                        if( solid_->facets().facet_from_vertices(
-                                solid_->polyhedron_facet_vertices(
-                                    polyhedron_facet ) )
-                            != facet.first )
-                        {
-                            continue;
-                        }
-                        if( !facet_matches_key_vertices(
-                                key, polyhedron_facet, side ) )
-                        {
-                            continue;
-                        }
-                        return polyhedron_facet;
+                        continue;
                     }
+                    if( !facet_matches_key_vertices(
+                            key, polyhedron_facet, side ) )
+                    {
+                        continue;
+                    }
+                    return polyhedron_facet;
                 }
             }
             throw geode::OpenGeodeException{

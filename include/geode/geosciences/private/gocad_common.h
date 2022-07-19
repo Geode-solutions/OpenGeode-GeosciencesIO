@@ -23,6 +23,8 @@
 
 #pragma once
 
+#include <absl/container/flat_hash_map.h>
+
 #include <geode/geometry/point.h>
 
 #include <geode/geosciences/private/utils.h>
