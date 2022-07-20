@@ -44,7 +44,7 @@ namespace geode
         };
         HeaderData read_header( std::ifstream& file );
 
-        std::string read_name( std::istringstream& iss );
+        std::string read_name( absl::Span< const absl::string_view > tokens );
 
         void write_header( std::ofstream& file, const HeaderData& data );
 

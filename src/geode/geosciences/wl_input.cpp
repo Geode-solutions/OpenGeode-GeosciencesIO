@@ -25,7 +25,7 @@
 
 #include <fstream>
 
-#include <absl/strings/str_split.h>
+#include <geode/basic/string.h>
 
 #include <geode/geometry/point.h>
 
@@ -76,17 +76,12 @@ namespace
         geode::Point3D read_coord(
             absl::string_view line, geode::index_t offset ) const
         {
-            geode::Point3D coord;
-            std::vector< absl::string_view > tokens =
-                absl::StrSplit( absl::StripAsciiWhitespace( line ), " " );
+            const auto tokens = geode::string_split( line );
             OPENGEODE_ASSERT( tokens.size() == 3 + offset,
                 "[WLInput::read_coord] Wrong number of tokens" );
-            for( const auto i : geode::Range{ 3 } )
-            {
-                double value = geode::detail::read_double( tokens[i + offset] );
-                coord.set_value( i, value );
-            }
-            return coord;
+            return { { geode::string_to_double( tokens[offset] ),
+                geode::string_to_double( tokens[1 + offset] ),
+                geode::string_to_double( tokens[2 + offset] ) } };
         }
 
         void read_paths( const geode::Point3D& ref )

@@ -29,9 +29,9 @@
 #include <absl/strings/match.h>
 #include <absl/strings/str_join.h>
 #include <absl/strings/str_replace.h>
-#include <absl/strings/str_split.h>
 
 #include <geode/basic/logger.h>
+#include <geode/basic/string.h>
 
 #include <geode/geometry/basic_objects/tetrahedron.h>
 #include <geode/geometry/bounding_box.h>
@@ -257,48 +257,44 @@ namespace
         std::string line;
         while( std::getline( file, line ) )
         {
-            std::istringstream iss{ line };
-            std::string keyword;
-            iss >> keyword;
-
+            const auto tokens = geode::string_split( line );
+            const auto& keyword = tokens.front();
             if( keyword == "VRTX" || keyword == "PVRTX" )
             {
-                geode::index_t index;
-                double x, y, z;
-                iss >> index >> x >> y >> z;
                 if( tsurf.points.empty() )
                 {
-                    tsurf.OFFSET_START = index;
+                    tsurf.OFFSET_START = geode::string_to_index( tokens[1] );
                 }
                 tsurf.points.push_back(
-                    geode::Point3D{ { x, y, tsurf.crs.z_sign * z } } );
+                    { { geode::string_to_double( tokens[2] ),
+                        geode::string_to_double( tokens[3] ),
+                        tsurf.crs.z_sign
+                            * geode::string_to_double( tokens[4] ) } } );
             }
             else if( keyword == "ATOM" || keyword == "PATOM" )
             {
-                geode::index_t dummy, atom_id;
-                iss >> dummy >> atom_id;
                 tsurf.points.push_back(
-                    tsurf.points.at( atom_id - tsurf.OFFSET_START ) );
+                    tsurf.points.at( geode::string_to_index( tokens[2] )
+                                     - tsurf.OFFSET_START ) );
             }
             else if( keyword == "TRGL" )
             {
-                geode::index_t v0, v1, v2;
-                iss >> v0 >> v1 >> v2;
-                tsurf.triangles.push_back( { v0 - tsurf.OFFSET_START,
-                    v1 - tsurf.OFFSET_START, v2 - tsurf.OFFSET_START } );
+                tsurf.triangles.push_back( { geode::string_to_index( tokens[1] )
+                                                 - tsurf.OFFSET_START,
+                    geode::string_to_index( tokens[2] ) - tsurf.OFFSET_START,
+                    geode::string_to_index( tokens[3] )
+                        - tsurf.OFFSET_START } );
             }
             else if( keyword == "BSTONE" )
             {
-                geode::index_t bstone_id;
-                iss >> bstone_id;
-                tsurf.bstones.push_back( bstone_id - tsurf.OFFSET_START );
+                tsurf.bstones.push_back(
+                    geode::string_to_index( tokens[1] ) - tsurf.OFFSET_START );
             }
             else if( keyword == "BORDER" )
             {
-                geode::index_t dummy, corner, next;
-                iss >> dummy >> corner >> next;
                 tsurf.borders.emplace_back(
-                    corner - tsurf.OFFSET_START, next - tsurf.OFFSET_START );
+                    geode::string_to_index( tokens[2] ) - tsurf.OFFSET_START,
+                    geode::string_to_index( tokens[3] ) - tsurf.OFFSET_START );
             }
             else if( keyword == "TFACE" )
             {
@@ -325,8 +321,7 @@ namespace
         geode::index_t nb_attributes )
     {
         auto line = geode::detail::goto_keyword( file, keyword );
-        std::vector< absl::string_view > split_line = absl::StrSplit(
-            absl::StripAsciiWhitespace( line ), " ", absl::SkipEmpty() );
+        const auto split_line = geode::string_split( line );
         keyword_data.resize( nb_attributes );
         for( const auto attr_id : geode::Range{ nb_attributes } )
         {
@@ -340,8 +335,7 @@ namespace
         geode::index_t nb_attributes )
     {
         auto line = geode::detail::goto_keyword( file, keyword );
-        std::vector< absl::string_view > split_line = absl::StrSplit(
-            absl::StripAsciiWhitespace( line ), " ", absl::SkipEmpty() );
+        const auto split_line = geode::string_split( line );
         keyword_data.resize( nb_attributes );
         geode::index_t counter{ 0 };
         for( const auto attr_id : geode::Range{ nb_attributes } )
@@ -363,13 +357,12 @@ namespace
         geode::index_t nb_attributes )
     {
         auto line = geode::detail::goto_keyword( file, keyword );
-        std::vector< absl::string_view > split_line = absl::StrSplit(
-            absl::StripAsciiWhitespace( line ), " ", absl::SkipEmpty() );
+        const auto split_line = geode::string_split( line );
         keyword_data.resize( nb_attributes );
         for( const auto attr_id : geode::Range{ nb_attributes } )
         {
             keyword_data[attr_id] =
-                geode::detail::read_double( split_line[attr_id + 1] );
+                geode::string_to_double( split_line[attr_id + 1] );
         }
     }
 
@@ -379,13 +372,12 @@ namespace
         geode::index_t nb_attributes )
     {
         auto line = geode::detail::goto_keyword( file, keyword );
-        std::vector< absl::string_view > split_line = absl::StrSplit(
-            absl::StripAsciiWhitespace( line ), " ", absl::SkipEmpty() );
+        const auto split_line = geode::string_split( line );
         keyword_data.resize( nb_attributes );
         for( const auto attr_id : geode::Range{ nb_attributes } )
         {
             keyword_data[attr_id] =
-                geode::detail::read_index_t( split_line[attr_id + 1] );
+                geode::string_to_index( split_line[attr_id + 1] );
         }
     }
 } // namespace
@@ -405,13 +397,12 @@ namespace geode
                 {
                     return header;
                 }
-                std::vector< absl::string_view > tokens =
-                    absl::StrSplit( absl::StripAsciiWhitespace( line ), ":" );
+                const auto tokens = geode::string_split( line );
                 if( tokens.front() == "name" )
                 {
-                    header.name = absl::StrReplaceAll(
-                        absl::StrJoin( tokens.begin() + 1, tokens.end(), " " ),
-                        { { "\"", "" } } );
+                    absl::Span< const absl::string_view > remaining_tokens(
+                        &tokens[1], tokens.size() - 1 );
+                    header.name = read_name( remaining_tokens );
                 }
             }
             throw geode::OpenGeodeException{
@@ -441,14 +432,10 @@ namespace geode
                 {
                     return crs;
                 }
-                std::istringstream iss{ line };
-                std::string keyword;
-                iss >> keyword;
-                if( keyword == "ZPOSITIVE" )
+                const auto tokens = geode::string_split( line );
+                if( tokens[0] == "ZPOSITIVE" )
                 {
-                    std::string sign;
-                    iss >> sign;
-                    crs.z_sign = sign == "Elevation" ? 1 : -1;
+                    crs.z_sign = tokens[1] == "Elevation" ? 1 : -1;
                 }
             }
             throw geode::OpenGeodeException{
@@ -472,7 +459,7 @@ namespace geode
         PropHeaderData read_prop_header( std::ifstream& file )
         {
             PropHeaderData header;
-            auto opt_line =
+            const auto opt_line =
                 geode::detail::goto_keyword_if_it_exists( file, "PROPERTIES" );
             if( !opt_line )
             {
@@ -481,9 +468,7 @@ namespace geode
                     "attributes will not be loaded." );
                 return header;
             }
-            auto line = opt_line.value();
-            std::vector< absl::string_view > split_line = absl::StrSplit(
-                absl::StripAsciiWhitespace( line ), " ", absl::SkipEmpty() );
+            const auto split_line = geode::string_split( opt_line.value() );
             const auto nb_attributes = split_line.size() - 1;
             if( nb_attributes == 0 )
             {
@@ -579,16 +564,11 @@ namespace geode
             file << "}" << EOL;
         }
 
-        std::string read_name( std::istringstream& iss )
+        std::string read_name( absl::Span< const absl::string_view > tokens )
         {
-            std::string name;
-            iss >> name;
-            std::string token;
-            while( iss >> token )
-            {
-                absl::StrAppend( &name, " ", token );
-            }
-            return absl::StrReplaceAll( name, { { "\"", "" } } );
+            return absl::StrReplaceAll(
+                absl::StrJoin( tokens.begin(), tokens.end(), " " ),
+                { { "\"", "" } } );
         }
 
         absl::optional< TSurfData > read_tsurf( std::ifstream& file )

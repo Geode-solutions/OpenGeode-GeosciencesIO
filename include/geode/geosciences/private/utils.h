@@ -55,9 +55,5 @@ namespace geode
 
         absl::optional< std::string > goto_keyword_if_it_exists(
             std::ifstream& file, absl::string_view word );
-
-        double read_index_t( absl::string_view token );
-
-        double read_double( absl::string_view token );
     } // namespace detail
 } // namespace geode

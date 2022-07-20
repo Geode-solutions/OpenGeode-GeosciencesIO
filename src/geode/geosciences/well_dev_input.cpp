@@ -25,9 +25,8 @@
 
 #include <fstream>
 
-#include <absl/strings/str_split.h>
-
 #include <geode/basic/attribute_manager.h>
+#include <geode/basic/string.h>
 
 #include <geode/geometry/point.h>
 
@@ -66,9 +65,7 @@ namespace
             std::string line;
             while( std::getline( file_, line ) )
             {
-                std::vector< absl::string_view > split_line =
-                    absl::StrSplit( absl::StripAsciiWhitespace( line ),
-                        absl::ByAnyChar( " 	" ), absl::SkipEmpty() );
+                const auto split_line = geode::string_split( line );
                 OPENGEODE_ASSERT(
                     split_line.size() == header_.attribute_names.size() + 3,
                     "[WellDevInput::read_coord_and_attributes] Wrong number of "
@@ -105,16 +102,12 @@ namespace
                 }
                 if( geode::detail::string_starts_with( line, "# WELL NAME:" ) )
                 {
-                    std::vector< absl::string_view > split_line =
-                        absl::StrSplit( absl::StripAsciiWhitespace( line ), " ",
-                            absl::SkipEmpty() );
+                    const auto split_line = geode::string_split( line );
                     header_.name = split_line[3];
                 }
                 else if( !first_pass )
                 {
-                    std::vector< absl::string_view > split_line =
-                        absl::StrSplit( absl::StripAsciiWhitespace( line ), " ",
-                            absl::SkipEmpty() );
+                    const auto split_line = geode::string_split( line );
                     OPENGEODE_EXCEPTION( split_line.size() >= 3,
                         "[WellDevInut::read_header] There are less than 3 "
                         "attributes given for the well" );
@@ -171,15 +164,13 @@ namespace
         geode::index_t create_point(
             absl::Span< const absl::string_view > split_line )
         {
-            const geode::Point3D coord{
-                { geode::detail::read_double(
-                      split_line[header_.xyz_attributes_position[0]] ),
-                    geode::detail::read_double(
+            return builder_->create_point(
+                { { geode::string_to_double(
+                        split_line[header_.xyz_attributes_position[0]] ),
+                    geode::string_to_double(
                         split_line[header_.xyz_attributes_position[1]] ),
-                    geode::detail::read_double(
-                        split_line[header_.xyz_attributes_position[2]] ) }
-            };
-            return builder_->create_point( coord );
+                    geode::string_to_double(
+                        split_line[header_.xyz_attributes_position[2]] ) } } );
         }
 
         void assign_point_attributes(
@@ -199,7 +190,7 @@ namespace
                     continue;
                 }
                 attributes_[attr_counter]->set_value(
-                    point_id, geode::detail::read_double(
+                    point_id, geode::string_to_double(
                                   split_line[line_object_position] ) );
                 attr_counter++;
             }
