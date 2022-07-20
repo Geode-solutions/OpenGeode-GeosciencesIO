@@ -196,8 +196,8 @@ namespace
             }
         }
 
-        using LineStarts = std::vector< std::pair< geode::MeshComponentVertex,
-            geode::MeshComponentVertex > >;
+        using LineStarts = std::vector< std::pair< geode::ComponentMeshVertex,
+            geode::ComponentMeshVertex > >;
         LineStarts compute_line_starts() const
         {
             std::vector< std::pair< geode::ComponentMeshVertex,
@@ -302,8 +302,8 @@ namespace
                 bool need_to_cut{ false };
                 for( const auto v : geode::Range{ mesh.nb_vertices() } )
                 {
-                    const geode::MeshComponentVertex mcv{ surface_id, v };
-                    if( model_.unique_vertex( mcv ) != geode::NO_ID )
+                    const geode::ComponentMeshVertex cmv{ surface_id, v };
+                    if( model_.unique_vertex( cmv ) != geode::NO_ID )
                     {
                         continue;
                     }
@@ -312,7 +312,7 @@ namespace
                     if( result.empty() )
                     {
                         builder_.set_unique_vertex(
-                            mcv, builder_.create_unique_vertex() );
+                            cmv, builder_.create_unique_vertex() );
                     }
                     else
                     {
@@ -320,16 +320,16 @@ namespace
                             "[MLInput] Several unique vertices found for the "
                             "same point" );
                         const auto vertex = result.front();
-                        builder_.set_unique_vertex( mcv, vertex );
-                        const auto lines = model_.mesh_component_vertices(
+                        builder_.set_unique_vertex( cmv, vertex );
+                        const auto lines = model_.component_mesh_vertices(
                             vertex, geode::Line3D::component_type_static() );
                         OPENGEODE_ASSERT( result.size() == 1,
                             "[MLInput] Several unique vertices found for the "
                             "same point" );
-                        for( const auto& line_mcv : lines )
+                        for( const auto& line_cmv : lines )
                         {
                             const auto& line =
-                                model_.line( line_mcv.component_id.id() );
+                                model_.line( line_cmv.component_id.id() );
                             if( !model_.is_internal( line, surface )
                                 && should_line_be_internal( line, surface ) )
                             {
@@ -358,7 +358,7 @@ namespace
             {
                 const auto vertex =
                     model_.unique_vertex( { line.component_id(), v } );
-                if( !model_.has_mesh_component_vertices(
+                if( !model_.has_component_mesh_vertices(
                         vertex, surface.id() ) )
                 {
                     return false;
@@ -372,14 +372,14 @@ namespace
             std::vector< geode::Point3D > points( model_.nb_unique_vertices() );
             for( const auto v : geode::Range{ model_.nb_unique_vertices() } )
             {
-                const auto mcvs = model_.mesh_component_vertices(
+                const auto cmvs = model_.component_mesh_vertices(
                     v, geode::Line3D::component_type_static() );
-                OPENGEODE_ASSERT( !mcvs.empty(),
+                OPENGEODE_ASSERT( !cmvs.empty(),
                     "[MLInput] All current unique vertices should be "
                     "associated to at least one Line" );
-                const auto& mcv = mcvs.front();
-                const auto& line = model_.line( mcv.component_id.id() );
-                points[v] = line.mesh().point( mcv.vertex );
+                const auto& cmv = cmvs.front();
+                const auto& line = model_.line( cmv.component_id.id() );
+                points[v] = line.mesh().point( cmv.vertex );
             }
             return { std::move( points ) };
         }

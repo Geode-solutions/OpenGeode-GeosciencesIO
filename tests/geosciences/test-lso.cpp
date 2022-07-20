@@ -41,6 +41,8 @@
 #include <geode/geosciences/representation/core/structural_model.h>
 #include <geode/geosciences/representation/io/structural_model_output.h>
 
+constexpr auto nb_mandatory_attributes = 4;
+
 void check_model( const geode::StructuralModel& model,
     geode::index_t nb_corners,
     geode::index_t nb_lines,
@@ -79,12 +81,12 @@ void check_model( const geode::StructuralModel& model,
         const auto block_attribute_names =
             block.mesh().vertex_attribute_manager().attribute_names();
         OPENGEODE_EXCEPTION(
-            block_attribute_names.size() == nb_vertices_attributes + 3,
+            block_attribute_names.size()
+                == nb_vertices_attributes + nb_mandatory_attributes,
             "[Test] Number of Block attributes in the loaded "
-            "StructuralModel "
-            "is not correct: expected ",
-            nb_vertices_attributes + 3, " attributes, got ",
-            block_attribute_names.size(), " attributes." );
+            "StructuralModel is not correct: expected ",
+            nb_vertices_attributes + nb_mandatory_attributes,
+            " attributes, got ", block_attribute_names.size(), " attributes." );
     }
 }
 
