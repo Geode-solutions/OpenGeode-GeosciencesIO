@@ -59,6 +59,8 @@ namespace
     public:
         static constexpr geode::index_t OFFSET_START{ 1 };
         static constexpr char EOL{ '\n' };
+        static constexpr auto block_name_attribute_name =
+            "geode_block_name_attribute_name";
 
         LSOInputImpl(
             absl::string_view filename, geode::StructuralModel& model )
@@ -72,6 +74,11 @@ namespace
                   solid_->vertex_attribute_manager()
                       .find_or_create_attribute< geode::VariableAttribute,
                           geode::index_t >( "vertex_id", geode::NO_ID )
+              },
+              block_name_attribute_{
+                  solid_->polyhedron_attribute_manager()
+                      .find_or_create_attribute< geode::VariableAttribute,
+                          std::string >( block_name_attribute_name, "" )
               }
         {
             solid_->enable_facets();
@@ -79,7 +86,7 @@ namespace
                 "[LSOInput] Error while opening file: ", filename );
         }
 
-        void read_file()
+        bool read_file()
         {
             geode::detail::check_keyword( file_, "GOCAD LightTSolid" );
             const auto header = geode::detail::read_header( file_ );
@@ -89,12 +96,13 @@ namespace
             vertices_attributes_.resize( prop_header_.names.size() );
             read_vertices();
             read_vertex_region_indicators();
-            read_tetrahedron();
+            read_tetrahedra();
             read_surfaces();
             read_blocks();
             build_model_boundaries();
             build_corners();
             build_lines();
+            return !inspect_required_;
         }
 
     private:
@@ -195,7 +203,7 @@ namespace
             }
         }
 
-        void read_tetrahedron()
+        void read_tetrahedra()
         {
             do
             {
@@ -208,8 +216,12 @@ namespace
                         ok, "[LSOInput] Error while reading tetra" );
                     vertices[i] -= OFFSET_START;
                 }
-                solid_builder_->create_tetrahedron( vertices );
+                const auto tetra_id =
+                    solid_builder_->create_tetrahedron( vertices );
                 std::getline( file_, line_ );
+                const auto tokens2 = get_tokens();
+                block_name_attribute_->set_value(
+                    tetra_id, geode::to_string( tokens2[2] ) );
             } while( std::getline( file_, line_ )
                      && geode::detail::string_starts_with( line_, "TETRA" ) );
             solid_builder_->compute_polyhedron_adjacencies();
@@ -249,9 +261,8 @@ namespace
                         geode::TriangulatedSurface3D::type_name_static() ) );
                 const auto& surface = model_.surface( id );
                 builder_.add_surface_in_horizon( surface, horizon );
-                surfaces_.push_back( id );
-                surface_is_internal_[id] = false;
-                read_key_vertices();
+                builder_.set_surface_name( id, horizon.name() );
+                std::getline( file_, line_ );
                 read_triangles( id );
             }
         }
@@ -295,42 +306,29 @@ namespace
                     }
                 }
                 builder->create_triangle( vertices );
-                for( const auto& facet :
-                    facets_from_key_vertices( facet_vertices ) )
+                const auto solid_facets =
+                    facets_from_vertices( facet_vertices );
+                for( const auto& facet : solid_facets )
                 {
-                    facet_id_->set_value( facet.first, surface_id );
+                    facet_id_->set_value( facet, surface_id );
+                }
+                if( solid_facets.empty() )
+                {
+                    inspect_required_ = true;
+                    geode::Logger::warn(
+                        "[LSOInput] Surface triangle with vertices [",
+                        facet_vertices[0], " ", facet_vertices[1], " ",
+                        facet_vertices[2],
+                        "] is not conformal to the solid tetrahedra." );
                 }
             }
             builder->compute_polygon_adjacencies();
         }
 
-        void read_key_vertices()
+        std::vector< geode::index_t > facets_from_vertices(
+            const std::array< geode::index_t, 3 >& vertices ) const
         {
-            std::getline( file_, line_ );
-            OPENGEODE_EXCEPTION(
-                geode::detail::string_starts_with( line_, "KEYVERTICES" ),
-                "[LSOInput] Error while reading key vertices" );
-            const auto key_tokens = get_tokens();
-            std::array< geode::index_t, 3 > key;
-            for( const auto i : geode::LRange{ 3 } )
-            {
-                geode::index_t value;
-                auto ok = absl::SimpleAtoi( key_tokens[i + 1], &value );
-                OPENGEODE_EXCEPTION(
-                    ok, "[LSOInput] Error while reading key vertices" );
-                key[i] = value - OFFSET_START;
-            }
-            surface_keys_.emplace_back( std::move( key ) );
-        }
-
-        std::vector<
-            std::pair< geode::index_t, std::array< geode::index_t, 3 > > >
-            facets_from_key_vertices(
-                const std::array< geode::index_t, 3 >& vertices ) const
-        {
-            std::vector<
-                std::pair< geode::index_t, std::array< geode::index_t, 3 > > >
-                facets;
+            std::vector< geode::index_t > facets;
             for( const auto v0 : vertex_mapping_[vertices[0]] )
             {
                 for( const auto v1 : vertex_mapping_[vertices[1]] )
@@ -341,9 +339,7 @@ namespace
                                 solid_->facets().facet_from_vertices(
                                     { v0, v1, v2 } ) )
                         {
-                            facets.emplace_back( facet_id.value(),
-                                std::array< geode::index_t, 3 >{
-                                    { v0, v1, v2 } } );
+                            facets.emplace_back( facet_id.value() );
                         }
                     }
                 }
@@ -356,127 +352,32 @@ namespace
             while( geode::detail::string_starts_with( line_, "MODEL_REGION" ) )
             {
                 const auto tokens = get_tokens();
-                int value;
-                auto ok = absl::SimpleAtoi( tokens[2], &value );
-                OPENGEODE_EXCEPTION(
-                    ok, "[LSOInput] Error while reading tetra" );
-                const auto side = value > 0;
                 const auto block_id =
                     builder_.add_block( geode::MeshFactory::default_impl(
                         geode::TetrahedralSolid3D::type_name_static() ) );
                 builder_.set_block_name( block_id, tokens[1] );
-                geode::index_t surface_id = std::abs( value ) - OFFSET_START;
-                build_block( block_id, surface_keys_[surface_id], side );
+                build_block_mesh( block_id );
+                build_block_relations( block_id );
+                std::getline( file_, line_ );
             }
         }
 
-        void build_model_boundaries()
-        {
-            const auto& id = builder_.add_model_boundary();
-            const auto& boundary = model_.model_boundary( id );
-            for( const auto& surface : model_.surfaces() )
-            {
-                if( model_.nb_incidences( surface.id() ) == 1 )
-                {
-                    builder_.add_surface_in_model_boundary( surface, boundary );
-                }
-            }
-        }
-
-        geode::PolyhedronFacet find_facet(
-            const std::array< geode::index_t, 3 >& key_vertices,
-            bool side ) const
-        {
-            for( const auto& facet : facets_from_key_vertices( key_vertices ) )
-            {
-                const auto& key = facet.second;
-                for( const auto& polyhedron_facet :
-                    solid_->polyhedra_from_facet_vertices(
-                        solid_->facets().facet_vertices( facet.first ) ) )
-                {
-                    if( solid_->facets().facet_from_vertices(
-                            solid_->polyhedron_facet_vertices(
-                                polyhedron_facet ) )
-                        != facet.first )
-                    {
-                        continue;
-                    }
-                    if( !facet_matches_key_vertices(
-                            key, polyhedron_facet, side ) )
-                    {
-                        continue;
-                    }
-                    return polyhedron_facet;
-                }
-            }
-            throw geode::OpenGeodeException{
-                "[LSOInput] Cannot find starting facet"
-            };
-            return {};
-        }
-
-        std::tuple< absl::flat_hash_set< geode::index_t >,
-            absl::flat_hash_map< geode::uuid, geode::index_t > >
-            build_tetrahedron( geode::index_t first_tetra )
-        {
-            absl::flat_hash_map< geode::uuid, geode::index_t >
-                surface_relations;
-            std::stack< geode::index_t > tetras;
-            absl::flat_hash_set< geode::index_t > visited;
-            tetras.emplace( first_tetra );
-            visited.emplace( first_tetra );
-            while( !tetras.empty() )
-            {
-                const auto tetra = tetras.top();
-                tetras.pop();
-                for( const auto f : geode::LRange{ 4 } )
-                {
-                    const auto facet_id =
-                        solid_->facets()
-                            .facet_from_vertices(
-                                solid_->polyhedron_facet_vertices(
-                                    { tetra, f } ) )
-                            .value();
-                    const auto& facet_uuid = facet_id_->value( facet_id );
-                    if( facet_uuid != default_id_ )
-                    {
-                        const auto it = surface_relations.find( facet_uuid );
-                        if( it != surface_relations.end() )
-                        {
-                            it->second++;
-                        }
-                        else
-                        {
-                            surface_relations.emplace( facet_uuid, 1 );
-                        }
-                    }
-                    else if( const auto adj =
-                                 solid_->polyhedron_adjacent( { tetra, f } ) )
-                    {
-                        if( visited.emplace( adj.value() ).second )
-                        {
-                            tetras.emplace( adj.value() );
-                        }
-                    }
-                }
-            }
-            return std::make_tuple( visited, surface_relations );
-        }
-
-        void build_solid( const geode::uuid& block_id,
-            const absl::flat_hash_set< geode::index_t >& tetras )
+        void build_block_mesh( const geode::uuid& block_id )
         {
             auto builder =
                 builder_.block_mesh_builder< geode::TetrahedralSolid3D >(
                     block_id );
             const auto component_id = model_.block( block_id ).component_id();
+            const auto block_name = model_.block( block_id ).name();
             absl::flat_hash_map< geode::index_t, geode::index_t >
                 vertex_mapping;
-            absl::FixedArray< geode::index_t > inverse_vertex_mapping(
-                4 * tetras.size() );
-            geode::index_t count{ 0 };
-            for( const auto tetra : tetras )
+            std::vector< geode::index_t > inverse_vertex_mapping;
+            for( const auto tetra : geode::Range{ solid_->nb_polyhedra() } )
             {
+                if( block_name_attribute_->value( tetra ) != block_name )
+                {
+                    continue;
+                }
                 std::array< geode::index_t, 4 > vertices;
                 for( const auto i : geode::LRange{ 4 } )
                 {
@@ -492,7 +393,7 @@ namespace
                         const auto vertex_id =
                             builder->create_point( solid_->point( vertex ) );
                         vertex_mapping.emplace( vertex, vertex_id );
-                        inverse_vertex_mapping[count++] = vertex;
+                        inverse_vertex_mapping.push_back( vertex );
                         vertices[i] = vertex_id;
                         builder_.set_unique_vertex( { component_id, vertex_id },
                             vertex_id_->value( vertex ) );
@@ -573,12 +474,45 @@ namespace
             }
         }
 
-        void build_block_relations( const geode::uuid& block_id,
-            const absl::flat_hash_map< geode::uuid, geode::index_t >&
-                relations )
+        absl::flat_hash_map< geode::uuid, geode::index_t > find_block_relations(
+            const geode::uuid& block_id )
+        {
+            absl::flat_hash_map< geode::uuid, geode::index_t >
+                surface_relations;
+            const auto block_name = model_.block( block_id ).name();
+            for( const auto tetra : geode::Range{ solid_->nb_polyhedra() } )
+            {
+                if( block_name_attribute_->value( tetra ) != block_name )
+                {
+                    continue;
+                }
+                for( const auto f : geode::LRange{ 4 } )
+                {
+                    const auto facet = solid_->facets().facet_from_vertices(
+                        solid_->polyhedron_facet_vertices( { tetra, f } ) );
+                    const auto& facet_uuid = facet_id_->value( facet.value() );
+                    if( facet_uuid == default_id_ )
+                    {
+                        continue;
+                    }
+                    const auto it = surface_relations.find( facet_uuid );
+                    if( it != surface_relations.end() )
+                    {
+                        it->second++;
+                    }
+                    else
+                    {
+                        surface_relations.emplace( facet_uuid, 1 );
+                    }
+                }
+            }
+            return surface_relations;
+        }
+
+        void build_block_relations( const geode::uuid& block_id )
         {
             const auto& block = model_.block( block_id );
-            for( const auto& relation : relations )
+            for( const auto& relation : find_block_relations( block_id ) )
             {
                 const auto& surface = model_.surface( relation.first );
                 const auto nb_relations =
@@ -588,65 +522,31 @@ namespace
                     builder_.add_surface_block_boundary_relationship(
                         surface, block );
                 }
-                else
+                else if( nb_relations == 2 )
                 {
-                    OPENGEODE_ASSERT( nb_relations == 2,
-                        "[LSOInput] Error in Surface/Block "
-                        "relations" );
                     builder_.add_surface_block_internal_relationship(
                         surface, block );
                 }
+                else
+                {
+                    inspect_required_ = true;
+                    geode::Logger::warn( "[LSOInput] Block ", block.name(),
+                        " is not conformal to surface ", surface.name(), "." );
+                }
             }
         }
 
-        void build_block( const geode::uuid& block_id,
-            const std::array< geode::index_t, 3 >& key_vertices,
-            bool side )
+        void build_model_boundaries()
         {
-            const auto& block = model_.block( block_id );
-            const auto component_id = block.component_id();
-            const auto polyhedron_facet = find_facet( key_vertices, side );
-            const auto info =
-                build_tetrahedron( polyhedron_facet.polyhedron_id );
-            build_solid( block_id, std::get< 0 >( info ) );
-            build_block_relations( block_id, std::get< 1 >( info ) );
-            std::getline( file_, line_ );
-        }
-
-        bool facet_matches_key_vertices(
-            const std::array< geode::index_t, 3 >& key_vertices,
-            const geode::PolyhedronFacet& facet,
-            bool side ) const
-        {
-            const auto pos = static_cast< geode::index_t >(
-                std::distance( key_vertices.begin(),
-                    absl::c_find( key_vertices,
-                        solid_->polyhedron_facet_vertex( { facet, 0 } ) ) ) );
-            if( side )
+            const auto& id = builder_.add_model_boundary();
+            const auto& boundary = model_.model_boundary( id );
+            for( const auto& surface : model_.surfaces() )
             {
-                for( const auto v : geode::LRange{ 3 } )
+                if( model_.nb_incidences( surface.id() ) == 1 )
                 {
-                    const auto v_id =
-                        solid_->polyhedron_facet_vertex( { facet, v } );
-                    if( v_id != key_vertices[( pos + v ) % 3] )
-                    {
-                        return false;
-                    }
+                    builder_.add_surface_in_model_boundary( surface, boundary );
                 }
             }
-            else
-            {
-                for( const auto v : geode::LRange{ 3 } )
-                {
-                    const auto v_id =
-                        solid_->polyhedron_facet_vertex( { facet, v } );
-                    if( v_id != key_vertices[( pos + 3 - v ) % 3] )
-                    {
-                        return false;
-                    }
-                }
-            }
-            return true;
         }
 
         void build_corners()
@@ -873,6 +773,7 @@ namespace
         }
 
     private:
+        bool inspect_required_{ false };
         std::ifstream file_;
         std::string line_;
         geode::StructuralModel& model_;
@@ -884,11 +785,10 @@ namespace
         std::unique_ptr< geode::TetrahedralSolidBuilder3D > solid_builder_;
         std::shared_ptr< geode::VariableAttribute< geode::index_t > >
             vertex_id_;
+        std::shared_ptr< geode::VariableAttribute< std::string > >
+            block_name_attribute_;
         std::shared_ptr< geode::VariableAttribute< geode::uuid > > facet_id_;
         geode::uuid default_id_;
-        std::vector< geode::uuid > surfaces_;
-        absl::flat_hash_map< geode::uuid, bool > surface_is_internal_;
-        std::vector< std::array< geode::index_t, 3 > > surface_keys_;
         std::vector< absl::InlinedVector< geode::index_t, 1 > > vertex_mapping_;
     };
 } // namespace
@@ -901,7 +801,11 @@ namespace geode
         {
             StructuralModel structural_model;
             LSOInputImpl impl{ filename(), structural_model };
-            impl.read_file();
+            const auto file_reading_ok = impl.read_file();
+            if( !file_reading_ok )
+            {
+                this->need_to_inspect_result();
+            }
             return structural_model;
         }
     } // namespace detail
