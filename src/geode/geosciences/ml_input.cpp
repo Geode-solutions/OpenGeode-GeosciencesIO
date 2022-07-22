@@ -503,8 +503,11 @@ namespace
             const auto& line = model_.line( line_id );
             builder_.add_corner_line_boundary_relationship(
                 model_.corner( line_data.corner0 ), line );
-            builder_.add_corner_line_boundary_relationship(
-                model_.corner( line_data.corner1 ), line );
+            if( line_data.corner0 != line_data.corner1 )
+            {
+                builder_.add_corner_line_boundary_relationship(
+                    model_.corner( line_data.corner1 ), line );
+            }
 
             const auto line_component_id = line.component_id();
             const auto last_index =
