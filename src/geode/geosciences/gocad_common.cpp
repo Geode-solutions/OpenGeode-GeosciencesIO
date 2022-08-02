@@ -456,16 +456,17 @@ namespace geode
             file << "END_ORIGINAL_COORDINATE_SYSTEM" << EOL;
         }
 
-        PropHeaderData read_prop_header( std::ifstream& file )
+        PropHeaderData read_prop_header(
+            std::ifstream& file, absl::string_view prefix )
         {
             PropHeaderData header;
-            const auto opt_line =
-                geode::detail::goto_keyword_if_it_exists( file, "PROPERTIES" );
+            const auto opt_line = geode::detail::goto_keyword_if_it_exists(
+                file, absl::StrCat( prefix, "PROPERTIES" ) );
             if( !opt_line )
             {
-                geode::Logger::info(
-                    "Token PROPERTIES could not be found in the file, "
-                    "attributes will not be loaded." );
+                geode::Logger::info( "Token ", prefix,
+                    "PROPERTIES could not be found in the file, "
+                    "the corresponding attributes will not be loaded." );
                 return header;
             }
             const auto split_line = geode::string_split( opt_line.value() );
@@ -480,20 +481,26 @@ namespace geode
                 header.names[attr_id] =
                     geode::to_string( split_line[attr_id + 1] );
             }
-            read_property_keyword_with_two_strings( file, "PROP_LEGAL_RANGES",
+            read_property_keyword_with_two_strings( file,
+                absl::StrCat( prefix, "PROP_LEGAL_RANGES" ),
                 header.prop_legal_ranges, nb_attributes );
-            read_property_keyword_with_one_double(
-                file, "NO_DATA_VALUES", header.no_data_values, nb_attributes );
-            read_property_keyword_with_one_string( file, "PROPERTY_CLASSES",
+            read_property_keyword_with_one_double( file,
+                absl::StrCat( prefix, "NO_DATA_VALUES" ), header.no_data_values,
+                nb_attributes );
+            read_property_keyword_with_one_string( file,
+                absl::StrCat( prefix, "PROPERTY_CLASSES" ),
                 header.property_classes, nb_attributes );
-            read_property_keyword_with_one_string(
-                file, "PROPERTY_KINDS", header.kinds, nb_attributes );
-            read_property_keyword_with_two_strings( file, "PROPERTY_SUBCLASSES",
+            read_property_keyword_with_one_string( file,
+                absl::StrCat( prefix, "PROPERTY_KINDS" ), header.kinds,
+                nb_attributes );
+            read_property_keyword_with_two_strings( file,
+                absl::StrCat( prefix, "PROPERTY_SUBCLASSES" ),
                 header.property_subclass, nb_attributes );
-            read_property_keyword_with_one_index_t(
-                file, "ESIZES", header.esizes, nb_attributes );
-            read_property_keyword_with_one_string(
-                file, "UNITS", header.units, nb_attributes );
+            read_property_keyword_with_one_index_t( file,
+                absl::StrCat( prefix, "ESIZES" ), header.esizes,
+                nb_attributes );
+            read_property_keyword_with_one_string( file,
+                absl::StrCat( prefix, "UNITS" ), header.units, nb_attributes );
             return header;
         }
 
