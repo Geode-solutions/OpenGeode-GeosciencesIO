@@ -77,7 +77,8 @@ namespace geode
                 return names.empty();
             }
         };
-        PropHeaderData read_prop_header( std::ifstream& file );
+        PropHeaderData read_prop_header(
+            std::ifstream& file, absl::string_view prefix );
 
         void write_prop_header(
             std::ofstream& file, const PropHeaderData& data );
