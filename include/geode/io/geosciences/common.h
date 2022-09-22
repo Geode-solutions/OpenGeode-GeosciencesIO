@@ -26,7 +26,7 @@
 #include <geode/basic/common.h>
 #include <geode/basic/library.h>
 
-#include <geode/geosciences/opengeode_geosciencesio_geosciences_export.h>
+#include <geode/io/geosciences/opengeode_geosciencesio_geosciences_export.h>
 
 namespace geode
 {

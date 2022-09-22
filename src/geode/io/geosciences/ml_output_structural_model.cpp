@@ -25,9 +25,9 @@
 
 #include <geode/mesh/core/surface_mesh.h>
 
+#include <geode/geosciences/representation/core/structural_model.h>
 #include <geode/io/geosciences/private/gocad_common.h>
 #include <geode/io/geosciences/private/ml_output_impl.h>
-#include <geode/geosciences/representation/core/structural_model.h>
 
 namespace
 {
