@@ -22,4 +22,4 @@ import opengeode
 import opengeode_geosciences
 
 from .opengeode_geosciencesio_py_geosciences import *
-initialize_geosciences_io()
+OpenGeodeGeosciencesIOGeosciences.initialize()

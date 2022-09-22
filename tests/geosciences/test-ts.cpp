@@ -33,7 +33,7 @@
 
 #include <geode/model/mixin/core/surface.h>
 
-#include <geode/geosciences/private/ts_input.h>
+#include <geode/io/geosciences/private/ts_input.h>
 
 void check_surface( const geode::SurfaceMesh3D& surface,
     geode::index_t nb_vertices,
@@ -65,11 +65,9 @@ void check_file(
 
 int main()
 {
-    using namespace geode;
-
     try
     {
-        detail::initialize_geosciences_io();
+        geode::OpenGeodeGeosciencesIOGeosciences::initialize();
         check_file( absl::StrCat( geode::data_path, "/surf2d_multi.",
                         geode::detail::TSInput::extension() ),
             92, 92 );
@@ -80,7 +78,7 @@ int main()
                         geode::detail::TSInput::extension() ),
             4, 2 );
 
-        Logger::info( "TEST SUCCESS" );
+        geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }
     catch( ... )

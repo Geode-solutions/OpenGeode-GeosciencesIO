@@ -21,33 +21,36 @@
  *
  */
 
-#include <geode/tests_config.h>
-
-#include <geode/basic/assert.h>
-#include <geode/basic/logger.h>
-
-#include <geode/mesh/core/edged_curve.h>
-#include <geode/mesh/io/edged_curve_input.h>
+#pragma once
 
 #include <geode/io/geosciences/common.h>
+#include <geode/mesh/io/edged_curve_output.h>
 
-int main()
+namespace geode
 {
-    try
-    {
-        geode::OpenGeodeGeosciencesIOGeosciences::initialize();
-        auto curve = geode::load_edged_curve< 3 >(
-            absl::StrCat( geode::data_path, "test_well.dev" ) );
-        OPENGEODE_EXCEPTION(
-            curve->nb_vertices() == 104, "[Test] Wrong number of vertices" );
-        OPENGEODE_EXCEPTION(
-            curve->nb_edges() == 103, "[Test] Wrong number of edges" );
+    FORWARD_DECLARATION_DIMENSION_CLASS( EdgedCurve );
+    ALIAS_3D( EdgedCurve );
+} // namespace geode
 
-        geode::Logger::info( "TEST SUCCESS" );
-        return 0;
-    }
-    catch( ... )
+namespace geode
+{
+    namespace detail
     {
-        return geode::geode_lippincott();
-    }
-}
+        class PLOutput final : public EdgedCurveOutput< 3 >
+        {
+        public:
+            PLOutput( absl::string_view filename )
+                : EdgedCurveOutput< 3 >( filename )
+            {
+            }
+
+            static absl::string_view extension()
+            {
+                static constexpr auto ext = "pl";
+                return ext;
+            }
+
+            void write( const EdgedCurve3D& edged_curve ) const final;
+        };
+    } // namespace detail
+} // namespace geode

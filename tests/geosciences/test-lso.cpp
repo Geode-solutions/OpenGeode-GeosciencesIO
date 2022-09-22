@@ -37,9 +37,9 @@
 #include <geode/model/mixin/core/model_boundary.h>
 #include <geode/model/mixin/core/surface.h>
 
-#include <geode/geosciences/private/lso_input.h>
 #include <geode/geosciences/representation/core/structural_model.h>
 #include <geode/geosciences/representation/io/structural_model_output.h>
+#include <geode/io/geosciences/private/lso_input.h>
 
 constexpr auto nb_mandatory_attributes = 4;
 
@@ -140,7 +140,7 @@ int main()
 {
     try
     {
-        geode::detail::initialize_geosciences_io();
+        geode::OpenGeodeGeosciencesIOGeosciences::initialize();
 
         geode::Logger::info( "Reading the test.lso file" );
         test_file( absl::StrCat( geode::data_path, "test.",

@@ -19,8 +19,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import os, sys, platform
-if sys.version_info >= (3,8,0) and platform.system() == "Windows":
+import os
+import sys
+import platform
+if sys.version_info >= (3, 8, 0) and platform.system() == "Windows":
     for path in [x.strip() for x in os.environ['PATH'].split(';') if x]:
         os.add_dll_directory(path)
 
@@ -29,20 +31,26 @@ import opengeode_geosciences as geosciences
 import opengeode_geosciencesio_py_geosciences as geosciences_io
 
 if __name__ == '__main__':
-    geosciences_io.initialize_geosciences_io()
+    geosciences_io.OpenGeodeGeosciencesIOGeosciences.initialize()
     test_dir = os.path.dirname(__file__)
-    data_dir = os.path.abspath(os.path.join(test_dir, "../../../../tests/data"))
+    data_dir = os.path.abspath(os.path.join(
+        test_dir, "../../../../tests/data"))
 
-    surface = opengeode.load_triangulated_surface3D( os.path.join(data_dir, "surf2d.ts"))
+    surface = opengeode.load_triangulated_surface3D(
+        os.path.join(data_dir, "surf2d.ts"))
 
     if surface.nb_vertices() != 46:
-        raise ValueError("Number of vertices in the loaded TSurf 3D is not correct" )
+        raise ValueError(
+            "Number of vertices in the loaded TSurf 3D is not correct")
     if surface.nb_polygons() != 46:
-        raise ValueError("Number of polygons in the loaded TSurf 3D is not correct" )
+        raise ValueError(
+            "Number of polygons in the loaded TSurf 3D is not correct")
 
-    opengeode.save_triangulated_surface3D( surface, "surf3d.og_tsf3d" )
-    reloaded_surface = opengeode.load_triangulated_surface3D( "surf3d.og_tsf3d" )
+    opengeode.save_triangulated_surface3D(surface, "surf3d.og_tsf3d")
+    reloaded_surface = opengeode.load_triangulated_surface3D("surf3d.og_tsf3d")
     if reloaded_surface.nb_vertices() != 46:
-        raise ValueError("Number of vertices in the reloaded TSurf 3D is not correct" )
+        raise ValueError(
+            "Number of vertices in the reloaded TSurf 3D is not correct")
     if reloaded_surface.nb_polygons() != 46:
-        raise ValueError("Number of polygons in the reloaded TSurf 3D is not correct" )
+        raise ValueError(
+            "Number of polygons in the reloaded TSurf 3D is not correct")

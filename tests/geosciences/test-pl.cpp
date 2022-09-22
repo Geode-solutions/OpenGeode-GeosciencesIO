@@ -27,7 +27,7 @@
 #include <geode/mesh/builder/geode_edged_curve_builder.h>
 #include <geode/mesh/core/geode_edged_curve.h>
 
-#include <geode/geosciences/private/pl_output.h>
+#include <geode/io/geosciences/private/pl_output.h>
 
 namespace
 {
@@ -63,7 +63,7 @@ int main()
 {
     try
     {
-        geode::detail::initialize_geosciences_io();
+        geode::OpenGeodeGeosciencesIOGeosciences::initialize();
 
         auto edged_curve = geode::EdgedCurve3D::create(
             geode::OpenGeodeEdgedCurve3D::impl_name_static() );

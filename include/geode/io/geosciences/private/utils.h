@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2022 Geode-solutions
+ * Copyright (c) 2019 Geode-solutions
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,33 +21,39 @@
  *
  */
 
-#include <geode/tests_config.h>
+#pragma once
 
-#include <geode/basic/assert.h>
-#include <geode/basic/logger.h>
+#include <array>
+#include <deque>
+#include <string>
 
-#include <geode/mesh/core/edged_curve.h>
-#include <geode/mesh/io/edged_curve_input.h>
+#include <geode/basic/bitsery_archive.h>
+#include <geode/basic/uuid.h>
 
 #include <geode/io/geosciences/common.h>
 
-int main()
+namespace geode
 {
-    try
-    {
-        geode::OpenGeodeGeosciencesIOGeosciences::initialize();
-        auto curve = geode::load_edged_curve< 3 >(
-            absl::StrCat( geode::data_path, "test_well.dev" ) );
-        OPENGEODE_EXCEPTION(
-            curve->nb_vertices() == 104, "[Test] Wrong number of vertices" );
-        OPENGEODE_EXCEPTION(
-            curve->nb_edges() == 103, "[Test] Wrong number of edges" );
+    class BRep;
+} // namespace geode
 
-        geode::Logger::info( "TEST SUCCESS" );
-        return 0;
-    }
-    catch( ... )
+namespace geode
+{
+    namespace detail
     {
-        return geode::geode_lippincott();
-    }
-}
+        bool string_starts_with(
+            absl::string_view string, absl::string_view check );
+
+        void check_keyword( std::ifstream& file, absl::string_view keyword );
+
+        bool line_starts_with( std::ifstream& file, absl::string_view check );
+
+        std::string goto_keyword( std::ifstream& file, absl::string_view word );
+
+        std::string goto_keywords(
+            std::ifstream& file, absl::Span< const absl::string_view > words );
+
+        absl::optional< std::string > goto_keyword_if_it_exists(
+            std::ifstream& file, absl::string_view word );
+    } // namespace detail
+} // namespace geode

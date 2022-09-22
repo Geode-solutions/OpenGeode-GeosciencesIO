@@ -29,13 +29,13 @@
 #include <geode/mesh/core/edged_curve.h>
 #include <geode/mesh/io/edged_curve_input.h>
 
-#include <geode/geosciences/detail/common.h>
+#include <geode/io/geosciences/common.h>
 
 int main()
 {
     try
     {
-        geode::detail::initialize_geosciences_io();
+        geode::OpenGeodeGeosciencesIOGeosciences::initialize();
         auto curve = geode::load_edged_curve< 3 >(
             absl::StrCat( geode::data_path, "test.wl" ) );
         OPENGEODE_EXCEPTION(
