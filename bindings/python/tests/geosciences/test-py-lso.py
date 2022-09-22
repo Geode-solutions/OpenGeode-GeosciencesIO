@@ -19,8 +19,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import os, sys, platform
-if sys.version_info >= (3,8,0) and platform.system() == "Windows":
+import os
+import sys
+import platform
+if sys.version_info >= (3, 8, 0) and platform.system() == "Windows":
     for path in [x.strip() for x in os.environ['PATH'].split(';') if x]:
         os.add_dll_directory(path)
 
@@ -29,19 +31,26 @@ import opengeode_geosciences as geosciences
 import opengeode_geosciencesio_py_geosciences as geosciences_io
 
 if __name__ == '__main__':
-    geosciences_io.initialize_geosciences_io()
+    geosciences_io.OpenGeodeGeosciencesIOGeosciences.initialize()
     test_dir = os.path.dirname(__file__)
-    data_dir = os.path.abspath(os.path.join(test_dir, "../../../../tests/data"))
+    data_dir = os.path.abspath(os.path.join(
+        test_dir, "../../../../tests/data"))
 
-    model = geosciences.load_structural_model( os.path.join(data_dir, "test.lso"))
+    model = geosciences.load_structural_model(
+        os.path.join(data_dir, "test.lso"))
 
     if model.nb_corners() != 22:
-        raise ValueError("[Test] Number of Corners in the loaded StructuralModel is not correct" )
+        raise ValueError(
+            "[Test] Number of Corners in the loaded StructuralModel is not correct")
     if model.nb_lines() != 39:
-        raise ValueError("[Test] Number of Lines in the loaded StructuralModel is not correct" )
+        raise ValueError(
+            "[Test] Number of Lines in the loaded StructuralModel is not correct")
     if model.nb_surfaces() != 23:
-        raise ValueError("[Test] Number of Surfaces in the loaded StructuralModel is not correct" )
+        raise ValueError(
+            "[Test] Number of Surfaces in the loaded StructuralModel is not correct")
     if model.nb_blocks() != 4:
-        raise ValueError("[Test] Number of Blocks in the loaded StructuralModel is not correct" )
+        raise ValueError(
+            "[Test] Number of Blocks in the loaded StructuralModel is not correct")
     if model.nb_horizons() != 4:
-        raise ValueError("[Test] Number of Horizons in the loaded StructuralModel is not correct" )
+        raise ValueError(
+            "[Test] Number of Horizons in the loaded StructuralModel is not correct")

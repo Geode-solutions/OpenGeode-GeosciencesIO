@@ -30,10 +30,10 @@
 #include <geode/model/mixin/core/model_boundary.h>
 #include <geode/model/mixin/core/surface.h>
 
-#include <geode/geosciences/private/ml_input.h>
-#include <geode/geosciences/private/ml_output_structural_model.h>
 #include <geode/geosciences/representation/core/structural_model.h>
 #include <geode/geosciences/representation/io/structural_model_output.h>
+#include <geode/io/geosciences/private/ml_input.h>
+#include <geode/io/geosciences/private/ml_output_structural_model.h>
 
 void check_model( const geode::StructuralModel& model,
     geode::index_t nb_corners,
@@ -122,14 +122,12 @@ void test_modelA4()
 
 int main()
 {
-    using namespace geode;
-
     try
     {
-        detail::initialize_geosciences_io();
+        geode::OpenGeodeGeosciencesIOGeosciences::initialize();
         test_modelA4();
 
-        Logger::info( "TEST SUCCESS" );
+        geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }
     catch( ... )

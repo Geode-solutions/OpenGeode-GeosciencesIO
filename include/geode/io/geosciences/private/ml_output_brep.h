@@ -21,33 +21,29 @@
  *
  */
 
-#include <geode/tests_config.h>
-
-#include <geode/basic/assert.h>
-#include <geode/basic/logger.h>
-
-#include <geode/mesh/core/edged_curve.h>
-#include <geode/mesh/io/edged_curve_input.h>
+#pragma once
 
 #include <geode/io/geosciences/common.h>
+#include <geode/model/representation/io/brep_output.h>
 
-int main()
+namespace geode
 {
-    try
+    namespace detail
     {
-        geode::OpenGeodeGeosciencesIOGeosciences::initialize();
-        auto curve = geode::load_edged_curve< 3 >(
-            absl::StrCat( geode::data_path, "test_well.dev" ) );
-        OPENGEODE_EXCEPTION(
-            curve->nb_vertices() == 104, "[Test] Wrong number of vertices" );
-        OPENGEODE_EXCEPTION(
-            curve->nb_edges() == 103, "[Test] Wrong number of edges" );
+        class MLOutputBRep final : public BRepOutput
+        {
+        public:
+            MLOutputBRep( absl::string_view filename ) : BRepOutput( filename )
+            {
+            }
 
-        geode::Logger::info( "TEST SUCCESS" );
-        return 0;
-    }
-    catch( ... )
-    {
-        return geode::geode_lippincott();
-    }
-}
+            static absl::string_view extension()
+            {
+                static constexpr auto ext = "ml";
+                return ext;
+            }
+
+            void write( const BRep& brep ) const final;
+        };
+    } // namespace detail
+} // namespace geode

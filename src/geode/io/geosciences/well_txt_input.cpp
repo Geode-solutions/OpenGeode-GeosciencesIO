@@ -21,33 +21,21 @@
  *
  */
 
-#include <geode/tests_config.h>
+#include <geode/io/geosciences/private/well_txt_input.h>
 
-#include <geode/basic/assert.h>
-#include <geode/basic/logger.h>
+#include <geode/io/geosciences/private/well_input.h>
 
-#include <geode/mesh/core/edged_curve.h>
-#include <geode/mesh/io/edged_curve_input.h>
-
-#include <geode/io/geosciences/common.h>
-
-int main()
+namespace geode
 {
-    try
+    namespace detail
     {
-        geode::OpenGeodeGeosciencesIOGeosciences::initialize();
-        auto curve = geode::load_edged_curve< 3 >(
-            absl::StrCat( geode::data_path, "test_well.dev" ) );
-        OPENGEODE_EXCEPTION(
-            curve->nb_vertices() == 104, "[Test] Wrong number of vertices" );
-        OPENGEODE_EXCEPTION(
-            curve->nb_edges() == 103, "[Test] Wrong number of edges" );
-
-        geode::Logger::info( "TEST SUCCESS" );
-        return 0;
-    }
-    catch( ... )
-    {
-        return geode::geode_lippincott();
-    }
-}
+        std::unique_ptr< EdgedCurve3D > WellTxtInput::read(
+            const MeshImpl& impl )
+        {
+            auto well = EdgedCurve3D::create( impl );
+            WellInputImpl reader{ this->filename(), *well };
+            reader.read_file();
+            return well;
+        }
+    } // namespace detail
+} // namespace geode
