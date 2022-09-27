@@ -479,21 +479,23 @@ namespace
                 }
                 else if( nb_attribute_items == 2 )
                 {
-                    add_vertices_container_attribute< std::array< double, 2 > >(
-                        block_mesh, inverse_vertex_mapping, attr_id,
-                        nb_attribute_items );
+                    std::array< double, 2 > container;
+                    container.fill( 0 );
+                    add_vertices_container_attribute( block_mesh,
+                        inverse_vertex_mapping, attr_id, container );
                 }
                 else if( nb_attribute_items == 3 )
                 {
-                    add_vertices_container_attribute< std::array< double, 3 > >(
-                        block_mesh, inverse_vertex_mapping, attr_id,
-                        nb_attribute_items );
+                    std::array< double, 3 > container;
+                    container.fill( 0 );
+                    add_vertices_container_attribute( block_mesh,
+                        inverse_vertex_mapping, attr_id, container );
                 }
                 else
                 {
-                    add_vertices_container_attribute< std::vector< double > >(
-                        block_mesh, inverse_vertex_mapping, attr_id,
-                        nb_attribute_items );
+                    std::vector< double > container( nb_attribute_items, 0 );
+                    add_vertices_container_attribute<>( block_mesh,
+                        inverse_vertex_mapping, attr_id, container );
                 }
             }
         }
@@ -525,23 +527,23 @@ namespace
                 }
                 else if( nb_attribute_items == 2 )
                 {
-                    add_tetrahedra_container_attribute<
-                        std::array< double, 2 > >( block_mesh,
-                        inverse_tetrahedra_mapping, attr_id,
-                        nb_attribute_items );
+                    std::array< double, 2 > container;
+                    container.fill( 0 );
+                    add_tetrahedra_container_attribute( block_mesh,
+                        inverse_tetrahedra_mapping, attr_id, container );
                 }
                 else if( nb_attribute_items == 3 )
                 {
-                    add_tetrahedra_container_attribute<
-                        std::array< double, 3 > >( block_mesh,
-                        inverse_tetrahedra_mapping, attr_id,
-                        nb_attribute_items );
+                    std::array< double, 3 > container;
+                    container.fill( 0 );
+                    add_tetrahedra_container_attribute( block_mesh,
+                        inverse_tetrahedra_mapping, attr_id, container );
                 }
                 else
                 {
-                    add_tetrahedra_container_attribute< std::vector< double > >(
-                        block_mesh, inverse_tetrahedra_mapping, attr_id,
-                        nb_attribute_items );
+                    std::vector< double > container( nb_attribute_items, 0 );
+                    add_tetrahedra_container_attribute( block_mesh,
+                        inverse_tetrahedra_mapping, attr_id, container );
                 }
             }
         }
@@ -551,9 +553,8 @@ namespace
             const geode::SolidMesh3D& block_mesh,
             absl::Span< const geode::index_t > inverse_mapping,
             geode::index_t attr_id,
-            geode::index_t nb_attribute_items )
+            Container value_array )
         {
-            Container value_array;
             auto attribute =
                 block_mesh.vertex_attribute_manager()
                     .template find_or_create_attribute<
@@ -561,11 +562,11 @@ namespace
                         vertices_prop_header_.names[attr_id], value_array );
             for( const auto pt_id : geode::Range{ block_mesh.nb_vertices() } )
             {
-                for( const auto item_id : geode::LRange{ nb_attribute_items } )
+                for( const auto item_id : geode::LRange{ value_array.size() } )
                 {
                     value_array[item_id] =
                         vertices_attributes_[attr_id][inverse_mapping[pt_id]
-                                                          * nb_attribute_items
+                                                          * value_array.size()
                                                       + item_id];
                 }
                 attribute->set_value( pt_id, value_array );
@@ -577,9 +578,8 @@ namespace
             const geode::SolidMesh3D& block_mesh,
             absl::Span< const geode::index_t > inverse_mapping,
             geode::index_t attr_id,
-            geode::index_t nb_attribute_items )
+            Container value_array )
         {
-            Container value_array;
             auto attribute =
                 block_mesh.polyhedron_attribute_manager()
                     .template find_or_create_attribute<
@@ -588,12 +588,12 @@ namespace
             for( const auto tetra_id :
                 geode::Range{ block_mesh.nb_polyhedra() } )
             {
-                for( const auto item_id : geode::LRange{ nb_attribute_items } )
+                for( const auto item_id : geode::LRange{ value_array.size() } )
                 {
                     value_array[item_id] =
                         tetrahedra_attributes_[attr_id]
                                               [inverse_mapping[tetra_id]
-                                                      * nb_attribute_items
+                                                      * value_array.size()
                                                   + item_id];
                 }
                 attribute->set_value( tetra_id, value_array );
