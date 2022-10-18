@@ -20,47 +20,57 @@
  * SOFTWARE.
  *
  */
-#include <stdexcept>
-#include <iostream>
-#include <string.h>
+// #include <iostream>
+// #include <stdexcept>
+// #include <string.h>
 
 #include <geode/tests_config.h>
 
 #include <geode/basic/assert.h>
-#include <geode/basic/logger.h>
 #include <geode/basic/attribute_manager.h>
+#include <geode/basic/logger.h>
 
-#include <geode/mesh/builder/regular_grid_solid_builder.h>
 #include <geode/mesh/core/regular_grid_solid.h>
 #include <geode/mesh/io/regular_grid_input.h>
 
 #include <geode/io/geosciences/common.h>
+
+void test_grid_input()
+{
+    const auto grid = geode::load_regular_grid< 3 >(
+        absl::StrCat( geode::data_path, "test.vo" ) );
+
+    auto attribute_to_test =
+        grid->cell_attribute_manager().find_attribute< double >( "random" );
+
+    const auto first_value =
+        attribute_to_test->value( grid->cell_index( { 0, 0, 0 } ) );
+    OPENGEODE_EXCEPTION( first_value == 6.48414,
+        "[TEST] Error in grid attributes, value for attribute 'random' at "
+        "cell [0,0,0] is ",
+        first_value, " where it should be 6.48414" );
+
+    const auto second_value =
+        attribute_to_test->value( grid->cell_index( { 5, 0, 9 } ) );
+    OPENGEODE_EXCEPTION( second_value == 8.95907,
+        "[TEST] Error in grid attributes, value for attribute 'random' at "
+        "cell [5,0,9] is ",
+        second_value, " where it should be 8.95907" );
+
+    const auto third_value =
+        attribute_to_test->value( grid->cell_index( { 9, 9, 9 } ) );
+    OPENGEODE_EXCEPTION( third_value == 7.21909,
+        "[TEST] Error in grid attributes, value for attribute 'random' at "
+        "cell [9,9,9] is ",
+        third_value, " where it should be 7.21909" );
+}
 
 int main()
 {
     try
     {
         geode::OpenGeodeGeosciencesIOGeosciences::initialize();
-        auto grid = geode::load_regular_grid< 3 >(
-            absl::StrCat( geode::data_path, "test.vo" ) );
-       
-        auto attribute_random = grid->cell_attribute_manager().find_attribute<double>("random");
-        
-        if(attribute_random->value(grid->cell_index({0,0,0})) != 6.48414) {
-            throw std::runtime_error( "Attribute creation has failed somewhere, [0,0,0] value for 'random' is "
-                + std::to_string(attribute_random->value(grid->cell_index({0,0,0})))
-                + " and it should be 6.48414" );
-        }
-        if(attribute_random->value(grid->cell_index({5,0,9})) != 8.95907) {
-            throw std::runtime_error( "Attribute creation has failed somewhere, [5,0,9] value for 'random' is "
-                + std::to_string(attribute_random->value(grid->cell_index({5,0,9})))
-                + " and it should be 8.95907" );
-        }
-        if(attribute_random->value(grid->cell_index({9,9,9})) != 7.21909) {
-            throw std::runtime_error( "Attribute creation has failed somewhere, [9,9,9] value for 'random' is "
-                + std::to_string(attribute_random->value(grid->cell_index({9,9,9})))
-                + " and it should be 7.21909" );
-        }
+        test_grid_input();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

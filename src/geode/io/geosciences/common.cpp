@@ -23,6 +23,7 @@
 
 #include <geode/io/geosciences/common.h>
 
+#include <geode/mesh/io/regular_grid_input.h>
 #include <geode/mesh/io/triangulated_surface_input.h>
 
 #include <geode/geosciences/common.h>
@@ -36,6 +37,7 @@
 #include <geode/io/geosciences/private/ml_output_structural_model.h>
 #include <geode/io/geosciences/private/pl_output.h>
 #include <geode/io/geosciences/private/ts_input.h>
+#include <geode/io/geosciences/private/vo_input.h>
 #include <geode/io/geosciences/private/well_dat_input.h>
 #include <geode/io/geosciences/private/well_dev_input.h>
 #include <geode/io/geosciences/private/well_txt_input.h>
@@ -99,6 +101,13 @@ namespace
             geode::detail::WellDevInput >(
             geode::detail::WellDevInput::extension().data() );
     }
+
+    void register_regular_grid_input()
+    {
+        geode::RegularGridInputFactory3D::register_creator<
+            geode::detail::VOInput >(
+            geode::detail::VOInput::extension().data() );
+    }
 } // namespace
 
 namespace geode
@@ -112,5 +121,6 @@ namespace geode
         register_triangulated_surface_input();
         register_edged_curve_input();
         register_edged_curve_output();
+        register_regular_grid_input();
     }
 } // namespace geode
