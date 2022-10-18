@@ -1,0 +1,49 @@
+GOCAD Voxet 1 
+HEADER {
+name: test
+sections: 3 1 1 2 2 0 0 3 0 0
+*painted*variable: random
+painted: on
+ascii: on
+}
+GOCAD_ORIGINAL_COORDINATE_SYSTEM
+NAME "SKUA Local"
+PROJECTION Unknown
+DATUM Unknown
+AXIS_NAME X Y Z
+AXIS_UNIT m m m
+ZPOSITIVE Elevation
+END_ORIGINAL_COORDINATE_SYSTEM
+CLASSIFICATION "3D Survey" Seismic "3D Survey"
+AXIS_O 0 0 0 
+AXIS_U 900 0 0 
+AXIS_V 0 900 0 
+AXIS_W 0 0 900 
+AXIS_MIN 0 0 0 
+AXIS_MAX 1 1 1 
+AXIS_N 10 10 10 
+AXIS_NAME axis-1 axis-2 axis-3
+AXIS_UNIT "unitless" "unitless" "unitless" 
+AXIS_TYPE even even even
+
+ASCII_DATA_FILE test__ascii@@
+
+
+PROPERTY 1 random
+PROPERTY_CLASS 1 random
+PROPERTY_KIND 1 "Real Number"
+PROPERTY_CLASS_HEADER 1 random {
+kind: Real Number
+unit: unitless
+pclip: 99
+low_clip: 2.015344
+high_clip: 9.993502
+*colormap*standard*colors: 0 0 0 1 85 0 1 1 170 1 1 0 255 1 0 0 
+}
+PROPERTY_SUBCLASS 1 QUANTITY Float
+PROP_ORIGINAL_UNIT 1 none
+PROP_UNIT 1 unitless
+PROP_NO_DATA_VALUE 1 -99999
+PROP_SAMPLE_STATS 1 1000 6.05339 5.30638 2.03609 9.99882
+PROP_ESIZE 1 4
+END
