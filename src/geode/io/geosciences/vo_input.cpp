@@ -21,129 +21,94 @@
  *
  */
 
-#include <absl/strings/str_replace.h>
-
 #include <geode/io/geosciences/private/vo_input.h>
 
-#include <cmath>
 #include <fstream>
-#include <iostream>
 
+#include <geode/basic/attribute_manager.h>
+#include <geode/basic/filename.h>
 #include <geode/basic/string.h>
 
+#include <geode/geometry/distance.h>
 #include <geode/geometry/point.h>
-#include <geode/basic/attribute_manager.h>
 
 #include <geode/mesh/builder/regular_grid_solid_builder.h>
-
 #include <geode/mesh/core/regular_grid_solid.h>
 
 #include <geode/io/geosciences/private/gocad_common.h>
+
 namespace
 {
     class VOInputImpl
     {
     public:
-        VOInputImpl( absl::string_view filename, geode::RegularGrid3D& reg_grid )
+        VOInputImpl( absl::string_view filename, geode::RegularGrid3D& grid )
             : file_{ geode::to_string( filename ) },
-              data_file_{ geode::to_string( absl::StrReplaceAll(filename, {{".vo", "__ascii@@"}}) ) },
-              reg_grid_( reg_grid ),
-              builder_{ geode::RegularGridBuilder3D::create( reg_grid ) }
+              file_folder_{ geode::filepath_without_filename( filename ) },
+              grid_( grid ),
+              builder_{ geode::RegularGridBuilder3D::create( grid ) }
         {
             OPENGEODE_EXCEPTION(
-                file_.good(), "Error while opening file: ", filename ); 
-            OPENGEODE_EXCEPTION(
-                data_file_.good(), "Error while opening data file: ", absl::StrReplaceAll(filename, {{".vo", "__ascii@@"}}));
+                file_.good(), "Error while opening file: ", filename );
         }
 
         void read_file()
         {
-            std::string line;
-            std::getline( file_, line );
-            if( !geode::detail::string_starts_with( line, "GOCAD Voxet" ) )
-            {
-                return;
-            }
+            geode::detail::check_keyword( file_, "GOCAD Voxet" );
             const auto header = geode::detail::read_header( file_ );
             builder_->set_name( header.name );
-            crs_ = geode::detail::read_CRS( file_ );
-
-
-            geode::Point3D origin = read_origin();
-            std::array< double, 3 > cells_length  = read_cells_length (origin);
-            std::array< geode::index_t, 3 > cells_number  = read_cells_number ();
-            cells_length  = calculate_cells_length (cells_length, cells_number);
-   
-            builder_->initialize_grid( origin, cells_number, cells_length );
-            create_attributes(); 
-            init_points();
+            geode::detail::read_CRS( file_ );
+            initialize_grid();
+            read_data_file();
         }
 
     private:
-        geode::Point3D read_origin()
+        void initialize_grid()
         {
-            geode::Point3D point;
             auto line = geode::detail::goto_keyword( file_, "AXIS_O" );
-            if( geode::detail::string_starts_with( line, "AXIS_O" ) )
-            {
-                auto translation = read_coord( line, 1 );
-                point.set_value( 0, translation.value( 1 ));
-                point.set_value( 1, translation.value( 2 ));
-                point.set_value( 2, translation.value( 2 ));
-            }
-            return point;
+            auto origin = read_coord( line, 1 );
+            const auto grid_size = read_grid_size( origin );
+            auto cells_number = read_cells_number();
+            auto cells_length = compute_cells_length( grid_size, cells_number );
+
+            builder_->initialize_grid( std::move( origin ),
+                std::move( cells_number ), std::move( cells_length ) );
         }
-        
-        std::array< double, 3 > calculate_cells_length(std::array< double, 3 > cells_length, std::array< geode::index_t, 3 > cells_number)
+
+        std::array< double, 3 > read_grid_size( const geode::Point3D& origin )
         {
-            cells_length[0] = cells_length[0] / cells_number[0];
-            cells_length[1] = cells_length[1] / cells_number[1];
-            cells_length[2] = cells_length[2] / cells_number[2];
+            std::array< double, 3 > cells_length;
+            auto line = geode::detail::goto_keyword( file_, "AXIS_U" );
+            cells_length[0] =
+                geode::point_point_distance( origin, read_coord( line, 1 ) );
+            line = geode::detail::goto_keyword( file_, "AXIS_V" );
+            cells_length[1] =
+                geode::point_point_distance( origin, read_coord( line, 1 ) );
+            line = geode::detail::goto_keyword( file_, "AXIS_W" );
+            cells_length[2] =
+                geode::point_point_distance( origin, read_coord( line, 1 ) );
             return cells_length;
         }
 
         std::array< geode::index_t, 3 > read_cells_number()
         {
-            std::array< geode::index_t, 3 > cells_number;
             auto line = geode::detail::goto_keyword( file_, "AXIS_N" );
-            if(geode::detail::string_starts_with( line, "AXIS_N" ) )
-            {
-                auto translation = read_coord( line, 1 );
-                cells_number[0] = translation.value( 0 );
-                cells_number[1] = translation.value( 1 );
-                cells_number[2] = translation.value( 2 );
-            }
-            return cells_number;
+            const auto tokens = geode::string_split( line );
+            return { geode::string_to_index( tokens[1] ),
+                geode::string_to_index( tokens[2] ),
+                geode::string_to_index( tokens[3] ) };
         }
 
-        std::array< double, 3 > read_cells_length(geode::Point3D origin)
+        std::array< double, 3 > compute_cells_length(
+            const std::array< double, 3 >& grid_size,
+            const std::array< geode::index_t, 3 >& nb_cells )
         {
-            std::array< double, 3 > cells_length;
-            auto line = geode::detail::goto_keyword( file_, "AXIS_U" );
-            if( geode::detail::string_starts_with( line, "AXIS_U" ) )
+            std::array< double, 3 > result;
+            for( const auto axis_id : geode::LRange{ 3 } )
             {
-                auto translation = read_coord( line, 1 );
-                cells_length[0] = sqrt(pow((translation.value( 0 ) - origin.value(0)),2)
-                    + pow((translation.value( 1 ) - origin.value(1)),2)
-                    + pow((translation.value( 2 ) - origin.value(0)),2));
+                result[axis_id] = grid_size[axis_id] / nb_cells[axis_id];
             }
-            line = geode::detail::goto_keyword( file_, "AXIS_V" );
-            if( geode::detail::string_starts_with( line, "AXIS_V" ) )
-            {
-                auto translation = read_coord( line, 1 );
-                cells_length[1] = sqrt(pow((translation.value( 0 ) - origin.value(0)),2)
-                    + pow((translation.value( 1 ) - origin.value(1)),2)
-                    + pow((translation.value( 2 ) - origin.value(0)),2));
-            }
-            line = geode::detail::goto_keyword( file_, "AXIS_W" );
-            if( geode::detail::string_starts_with( line, "AXIS_W" ) )
-            {
-                auto translation = read_coord( line, 1 );
-                cells_length[2] = sqrt(pow((translation.value( 0 ) - origin.value(0)),2)
-                    + pow((translation.value( 1 ) - origin.value(1)),2)
-                    + pow((translation.value( 2 ) - origin.value(0)),2));
-            }
-            return cells_length;
+            return result;
         }
 
         geode::Point3D read_coord(
@@ -157,82 +122,52 @@ namespace
                 geode::string_to_double( tokens[2 + offset] ) } };
         }
 
-        void create_attributes()
+        void read_data_file()
         {
-            std::string line;
-            std::getline( data_file_, line );
-            std::getline( data_file_, line );
-            const auto tokens = geode::string_split( line );
-            //attributes_.reserve( tokens.size() - 4 );
-            int i = 4;
-            while((unsigned)i < tokens.size())
-            {
-                const auto attr_name = tokens[i];
-                attributes_.push_back(
-                    reg_grid_.cell_attribute_manager()
-                        .template find_or_create_attribute<
-                            geode::VariableAttribute, double >(
-                            attr_name, 0 ) );
-                i = i + 1;
-            }
-        }
+            auto line = geode::detail::goto_keyword( file_, "ASCII_DATA_FILE" );
+            auto tokens = geode::string_split( line );
+            std::ifstream data_file{ absl::StrCat( file_folder_, tokens[1] ) };
 
-        void init_points() {
-            std::string line;
-            std::getline( data_file_, line );
-            while( std::getline( data_file_, line ) )
+            std::getline( data_file, line );
+            std::getline( data_file, line );
+            tokens = geode::string_split( line );
+            absl::FixedArray<
+                std::shared_ptr< geode::VariableAttribute< double > > >
+                data_attributes( tokens.size() - 4 );
+            for( const auto attribute_id : geode::Indices{ data_attributes } )
             {
-                const auto split_line = geode::string_split( line );
-                OPENGEODE_ASSERT(
-                    split_line.size() == attributes_.size() + 3,
-                    "[VOInput::create_points] Wrong number of "
-                    "split_line: ",
-                    split_line.size(), " - ", attributes_.size() );
-                const auto point_id = get_point( split_line );
-                assign_point_attributes( split_line, point_id );
+                data_attributes[attribute_id] =
+                    grid_.cell_attribute_manager()
+                        .find_or_create_attribute< geode::VariableAttribute,
+                            double >( tokens[4 + attribute_id], 0 );
             }
-        }
-        
-        geode::index_t get_point(
-            absl::Span< const absl::string_view > split_line )
-        {
-            return reg_grid_.cell_index({
-                (unsigned int)geode::string_to_double(split_line[0]),
-                (unsigned int)geode::string_to_double(split_line[1]),
-                (unsigned int)geode::string_to_double(split_line[2])});
-        }
-
-        void assign_point_attributes(
-            absl::Span< const absl::string_view > split_line,
-            geode::index_t point_id )
-        {
-            geode::index_t attr_counter{ 0 };
-            for( const auto line_object_position :
-                geode::Indices{ split_line } )
+            std::getline( data_file, line );
+            while( std::getline( data_file, line ) )
             {
-                if( line_object_position == 0
-                    || line_object_position
-                           == 1
-                    || line_object_position
-                           == 2 )
+                tokens = geode::string_split( line );
+                OPENGEODE_ASSERT( tokens.size() == data_attributes.size() + 3,
+                    "[VOInput::read_data_file] Wrong number of tokens in line, "
+                    "got",
+                    tokens.size(), ", should have ",
+                    data_attributes.size() + 3 );
+                const auto cell_id =
+                    grid_.cell_index( { geode::string_to_index( tokens[0] ),
+                        geode::string_to_index( tokens[1] ),
+                        geode::string_to_index( tokens[2] ) } );
+                for( const auto attribute_id :
+                    geode::Indices{ data_attributes } )
                 {
-                    continue;
+                    data_attributes[attribute_id]->set_value( cell_id,
+                        geode::string_to_double( tokens[3 + attribute_id] ) );
                 }
-                attributes_[attr_counter]->set_value(
-                    point_id, geode::string_to_double(
-                                  split_line[line_object_position] ) );
-                attr_counter++;
             }
         }
 
     private:
         std::ifstream file_;
-        std::ifstream data_file_;
-        geode::RegularGrid3D& reg_grid_;
+        std::string file_folder_;
+        geode::RegularGrid3D& grid_;
         std::unique_ptr< geode::RegularGridBuilder3D > builder_;
-        geode::detail::CRSData crs_;
-        std::vector< std::shared_ptr< geode::VariableAttribute< double > > >
-            attributes_;
     };
 } // namespace
 

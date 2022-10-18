@@ -25,6 +25,8 @@
 
 #include <absl/container/flat_hash_map.h>
 
+#include <geode/basic/uuid.h>
+
 #include <geode/geometry/point.h>
 
 #include <geode/io/geosciences/private/utils.h>

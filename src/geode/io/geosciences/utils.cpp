@@ -24,7 +24,6 @@
 #include <geode/io/geosciences/private/utils.h>
 
 #include <fstream>
-#include <queue>
 
 #include <absl/strings/match.h>
 

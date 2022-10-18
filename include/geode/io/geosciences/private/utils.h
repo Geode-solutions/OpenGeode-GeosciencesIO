@@ -23,19 +23,10 @@
 
 #pragma once
 
-#include <array>
-#include <deque>
-#include <string>
-
-#include <geode/basic/bitsery_archive.h>
-#include <geode/basic/uuid.h>
+#include <absl/types/optional.h>
+#include <absl/types/span.h>
 
 #include <geode/io/geosciences/common.h>
-
-namespace geode
-{
-    class BRep;
-} // namespace geode
 
 namespace geode
 {
