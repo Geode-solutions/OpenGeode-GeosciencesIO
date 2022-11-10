@@ -50,11 +50,12 @@ namespace
 
         void read_file()
         {
-            std::string line;
-            std::getline( file_, line );
-            if( !geode::detail::string_starts_with( line, "GOCAD Well" ) )
+            if( !geode::detail::goto_keyword_if_it_exists(
+                    file_, "GOCAD Well" ) )
             {
-                return;
+                throw geode::OpenGeodeException{
+                    "[WLInput] Cannot find Well in the file"
+                };
             }
             const auto header = geode::detail::read_header( file_ );
             builder_->set_name( header.name );

@@ -88,7 +88,13 @@ namespace
 
         bool read_file()
         {
-            geode::detail::check_keyword( file_, "GOCAD LightTSolid" );
+            if( !geode::detail::goto_keyword_if_it_exists(
+                    file_, "GOCAD LightTSolid" ) )
+            {
+                throw geode::OpenGeodeException{
+                    "[LSOInput] Cannot find LightTSolid in the file"
+                };
+            }
             const auto header = geode::detail::read_header( file_ );
             builder_.set_name( header.name );
             crs_ = geode::detail::read_CRS( file_ );

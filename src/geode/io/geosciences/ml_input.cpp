@@ -89,7 +89,13 @@ namespace
 
         void read_file()
         {
-            geode::detail::check_keyword( file_, "GOCAD Model3d" );
+            if( !geode::detail::goto_keyword_if_it_exists(
+                    file_, "GOCAD Model3d" ) )
+            {
+                throw geode::OpenGeodeException{
+                    "[MLInput] Cannot find Model3d in the file"
+                };
+            }
             const auto header = geode::detail::read_header( file_ );
             builder_.set_name( header.name );
             geode::detail::read_CRS( file_ );
