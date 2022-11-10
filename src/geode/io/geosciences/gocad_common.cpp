@@ -580,7 +580,7 @@ namespace geode
 
         absl::optional< TSurfData > read_tsurf( std::ifstream& file )
         {
-            if( !line_starts_with( file, "GOCAD TSurf" ) )
+            if( !goto_keyword_if_it_exists( file, "GOCAD TSurf" ) )
             {
                 return absl::nullopt;
             }

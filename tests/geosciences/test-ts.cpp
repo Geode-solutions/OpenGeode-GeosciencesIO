@@ -77,6 +77,9 @@ int main()
         check_file( absl::StrCat( geode::data_path, "/2triangles.",
                         geode::detail::TSInput::extension() ),
             4, 2 );
+        check_file( absl::StrCat( geode::data_path, "/sgrid_tsurf.",
+                        geode::detail::TSInput::extension() ),
+            4, 2 );
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
