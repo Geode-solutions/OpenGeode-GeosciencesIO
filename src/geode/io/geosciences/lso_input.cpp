@@ -43,6 +43,8 @@
 #include <geode/mesh/core/tetrahedral_solid.h>
 #include <geode/mesh/core/triangulated_surface.h>
 
+#include <geode/model/helpers/component_mesh_edges.h>
+#include <geode/model/helpers/detail/cut_along_internal_lines.h>
 #include <geode/model/mixin/core/block.h>
 #include <geode/model/mixin/core/corner.h>
 #include <geode/model/mixin/core/line.h>
@@ -114,6 +116,7 @@ namespace
             build_model_boundaries();
             build_corners();
             build_lines();
+            cut_on_internal_lines();
             return !inspect_required_;
         }
 
@@ -902,6 +905,36 @@ namespace
                 }
             }
             return absl::nullopt;
+        }
+
+        void cut_on_internal_lines()
+        {
+            for( const auto& line : model_.lines() )
+            {
+                const auto component_edges =
+                    geode::component_mesh_edges( model_, line, 0 );
+                for( const auto& surface_edges : component_edges.surface_edges )
+                {
+                    const auto& surface = model_.surface( surface_edges.first );
+                    if( model_.is_boundary( line, surface )
+                        || model_.is_internal( line, surface ) )
+                    {
+                        continue;
+                    }
+                    geode::Logger::warn( "Surface ", surface.name(),
+                        " was not cut by one of its internal lines, adding "
+                        "the relation and cutting the surface to ensure "
+                        "model validity." );
+                    builder_.add_line_surface_internal_relationship(
+                        line, surface );
+                    inspect_required_ = true;
+                }
+            }
+
+            geode::detail::CutAlongInternalLines< geode::BRep,
+                geode::BRepBuilder, 3 >
+                cutter{ model_ };
+            cutter.cut_all_surfaces();
         }
 
     private:
