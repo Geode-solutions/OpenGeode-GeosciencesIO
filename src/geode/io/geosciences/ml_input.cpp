@@ -32,6 +32,7 @@
 #include <geode/basic/string.h>
 
 #include <geode/geometry/bounding_box.h>
+#include <geode/geometry/distance.h>
 #include <geode/geometry/nn_search.h>
 #include <geode/geometry/point.h>
 #include <geode/geometry/vector.h>
@@ -348,9 +349,9 @@ namespace
                 }
                 if( need_to_cut )
                 {
-                    geode::detail::CutAlongInternalLines< geode::BRep,
-                        geode::BRepBuilder, 3 >
-                        cutter{ model_ };
+                    geode::detail::CutAlongInternalLines< geode::BRep > cutter{
+                        model_
+                    };
                     cutter.cut_surface( surface );
                 }
             }
@@ -431,8 +432,9 @@ namespace
             }
             for( const auto v : geode::Range{ mesh.nb_vertices() } )
             {
-                if( !mesh.point( v ).inexact_equal(
-                        line_data.points[v], epsilon_ ) )
+                if( geode::point_point_distance(
+                        mesh.point( v ), line_data.points[v] )
+                    > epsilon_ )
                 {
                     return false;
                 }
@@ -450,9 +452,9 @@ namespace
             }
             for( const auto v : geode::Range{ mesh.nb_vertices() } )
             {
-                if( !mesh.point( v ).inexact_equal(
-                        line_data.points[mesh.nb_vertices() - v - 1],
-                        epsilon_ ) )
+                if( geode::point_point_distance( mesh.point( v ),
+                        line_data.points[mesh.nb_vertices() - v - 1] )
+                    > epsilon_ )
                 {
                     return false;
                 }

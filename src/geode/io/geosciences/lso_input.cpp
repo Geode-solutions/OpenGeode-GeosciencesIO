@@ -931,9 +931,9 @@ namespace
                 }
             }
 
-            geode::detail::CutAlongInternalLines< geode::BRep,
-                geode::BRepBuilder, 3 >
-                cutter{ model_ };
+            geode::detail::CutAlongInternalLines< geode::BRep > cutter{
+                model_
+            };
             cutter.cut_all_surfaces();
         }
 
