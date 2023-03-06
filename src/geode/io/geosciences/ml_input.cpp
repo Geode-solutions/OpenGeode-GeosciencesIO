@@ -41,7 +41,7 @@
 #include <geode/mesh/builder/point_set_builder.h>
 #include <geode/mesh/builder/triangulated_surface_builder.h>
 #include <geode/mesh/core/edged_curve.h>
-#include <geode/mesh/core/geode_triangulated_surface.h>
+#include <geode/mesh/core/geode/geode_triangulated_surface.h>
 
 #include <geode/model/helpers/detail/cut_along_internal_lines.h>
 #include <geode/model/mixin/core/corner.h>
