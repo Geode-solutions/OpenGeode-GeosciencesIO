@@ -24,8 +24,8 @@
 #include <geode/basic/attribute_manager.h>
 #include <geode/basic/logger.h>
 #include <geode/geometry/point.h>
-#include <geode/mesh/builder/geode_edged_curve_builder.h>
-#include <geode/mesh/core/geode_edged_curve.h>
+#include <geode/mesh/builder/geode/geode_edged_curve_builder.h>
+#include <geode/mesh/core/geode/geode_edged_curve.h>
 
 #include <geode/io/geosciences/private/pl_output.h>
 
