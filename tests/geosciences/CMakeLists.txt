@@ -35,6 +35,13 @@ add_geode_test(
         ${PROJECT_NAME}::geosciences
 )
 add_geode_test(
+    SOURCE "test-shp.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::model
+        ${PROJECT_NAME}::geosciences
+)
+add_geode_test(
     SOURCE "test-ts.cpp"
     DEPENDENCIES
         OpenGeode::basic
