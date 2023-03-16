@@ -23,6 +23,8 @@
 
 #include <geode/io/geosciences/common.h>
 
+#include <gdal_priv.h>
+
 #include <geode/mesh/io/regular_grid_input.h>
 #include <geode/mesh/io/triangulated_surface_input.h>
 
@@ -36,6 +38,7 @@
 #include <geode/io/geosciences/private/ml_output_brep.h>
 #include <geode/io/geosciences/private/ml_output_structural_model.h>
 #include <geode/io/geosciences/private/pl_output.h>
+#include <geode/io/geosciences/private/shp_input.h>
 #include <geode/io/geosciences/private/ts_input.h>
 #include <geode/io/geosciences/private/vo_input.h>
 #include <geode/io/geosciences/private/well_dat_input.h>
@@ -63,6 +66,15 @@ namespace
         geode::StructuralModelOutputFactory::register_creator<
             geode::detail::LSOOutput >(
             geode::detail::LSOOutput::extension().data() );
+    }
+
+    void register_section_input()
+    {
+        for( const auto& shp_ext : geode::detail::SHPInput::extensions() )
+        {
+            geode::SectionInputFactory::register_creator<
+                geode::detail::SHPInput >( shp_ext );
+        }
     }
 
     void register_brep_output()
@@ -117,10 +129,12 @@ namespace geode
         OpenGeodeGeosciencesGeosciences::initialize();
         register_structural_model_input();
         register_structural_model_output();
+        register_section_input();
         register_brep_output();
         register_triangulated_surface_input();
         register_edged_curve_input();
         register_edged_curve_output();
         register_regular_grid_input();
+        GDALAllRegister();
     }
 } // namespace geode

@@ -23,7 +23,6 @@ add_geode_library(
     FOLDER "geode/io/geosciences"
     SOURCES
         "common.cpp"
-        "utils.cpp"
         "gocad_common.cpp"
         "lso_input.cpp"
         "lso_output.cpp"
@@ -31,16 +30,17 @@ add_geode_library(
         "ml_output_brep.cpp"
         "ml_output_structural_model.cpp"
         "pl_output.cpp"
+        "shp_input.cpp"
         "ts_input.cpp"
+        "utils.cpp"
         "vo_input.cpp"
         "wl_input.cpp"
         "well_dat_input.cpp"
-        "well_txt_input.cpp"
         "well_dev_input.cpp"
+        "well_txt_input.cpp"
     PUBLIC_HEADERS
         "common.h"
     PRIVATE_HEADERS
-        "private/utils.h"
         "private/gocad_common.h"
         "private/lso_input.h"
         "private/lso_output.h"
@@ -49,13 +49,15 @@ add_geode_library(
         "private/ml_output_impl.h"
         "private/ml_output_structural_model.h"
         "private/pl_output.h"
+        "private/shp_input.h"
         "private/ts_input.h"
+        "private/utils.h"
         "private/vo_input.h"
-        "private/wl_input.h"
         "private/well_input.h"
         "private/well_dat_input.h"
-        "private/well_txt_input.h"
         "private/well_dev_input.h"
+        "private/well_txt_input.h"
+        "private/wl_input.h"
     PUBLIC_DEPENDENCIES
         OpenGeode::basic
         OpenGeode::geometry
@@ -63,4 +65,5 @@ add_geode_library(
         OpenGeode-Geosciences::geosciences
     PRIVATE_DEPENDENCIES
         OpenGeode::model
+        GDAL::GDAL
 )
