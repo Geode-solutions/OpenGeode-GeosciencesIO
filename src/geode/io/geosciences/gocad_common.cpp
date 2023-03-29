@@ -398,7 +398,7 @@ namespace geode
                     return header;
                 }
                 const auto tokens = geode::string_split( line );
-                if( tokens.front() == "name" )
+                if( tokens.front() == "name:" )
                 {
                     absl::Span< const absl::string_view > remaining_tokens(
                         &tokens[1], tokens.size() - 1 );
