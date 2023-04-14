@@ -31,7 +31,7 @@ import opengeode_geosciences as geosciences
 import opengeode_geosciencesio_py_model as geosciences_io
 
 if __name__ == '__main__':
-    geosciences_io.OpenGeodeGeosciencesIOGeosciences.initialize()
+    geosciences_io.GeosciencesIOModelLibrary.initialize()
     test_dir = os.path.dirname(__file__)
     data_dir = os.path.abspath(os.path.join(
         test_dir, "../../../../tests/data"))
