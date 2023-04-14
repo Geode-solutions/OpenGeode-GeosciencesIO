@@ -18,5 +18,26 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-add_subdirectory(mesh)
-add_subdirectory(model)
+add_geode_test(
+    SOURCE "test-ml.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::model
+        OpenGeode-Geosciences::explicit
+        ${PROJECT_NAME}::model
+)
+add_geode_test(
+    SOURCE "test-lso.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::model
+        OpenGeode-Geosciences::explicit
+        ${PROJECT_NAME}::model
+)
+add_geode_test(
+    SOURCE "test-shp.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::model
+        ${PROJECT_NAME}::model
+)

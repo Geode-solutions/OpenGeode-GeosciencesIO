@@ -20,7 +20,7 @@
 
 cmake_minimum_required(VERSION 3.15)
     
-if(NOT TARGET OpenGeode-GeosciencesIO::geosciences)
+if(NOT TARGET OpenGeode-GeosciencesIO::mesh)
     project(OpenGeode-GeosciencesIO CXX)
     find_package(OpenGeode REQUIRED CONFIG)
     find_package(OpenGeode-Geosciences REQUIRED CONFIG)
@@ -34,5 +34,6 @@ set(test_config_file ${PROJECT_BINARY_DIR}/geode/tests_config.h)
 configure_file(${test_config_file_in} ${test_config_file})
 include_directories(${PROJECT_BINARY_DIR})
 
-add_subdirectory(geosciences)
+add_subdirectory(mesh)
+add_subdirectory(model)
 

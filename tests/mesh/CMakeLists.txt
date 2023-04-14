@@ -18,5 +18,53 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-add_subdirectory(mesh)
-add_subdirectory(model)
+add_geode_test(
+    SOURCE "test-ts.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
+        ${PROJECT_NAME}::mesh
+)
+add_geode_test(
+    SOURCE "test-pl.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
+        ${PROJECT_NAME}::mesh
+)
+add_geode_test(
+    SOURCE "test-wl.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
+        ${PROJECT_NAME}::mesh
+)
+add_geode_test(
+    SOURCE "test-well-dat.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
+        ${PROJECT_NAME}::mesh
+)
+add_geode_test(
+    SOURCE "test-well-txt.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
+        ${PROJECT_NAME}::mesh
+)
+add_geode_test(
+    SOURCE "test-well-dev.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
+        ${PROJECT_NAME}::mesh
+)
+add_geode_test(
+    SOURCE "test-vo.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
+        ${PROJECT_NAME}::mesh
+)
+

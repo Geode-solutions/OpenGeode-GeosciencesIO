@@ -18,5 +18,13 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-add_subdirectory(mesh)
-add_subdirectory(model)
+add_geode_python_test(
+    SOURCE "test-py-lso.py"
+    DEPENDENCIES
+        ${PROJECT_NAME}::py_model
+)
+add_geode_python_test(
+    SOURCE "test-py-ml.py"
+    DEPENDENCIES
+        ${PROJECT_NAME}::py_model
+)

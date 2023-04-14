@@ -18,5 +18,36 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-add_subdirectory(mesh)
-add_subdirectory(model)
+add_geode_library(
+    NAME mesh
+    FOLDER "geode/geosciences_io/mesh"
+    SOURCES
+        "common.cpp"
+        "gocad_common.cpp"
+        "pl_output.cpp"
+        "ts_input.cpp"
+        "utils.cpp"
+        "vo_input.cpp"
+        "wl_input.cpp"
+        "well_dat_input.cpp"
+        "well_dev_input.cpp"
+        "well_txt_input.cpp"
+    PUBLIC_HEADERS
+        "common.h"
+    PRIVATE_HEADERS
+        "private/gocad_common.h"
+        "private/pl_output.h"
+        "private/ts_input.h"
+        "private/utils.h"
+        "private/vo_input.h"
+        "private/well_input.h"
+        "private/well_dat_input.h"
+        "private/well_dev_input.h"
+        "private/well_txt_input.h"
+        "private/wl_input.h"
+    PUBLIC_DEPENDENCIES
+        OpenGeode::basic
+    PRIVATE_DEPENDENCIES
+        OpenGeode::geometry
+        OpenGeode::mesh
+)
