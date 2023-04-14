@@ -18,5 +18,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-add_subdirectory(mesh)
-add_subdirectory(model)
+import opengeode
+import opengeode_geosciences
+
+from opengeode_geosciencesio_py_model import *
+GeosciencesIOModelLibrary.initialize()

@@ -18,5 +18,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-add_subdirectory(mesh)
-add_subdirectory(model)
+add_geode_python_binding(
+    NAME "py_model"
+    SOURCES
+        "model.cpp"
+    DEPENDENCIES
+        OpenGeode-Geosciences::explicit
+        ${PROJECT_NAME}::model
+)

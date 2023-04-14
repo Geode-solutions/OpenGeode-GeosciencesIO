@@ -18,4 +18,5 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-add_subdirectory(geosciences_io)
+add_subdirectory(mesh)
+add_subdirectory(model)

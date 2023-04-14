@@ -18,5 +18,36 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-add_subdirectory(mesh)
-add_subdirectory(model)
+add_geode_library(
+    NAME model
+    FOLDER "geode/geosciences_io/model"
+    SOURCES
+        "common.cpp"
+        "gocad_common.cpp"
+        "lso_input.cpp"
+        "lso_output.cpp"
+        "ml_input.cpp"
+        "ml_output_brep.cpp"
+        "ml_output_structural_model.cpp"
+        "shp_input.cpp"
+    PUBLIC_HEADERS
+        "common.h"
+    PRIVATE_HEADERS
+        "private/gocad_common.h"
+        "private/lso_input.h"
+        "private/lso_output.h"
+        "private/ml_input.h"
+        "private/ml_output_brep.h"
+        "private/ml_output_impl.h"
+        "private/ml_output_structural_model.h"
+        "private/shp_input.h"
+    PUBLIC_DEPENDENCIES
+        OpenGeode::basic
+    PRIVATE_DEPENDENCIES
+        OpenGeode::geometry
+        OpenGeode::mesh
+        OpenGeode::model
+        OpenGeode-Geosciences::explicit
+        GDAL::GDAL
+        ${PROJECT_NAME}::mesh
+)
