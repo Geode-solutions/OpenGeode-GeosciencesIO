@@ -25,6 +25,8 @@
 
 #include <geode/geometry/point.h>
 
+#include <geode/geosciences_io/mesh/common.h>
+
 namespace geode
 {
     namespace detail
@@ -33,11 +35,14 @@ namespace geode
         {
             std::string name{ "unknown" };
         };
-        HeaderData read_header( std::ifstream& file );
+        HeaderData opengeode_geosciencesio_mesh_api read_header(
+            std::ifstream& file );
 
-        std::string read_name( absl::Span< const absl::string_view > tokens );
+        std::string opengeode_geosciencesio_mesh_api read_name(
+            absl::Span< const absl::string_view > tokens );
 
-        void write_header( std::ofstream& file, const HeaderData& data );
+        void opengeode_geosciencesio_mesh_api write_header(
+            std::ofstream& file, const HeaderData& data );
 
         struct CRSData
         {
@@ -46,9 +51,11 @@ namespace geode
             std::array< std::string, 3 > axis_units{ { "m", "m", "m" } };
             int z_sign{ 1 };
         };
-        CRSData read_CRS( std::ifstream& file );
+        CRSData opengeode_geosciencesio_mesh_api read_CRS(
+            std::ifstream& file );
 
-        void write_CRS( std::ofstream& file, const CRSData& data );
+        void opengeode_geosciencesio_mesh_api write_CRS(
+            std::ofstream& file, const CRSData& data );
 
         struct PropHeaderData
         {
@@ -68,10 +75,10 @@ namespace geode
                 return names.empty();
             }
         };
-        PropHeaderData read_prop_header(
+        PropHeaderData opengeode_geosciencesio_mesh_api read_prop_header(
             std::ifstream& file, absl::string_view prefix );
 
-        void write_prop_header(
+        void opengeode_geosciencesio_mesh_api write_prop_header(
             std::ofstream& file, const PropHeaderData& data );
 
         struct PropClassHeaderData
@@ -81,7 +88,7 @@ namespace geode
             std::string unit{ "unitless" };
             bool is_z{ false };
         };
-        void write_property_class_header(
+        void opengeode_geosciencesio_mesh_api write_property_class_header(
             std::ofstream& file, const PropClassHeaderData& data );
 
         struct TSurfBorderData
@@ -118,6 +125,7 @@ namespace geode
             std::deque< index_t > bstones;
             std::deque< TSurfBorderData > borders;
         };
-        absl::optional< TSurfData > read_tsurf( std::ifstream& file );
+        absl::optional< TSurfData > opengeode_geosciencesio_mesh_api read_tsurf(
+            std::ifstream& file );
     } // namespace detail
 } // namespace geode

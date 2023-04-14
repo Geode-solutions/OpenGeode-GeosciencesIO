@@ -32,19 +32,23 @@ namespace geode
 {
     namespace detail
     {
-        bool string_starts_with(
+        bool opengeode_geosciencesio_mesh_api string_starts_with(
             absl::string_view string, absl::string_view check );
 
-        void check_keyword( std::ifstream& file, absl::string_view keyword );
+        void opengeode_geosciencesio_mesh_api check_keyword(
+            std::ifstream& file, absl::string_view keyword );
 
-        bool line_starts_with( std::ifstream& file, absl::string_view check );
+        bool opengeode_geosciencesio_mesh_api line_starts_with(
+            std::ifstream& file, absl::string_view check );
 
-        std::string goto_keyword( std::ifstream& file, absl::string_view word );
+        std::string opengeode_geosciencesio_mesh_api goto_keyword(
+            std::ifstream& file, absl::string_view word );
 
-        std::string goto_keywords(
+        std::string opengeode_geosciencesio_mesh_api goto_keywords(
             std::ifstream& file, absl::Span< const absl::string_view > words );
 
-        absl::optional< std::string > goto_keyword_if_it_exists(
-            std::ifstream& file, absl::string_view word );
+        absl::optional< std::string >
+            opengeode_geosciencesio_mesh_api goto_keyword_if_it_exists(
+                std::ifstream& file, absl::string_view word );
     } // namespace detail
 } // namespace geode
