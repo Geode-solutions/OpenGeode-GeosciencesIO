@@ -41,3 +41,12 @@ add_geode_test(
         OpenGeode::model
         ${PROJECT_NAME}::model
 )
+add_geode_test(
+    SOURCE "test-skua-su-stack.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::model
+        OpenGeode-Geosciences::explicit
+        OpenGeode-Geosciences::implicit
+        ${PROJECT_NAME}::model
+)

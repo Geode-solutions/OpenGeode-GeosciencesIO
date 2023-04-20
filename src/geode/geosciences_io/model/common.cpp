@@ -31,6 +31,7 @@
 #include <geode/geosciences/explicit/common.h>
 #include <geode/geosciences/explicit/representation/io/structural_model_input.h>
 #include <geode/geosciences/explicit/representation/io/structural_model_output.h>
+#include <geode/geosciences/implicit/representation/io/stratigraphic_units_stack_input.h>
 
 #include <geode/geosciences_io/model/private/lso_input.h>
 #include <geode/geosciences_io/model/private/lso_output.h>
@@ -38,6 +39,7 @@
 #include <geode/geosciences_io/model/private/ml_output_brep.h>
 #include <geode/geosciences_io/model/private/ml_output_structural_model.h>
 #include <geode/geosciences_io/model/private/shp_input.h>
+#include <geode/geosciences_io/model/private/su_stack_skua_input.h>
 
 namespace
 {
@@ -76,6 +78,16 @@ namespace
             geode::detail::MLOutputBRep >(
             geode::detail::MLOutputBRep::extension().data() );
     }
+
+    void register_stratigraphic_units_stack_input()
+    {
+        geode::StratigraphicUnitsStackInputFactory< 2 >::register_creator<
+            geode::detail::SUStackSKUAInput< 2 > >(
+            geode::detail::SUStackSKUAInput< 2 >::extension().data() );
+        geode::StratigraphicUnitsStackInputFactory< 3 >::register_creator<
+            geode::detail::SUStackSKUAInput< 3 > >(
+            geode::detail::SUStackSKUAInput< 3 >::extension().data() );
+    }
 } // namespace
 
 namespace geode
@@ -83,10 +95,12 @@ namespace geode
     OPENGEODE_LIBRARY_IMPLEMENTATION( GeosciencesIOModel )
     {
         GeosciencesExplicitLibrary::initialize();
+        GeosciencesImplicitLibrary::initialize();
         register_structural_model_input();
         register_structural_model_output();
         register_section_input();
         register_brep_output();
+        register_stratigraphic_units_stack_input();
         GDALAllRegister();
     }
 } // namespace geode

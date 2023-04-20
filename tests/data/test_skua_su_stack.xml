@@ -1,0 +1,72 @@
+<UserObjects>
+ <LocalStratigraphicColumn version="2.0">
+  <name>skua_model</name>
+  <classification_type>chronostratigraphy</classification_type>
+  <rank_names>
+   <rank_name>Eon</rank_name>
+  </rank_names>
+  <units use_base_names="false">
+   <unit>
+    <name>above_model_erosion</name>
+    <color>0.827451 0.827451 0.827451 1</color>
+    <base>
+     <name>model_erosion</name>
+     <relation>stratigraphic</relation>
+     <color>1 0.270588 0 1</color>
+    </base>
+   </unit>
+   <unit>
+    <name>eroded_unit</name>
+    <color>1 0.635294 0.498039 1</color>
+    <top>
+     <name>model_erosion</name>
+     <relation>structural</relation>
+     <color>1 0.270588 0 1</color>
+    </top>
+    <base>
+     <name>model_horizon_h1</name>
+     <relation>stratigraphic</relation>
+     <color>0.313726 0.623529 0.411765 1</color>
+    </base>
+   </unit>
+   <unit>
+    <name>model_horizon_u1</name>
+    <color>0.470588 0.937255 0.619608 1</color>
+    <top>
+     <name>model_horizon_h1</name>
+     <relation>stratigraphic</relation>
+     <color>0.313726 0.623529 0.411765 1</color>
+    </top>
+    <base>
+     <name>model_horizon_h2</name>
+     <relation>stratigraphic</relation>
+     <color>0.588235 0.321569 0.176471 1</color>
+    </base>
+   </unit>
+   <unit>
+    <name>model_horizon_u2</name>
+    <color>0.882353 0.482353 0.262745 1</color>
+    <top>
+     <name>model_horizon_h2</name>
+     <relation>stratigraphic</relation>
+     <color>0.588235 0.321569 0.176471 1</color>
+    </top>
+    <base>
+     <name>model_horizon_h3</name>
+     <relation>stratigraphic</relation>
+     <color>0.854902 0.666667 0 1</color>
+    </base>
+   </unit>
+   <unit>
+    <name>model_horizon_u3</name>
+    <color>1 0.843137 0.282353 1</color>
+    <top>
+     <name>model_horizon_h3</name>
+     <relation>stratigraphic</relation>
+     <color>0.854902 0.666667 0 1</color>
+    </top>
+   </unit>
+  </units>
+ </LocalStratigraphicColumn>
+</UserObjects>
+
