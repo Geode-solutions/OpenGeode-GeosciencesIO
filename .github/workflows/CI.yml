@@ -17,7 +17,7 @@ jobs:
     needs: format
     uses: Geode-solutions/actions/.github/workflows/ci-linux.yml@master
     with:
-      repos: OpenGeode;OpenGeode-Geosciences
+      repos: OpenGeode;OpenGeode-IO;OpenGeode-Geosciences
     secrets: inherit
 
   build-linux-python:
@@ -25,21 +25,21 @@ jobs:
     uses: Geode-solutions/actions/.github/workflows/ci-linux-python.yml@master
     with:
       name: OPENGEODE_GEOSCIENCESIO
-      repos: OpenGeode;OpenGeode-Geosciences
+      repos: OpenGeode;OpenGeode-IO;OpenGeode-Geosciences
     secrets: inherit
 
   coverage:
     needs: format
     uses: Geode-solutions/actions/.github/workflows/coverage.yml@master
     with:
-      repos: OpenGeode;OpenGeode-Geosciences
+      repos: OpenGeode;OpenGeode-IO;OpenGeode-Geosciences
     secrets: inherit
   
   build-windows:
     needs: format
     uses: Geode-solutions/actions/.github/workflows/ci-windows.yml@master
     with:
-      repos: OpenGeode;OpenGeode-Geosciences
+      repos: OpenGeode;OpenGeode-IO;OpenGeode-Geosciences
     secrets: inherit
   
   build-windows-python:
@@ -47,7 +47,7 @@ jobs:
     uses: Geode-solutions/actions/.github/workflows/ci-windows-python.yml@master
     with:
       name: OPENGEODE_GEOSCIENCESIO
-      repos: OpenGeode;OpenGeode-Geosciences
+      repos: OpenGeode;OpenGeode-IO;OpenGeode-Geosciences
     secrets: inherit
         
   semantic-release:

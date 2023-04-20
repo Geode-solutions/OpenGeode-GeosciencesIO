@@ -9,21 +9,21 @@ jobs:
     uses: Geode-solutions/actions/.github/workflows/cd-linux.yml@master
     with:
       name: OPENGEODE_GEOSCIENCESIO
-      repos: OpenGeode;OpenGeode-Geosciences
+      repos: OpenGeode;OpenGeode-IO;OpenGeode-Geosciences
     secrets: inherit
 
   release-linux-python:
     uses: Geode-solutions/actions/.github/workflows/cd-linux-python.yml@master
     with:
       name: OPENGEODE_GEOSCIENCESIO
-      repos: OpenGeode;OpenGeode-Geosciences
+      repos: OpenGeode;OpenGeode-IO;OpenGeode-Geosciences
     secrets: inherit
 
   release-windows:
     uses: Geode-solutions/actions/.github/workflows/cd-windows.yml@master
     with:
       name: OPENGEODE_GEOSCIENCESIO
-      repos: OpenGeode;OpenGeode-Geosciences
+      repos: OpenGeode;OpenGeode-IO;OpenGeode-Geosciences
       config: RelWithDebInfo
     secrets: inherit
 
@@ -31,7 +31,7 @@ jobs:
     uses: Geode-solutions/actions/.github/workflows/cd-windows-python.yml@master
     with:
       name: OPENGEODE_GEOSCIENCESIO
-      repos: OpenGeode;OpenGeode-Geosciences
+      repos: OpenGeode;OpenGeode-IO;OpenGeode-Geosciences
     secrets: inherit
 
   notify:

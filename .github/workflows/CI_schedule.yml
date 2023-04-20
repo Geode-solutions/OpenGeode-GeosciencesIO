@@ -8,5 +8,5 @@ jobs:
   schedule:
     uses: Geode-solutions/actions/.github/workflows/ci-schedule.yml@master
     with:
-      repos: OpenGeode;OpenGeode-Geosciences
+      repos: OpenGeode;OpenGeode-IO;OpenGeode-Geosciences
     secrets: inherit
