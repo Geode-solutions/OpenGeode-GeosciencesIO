@@ -29,26 +29,26 @@
 
 #include <geode/geosciences/explicit/mixin/core/horizon.h>
 #include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.h>
-#include <geode/geosciences/implicit/representation/core/stratigraphic_units_stack.h>
-#include <geode/geosciences/implicit/representation/io/stratigraphic_units_stack_output.h>
-#include <geode/geosciences_io/model/private/su_stack_skua_input.h>
+#include <geode/geosciences/implicit/representation/core/horizons_stack.h>
+#include <geode/geosciences/implicit/representation/io/horizons_stack_output.h>
+#include <geode/geosciences_io/model/private/horizons_stack_skua_input.h>
 
 void test_file()
 {
-    const auto su_stack = geode::load_stratigraphic_units_stack< 3 >(
-        absl::StrCat( geode::data_path, "test_skua_su_stack.xml" ) );
+    const auto horizons_stack = geode::load_horizons_stack< 3 >(
+        absl::StrCat( geode::data_path, "test_skua_horizons_stack.xml" ) );
 
-    OPENGEODE_EXCEPTION( su_stack.name() == "skua_model",
-        "[TEST] StratigraphicUnitsStack should be named 'skua_model'" );
+    OPENGEODE_EXCEPTION( horizons_stack.name() == "skua_model",
+        "[TEST] HorizonsStack should be named 'skua_model'" );
 
-    OPENGEODE_EXCEPTION( su_stack.nb_horizons() == 4,
+    OPENGEODE_EXCEPTION( horizons_stack.nb_horizons() == 4,
         "[TEST] Wrong number of horizons in the "
-        "loaded StratigraphicUnitsStack." );
-    OPENGEODE_EXCEPTION( su_stack.nb_stratigraphic_units() == 5,
-        "[TEST] Wrong number of units in the loaded StratigraphicUnitsStack." );
+        "loaded HorizonsStack." );
+    OPENGEODE_EXCEPTION( horizons_stack.nb_stratigraphic_units() == 5,
+        "[TEST] Wrong number of units in the loaded HorizonsStack." );
     geode::uuid erosion_horizon_uuid;
     geode::uuid h1_horizon_uuid;
-    for( const auto& horizon : su_stack.horizons() )
+    for( const auto& horizon : horizons_stack.horizons() )
     {
         if( horizon.name() == "model_erosion" )
         {
@@ -60,7 +60,7 @@ void test_file()
         }
     }
     geode::uuid eroded_unit_uuid;
-    for( const auto& unit : su_stack.stratigraphic_units() )
+    for( const auto& unit : horizons_stack.stratigraphic_units() )
     {
         if( unit.name() == "eroded_unit" )
         {
@@ -68,17 +68,18 @@ void test_file()
         }
     }
     OPENGEODE_EXCEPTION(
-        su_stack.is_above( erosion_horizon_uuid, eroded_unit_uuid ),
+        horizons_stack.is_above( erosion_horizon_uuid, eroded_unit_uuid ),
         "[TEST] Horizon 'model_erosion' should be above unit 'eroded_unit'" );
-    OPENGEODE_EXCEPTION( su_stack.is_above( eroded_unit_uuid, h1_horizon_uuid ),
+    OPENGEODE_EXCEPTION(
+        horizons_stack.is_above( eroded_unit_uuid, h1_horizon_uuid ),
         "[TEST] Unit 'eroded_unit' should be above horizon "
         "'model_horizon_h1'" );
     OPENGEODE_EXCEPTION(
-        su_stack.is_eroded_by( eroded_unit_uuid, erosion_horizon_uuid ),
+        horizons_stack.is_eroded_by( eroded_unit_uuid, erosion_horizon_uuid ),
         "[TEST] Horizon 'model_erosion' should erode unit 'eroded_unit'" );
 
-    geode::save_stratigraphic_units_stack(
-        su_stack, "test_su_stack_import.og_sus3d" );
+    geode::save_horizons_stack(
+        horizons_stack, "test_horizons_stack_import.og_sus3d" );
 }
 
 int main()
