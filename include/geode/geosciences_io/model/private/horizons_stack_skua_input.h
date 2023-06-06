@@ -32,7 +32,8 @@ namespace geode
     namespace detail
     {
         template < index_t dimension >
-        class HorizonStackSKUAInput final : public HorizonsStackInput< dimension >
+        class HorizonStackSKUAInput final
+            : public HorizonsStackInput< dimension >
         {
         public:
             HorizonStackSKUAInput( absl::string_view filename )
