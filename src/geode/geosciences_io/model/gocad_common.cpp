@@ -250,6 +250,9 @@ namespace geode
     {
         RegionSurfaceSide determine_surface_to_regions_sides( const BRep& brep )
         {
+            OPENGEODE_EXCEPTION( brep.nb_model_boundaries() > 0,
+                "[determine_surface_to_regions_sides] Requires ModelBoundaries "
+                "to be defined" );
             RegionSurfaceSide result;
             const auto paired_signs = determine_paired_signs( brep );
             result.universe_surface_sides =
