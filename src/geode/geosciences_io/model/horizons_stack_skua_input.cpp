@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences_io/model/private/su_stack_skua_input.h>
+#include <geode/geosciences_io/model/private/horizons_stack_skua_input.h>
 
 #include <fstream>
 
@@ -35,35 +35,34 @@
 #include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.h>
 #include <geode/geosciences/explicit/representation/io/structural_model_input.h>
 
-#include <geode/geosciences/implicit/representation/builder/stratigraphic_units_stack_builder.h>
-#include <geode/geosciences/implicit/representation/core/stratigraphic_units_stack.h>
+#include <geode/geosciences/implicit/representation/builder/horizons_stack_builder.h>
+#include <geode/geosciences/implicit/representation/core/horizons_stack.h>
 
 namespace
 {
     template < geode::index_t dimension >
-    class SUStackSKUAInputImpl
+    class HorizonStackSKUAInputImpl
     {
     public:
-        SUStackSKUAInputImpl( absl::string_view filename )
+        HorizonStackSKUAInputImpl( absl::string_view filename )
             : filename_( filename )
         {
         }
 
-        geode::StratigraphicUnitsStack< dimension > read_file()
+        geode::HorizonsStack< dimension > read_file()
         {
             load_file();
-            geode::StratigraphicUnitsStack< dimension > su_stack;
-            geode::StratigraphicUnitsStackBuilder< dimension > builder{
-                su_stack
-            };
+            geode::HorizonsStack< dimension > horizons_stack;
+            geode::HorizonsStackBuilder< dimension > builder{ horizons_stack };
             builder.set_name( absl::StripAsciiWhitespace(
                 root_.child( "name" ).child_value() ) );
             const auto& units = root_.child( "units" );
             bool use_base_names;
             const auto ok = absl::SimpleAtob(
                 units.attribute( "use_base_names" ).value(), &use_base_names );
-            OPENGEODE_EXCEPTION( ok, "[SUStackSKUAInput::read_units] Failed to "
-                                     "read use_base_names attribute." );
+            OPENGEODE_EXCEPTION( ok,
+                "[HorizonStackSKUAInput::read_units] Failed to "
+                "read use_base_names attribute." );
             absl::flat_hash_map< std::string, geode::uuid > name_map;
             for( const auto& unit : units.children( "unit" ) )
             {
@@ -71,7 +70,7 @@ namespace
                     unit.child( "name" ).child_value() );
                 const auto& unit_uuid = builder.add_stratigraphic_unit();
                 const auto& strati_unit =
-                    su_stack.stratigraphic_unit( unit_uuid );
+                    horizons_stack.stratigraphic_unit( unit_uuid );
                 builder.set_stratigraphic_unit_name( unit_uuid, unit_name );
                 for( const auto& unit_top : unit.children( "top" ) )
                 {
@@ -86,8 +85,8 @@ namespace
                             top_horizon_uuid, top_horizon_name );
                         name_map[top_horizon_name] = top_horizon_uuid;
                     }
-                    const auto& top_horizon =
-                        su_stack.horizon( name_map.at( top_horizon_name ) );
+                    const auto& top_horizon = horizons_stack.horizon(
+                        name_map.at( top_horizon_name ) );
                     builder.add_horizon_above( top_horizon, strati_unit );
                     if( top_relation == "structural" )
                     {
@@ -107,8 +106,8 @@ namespace
                             base_horizon_uuid, base_horizon_name );
                         name_map[base_horizon_name] = base_horizon_uuid;
                     }
-                    const auto& base_horizon =
-                        su_stack.horizon( name_map.at( base_horizon_name ) );
+                    const auto& base_horizon = horizons_stack.horizon(
+                        name_map.at( base_horizon_name ) );
                     builder.add_horizon_under( base_horizon, strati_unit );
                     if( base_relation == "structural" )
                     {
@@ -116,7 +115,7 @@ namespace
                     }
                 }
             }
-            return su_stack;
+            return horizons_stack;
         }
 
     private:
@@ -124,10 +123,11 @@ namespace
         {
             std::ifstream file{ geode::to_string( filename_ ) };
             OPENGEODE_EXCEPTION( file.good(),
-                "[SUStackSKUAInput] Error while opening file: ", filename_ );
+                "[HorizonStackSKUAInput] Error while opening file: ",
+                filename_ );
             const auto status =
                 document_.load_file( geode::to_string( filename_ ).c_str() );
-            OPENGEODE_EXCEPTION( status, "[SUStackSKUAInput] Error ",
+            OPENGEODE_EXCEPTION( status, "[HorizonStackSKUAInput] Error ",
                 status.description(), " while parsing file: ", filename_ );
             root_ = document_.child( "UserObjects" )
                         .child( "LocalStratigraphicColumn" );
@@ -145,14 +145,13 @@ namespace geode
     namespace detail
     {
         template < index_t dimension >
-        StratigraphicUnitsStack< dimension >
-            SUStackSKUAInput< dimension >::read()
+        HorizonsStack< dimension > HorizonStackSKUAInput< dimension >::read()
         {
-            SUStackSKUAInputImpl< dimension > impl{ this->filename() };
+            HorizonStackSKUAInputImpl< dimension > impl{ this->filename() };
             return impl.read_file();
         }
 
-        template class SUStackSKUAInput< 2 >;
-        template class SUStackSKUAInput< 3 >;
+        template class HorizonStackSKUAInput< 2 >;
+        template class HorizonStackSKUAInput< 3 >;
     } // namespace detail
 } // namespace geode

@@ -44,6 +44,7 @@
 #include <geode/mesh/core/triangulated_surface.h>
 
 #include <geode/model/helpers/component_mesh_edges.h>
+#include <geode/model/helpers/detail/build_model_boundaries.h>
 #include <geode/model/helpers/detail/cut_along_internal_lines.h>
 #include <geode/model/mixin/core/block.h>
 #include <geode/model/mixin/core/corner.h>
@@ -115,7 +116,7 @@ namespace
             read_tetrahedra_region_indicators();
             read_surfaces();
             read_blocks();
-            build_model_boundaries();
+            geode::detail::build_model_boundaries( model_, builder_ );
             build_corners();
             build_lines();
             cut_on_internal_lines();
@@ -669,19 +670,6 @@ namespace
                     inspect_required_ = true;
                     geode::Logger::warn( "[LSOInput] Block ", block.name(),
                         " is not conformal to surface ", surface.name(), "." );
-                }
-            }
-        }
-
-        void build_model_boundaries()
-        {
-            const auto& id = builder_.add_model_boundary();
-            const auto& boundary = model_.model_boundary( id );
-            for( const auto& surface : model_.surfaces() )
-            {
-                if( model_.nb_incidences( surface.id() ) == 1 )
-                {
-                    builder_.add_surface_in_model_boundary( surface, boundary );
                 }
             }
         }

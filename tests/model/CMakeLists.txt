@@ -42,7 +42,7 @@ add_geode_test(
         ${PROJECT_NAME}::model
 )
 add_geode_test(
-    SOURCE "test-skua-su-stack.cpp"
+    SOURCE "test-skua-horizons-stack.cpp"
     DEPENDENCIES
         OpenGeode::basic
         OpenGeode::model

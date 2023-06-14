@@ -23,7 +23,7 @@
 
 #pragma once
 
-#include <geode/geosciences/implicit/representation/io/stratigraphic_units_stack_input.h>
+#include <geode/geosciences/implicit/representation/io/horizons_stack_input.h>
 
 #include <geode/geosciences_io/model/common.h>
 
@@ -32,12 +32,12 @@ namespace geode
     namespace detail
     {
         template < index_t dimension >
-        class SUStackSKUAInput final
-            : public StratigraphicUnitsStackInput< dimension >
+        class HorizonStackSKUAInput final
+            : public HorizonsStackInput< dimension >
         {
         public:
-            SUStackSKUAInput( absl::string_view filename )
-                : StratigraphicUnitsStackInput< dimension >( filename )
+            HorizonStackSKUAInput( absl::string_view filename )
+                : HorizonsStackInput< dimension >( filename )
             {
             }
 
@@ -47,8 +47,8 @@ namespace geode
                 return ext;
             }
 
-            StratigraphicUnitsStack< dimension > read() final;
+            HorizonsStack< dimension > read() final;
         };
-        ALIAS_2D_AND_3D( SUStackSKUAInput );
+        ALIAS_2D_AND_3D( HorizonStackSKUAInput );
     } // namespace detail
 } // namespace geode

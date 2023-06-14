@@ -30,7 +30,7 @@ add_geode_library(
         "ml_output_brep.cpp"
         "ml_output_structural_model.cpp"
         "shp_input.cpp"
-        "su_stack_skua_input.cpp"
+        "horizons_stack_skua_input.cpp"
     PUBLIC_HEADERS
         "common.h"
     PRIVATE_HEADERS
@@ -42,7 +42,7 @@ add_geode_library(
         "private/ml_output_impl.h"
         "private/ml_output_structural_model.h"
         "private/shp_input.h"
-        "private/su_stack_skua_input.h"
+        "private/horizons_stack_skua_input.h"
     PUBLIC_DEPENDENCIES
         OpenGeode::basic
     PRIVATE_DEPENDENCIES
