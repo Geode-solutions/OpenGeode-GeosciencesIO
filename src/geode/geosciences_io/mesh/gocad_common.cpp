@@ -334,7 +334,7 @@ namespace geode
                 {
                     geode_unused( item );
                     OPENGEODE_ASSERT( line_properties_position < tokens.size(),
-                        "[LSOInput::read_point_properties] Cannot read "
+                        "[GocadInput::read_point_properties] Cannot read "
                         "properties: number of property items is higher than "
                         "number of tokens." );
                     attribute_values[attr_id].push_back(

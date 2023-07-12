@@ -80,12 +80,14 @@ namespace geode
         PropHeaderData opengeode_geosciencesio_mesh_api read_prop_header(
             std::ifstream& file, absl::string_view prefix );
 
-        void read_properties( const PropHeaderData& properties_header,
+        void opengeode_geosciencesio_mesh_api read_properties(
+            const PropHeaderData& properties_header,
             std::vector< std::vector< double > >& attribute_values,
             absl::Span< const absl::string_view > tokens,
             geode::index_t line_properties_position );
 
-        void create_attributes( const PropHeaderData& attributes_header,
+        void opengeode_geosciencesio_mesh_api create_attributes(
+            const PropHeaderData& attributes_header,
             absl::Span< const std::vector< double > > attributes_values,
             geode::AttributeManager& attribute_manager,
             geode::index_t nb_vertices,
