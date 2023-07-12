@@ -106,5 +106,19 @@ namespace geode
             file.seekg( std::ios::beg );
             return absl::nullopt;
         }
+
+        absl::optional< std::string > next_keyword_if_it_exists(
+            std::ifstream& file, absl::string_view word )
+        {
+            std::string line;
+            const auto previous_position = file.tellg();
+            std::getline( file, line );
+            if( string_starts_with( line, word ) )
+            {
+                return line;
+            }
+            file.seekg( previous_position );
+            return absl::nullopt;
+        }
     } // namespace detail
 } // namespace geode

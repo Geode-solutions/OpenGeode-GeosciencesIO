@@ -28,7 +28,6 @@
 #include <absl/container/flat_hash_set.h>
 #include <absl/strings/match.h>
 
-#include <geode/basic/attribute_manager.h>
 #include <geode/basic/string.h>
 
 #include <geode/geometry/point.h>
@@ -136,13 +135,15 @@ namespace
                 if( geode::detail::string_starts_with( line_, "SHARED" ) )
                 {
                     std::tie( point, unique_id ) = read_shared_point();
-                    read_shared_point_properties();
+                    geode::detail::read_properties( vertices_prop_header_,
+                        vertices_attributes_, get_tokens(), 3 );
                 }
                 else
                 {
                     unique_id = nb_unique_vertices;
                     point = read_point();
-                    read_unique_point_properties();
+                    geode::detail::read_properties( vertices_prop_header_,
+                        vertices_attributes_, get_tokens(), 5 );
                     vertex_mapping_.emplace_back();
                     nb_unique_vertices++;
                 }
@@ -178,39 +179,6 @@ namespace
             return point;
         }
 
-        void read_shared_point_properties()
-        {
-            read_point_properties( 3 );
-        }
-
-        void read_unique_point_properties()
-        {
-            read_point_properties( 5 );
-        }
-
-        void read_point_properties( geode::index_t line_properties_position )
-        {
-            const auto split_line = get_tokens();
-            for( const auto attr_id :
-                geode::Indices{ vertices_prop_header_.names } )
-            {
-                for( const auto item :
-                    geode::LRange{ vertices_prop_header_.esizes[attr_id] } )
-                {
-                    geode_unused( item );
-                    OPENGEODE_ASSERT(
-                        line_properties_position < split_line.size(),
-                        "[LSOInput::read_point_properties] Cannot read "
-                        "properties: number of property items is higher than "
-                        "number of tokens." );
-                    vertices_attributes_[attr_id].push_back(
-                        geode::string_to_double(
-                            split_line[line_properties_position] ) );
-                    line_properties_position++;
-                }
-            }
-        }
-
         void read_vertex_region_indicators()
         {
             if( geode::detail::string_starts_with(
@@ -237,7 +205,8 @@ namespace
                 }
                 const auto tetra_id =
                     solid_builder_->create_tetrahedron( vertices );
-                read_tetrahedron_properties();
+                geode::detail::read_properties( tetrahedra_prop_header_,
+                    tetrahedra_attributes_, tokens, 5 );
                 std::getline( file_, line_ );
                 const auto tokens2 = get_tokens();
                 block_name_attribute_->set_value(
@@ -245,30 +214,6 @@ namespace
             } while( std::getline( file_, line_ )
                      && geode::detail::string_starts_with( line_, "TETRA" ) );
             solid_builder_->compute_polyhedron_adjacencies();
-        }
-
-        void read_tetrahedron_properties()
-        {
-            const auto split_line = get_tokens();
-            geode::index_t line_properties_position{ 5 };
-            for( const auto attr_id :
-                geode::Indices{ tetrahedra_prop_header_.names } )
-            {
-                for( const auto item :
-                    geode::LRange{ tetrahedra_prop_header_.esizes[attr_id] } )
-                {
-                    geode_unused( item );
-                    OPENGEODE_ASSERT(
-                        line_properties_position < split_line.size(),
-                        "[LSOInput::read_tetra_properties] Cannot read "
-                        "properties: number of property items is higher than "
-                        "number of tokens." );
-                    tetrahedra_attributes_[attr_id].push_back(
-                        geode::string_to_double(
-                            split_line[line_properties_position] ) );
-                    line_properties_position++;
-                }
-            }
         }
 
         void read_tetrahedra_region_indicators()
@@ -459,157 +404,14 @@ namespace
                 inverse_tetrahedra_mapping.push_back( tetra );
             }
             builder->compute_polyhedron_adjacencies();
-            create_block_vertices_attributes(
-                block_id, inverse_vertex_mapping );
-            create_block_tetrahedra_attributes(
-                block_id, inverse_tetrahedra_mapping );
-        }
-
-        void create_block_vertices_attributes( const geode::uuid& block_id,
-            absl::Span< const geode::index_t > inverse_vertex_mapping )
-        {
             const auto& block_mesh = model_.block( block_id ).mesh();
-            for( const auto attr_id :
-                geode::Indices{ vertices_prop_header_.names } )
-            {
-                const auto nb_attribute_items =
-                    vertices_prop_header_.esizes[attr_id];
-                if( nb_attribute_items == 1 )
-                {
-                    auto attribute =
-                        block_mesh.vertex_attribute_manager()
-                            .find_or_create_attribute< geode::VariableAttribute,
-                                double >(
-                                vertices_prop_header_.names[attr_id], 0 );
-                    for( const auto pt_id :
-                        geode::Range{ block_mesh.nb_vertices() } )
-                    {
-                        attribute->set_value( pt_id,
-                            vertices_attributes_
-                                [attr_id][inverse_vertex_mapping[pt_id]] );
-                    }
-                }
-                else if( nb_attribute_items == 2 )
-                {
-                    std::array< double, 2 > container;
-                    container.fill( 0 );
-                    add_vertices_container_attribute( block_mesh,
-                        inverse_vertex_mapping, attr_id, container );
-                }
-                else if( nb_attribute_items == 3 )
-                {
-                    std::array< double, 3 > container;
-                    container.fill( 0 );
-                    add_vertices_container_attribute( block_mesh,
-                        inverse_vertex_mapping, attr_id, container );
-                }
-                else
-                {
-                    std::vector< double > container( nb_attribute_items, 0 );
-                    add_vertices_container_attribute<>( block_mesh,
-                        inverse_vertex_mapping, attr_id, container );
-                }
-            }
-        }
-
-        void create_block_tetrahedra_attributes( const geode::uuid& block_id,
-            absl::Span< const geode::index_t > inverse_tetrahedra_mapping )
-        {
-            const auto& block_mesh = model_.block( block_id ).mesh();
-            for( const auto attr_id :
-                geode::Indices{ tetrahedra_prop_header_.names } )
-            {
-                const auto nb_attribute_items =
-                    tetrahedra_prop_header_.esizes[attr_id];
-                if( nb_attribute_items == 1 )
-                {
-                    auto attribute =
-                        block_mesh.polyhedron_attribute_manager()
-                            .find_or_create_attribute< geode::VariableAttribute,
-                                double >(
-                                tetrahedra_prop_header_.names[attr_id], 0 );
-                    for( const auto tetra_id :
-                        geode::Indices{ inverse_tetrahedra_mapping } )
-                    {
-                        attribute->set_value( tetra_id,
-                            tetrahedra_attributes_
-                                [attr_id]
-                                [inverse_tetrahedra_mapping[tetra_id]] );
-                    }
-                }
-                else if( nb_attribute_items == 2 )
-                {
-                    std::array< double, 2 > container;
-                    container.fill( 0 );
-                    add_tetrahedra_container_attribute( block_mesh,
-                        inverse_tetrahedra_mapping, attr_id, container );
-                }
-                else if( nb_attribute_items == 3 )
-                {
-                    std::array< double, 3 > container;
-                    container.fill( 0 );
-                    add_tetrahedra_container_attribute( block_mesh,
-                        inverse_tetrahedra_mapping, attr_id, container );
-                }
-                else
-                {
-                    std::vector< double > container( nb_attribute_items, 0 );
-                    add_tetrahedra_container_attribute( block_mesh,
-                        inverse_tetrahedra_mapping, attr_id, container );
-                }
-            }
-        }
-
-        template < typename Container >
-        void add_vertices_container_attribute(
-            const geode::SolidMesh3D& block_mesh,
-            absl::Span< const geode::index_t > inverse_mapping,
-            geode::index_t attr_id,
-            Container value_array )
-        {
-            auto attribute =
-                block_mesh.vertex_attribute_manager()
-                    .template find_or_create_attribute<
-                        geode::VariableAttribute, Container >(
-                        vertices_prop_header_.names[attr_id], value_array );
-            for( const auto pt_id : geode::Range{ block_mesh.nb_vertices() } )
-            {
-                for( const auto item_id : geode::LRange{ value_array.size() } )
-                {
-                    value_array[item_id] =
-                        vertices_attributes_[attr_id][inverse_mapping[pt_id]
-                                                          * value_array.size()
-                                                      + item_id];
-                }
-                attribute->set_value( pt_id, value_array );
-            }
-        }
-
-        template < typename Container >
-        void add_tetrahedra_container_attribute(
-            const geode::SolidMesh3D& block_mesh,
-            absl::Span< const geode::index_t > inverse_mapping,
-            geode::index_t attr_id,
-            Container value_array )
-        {
-            auto attribute =
-                block_mesh.polyhedron_attribute_manager()
-                    .template find_or_create_attribute<
-                        geode::VariableAttribute, Container >(
-                        tetrahedra_prop_header_.names[attr_id], value_array );
-            for( const auto tetra_id :
-                geode::Range{ block_mesh.nb_polyhedra() } )
-            {
-                for( const auto item_id : geode::LRange{ value_array.size() } )
-                {
-                    value_array[item_id] =
-                        tetrahedra_attributes_[attr_id]
-                                              [inverse_mapping[tetra_id]
-                                                      * value_array.size()
-                                                  + item_id];
-                }
-                attribute->set_value( tetra_id, value_array );
-            }
+            geode::detail::create_attributes( vertices_prop_header_,
+                vertices_attributes_, block_mesh.vertex_attribute_manager(),
+                block_mesh.nb_vertices(), inverse_vertex_mapping );
+            geode::detail::create_attributes( tetrahedra_prop_header_,
+                tetrahedra_attributes_,
+                block_mesh.polyhedron_attribute_manager(),
+                block_mesh.nb_vertices(), inverse_vertex_mapping );
         }
 
         absl::flat_hash_map< geode::uuid, geode::index_t > find_block_relations(

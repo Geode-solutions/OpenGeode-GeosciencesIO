@@ -23,6 +23,8 @@
 
 #pragma once
 
+#include <geode/basic/attribute_manager.h>
+
 #include <geode/geometry/point.h>
 
 #include <geode/geosciences_io/mesh/common.h>
@@ -78,6 +80,17 @@ namespace geode
         PropHeaderData opengeode_geosciencesio_mesh_api read_prop_header(
             std::ifstream& file, absl::string_view prefix );
 
+        void read_properties( const PropHeaderData& properties_header,
+            std::vector< std::vector< double > >& attribute_values,
+            absl::Span< const absl::string_view > tokens,
+            geode::index_t line_properties_position );
+
+        void create_attributes( const PropHeaderData& attributes_header,
+            absl::Span< const std::vector< double > > attributes_values,
+            geode::AttributeManager& attribute_manager,
+            geode::index_t nb_vertices,
+            absl::Span< const geode::index_t > inverse_vertex_mapping );
+
         void opengeode_geosciencesio_mesh_api write_prop_header(
             std::ofstream& file, const PropHeaderData& data );
 
@@ -118,12 +131,14 @@ namespace geode
             index_t OFFSET_START{ 1 };
             HeaderData header;
             CRSData crs;
+            PropHeaderData vertices_properties_header;
             std::deque< Point3D > points;
             std::deque< std::array< index_t, 3 > > triangles;
             std::deque< index_t > tface_triangles_offset{ 0 };
             std::deque< index_t > tface_vertices_offset{ 0 };
             std::deque< index_t > bstones;
             std::deque< TSurfBorderData > borders;
+            std::vector< std::vector< double > > vertices_attribute_values;
         };
         absl::optional< TSurfData > opengeode_geosciencesio_mesh_api read_tsurf(
             std::ifstream& file );

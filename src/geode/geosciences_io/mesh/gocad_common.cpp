@@ -58,12 +58,18 @@ namespace
                         geode::string_to_double( tokens[3] ),
                         tsurf.crs.z_sign
                             * geode::string_to_double( tokens[4] ) } } );
+                geode::detail::read_properties(
+                    tsurf.vertices_properties_header,
+                    tsurf.vertices_attribute_values, tokens, 5 );
             }
             else if( keyword == "ATOM" || keyword == "PATOM" )
             {
                 tsurf.points.push_back(
                     tsurf.points.at( geode::string_to_index( tokens[2] )
                                      - tsurf.OFFSET_START ) );
+                geode::detail::read_properties(
+                    tsurf.vertices_properties_header,
+                    tsurf.vertices_attribute_values, tokens, 3 );
             }
             else if( keyword == "TRGL" )
             {
@@ -168,6 +174,29 @@ namespace
                 geode::string_to_index( split_line[attr_id + 1] );
         }
     }
+
+    template < typename Container >
+    void add_vertices_container_attribute( absl::string_view attribute_name,
+        absl::Span< const double > attribute_values,
+        geode::AttributeManager& attribute_manager,
+        geode::index_t nb_vertices,
+        absl::Span< const geode::index_t > inverse_mapping,
+        Container value_array )
+    {
+        auto attribute = attribute_manager.template find_or_create_attribute<
+            geode::VariableAttribute, Container >(
+            attribute_name, value_array );
+        for( const auto pt_id : geode::Range{ nb_vertices } )
+        {
+            for( const auto item_id : geode::LRange{ value_array.size() } )
+            {
+                value_array[item_id] =
+                    attribute_values[inverse_mapping[pt_id] * value_array.size()
+                                     + item_id];
+            }
+            attribute->set_value( pt_id, value_array );
+        }
+    }
 } // namespace
 
 namespace geode
@@ -248,13 +277,13 @@ namespace geode
             std::ifstream& file, absl::string_view prefix )
         {
             PropHeaderData header;
-            const auto opt_line = geode::detail::goto_keyword_if_it_exists(
+            const auto opt_line = geode::detail::next_keyword_if_it_exists(
                 file, absl::StrCat( prefix, "PROPERTIES" ) );
             if( !opt_line )
             {
                 geode::Logger::info( "Token ", prefix,
-                    "PROPERTIES could not be found in the file, "
-                    "the corresponding attributes will not be loaded." );
+                    "PROPERTIES could not be found in the file, the "
+                    "corresponding attributes will not be loaded." );
                 return header;
             }
             const auto split_line = geode::string_split( opt_line.value() );
@@ -290,6 +319,84 @@ namespace geode
             read_property_keyword_with_one_string( file,
                 absl::StrCat( prefix, "UNITS" ), header.units, nb_attributes );
             return header;
+        }
+
+        void read_properties( const PropHeaderData& properties_header,
+            std::vector< std::vector< double > >& attribute_values,
+            absl::Span< const absl::string_view > tokens,
+            geode::index_t line_properties_position )
+        {
+            for( const auto attr_id :
+                geode::Indices{ properties_header.names } )
+            {
+                for( const auto item :
+                    geode::LRange{ properties_header.esizes[attr_id] } )
+                {
+                    geode_unused( item );
+                    OPENGEODE_ASSERT( line_properties_position < tokens.size(),
+                        "[LSOInput::read_point_properties] Cannot read "
+                        "properties: number of property items is higher than "
+                        "number of tokens." );
+                    attribute_values[attr_id].push_back(
+                        geode::string_to_double(
+                            tokens[line_properties_position] ) );
+                    line_properties_position++;
+                }
+            }
+        }
+
+        void create_attributes( const PropHeaderData& attributes_header,
+            absl::Span< const std::vector< double > > attributes_values,
+            geode::AttributeManager& attribute_manager,
+            geode::index_t nb_vertices,
+            absl::Span< const geode::index_t > inverse_vertex_mapping )
+        {
+            for( const auto attr_id :
+                geode::Indices{ attributes_header.names } )
+            {
+                const auto nb_attribute_items =
+                    attributes_header.esizes[attr_id];
+                if( nb_attribute_items == 1 )
+                {
+                    auto attribute = attribute_manager.find_or_create_attribute<
+                        geode::VariableAttribute, double >(
+                        attributes_header.names[attr_id],
+                        attributes_header.no_data_values[attr_id] );
+                    for( const auto pt_id : geode::Range{ nb_vertices } )
+                    {
+                        attribute->set_value( pt_id,
+                            attributes_values[attr_id]
+                                             [inverse_vertex_mapping[pt_id]] );
+                    }
+                }
+                else if( nb_attribute_items == 2 )
+                {
+                    std::array< double, 2 > container;
+                    container.fill( attributes_header.no_data_values[attr_id] );
+                    add_vertices_container_attribute(
+                        attributes_header.names[attr_id],
+                        attributes_values[attr_id], attribute_manager,
+                        nb_vertices, inverse_vertex_mapping, container );
+                }
+                else if( nb_attribute_items == 3 )
+                {
+                    std::array< double, 3 > container;
+                    container.fill( attributes_header.no_data_values[attr_id] );
+                    add_vertices_container_attribute(
+                        attributes_header.names[attr_id],
+                        attributes_values[attr_id], attribute_manager,
+                        nb_vertices, inverse_vertex_mapping, container );
+                }
+                else
+                {
+                    std::vector< double > container( nb_attribute_items,
+                        attributes_header.no_data_values[attr_id] );
+                    add_vertices_container_attribute<>(
+                        attributes_header.names[attr_id],
+                        attributes_values[attr_id], attribute_manager,
+                        nb_vertices, inverse_vertex_mapping, container );
+                }
+            }
         }
 
         void write_prop_header(
@@ -375,6 +482,10 @@ namespace geode
             TSurfData tsurf;
             tsurf.header = read_header( file );
             tsurf.crs = read_CRS( file );
+            tsurf.vertices_properties_header =
+                geode::detail::read_prop_header( file, "" );
+            tsurf.vertices_attribute_values.resize(
+                tsurf.vertices_properties_header.names.size() );
             read_tfaces( file, tsurf );
             return tsurf;
         }

@@ -84,6 +84,16 @@ namespace
                     builder_->create_triangle( triangle );
                 }
             }
+            std::vector< geode::index_t > inverse_vertex_mapping(
+                tsurf.points.size() );
+            for( const auto v : geode::Indices{ inverse_vertex_mapping } )
+            {
+                inverse_vertex_mapping[v] = v;
+            }
+            geode::detail::create_attributes( tsurf.vertices_properties_header,
+                tsurf.vertices_attribute_values,
+                surface_.vertex_attribute_manager(), tsurf.points.size(),
+                inverse_vertex_mapping );
         }
 
     private:

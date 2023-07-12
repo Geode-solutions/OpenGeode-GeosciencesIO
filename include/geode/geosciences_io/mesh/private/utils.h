@@ -50,5 +50,9 @@ namespace geode
         absl::optional< std::string >
             opengeode_geosciencesio_mesh_api goto_keyword_if_it_exists(
                 std::ifstream& file, absl::string_view word );
+
+        absl::optional< std::string >
+            opengeode_geosciencesio_mesh_api next_keyword_if_it_exists(
+                std::ifstream& file, absl::string_view word );
     } // namespace detail
 } // namespace geode
