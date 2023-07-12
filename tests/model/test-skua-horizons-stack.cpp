@@ -79,7 +79,7 @@ void test_file()
         "[TEST] Horizon 'model_erosion' should erode unit 'eroded_unit'" );
 
     geode::save_horizons_stack(
-        horizons_stack, "test_horizons_stack_import.og_sus3d" );
+        horizons_stack, "test_horizons_stack_import.og_hst3d" );
 }
 
 int main()
