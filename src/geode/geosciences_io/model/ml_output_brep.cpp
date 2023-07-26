@@ -34,7 +34,8 @@ namespace
     {
     public:
         MLOutputImplBRep( absl::string_view filename, const geode::BRep& model )
-            : geode::detail::MLOutputImpl< geode::BRep >( filename, model )
+            : geode::detail::MLOutputImpl< geode::BRep >( filename, model ),
+              model_( model )
         {
         }
 
@@ -43,9 +44,35 @@ namespace
 
         void write_geological_tsurfs() override {}
 
+        std::vector< geode::uuid > unclassified_tsurfs() const
+        {
+            std::vector< geode::uuid > result;
+            for( const auto& surface : model_.surfaces() )
+            {
+                bool is_part_of_model_boundary{ false };
+                for( const auto& collection :
+                    model_.collections( surface.id() ) )
+                {
+                    if( collection.type()
+                        == geode::ModelBoundary3D::component_type_static() )
+                    {
+                        is_part_of_model_boundary = true;
+                    }
+                }
+                if( !is_part_of_model_boundary )
+                {
+                    result.push_back( surface.id() );
+                }
+            }
+            return result;
+        }
+
         void write_geological_regions() override {}
 
         void write_geological_model_surfaces() override {}
+
+    private:
+        const geode::BRep& model_;
     };
 } // namespace
 

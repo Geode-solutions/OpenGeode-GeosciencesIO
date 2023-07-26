@@ -118,6 +118,11 @@ void test_modelA4()
     geode::save_structural_model( model, "modelA4_saved.ml" );
     auto reload = geode::load_structural_model( "modelA4_saved.ml" );
     check_model( reload, 52, 98, 55, 8, 2, 3, 6 );
+
+    /// Test save from a brep
+    geode::save_brep( model, "modelA4_saved.og_brep" );
+    auto reload_brep = geode::load_brep( "modelA4_saved.og_brep" );
+    geode::save_brep( reload_brep, "modelA4_saved_from_brep.ml" );
 }
 
 int main()
