@@ -102,6 +102,19 @@ namespace
             }
         }
 
+        std::vector< geode::uuid > unclassified_tsurfs() const
+        {
+            std::vector< geode::uuid > result;
+            for( const auto& surface : model_.surfaces() )
+            {
+                if( model_.nb_collections( surface.id() ) == 0 )
+                {
+                    result.push_back( surface.id() );
+                }
+            }
+            return result;
+        }
+
         void write_geological_regions() override
         {
             for( const auto& stratigraphic_unit : model_.stratigraphic_units() )
