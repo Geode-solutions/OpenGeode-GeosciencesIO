@@ -96,9 +96,7 @@ namespace geode
                 header.name = to_string( model_.name() );
                 detail::write_header( file_, header );
                 detail::write_CRS( file_, {} );
-                geode::Logger::debug( "components" );
                 write_model_components();
-                geode::Logger::debug( "surfaces" );
                 write_model_surfaces();
             }
 
@@ -166,7 +164,6 @@ namespace geode
             {
                 for( const auto& boundary : model_.model_boundaries() )
                 {
-                    SDEBUG( boundary.id() );
                     for( const auto& item :
                         model_.model_boundary_items( boundary ) )
                     {
@@ -182,7 +179,6 @@ namespace geode
                               << "boundary" << SPACE
                               << component_name( boundary ) << EOL;
                         write_key_triangle( item );
-                        SDEBUG( item.id() );
                         components_.emplace( item.id(), component_id_++ );
                     }
                 }
@@ -227,25 +223,18 @@ namespace geode
 
             void write_regions()
             {
-                geode::Logger::debug( "universe" );
                 write_universe();
-                geode::Logger::debug( "blocks" );
                 for( const auto& region : model_.blocks() )
                 {
-                    SDEBUG( region.id() );
                     file_ << "REGION " << component_id_ << SPACE
                           << component_name( region ) << EOL << SPACE << SPACE;
                     index_t counter{ 0 };
                     for( const auto& surface : model_.boundaries( region ) )
                     {
-                        SDEBUG( surface.id() );
-                        DEBUG( sides_.regions_surface_sides.contains(
-                            { region.id(), surface.id() } ) );
                         const auto sign = sides_.regions_surface_sides.at(
                                               { region.id(), surface.id() } )
                                               ? '+'
                                               : '-';
-                        DEBUG( components_.contains( surface.id() ) );
                         file_ << sign << components_.at( surface.id() ) << SPACE
                               << SPACE;
                         counter++;
@@ -257,7 +246,6 @@ namespace geode
                     for( const auto& surface :
                         model_.internal_surfaces( region ) )
                     {
-                        SDEBUG( surface.id() );
                         file_ << "+" << components_.at( surface.id() ) << SPACE
                               << SPACE;
                         counter++;
@@ -274,10 +262,8 @@ namespace geode
                         }
                     }
                     file_ << 0 << EOL;
-                    geode::Logger::debug( "emplace" );
                     components_.emplace( region.id(), component_id_++ );
                 }
-                geode::Logger::debug( "geol regions" );
                 write_geological_regions();
             }
 
@@ -287,9 +273,7 @@ namespace geode
             {
                 write_tsurfs();
                 write_tfaces();
-                geode::Logger::debug( "region" );
                 write_regions();
-                geode::Logger::debug( "write" );
                 file_ << "END" << EOL;
             }
 
