@@ -39,7 +39,7 @@ namespace
 {
     struct HeaderData
     {
-        absl::string_view name;
+        absl::string name;
         std::vector< absl::string_view > attribute_names;
         std::array< geode::index_t, 3 > xyz_attributes_position;
     };
@@ -103,7 +103,7 @@ namespace
                 if( geode::detail::string_starts_with( line, "# WELL NAME:" ) )
                 {
                     const auto split_line = geode::string_split( line );
-                    header_.name = split_line[3];
+                    header_.name = geode::to_string( split_line[3] );
                 }
                 else if( !first_pass )
                 {
@@ -139,8 +139,7 @@ namespace
                             && header_.xyz_attributes_position[1]
                                    != header_.xyz_attributes_position[2],
                         "[WellDevInput::header] Cannot find the X, Y and Z "
-                        "point "
-                        "position attributes in the header." );
+                        "point position attributes in the header." );
                 }
             }
             throw geode::OpenGeodeException{

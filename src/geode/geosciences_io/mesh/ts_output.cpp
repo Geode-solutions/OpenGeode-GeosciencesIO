@@ -45,9 +45,7 @@ namespace
         static constexpr char SPACE{ ' ' };
         TSOutputImpl( absl::string_view filename,
             const geode::TriangulatedSurface3D& surface )
-            : file_{ geode::to_string( filename ) },
-              surface_( surface ),
-              triangle_done_( surface.nb_polygons(), false )
+            : file_{ geode::to_string( filename ) }, surface_( surface )
         {
             OPENGEODE_EXCEPTION(
                 file_.good(), "Error while opening file: ", filename );
@@ -64,7 +62,6 @@ namespace
             write_prop_header();
             write_tface();
             file_ << "END" << EOL;
-            return;
         }
 
         void write_prop_header()
@@ -75,6 +72,7 @@ namespace
             std::vector< geode::detail::PropClassHeaderData >
                 header_properties_data;
             header_properties_data.reserve( names.size() );
+            generic_att_.reserve( names.size() );
 
             for( const auto& name : names )
             {
@@ -108,14 +106,14 @@ namespace
             {
                 geode::detail::write_prop_header( file_, prop_header );
             }
-            write_XYZ_prop_class_header();
+            write_xyz_prop_class_header();
             for( const auto& property_data : header_properties_data )
             {
                 write_property_class_header( file_, property_data );
             }
         }
 
-        void write_XYZ_prop_class_header()
+        void write_xyz_prop_class_header()
         {
             geode::detail::PropClassHeaderData x_prop_header;
             x_prop_header.name = "X";
@@ -175,8 +173,7 @@ namespace
     private:
         std::ofstream file_;
         const geode::TriangulatedSurface3D& surface_;
-        std::vector< std::shared_ptr< geode::AttributeBase > > generic_att_;
-        std::vector< bool > triangle_done_;
+        std::vector< std::shared_ptr< geode::AttributeBase > > generic_att_{};
     };
 } // namespace
 
