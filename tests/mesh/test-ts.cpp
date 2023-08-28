@@ -54,13 +54,18 @@ void check_file(
 
     // Save triangulated tsurf
     const auto output_file_native =
-        absl::StrCat( "surf3d_multi.", surface->native_extension() );
+        absl::StrCat( "test_output.", surface->native_extension() );
     geode::save_triangulated_surface( *surface, output_file_native );
+    const auto output_file_ts = "test_output.ts";
+    geode::save_triangulated_surface( *surface, output_file_ts );
 
     // Load file
     auto reloaded_surface =
         geode::load_triangulated_surface< 3 >( output_file_native );
-    check_surface( *surface, nb_vertices, nb_polygons );
+    check_surface( *reloaded_surface, nb_vertices, nb_polygons );
+    auto reloaded_surface_ts =
+        geode::load_triangulated_surface< 3 >( output_file_ts );
+    check_surface( *reloaded_surface_ts, nb_vertices, nb_polygons );
 }
 
 int main()

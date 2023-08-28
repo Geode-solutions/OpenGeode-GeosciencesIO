@@ -28,6 +28,7 @@
 
 #include <geode/geosciences_io/mesh/private/pl_output.h>
 #include <geode/geosciences_io/mesh/private/ts_input.h>
+#include <geode/geosciences_io/mesh/private/ts_output.h>
 #include <geode/geosciences_io/mesh/private/vo_input.h>
 #include <geode/geosciences_io/mesh/private/well_dat_input.h>
 #include <geode/geosciences_io/mesh/private/well_dev_input.h>
@@ -41,6 +42,13 @@ namespace
         geode::TriangulatedSurfaceInputFactory3D::register_creator<
             geode::detail::TSInput >(
             geode::detail::TSInput::extension().data() );
+    }
+
+    void register_triangulated_surface_output()
+    {
+        geode::TriangulatedSurfaceOutputFactory3D::register_creator<
+            geode::detail::TSOutput >(
+            geode::detail::TSOutput::extension().data() );
     }
 
     void register_edged_curve_output()
@@ -80,6 +88,7 @@ namespace geode
     {
         OpenGeodeMeshLibrary::initialize();
         register_triangulated_surface_input();
+        register_triangulated_surface_output();
         register_edged_curve_input();
         register_edged_curve_output();
         register_regular_grid_input();
