@@ -39,7 +39,7 @@ namespace geode
         class TSOutput final : public TriangulatedSurfaceOutput< 3 >
         {
         public:
-            TSOutput( absl::string_view filename )
+            explicit TSOutput( absl::string_view filename )
                 : TriangulatedSurfaceOutput< 3 >( filename )
             {
             }
