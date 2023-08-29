@@ -39,8 +39,8 @@ namespace
 {
     struct HeaderData
     {
-        absl::string name;
-        std::vector< absl::string_view > attribute_names;
+        std::string name;
+        std::vector< std::string > attribute_names;
         std::array< geode::index_t, 3 > xyz_attributes_position;
     };
 
@@ -129,7 +129,8 @@ namespace
                             header_.xyz_attributes_position[2] = i;
                             continue;
                         }
-                        header_.attribute_names.push_back( split_line[i] );
+                        header_.attribute_names.push_back(
+                            geode::to_string( split_line[i] ) );
                     }
                     OPENGEODE_EXCEPTION(
                         header_.xyz_attributes_position[0]
