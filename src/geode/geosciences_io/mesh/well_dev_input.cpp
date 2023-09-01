@@ -151,7 +151,7 @@ namespace
         void create_attributes()
         {
             attributes_.reserve( header_.attribute_names.size() );
-            for( const auto attr_name : header_.attribute_names )
+            for( const auto& attr_name : header_.attribute_names )
             {
                 attributes_.push_back(
                     curve_.vertex_attribute_manager()
