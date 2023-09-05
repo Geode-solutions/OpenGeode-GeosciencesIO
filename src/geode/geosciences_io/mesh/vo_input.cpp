@@ -133,8 +133,7 @@ namespace
 
         void read_data_file()
         {
-            const std::string ASCII_DATA_FILE = "ASCII_DATA_FILE ";
-            auto line = geode::detail::goto_keyword( file_, ASCII_DATA_FILE );
+            auto line = geode::detail::goto_keyword( file_, "ASCII_DATA_FILE" );
             const auto data_file_name = absl::StrReplaceAll(
                 line, { { "ASCII_DATA_FILE ", "" }, { "\"", "" } } );
             std::ifstream data_file{ absl::StrCat(
