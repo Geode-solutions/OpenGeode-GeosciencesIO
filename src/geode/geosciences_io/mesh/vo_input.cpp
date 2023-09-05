@@ -25,6 +25,8 @@
 
 #include <fstream>
 
+#include <absl/strings/str_replace.h>
+
 #include <geode/basic/attribute_manager.h>
 #include <geode/basic/filename.h>
 #include <geode/basic/string.h>
@@ -131,13 +133,15 @@ namespace
 
         void read_data_file()
         {
-            auto line = geode::detail::goto_keyword( file_, "ASCII_DATA_FILE" );
+            const std::string ASCII_DATA_FILE = "ASCII_DATA_FILE ";
+            auto line = geode::detail::goto_keyword( file_, ASCII_DATA_FILE );
+            const auto data_file_name = absl::StrReplaceAll(
+                line, { { "ASCII_DATA_FILE ", "" }, { "\"", "" } } );
+            std::ifstream data_file{ absl::StrCat(
+                file_folder_, data_file_name ) };
+            std::getline( data_file, line );
+            std::getline( data_file, line );
             auto tokens = geode::string_split( line );
-            std::ifstream data_file{ absl::StrCat( file_folder_, tokens[1] ) };
-
-            std::getline( data_file, line );
-            std::getline( data_file, line );
-            tokens = geode::string_split( line );
             absl::FixedArray<
                 std::shared_ptr< geode::VariableAttribute< double > > >
                 data_attributes( tokens.size() - 4 );

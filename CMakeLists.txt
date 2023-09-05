@@ -32,6 +32,7 @@ option(OPENGEODE_GEOSCIENCESIO_WITH_PYTHON "Compile Python bindings" OFF)
 # Get OpenGeode-GeosciencesIO dependencies
 find_package(OpenGeode REQUIRED CONFIG)
 find_package(GDAL REQUIRED CONFIG)
+find_package(OpenGeode-IO REQUIRED CONFIG)
 find_package(pugixml REQUIRED CONFIG)
 find_package(OpenGeode-Geosciences REQUIRED CONFIG)
 
