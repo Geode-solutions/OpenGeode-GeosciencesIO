@@ -40,7 +40,7 @@ void check_solid( geode::HybridSolid3D& solid, geode::index_t nb_polyhedra )
         "Number of polyhedra in the GrdeclHybridSolid is not correct" );
 }
 
-void check_file( std::string filename, geode::index_t nb_polyhedra )
+void check_file( absl::string_view filename, geode::index_t nb_polyhedra )
 {
     // Load File
     auto solid = geode::load_hybrid_solid< 3 >( filename );
@@ -54,9 +54,9 @@ int main()
     {
         geode::IOMeshLibrary::initialize();
         geode::GeosciencesIOMeshLibrary::initialize();
-        check_file( absl::StrCat( geode::data_path, "Johansen.",
+        check_file( absl::StrCat( geode::data_path, "Simple20x20x5_Fault.",
                         geode::detail::GRDECLInput::extension() ),
-            100 * 100 * 11 );
+            20 * 20 * 5 );
         geode::Logger::info( "[TEST SUCCESS]" );
         return 0;
     }
