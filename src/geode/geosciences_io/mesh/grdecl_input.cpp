@@ -38,6 +38,26 @@
 
 namespace
 {
+    struct Pillar
+    {
+        Pillar( geode::Point3D top_point, geode::Point3D bottom_point )
+            : top{ std::move( top_point ) }, bottom{ std::move( bottom_point ) }
+        {
+        }
+
+        const geode::Point3D top;
+        const geode::Point3D bottom;
+    };
+
+    geode::Point3D interpolate_on_pillar(
+        geode::Point3D point, const Pillar& pillar )
+    {
+        const auto lambda =
+            ( point.value( 2 ) - pillar.top.value( 2 ) )
+            / ( pillar.bottom.value( 2 ) - pillar.top.value( 2 ) );
+        return pillar.bottom * lambda + pillar.top * ( 1 - lambda );
+    }
+
     class GRDECLInputImpl
     {
     public:
@@ -52,8 +72,8 @@ namespace
         void read_file()
         {
             read_dimensions();
-            auto pillars = read_pillars();
-            auto depths = read_depths();
+            const auto pillars = read_pillars();
+            const auto depths = read_depths();
             for( const auto k : geode::Range{ nz_ } )
             {
                 for( const auto j : geode::Range{ ny_ } )
@@ -78,18 +98,6 @@ namespace
         }
 
     private:
-        struct Pillar
-        {
-            geode::Point3D top;
-            geode::Point3D bottom;
-            Pillar() {}
-            Pillar( geode::Point3D top_point, geode::Point3D bottom_point )
-            {
-                top = top_point;
-                bottom = bottom_point;
-            }
-        };
-
         void read_dimensions()
         {
             auto line = geode::detail::goto_keyword( file_, "SPECGRID" );
@@ -100,13 +108,16 @@ namespace
             nz_ = geode::string_to_index( tokens[2] );
         }
 
-        absl::FixedArray< Pillar > read_pillars()
+        std::vector< Pillar > read_pillars()
         {
-            absl::FixedArray< Pillar > pillars( 8 * nx_ * ny_ * nz_ );
+            /// Arnaud: le FixedArray va-t-il vraiment etre plus efficace qu'un
+            /// vector+reserve qui permet d'avoir les objets Pillar avec des
+            /// parametres constants ?
+            std::vector< Pillar > pillars;
+            pillars.reserve( 8 * nx_ * ny_ * nz_ );
             auto line = geode::detail::goto_keyword( file_, "COORD" );
-            geode::index_t pillar_number{ 0 };
             std::getline( file_, line );
-            while( line.compare( "/" ) != 0 )
+            while( line != "/" )
             {
                 // DEBUG( line );
                 const auto tokens = geode::string_split( line );
@@ -121,9 +132,8 @@ namespace
                         geode::Point3D( { geode::string_to_double( tokens[3] ),
                             geode::string_to_double( tokens[4] ),
                             geode::string_to_double( tokens[5] ) } );
-                    Pillar pillar( top_point, bottom_point );
-                    pillars[pillar_number] = pillar;
-                    pillar_number += 1;
+                    pillars.emplace_back(
+                        std::move( top_point ), std::move( bottom_point ) );
                     std::getline( file_, line );
                 }
                 else
@@ -131,7 +141,6 @@ namespace
                     std::getline( file_, line );
                 }
             }
-
             return pillars;
         }
 
@@ -146,9 +155,8 @@ namespace
                 const auto tokens = geode::string_split( line );
                 for( const auto depths_id : geode::Indices{ tokens } )
                 {
-                    depths[depths_number] =
+                    depths[depths_number++] =
                         geode::string_to_double( tokens[depths_id] );
-                    depths_number += 1;
                 }
 
                 std::getline( file_, line );
@@ -160,14 +168,14 @@ namespace
             geode::index_t j,
             geode::index_t k,
             absl::FixedArray< double > depths,
-            absl::FixedArray< Pillar > pillars )
+            absl::Span< const Pillar > pillars )
         {
-            const auto bottom_left_pillar =
+            const auto& bottom_left_pillar =
                 pillars[i + ( nx_ + 1 ) * ( j + 1 )];
-            const auto top_left_pillar = pillars[i + ( nx_ + 1 ) * ( j )];
-            const auto bottom_right_pillar =
+            const auto& top_left_pillar = pillars[i + ( nx_ + 1 ) * ( j )];
+            const auto& bottom_right_pillar =
                 pillars[i + ( nx_ + 1 ) * ( j + 1 ) + 1];
-            const auto top_right_pillar = pillars[i + ( nx_ + 1 ) * ( j ) + 1];
+            const auto& top_right_pillar = pillars[i + ( nx_ + 1 ) * ( j ) + 1];
             std::array< geode::Point3D, 8 > points;
             points[0] = interpolate_on_pillar(
                 geode::Point3D( { bottom_left_pillar.bottom.value( 0 ),
@@ -215,15 +223,6 @@ namespace
                     depths[2 * i + 4 * nx_ * j + 4 * nx_ * ny_ * k] } ),
                 top_left_pillar );
             return points;
-        }
-
-        geode::Point3D interpolate_on_pillar(
-            geode::Point3D point, Pillar pillar )
-        {
-            const auto lambda =
-                ( point.value( 2 ) - pillar.top.value( 2 ) )
-                / ( pillar.bottom.value( 2 ) - pillar.top.value( 2 ) );
-            return pillar.bottom * lambda + pillar.top * ( 1 - lambda );
         }
 
     private:
