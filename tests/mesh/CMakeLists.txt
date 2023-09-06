@@ -19,10 +19,11 @@
 # SOFTWARE.
 
 add_geode_test(
-    SOURCE "test-ts.cpp"
+    SOURCE "test-grdecl.cpp"
     DEPENDENCIES
         OpenGeode::basic
         OpenGeode::mesh
+        OpenGeode-IO::mesh
         ${PROJECT_NAME}::mesh
 )
 add_geode_test(
@@ -33,7 +34,14 @@ add_geode_test(
         ${PROJECT_NAME}::mesh
 )
 add_geode_test(
-    SOURCE "test-wl.cpp"
+    SOURCE "test-ts.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
+        ${PROJECT_NAME}::mesh
+)
+add_geode_test(
+    SOURCE "test-vo.cpp"
     DEPENDENCIES
         OpenGeode::basic
         OpenGeode::mesh
@@ -47,13 +55,6 @@ add_geode_test(
         ${PROJECT_NAME}::mesh
 )
 add_geode_test(
-    SOURCE "test-well-txt.cpp"
-    DEPENDENCIES
-        OpenGeode::basic
-        OpenGeode::mesh
-        ${PROJECT_NAME}::mesh
-)
-add_geode_test(
     SOURCE "test-well-dev.cpp"
     DEPENDENCIES
         OpenGeode::basic
@@ -61,7 +62,14 @@ add_geode_test(
         ${PROJECT_NAME}::mesh
 )
 add_geode_test(
-    SOURCE "test-vo.cpp"
+    SOURCE "test-well-txt.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
+        ${PROJECT_NAME}::mesh
+)
+add_geode_test(
+    SOURCE "test-wl.cpp"
     DEPENDENCIES
         OpenGeode::basic
         OpenGeode::mesh
