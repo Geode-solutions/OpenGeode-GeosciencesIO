@@ -158,7 +158,7 @@ namespace
                 const auto tokens = geode::string_split( line );
                 for( const auto depths_id : geode::Indices{ tokens } )
                 {
-                    depths[depths_number] =
+                    depths[depths_number++] =
                         geode::string_to_double( tokens[depths_id] );
                     depths_number++;
                 }
