@@ -34,7 +34,8 @@
 
 #include <geode/io/mesh/common.h>
 
-void check_solid( geode::HybridSolid3D& solid, geode::index_t nb_polyhedra )
+void check_solid(
+    const geode::HybridSolid3D& solid, geode::index_t nb_polyhedra )
 {
     OPENGEODE_EXCEPTION( solid.nb_polyhedra() == nb_polyhedra,
         "Number of polyhedra in the GrdeclHybridSolid is not correct" );
@@ -43,7 +44,7 @@ void check_solid( geode::HybridSolid3D& solid, geode::index_t nb_polyhedra )
 void check_file( absl::string_view filename, geode::index_t nb_polyhedra )
 {
     // Load File
-    auto solid = geode::load_hybrid_solid< 3 >( filename );
+    const auto solid = geode::load_hybrid_solid< 3 >( filename );
     check_solid( *solid, nb_polyhedra );
     geode::save_hybrid_solid( *solid, "toto.vtu" );
 }
