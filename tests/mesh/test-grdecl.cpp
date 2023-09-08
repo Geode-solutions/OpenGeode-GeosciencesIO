@@ -46,7 +46,6 @@ void check_file( absl::string_view filename,
     geode::index_t nb_polyhedra,
     geode::index_t nb_vertices )
 {
-    // Load File
     const auto solid = geode::load_hybrid_solid< 3 >( filename );
     check_solid( *solid, nb_polyhedra, nb_vertices );
 }
@@ -58,7 +57,7 @@ int main()
         geode::GeosciencesIOMeshLibrary::initialize();
         check_file( absl::StrCat( geode::data_path, "Simple20x20x5_Fault.",
                         geode::detail::GRDECLInput::extension() ),
-            20 * 20 * 5, 21 * 21 * 6 + 21 * 6 );
+            20 * 20 * 5, 21 * 6 * ( 21 + 1 ) );
         geode::Logger::info( "[TEST SUCCESS]" );
         return 0;
     }
