@@ -26,6 +26,7 @@
 #include <geode/mesh/io/regular_grid_input.h>
 #include <geode/mesh/io/triangulated_surface_input.h>
 
+#include <geode/geosciences_io/mesh/private/grdecl_input.h>
 #include <geode/geosciences_io/mesh/private/pl_output.h>
 #include <geode/geosciences_io/mesh/private/ts_input.h>
 #include <geode/geosciences_io/mesh/private/ts_output.h>
@@ -80,6 +81,14 @@ namespace
             geode::detail::VOInput >(
             geode::detail::VOInput::extension().data() );
     }
+
+    void register_hybrid_solid_input()
+    {
+        geode::HybridSolidInputFactory3D::register_creator<
+            geode::detail::GRDECLInput >(
+            geode::detail::GRDECLInput::extension().data() );
+    }
+
 } // namespace
 
 namespace geode
@@ -92,5 +101,6 @@ namespace geode
         register_edged_curve_input();
         register_edged_curve_output();
         register_regular_grid_input();
+        register_hybrid_solid_input();
     }
 } // namespace geode
