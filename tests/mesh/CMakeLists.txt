@@ -23,7 +23,6 @@ add_geode_test(
     DEPENDENCIES
         OpenGeode::basic
         OpenGeode::mesh
-        OpenGeode-IO::mesh
         ${PROJECT_NAME}::mesh
 )
 add_geode_test(

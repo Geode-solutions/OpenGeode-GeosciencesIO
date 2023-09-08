@@ -32,8 +32,6 @@
 #include <geode/mesh/io/hybrid_solid_input.h>
 #include <geode/mesh/io/hybrid_solid_output.h>
 
-#include <geode/io/mesh/common.h>
-
 void check_solid(
     const geode::HybridSolid3D& solid, geode::index_t nb_polyhedra )
 {
@@ -53,7 +51,6 @@ int main()
 {
     try
     {
-        geode::IOMeshLibrary::initialize();
         geode::GeosciencesIOMeshLibrary::initialize();
         check_file( absl::StrCat( geode::data_path, "Simple20x20x5_Fault.",
                         geode::detail::GRDECLInput::extension() ),

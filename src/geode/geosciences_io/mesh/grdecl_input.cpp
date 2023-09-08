@@ -79,7 +79,7 @@ namespace
             read_dimensions();
             const auto pillars = read_pillars();
             const auto depths = read_depths();
-            create_grid( pillars, depths );
+            create_cells( pillars, depths );
         }
 
     private:
@@ -95,7 +95,7 @@ namespace
 
         absl::FixedArray< Pillar > read_pillars()
         {
-            absl::FixedArray< Pillar > pillars( 8 * nx_ * ny_ * nz_ );
+            absl::FixedArray< Pillar > pillars( ( nx_ + 1 ) * ( ny_ + 1 ) );
             auto line = geode::detail::goto_keyword( file_, "COORD" );
             std::getline( file_, line );
             geode::index_t pillar_number{ 0 };
@@ -147,7 +147,7 @@ namespace
             absl::Span< const Pillar > pillars,
             absl::Span< const double > depths ) const
         {
-            const auto& pillars_id = cell_pillars_id( grid_coordinates );
+            const auto pillars_id = cell_pillars_id( grid_coordinates );
             const auto& bottom_left_pillar = pillars[pillars_id[0]];
             const auto& top_left_pillar = pillars[pillars_id[1]];
             const auto& bottom_right_pillar = pillars[pillars_id[2]];
@@ -157,23 +157,23 @@ namespace
                 depths[2 * grid_coordinates[0] + 4 * nx_ * grid_coordinates[1]
                        + 4 * nx_ * ny_ * ( grid_coordinates[2] + 1 ) + 2 * nx_],
                 bottom_left_pillar );
-            points[1] = ( interpolate_on_pillar(
+            points[1] = interpolate_on_pillar(
                 depths[2 * grid_coordinates[0] + 4 * nx_ * grid_coordinates[1]
                        + 4 * nx_ * ny_ * ( grid_coordinates[2] + 1 ) + 2 * nx_
                        + 1],
-                bottom_right_pillar ) );
-            points[2] = ( interpolate_on_pillar(
+                bottom_right_pillar );
+            points[2] = interpolate_on_pillar(
                 depths[2 * grid_coordinates[0] + 4 * nx_ * grid_coordinates[1]
                        + 4 * nx_ * ny_ * ( grid_coordinates[2] + 1 ) + 1],
-                top_right_pillar ) );
-            points[3] = ( interpolate_on_pillar(
+                top_right_pillar );
+            points[3] = interpolate_on_pillar(
                 depths[2 * grid_coordinates[0] + 4 * nx_ * grid_coordinates[1]
                        + 4 * nx_ * ny_ * ( grid_coordinates[2] + 1 )],
-                top_left_pillar ) );
-            points[4] = ( interpolate_on_pillar(
+                top_left_pillar );
+            points[4] = interpolate_on_pillar(
                 depths[2 * grid_coordinates[0] + 4 * nx_ * grid_coordinates[1]
                        + 2 * nx_ + 4 * nx_ * ny_ * grid_coordinates[2]],
-                bottom_left_pillar ) );
+                bottom_left_pillar );
             points[5] = interpolate_on_pillar(
                 depths[2 * grid_coordinates[0] + 4 * nx_ * grid_coordinates[1]
                        + 2 * nx_ + 1 + 4 * nx_ * ny_ * grid_coordinates[2]],
@@ -189,7 +189,7 @@ namespace
             return points;
         }
 
-        geode::NNSearch3D::ColocatedInfo create_all_points(
+        geode::NNSearch3D::ColocatedInfo create_points(
             absl::Span< const Pillar > pillars,
             absl::Span< const double > depths )
         {
@@ -222,11 +222,10 @@ namespace
             return collocated_mapping;
         }
 
-        void create_grid( absl::Span< const Pillar > pillars,
+        void create_cells( absl::Span< const Pillar > pillars,
             absl::Span< const double > depths )
         {
-            const auto collocated_mapping =
-                create_all_points( pillars, depths );
+            const auto collocated_mapping = create_points( pillars, depths );
             for( const auto cell_id : geode::Range{ nx_ * ny_ * nz_ } )
             {
                 builder_->create_hexahedron(
@@ -246,20 +245,19 @@ namespace
         std::array< geode::index_t, 4 > cell_pillars_id(
             const std::array< geode::index_t, 3 >& grid_coordinates ) const
         {
-            const geode::index_t number_of_vertices_on_lines = nx_ + 1;
-            const geode::index_t bottom_left_pillar_id =
+            const auto number_of_vertices_on_lines = nx_ + 1;
+            const auto bottom_left_pillar_id =
                 grid_coordinates[0]
-                + ( number_of_vertices_on_lines ) * ( grid_coordinates[1] + 1 );
-            const geode::index_t top_left_pillar_id =
+                + number_of_vertices_on_lines * ( grid_coordinates[1] + 1 );
+            const auto top_left_pillar_id =
                 grid_coordinates[0]
-                + ( number_of_vertices_on_lines ) * ( grid_coordinates[1] );
-            const geode::index_t bottom_right_pillar_id =
+                + number_of_vertices_on_lines * grid_coordinates[1];
+            const auto bottom_right_pillar_id =
                 grid_coordinates[0]
-                + ( number_of_vertices_on_lines ) * ( grid_coordinates[1] + 1 )
-                + 1;
-            const geode::index_t top_right_pillar_id =
+                + number_of_vertices_on_lines * ( grid_coordinates[1] + 1 ) + 1;
+            const auto top_right_pillar_id =
                 grid_coordinates[0]
-                + ( number_of_vertices_on_lines ) * ( grid_coordinates[1] ) + 1;
+                + number_of_vertices_on_lines * grid_coordinates[1] + 1;
             return { bottom_left_pillar_id, top_left_pillar_id,
                 bottom_right_pillar_id, top_right_pillar_id };
         }
