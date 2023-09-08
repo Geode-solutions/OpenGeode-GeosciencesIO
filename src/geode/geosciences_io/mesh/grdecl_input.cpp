@@ -42,14 +42,6 @@ namespace
 {
     struct Pillar
     {
-        Pillar() = default;
-        Pillar( geode::Point3D top_point, geode::Point3D bottom_point )
-            : top{ std::move( top_point ) }, bottom{ std::move( bottom_point ) }
-        {
-        }
-        Pillar( Pillar&& other ) = default;
-        Pillar& operator=( Pillar&& other ) = default;
-
         geode::Point3D top;
         geode::Point3D bottom;
     };
@@ -107,16 +99,14 @@ namespace
                     OPENGEODE_ASSERT( tokens.size() == 6,
                         "[GRDECLInput::read_pillars] Wrong "
                         "number of coordinates" );
-                    geode::Point3D top_point{ { geode::string_to_double(
-                                                    tokens[0] ),
+                    Pillar pillar;
+                    pillar.top = { { geode::string_to_double( tokens[0] ),
                         geode::string_to_double( tokens[1] ),
                         geode::string_to_double( tokens[2] ) } };
-                    geode::Point3D bottom_point{ { geode::string_to_double(
-                                                       tokens[3] ),
+                    pillar.bottom = { { geode::string_to_double( tokens[3] ),
                         geode::string_to_double( tokens[4] ),
                         geode::string_to_double( tokens[5] ) } };
-                    pillars[pillar_number++] = { std::move( top_point ),
-                        std::move( bottom_point ) };
+                    pillars[pillar_number++] = std::move( pillar );
                 }
                 std::getline( file_, line );
             }
@@ -265,10 +255,10 @@ namespace
     private:
         std::ifstream file_;
         geode::HybridSolid3D& solid_;
-        std::unique_ptr< geode::HybridSolidBuilder3D > builder_;
-        geode::index_t nx_;
-        geode::index_t ny_;
-        geode::index_t nz_;
+        std::unique_ptr< geode::HybridSolidBuilder3D > builder_{ nullptr };
+        geode::index_t nx_{ geode::NO_ID };
+        geode::index_t ny_{ geode::NO_ID };
+        geode::index_t nz_{ geode::NO_ID };
     };
 } // namespace
 

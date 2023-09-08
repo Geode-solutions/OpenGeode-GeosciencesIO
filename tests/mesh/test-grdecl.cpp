@@ -32,19 +32,23 @@
 #include <geode/mesh/io/hybrid_solid_input.h>
 #include <geode/mesh/io/hybrid_solid_output.h>
 
-void check_solid(
-    const geode::HybridSolid3D& solid, geode::index_t nb_polyhedra )
+void check_solid( const geode::HybridSolid3D& solid,
+    geode::index_t nb_polyhedra,
+    geode::index_t nb_vertices )
 {
     OPENGEODE_EXCEPTION( solid.nb_polyhedra() == nb_polyhedra,
         "Number of polyhedra in the GrdeclHybridSolid is not correct" );
+    OPENGEODE_EXCEPTION( solid.nb_vertices() == nb_vertices,
+        "Number of vertices in the GrdeclHybridSolid is not correct " );
 }
 
-void check_file( absl::string_view filename, geode::index_t nb_polyhedra )
+void check_file( absl::string_view filename,
+    geode::index_t nb_polyhedra,
+    geode::index_t nb_vertices )
 {
     // Load File
     const auto solid = geode::load_hybrid_solid< 3 >( filename );
-    check_solid( *solid, nb_polyhedra );
-    geode::save_hybrid_solid( *solid, "toto.vtu" );
+    check_solid( *solid, nb_polyhedra, nb_vertices );
 }
 
 int main()
@@ -54,7 +58,7 @@ int main()
         geode::GeosciencesIOMeshLibrary::initialize();
         check_file( absl::StrCat( geode::data_path, "Simple20x20x5_Fault.",
                         geode::detail::GRDECLInput::extension() ),
-            20 * 20 * 5 );
+            20 * 20 * 5, 21 * 21 * 6 + 21 * 6 );
         geode::Logger::info( "[TEST SUCCESS]" );
         return 0;
     }
