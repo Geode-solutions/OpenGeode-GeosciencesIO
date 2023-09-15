@@ -25,6 +25,7 @@
 
 #include <fstream>
 
+#include <geode/basic/file.h>
 #include <geode/basic/string.h>
 
 #include <geode/geometry/point.h>
@@ -33,7 +34,6 @@
 #include <geode/mesh/core/edged_curve.h>
 
 #include <geode/geosciences_io/mesh/private/gocad_common.h>
-#include <geode/geosciences_io/mesh/private/utils.h>
 
 namespace
 {
@@ -51,8 +51,7 @@ namespace
 
         void read_file()
         {
-            if( !geode::detail::goto_keyword_if_it_exists(
-                    file_, "GOCAD Well" ) )
+            if( !geode::goto_keyword_if_it_exists( file_, "GOCAD Well" ) )
             {
                 throw geode::OpenGeodeException{
                     "[WLInput] Cannot find Well in the file"
@@ -69,7 +68,7 @@ namespace
     private:
         geode::Point3D read_ref()
         {
-            const auto line = geode::detail::goto_keyword( file_, "WREF" );
+            const auto line = geode::goto_keyword( file_, "WREF" );
             auto ref = read_coord( line, 1 );
             ref.set_value( 2, crs_.z_sign * ref.value( 2 ) );
             return ref;
@@ -88,10 +87,10 @@ namespace
 
         void read_paths( const geode::Point3D& ref )
         {
-            auto line = geode::detail::goto_keyword( file_, "PATH" );
+            auto line = geode::goto_keyword( file_, "PATH" );
             while( std::getline( file_, line ) )
             {
-                if( !geode::detail::string_starts_with( line, "PATH" ) )
+                if( !geode::string_starts_with( line, "PATH" ) )
                 {
                     return;
                 }

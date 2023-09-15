@@ -28,6 +28,7 @@
 #include <absl/strings/str_replace.h>
 
 #include <geode/basic/attribute_manager.h>
+#include <geode/basic/file.h>
 #include <geode/basic/filename.h>
 #include <geode/basic/string.h>
 
@@ -38,7 +39,6 @@
 #include <geode/mesh/core/regular_grid_solid.h>
 
 #include <geode/geosciences_io/mesh/private/gocad_common.h>
-#include <geode/geosciences_io/mesh/private/utils.h>
 
 namespace
 {
@@ -57,8 +57,7 @@ namespace
 
         void read_file()
         {
-            if( !geode::detail::goto_keyword_if_it_exists(
-                    file_, "GOCAD Voxet" ) )
+            if( !geode::goto_keyword_if_it_exists( file_, "GOCAD Voxet" ) )
             {
                 throw geode::OpenGeodeException{
                     "[VOInput] Cannot find Voxet in the file"
@@ -74,7 +73,7 @@ namespace
     private:
         void initialize_grid()
         {
-            auto line = geode::detail::goto_keyword( file_, "AXIS_O" );
+            auto line = geode::goto_keyword( file_, "AXIS_O" );
             auto origin = read_coord( line, 1 );
             const auto grid_size = read_grid_size( origin );
             auto cells_number = read_cells_number();
@@ -87,13 +86,13 @@ namespace
         std::array< double, 3 > read_grid_size( const geode::Point3D& origin )
         {
             std::array< double, 3 > cells_length;
-            auto line = geode::detail::goto_keyword( file_, "AXIS_U" );
+            auto line = geode::goto_keyword( file_, "AXIS_U" );
             cells_length[0] =
                 geode::point_point_distance( origin, read_coord( line, 1 ) );
-            line = geode::detail::goto_keyword( file_, "AXIS_V" );
+            line = geode::goto_keyword( file_, "AXIS_V" );
             cells_length[1] =
                 geode::point_point_distance( origin, read_coord( line, 1 ) );
-            line = geode::detail::goto_keyword( file_, "AXIS_W" );
+            line = geode::goto_keyword( file_, "AXIS_W" );
             cells_length[2] =
                 geode::point_point_distance( origin, read_coord( line, 1 ) );
             return cells_length;
@@ -101,7 +100,7 @@ namespace
 
         std::array< geode::index_t, 3 > read_cells_number()
         {
-            auto line = geode::detail::goto_keyword( file_, "AXIS_N" );
+            auto line = geode::goto_keyword( file_, "AXIS_N" );
             const auto tokens = geode::string_split( line );
             return { geode::string_to_index( tokens[1] ),
                 geode::string_to_index( tokens[2] ),
@@ -133,7 +132,7 @@ namespace
 
         void read_data_file()
         {
-            auto line = geode::detail::goto_keyword( file_, "ASCII_DATA_FILE" );
+            auto line = geode::goto_keyword( file_, "ASCII_DATA_FILE" );
             const auto data_file_name = absl::StrReplaceAll(
                 line, { { "ASCII_DATA_FILE ", "" }, { "\"", "" } } );
             std::ifstream data_file{ absl::StrCat(

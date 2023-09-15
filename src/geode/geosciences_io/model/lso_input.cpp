@@ -28,6 +28,7 @@
 #include <absl/container/flat_hash_set.h>
 #include <absl/strings/match.h>
 
+#include <geode/basic/file.h>
 #include <geode/basic/string.h>
 
 #include <geode/geometry/point.h>
@@ -53,7 +54,6 @@
 #include <geode/geosciences/explicit/representation/builder/structural_model_builder.h>
 #include <geode/geosciences/explicit/representation/core/structural_model.h>
 #include <geode/geosciences_io/mesh/private/gocad_common.h>
-#include <geode/geosciences_io/mesh/private/utils.h>
 #include <geode/geosciences_io/model/private/gocad_common.h>
 
 namespace
@@ -92,7 +92,7 @@ namespace
 
         bool read_file()
         {
-            if( !geode::detail::goto_keyword_if_it_exists(
+            if( !geode::goto_keyword_if_it_exists(
                     file_, "GOCAD LightTSolid" ) )
             {
                 throw geode::OpenGeodeException{
@@ -125,14 +125,14 @@ namespace
     private:
         void read_vertices()
         {
-            line_ = geode::detail::goto_keywords(
+            line_ = geode::goto_keywords(
                 file_, std::array< absl::string_view, 2 >{ "VRTX", "PVRTX" } );
             geode::index_t nb_unique_vertices{ 0 };
             do
             {
                 geode::Point3D point;
                 geode::index_t unique_id;
-                if( geode::detail::string_starts_with( line_, "SHARED" ) )
+                if( geode::string_starts_with( line_, "SHARED" ) )
                 {
                     std::tie( point, unique_id ) = read_shared_point();
                     geode::detail::read_properties( vertices_prop_header_,
@@ -181,11 +181,10 @@ namespace
 
         void read_vertex_region_indicators()
         {
-            if( geode::detail::string_starts_with(
+            if( geode::string_starts_with(
                     line_, "BEGIN_VERTEX_REGION_INDICATORS" ) )
             {
-                geode::detail::goto_keyword(
-                    file_, "END_VERTEX_REGION_INDICATORS" );
+                geode::goto_keyword( file_, "END_VERTEX_REGION_INDICATORS" );
                 std::getline( file_, line_ );
             }
         }
@@ -212,33 +211,32 @@ namespace
                 block_name_attribute_->set_value(
                     tetra_id, geode::to_string( tokens2[2] ) );
             } while( std::getline( file_, line_ )
-                     && geode::detail::string_starts_with( line_, "TETRA" ) );
+                     && geode::string_starts_with( line_, "TETRA" ) );
             solid_builder_->compute_polyhedron_adjacencies();
         }
 
         void read_tetrahedra_region_indicators()
         {
-            if( geode::detail::string_starts_with(
+            if( geode::string_starts_with(
                     line_, "BEGIN_TETRA_REGION_INDICATORS" ) )
             {
-                geode::detail::goto_keyword(
-                    file_, "END_TETRA_REGION_INDICATORS" );
+                geode::goto_keyword( file_, "END_TETRA_REGION_INDICATORS" );
                 std::getline( file_, line_ );
             }
         }
 
         void read_surfaces()
         {
-            if( !geode::detail::string_starts_with( line_, "MODEL" ) )
+            if( !geode::string_starts_with( line_, "MODEL" ) )
             {
-                geode::detail::goto_keyword( file_, "MODEL" );
+                geode::goto_keyword( file_, "MODEL" );
             }
             facet_id_ = solid_->facets()
                             .facet_attribute_manager()
                             .find_or_create_attribute< geode::VariableAttribute,
                                 geode::uuid >( "facet_id", default_id_ );
             std::getline( file_, line_ );
-            while( geode::detail::string_starts_with( line_, "SURFACE" ) )
+            while( geode::string_starts_with( line_, "SURFACE" ) )
             {
                 const auto tokens = geode::string_split( line_ );
                 absl::Span< const absl::string_view > remaining_tokens(
@@ -254,7 +252,7 @@ namespace
         void read_tfaces( const geode::Horizon3D& horizon )
         {
             std::getline( file_, line_ );
-            while( geode::detail::string_starts_with( line_, "TFACE" ) )
+            while( geode::string_starts_with( line_, "TFACE" ) )
             {
                 const auto id =
                     builder_.add_surface( geode::MeshFactory::default_impl(
@@ -277,7 +275,7 @@ namespace
             const auto component_id =
                 model_.surface( surface_id ).component_id();
             while( std::getline( file_, line_ )
-                   && geode::detail::string_starts_with( line_, "TRGL" ) )
+                   && geode::string_starts_with( line_, "TRGL" ) )
             {
                 const auto tokens = get_tokens();
                 std::array< geode::index_t, 3 > facet_vertices;
@@ -349,7 +347,7 @@ namespace
 
         void read_blocks()
         {
-            while( geode::detail::string_starts_with( line_, "MODEL_REGION" ) )
+            while( geode::string_starts_with( line_, "MODEL_REGION" ) )
             {
                 const auto tokens = get_tokens();
                 const auto block_id =

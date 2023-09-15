@@ -44,6 +44,8 @@ namespace geode
             }
 
             Section read() final;
+
+            SectionInput::MissingFiles check_missing_files() const final;
         };
     } // namespace detail
 } // namespace geode

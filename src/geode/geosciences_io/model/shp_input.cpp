@@ -25,6 +25,8 @@
 
 #include <ogrsf_frmts.h>
 
+#include <geode/basic/file.h>
+#include <geode/basic/filename.h>
 #include <geode/basic/logger.h>
 
 #include <geode/geometry/point.h>
@@ -246,5 +248,18 @@ namespace geode
             impl.read_file();
             return section;
         }
+
+        SectionInput::MissingFiles SHPInput::check_missing_files() const
+        {
+            const auto file_path = filepath_without_extension( filename() );
+            const auto shx_file = absl::StrCat( file_path, ".shx" );
+            SectionInput::MissingFiles missing;
+            if( !file_exists( shx_file ) )
+            {
+                missing.mandatory_files.push_back( shx_file );
+            }
+            return missing;
+        }
+
     } // namespace detail
 } // namespace geode
