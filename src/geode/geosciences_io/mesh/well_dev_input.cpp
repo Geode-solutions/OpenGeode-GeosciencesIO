@@ -26,14 +26,13 @@
 #include <fstream>
 
 #include <geode/basic/attribute_manager.h>
+#include <geode/basic/file.h>
 #include <geode/basic/string.h>
 
 #include <geode/geometry/point.h>
 
 #include <geode/mesh/builder/edged_curve_builder.h>
 #include <geode/mesh/core/edged_curve.h>
-
-#include <geode/geosciences_io/mesh/private/utils.h>
 
 namespace
 {
@@ -83,12 +82,12 @@ namespace
     private:
         void read_header()
         {
-            geode::detail::check_keyword( file_, "# WELL TRACE FROM PETREL" );
+            geode::check_keyword( file_, "# WELL TRACE FROM PETREL" );
             std::string line;
             auto first_pass = true;
             while( std::getline( file_, line ) )
             {
-                if( geode::detail::string_starts_with( line, "#===" ) )
+                if( geode::string_starts_with( line, "#===" ) )
                 {
                     if( first_pass )
                     {
@@ -100,7 +99,7 @@ namespace
                         return;
                     }
                 }
-                if( geode::detail::string_starts_with( line, "# WELL NAME:" ) )
+                if( geode::string_starts_with( line, "# WELL NAME:" ) )
                 {
                     const auto split_line = geode::string_split( line );
                     header_.name = geode::to_string( split_line[3] );

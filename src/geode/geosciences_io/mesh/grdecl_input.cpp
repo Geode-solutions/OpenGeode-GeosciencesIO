@@ -26,6 +26,7 @@
 #include <fstream>
 
 #include <geode/basic/attribute_manager.h>
+#include <geode/basic/file.h>
 #include <geode/basic/filename.h>
 #include <geode/basic/logger.h>
 #include <geode/basic/string.h>
@@ -36,7 +37,6 @@
 #include <geode/mesh/core/hybrid_solid.h>
 
 #include <geode/geosciences_io/mesh/private/gocad_common.h>
-#include <geode/geosciences_io/mesh/private/utils.h>
 
 namespace
 {
@@ -77,7 +77,7 @@ namespace
     private:
         void read_dimensions()
         {
-            auto line = geode::detail::goto_keyword( file_, "SPECGRID" );
+            auto line = geode::goto_keyword( file_, "SPECGRID" );
             std::getline( file_, line );
             const auto tokens = geode::string_split( line );
             nx_ = geode::string_to_index( tokens[0] );
@@ -88,7 +88,7 @@ namespace
         absl::FixedArray< Pillar > read_pillars()
         {
             absl::FixedArray< Pillar > pillars( ( nx_ + 1 ) * ( ny_ + 1 ) );
-            auto line = geode::detail::goto_keyword( file_, "COORD" );
+            auto line = geode::goto_keyword( file_, "COORD" );
             std::getline( file_, line );
             geode::index_t pillar_number{ 0 };
             while( line != "/" )
@@ -116,7 +116,7 @@ namespace
         absl::FixedArray< double > read_depths()
         {
             absl::FixedArray< double > depths( 8 * nx_ * ny_ * nz_ );
-            auto line = geode::detail::goto_keyword( file_, "ZCORN" );
+            auto line = geode::goto_keyword( file_, "ZCORN" );
             geode::index_t depths_number{ 0 };
             std::getline( file_, line );
             while( line != "/" )

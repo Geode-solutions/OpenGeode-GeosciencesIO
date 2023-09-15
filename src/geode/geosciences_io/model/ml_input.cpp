@@ -49,10 +49,10 @@
 #include <geode/model/mixin/core/surface.h>
 #include <geode/model/mixin/core/vertex_identifier.h>
 
+#include <geode/basic/file.h>
 #include <geode/geosciences/explicit/representation/builder/structural_model_builder.h>
 #include <geode/geosciences/explicit/representation/core/structural_model.h>
 #include <geode/geosciences_io/mesh/private/gocad_common.h>
-#include <geode/geosciences_io/mesh/private/utils.h>
 #include <geode/geosciences_io/model/private/gocad_common.h>
 
 namespace
@@ -92,8 +92,7 @@ namespace
 
         void read_file()
         {
-            if( !geode::detail::goto_keyword_if_it_exists(
-                    file_, "GOCAD Model3d" ) )
+            if( !geode::goto_keyword_if_it_exists( file_, "GOCAD Model3d" ) )
             {
                 throw geode::OpenGeodeException{
                     "[MLInput] Cannot find Model3d in the file"
@@ -650,7 +649,7 @@ namespace
             std::string line;
             while( std::getline( file_, line ) )
             {
-                if( geode::detail::string_starts_with( line, "END" ) )
+                if( geode::string_starts_with( line, "END" ) )
                 {
                     create_tsurfs();
                     return;

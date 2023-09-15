@@ -29,10 +29,9 @@
 #include <absl/strings/str_join.h>
 #include <absl/strings/str_replace.h>
 
+#include <geode/basic/file.h>
 #include <geode/basic/logger.h>
 #include <geode/basic/string.h>
-
-#include <geode/geosciences_io/mesh/private/utils.h>
 
 namespace
 {
@@ -41,7 +40,7 @@ namespace
 
     void read_tfaces( std::ifstream& file, geode::detail::TSurfData& tsurf )
     {
-        geode::detail::goto_keyword( file, "TFACE" );
+        geode::goto_keyword( file, "TFACE" );
         std::string line;
         while( std::getline( file, line ) )
         {
@@ -114,7 +113,7 @@ namespace
         std::vector< std::string >& keyword_data,
         geode::index_t nb_attributes )
     {
-        auto line = geode::detail::goto_keyword( file, keyword );
+        auto line = geode::goto_keyword( file, keyword );
         const auto split_line = geode::string_split( line );
         keyword_data.resize( nb_attributes );
         for( const auto attr_id : geode::Range{ nb_attributes } )
@@ -128,7 +127,7 @@ namespace
         std::vector< std::pair< std::string, std::string > >& keyword_data,
         geode::index_t nb_attributes )
     {
-        auto line = geode::detail::goto_keyword( file, keyword );
+        auto line = geode::goto_keyword( file, keyword );
         const auto split_line = geode::string_split( line );
         keyword_data.resize( nb_attributes );
         geode::index_t counter{ 0 };
@@ -150,7 +149,7 @@ namespace
         std::vector< double >& keyword_data,
         geode::index_t nb_attributes )
     {
-        auto line = geode::detail::goto_keyword( file, keyword );
+        auto line = geode::goto_keyword( file, keyword );
         const auto split_line = geode::string_split( line );
         keyword_data.resize( nb_attributes );
         for( const auto attr_id : geode::Range{ nb_attributes } )
@@ -165,7 +164,7 @@ namespace
         std::vector< geode::index_t >& keyword_data,
         geode::index_t nb_attributes )
     {
-        auto line = geode::detail::goto_keyword( file, keyword );
+        auto line = geode::goto_keyword( file, keyword );
         const auto split_line = geode::string_split( line );
         keyword_data.resize( nb_attributes );
         for( const auto attr_id : geode::Range{ nb_attributes } )
@@ -277,7 +276,7 @@ namespace geode
             std::ifstream& file, absl::string_view prefix )
         {
             PropHeaderData header;
-            const auto opt_line = geode::detail::next_keyword_if_it_exists(
+            const auto opt_line = geode::next_keyword_if_it_exists(
                 file, absl::StrCat( prefix, "PROPERTIES" ) );
             if( !opt_line )
             {
