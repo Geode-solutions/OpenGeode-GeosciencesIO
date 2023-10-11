@@ -33,6 +33,7 @@
 
 #include <geode/mesh/core/surface_mesh.h>
 
+#include <geode/model/helpers/detail/build_model_boundaries.h>
 #include <geode/model/mixin/core/block.h>
 #include <geode/model/mixin/core/corner.h>
 #include <geode/model/mixin/core/line.h>
@@ -47,6 +48,16 @@ namespace geode
 {
     namespace detail
     {
+        template < typename Model >
+        Model clone_with_model_boundaries( const Model& model )
+        {
+            Model result;
+            typename Model::Builder builder{ result };
+            builder.copy( model );
+            build_model_boundaries( result, builder );
+            return result;
+        }
+
         inline bool check_brep_polygons( const BRep& brep )
         {
             for( const auto& surface : brep.surfaces() )

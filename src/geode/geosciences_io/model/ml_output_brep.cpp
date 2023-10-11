@@ -25,6 +25,8 @@
 
 #include <geode/mesh/core/surface_mesh.h>
 
+#include <geode/model/representation/builder/brep_builder.h>
+
 #include <geode/geosciences_io/model/private/gocad_common.h>
 #include <geode/geosciences_io/model/private/ml_output_impl.h>
 
@@ -90,8 +92,17 @@ namespace geode
                     "BRep with non triangular surface polygons." );
                 return;
             }
-            MLOutputImplBRep impl{ filename(), brep };
-            impl.write_file();
+            if( brep.nb_model_boundaries() > 0 )
+            {
+                MLOutputImplBRep impl{ filename(), brep };
+                impl.write_file();
+            }
+            else
+            {
+                const auto new_brep = clone_with_model_boundaries( brep );
+                MLOutputImplBRep impl{ filename(), new_brep };
+                impl.write_file();
+            }
         }
     } // namespace detail
 } // namespace geode
