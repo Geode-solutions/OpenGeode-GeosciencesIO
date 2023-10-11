@@ -25,6 +25,7 @@
 
 #include <geode/mesh/core/surface_mesh.h>
 
+#include <geode/geosciences/explicit/representation/builder/structural_model_builder.h>
 #include <geode/geosciences/explicit/representation/core/structural_model.h>
 #include <geode/geosciences_io/model/private/gocad_common.h>
 #include <geode/geosciences_io/model/private/ml_output_impl.h>
@@ -241,8 +242,18 @@ namespace geode
                     "StructuralModel with non triangular surface polygons." );
                 return;
             }
-            MLOutputImplSM impl{ filename(), structural_model };
-            impl.write_file();
+            if( structural_model.nb_model_boundaries() > 0 )
+            {
+                MLOutputImplSM impl{ filename(), structural_model };
+                impl.write_file();
+            }
+            else
+            {
+                const auto new_structural_model =
+                    clone_with_model_boundaries( structural_model );
+                MLOutputImplSM impl{ filename(), new_structural_model };
+                impl.write_file();
+            }
         }
     } // namespace detail
 } // namespace geode
