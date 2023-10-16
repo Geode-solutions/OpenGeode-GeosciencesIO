@@ -45,6 +45,9 @@ namespace geode
             }
 
             void write( const StructuralModel& structural_model ) const final;
+
+            bool is_saveable(
+                const StructuralModel& structural_model ) const final;
         };
     } // namespace detail
 } // namespace geode
