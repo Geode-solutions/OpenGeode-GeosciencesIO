@@ -104,5 +104,10 @@ namespace geode
                 impl.write_file();
             }
         }
+
+        bool MLOutputBRep::is_saveable( const BRep& brep ) const
+        {
+            return check_brep_polygons( brep );
+        }
     } // namespace detail
 } // namespace geode

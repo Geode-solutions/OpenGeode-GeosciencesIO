@@ -255,5 +255,11 @@ namespace geode
                 impl.write_file();
             }
         }
+
+        bool MLOutputStructuralModel::is_saveable(
+            const StructuralModel& structural_model ) const
+        {
+            return check_brep_polygons( structural_model );
+        }
     } // namespace detail
 } // namespace geode
