@@ -23,6 +23,8 @@
 
 #pragma once
 
+#include <geode/basic/input.h>
+
 #include <geode/mesh/io/regular_grid_input.h>
 
 #include <geode/geosciences_io/mesh/common.h>
@@ -52,6 +54,9 @@ namespace geode
             }
 
             std::unique_ptr< RegularGrid3D > read( const MeshImpl& impl ) final;
+
+            RegularGridInput< 3 >::MissingFiles
+                check_missing_files() const final;
         };
     } // namespace detail
 } // namespace geode

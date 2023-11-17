@@ -24,8 +24,10 @@
 #include <geode/geosciences_io/mesh/private/vo_input.h>
 
 #include <fstream>
+#include <string>
 
 #include <absl/strings/str_replace.h>
+#include <absl/types/optional.h>
 
 #include <geode/basic/attribute_manager.h>
 #include <geode/basic/file.h>
@@ -37,11 +39,25 @@
 
 #include <geode/mesh/builder/regular_grid_solid_builder.h>
 #include <geode/mesh/core/regular_grid_solid.h>
+#include <geode/mesh/io/regular_grid_input.h>
 
 #include <geode/geosciences_io/mesh/private/gocad_common.h>
 
 namespace
 {
+
+    absl::optional< std::string > get_data_file( std::ifstream& file )
+    {
+        const auto line =
+            geode::goto_keyword_if_it_exists( file, "ASCII_DATA_FILE" );
+        if( !line.has_value() )
+        {
+            return absl::nullopt;
+        }
+        return absl::StrReplaceAll(
+            line.value(), { { "ASCII_DATA_FILE ", "" }, { "\"", "" } } );
+    }
+
     class VOInputImpl
     {
     public:
@@ -132,11 +148,14 @@ namespace
 
         void read_data_file()
         {
-            auto line = geode::goto_keyword( file_, "ASCII_DATA_FILE" );
-            const auto data_file_name = absl::StrReplaceAll(
-                line, { { "ASCII_DATA_FILE ", "" }, { "\"", "" } } );
+            const auto data_file_name = get_data_file( file_ );
+            OPENGEODE_EXCEPTION(
+                data_file_name.has_value(), "[VOInput] No data file record" );
             std::ifstream data_file{ absl::StrCat(
-                file_folder_, data_file_name ) };
+                file_folder_, data_file_name.value() ) };
+            OPENGEODE_EXCEPTION( data_file.good(),
+                "[VOInput] Cannot open data file: ", data_file_name.value() );
+            std::string line;
             std::getline( data_file, line );
             std::getline( data_file, line );
             auto tokens = geode::string_split( line );
@@ -187,9 +206,26 @@ namespace geode
         std::unique_ptr< RegularGrid3D > VOInput::read( const MeshImpl& impl )
         {
             auto voxet = RegularGrid3D::create( impl );
-            VOInputImpl reader{ this->filename(), *voxet };
+            VOInputImpl reader{ filename(), *voxet };
             reader.read_file();
             return voxet;
+        }
+
+        RegularGridInput< 3 >::MissingFiles VOInput::check_missing_files() const
+        {
+            std::ifstream file{ geode::to_string( filename() ) };
+            const auto data_file = get_data_file( file );
+            file.close();
+            if( !data_file.has_value() )
+            {
+                return {};
+            }
+            RegularGridInput< 3 >::MissingFiles missing;
+            if( !file_exists( data_file.value() ) )
+            {
+                missing.mandatory_files.push_back( data_file.value() );
+            }
+            return missing;
         }
     } // namespace detail
 } // namespace geode
