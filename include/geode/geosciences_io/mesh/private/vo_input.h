@@ -23,6 +23,8 @@
 
 #pragma once
 
+#include <geode/basic/input.h>
+
 #include <geode/mesh/io/regular_grid_input.h>
 
 #include <geode/geosciences_io/mesh/common.h>

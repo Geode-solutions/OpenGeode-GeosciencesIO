@@ -24,8 +24,10 @@
 #include <geode/geosciences_io/mesh/private/vo_input.h>
 
 #include <fstream>
+#include <string>
 
 #include <absl/strings/str_replace.h>
+#include <absl/types/optional.h>
 
 #include <geode/basic/attribute_manager.h>
 #include <geode/basic/file.h>
@@ -37,6 +39,7 @@
 
 #include <geode/mesh/builder/regular_grid_solid_builder.h>
 #include <geode/mesh/core/regular_grid_solid.h>
+#include <geode/mesh/io/regular_grid_input.h>
 
 #include <geode/geosciences_io/mesh/private/gocad_common.h>
 
