@@ -25,14 +25,18 @@
 
 #include <fstream>
 
+#include <string>
+
+#include <absl/strings/match.h>
 #include <absl/strings/str_split.h>
+
+#include <absl/types/optional.h>
 
 #include <geode/basic/attribute_manager.h>
 #include <geode/basic/file.h>
 #include <geode/basic/filename.h>
 #include <geode/basic/logger.h>
 #include <geode/basic/string.h>
-#include <geode/tests_config.h>
 
 #include <geode/geometry/nn_search.h>
 
@@ -267,7 +271,6 @@ namespace
                     }
                 }
             }
-            DEBUG( points.size() );
             const auto collocated_mapping =
                 geode::NNSearch3D{ points }.colocated_index_mapping(
                     geode::global_epsilon );
@@ -344,9 +347,5 @@ namespace geode
             return solid;
         }
 
-        // HybridSolidInput< 3 >::MissingFiles
-        //     GRDECLInput::check_missing_files() const
-        // {
-        // }
     } // namespace detail
 } // namespace geode

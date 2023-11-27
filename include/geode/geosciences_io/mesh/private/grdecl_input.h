@@ -51,9 +51,6 @@ namespace geode
             }
 
             std::unique_ptr< HybridSolid3D > read( const MeshImpl& impl ) final;
-
-            // HybridSolidInput< 3 >::MissingFiles
-            //     check_missing_files() const final;
         };
     } // namespace detail
 } // namespace geode
