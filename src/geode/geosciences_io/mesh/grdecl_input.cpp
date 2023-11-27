@@ -25,6 +25,13 @@
 
 #include <fstream>
 
+#include <string>
+
+#include <absl/strings/match.h>
+#include <absl/strings/str_split.h>
+
+#include <absl/types/optional.h>
+
 #include <geode/basic/attribute_manager.h>
 #include <geode/basic/file.h>
 #include <geode/basic/filename.h>
@@ -61,6 +68,7 @@ namespace
         GRDECLInputImpl(
             absl::string_view filename, geode::HybridSolid3D& solid )
             : file_{ geode::to_string( filename ) },
+              filepath_{ geode::filepath_without_filename( filename ) },
               solid_( solid ),
               builder_{ geode::HybridSolidBuilder< 3 >::create( solid ) }
         {
@@ -69,27 +77,64 @@ namespace
         void read_file()
         {
             read_dimensions();
-            const auto pillars = read_pillars();
-            const auto depths = read_depths();
+            get_filenames_and_keywords();
+            const auto pillars = keyword_to_filename_map_.contains( "COORD" )
+                                     ? read_pillars_with_file()
+                                     : read_pillars();
+            const auto depths = keyword_to_filename_map_.contains( "ZCORN" )
+                                    ? read_depths_with_file()
+                                    : read_depths();
             create_cells( pillars, depths );
         }
 
     private:
+        void get_filenames_and_keywords()
+        {
+            auto line = geode::goto_keyword_if_it_exists( file_, "INCLUDE" );
+            while( line != absl::nullopt )
+            {
+                std::getline( file_, line.value() );
+                const auto tokens = absl::StrSplit( line.value(), "_" );
+                for( const auto& token : tokens )
+                {
+                    if( !absl::StrContains( token, "." ) )
+                    {
+                        continue;
+                    }
+                    const auto second_tokens = absl::StrSplit( token, "." );
+                    for( const auto& second_token : second_tokens )
+                    {
+                        auto string_without_spaces =
+                            geode::string_split( line.value() )[0];
+                        keyword_to_filename_map_[second_token] =
+                            std::string{ string_without_spaces.substr(
+                                1, string_without_spaces.size() - 2 ) };
+                        break;
+                    }
+                }
+
+                line = geode::goto_keyword_if_it_exists( file_, "INCLUDE" );
+            }
+        }
+
         void read_dimensions()
         {
             auto line = geode::goto_keyword( file_, "SPECGRID" );
-            std::getline( file_, line );
+            while( !absl::StrContains( line, "F" ) )
+            {
+                std::getline( file_, line );
+            }
             const auto tokens = geode::string_split( line );
             nx_ = geode::string_to_index( tokens[0] );
             ny_ = geode::string_to_index( tokens[1] );
             nz_ = geode::string_to_index( tokens[2] );
         }
 
-        absl::FixedArray< Pillar > read_pillars()
+        absl::FixedArray< Pillar > read_pillars_from_file( std::ifstream& file )
         {
             absl::FixedArray< Pillar > pillars( ( nx_ + 1 ) * ( ny_ + 1 ) );
-            auto line = geode::goto_keyword( file_, "COORD" );
-            std::getline( file_, line );
+            auto line = geode::goto_keyword( file, "COORD" );
+            std::getline( file, line );
             geode::index_t pillar_number{ 0 };
             while( line != "/" )
             {
@@ -108,17 +153,29 @@ namespace
                         geode::string_to_double( tokens[5] ) } };
                     pillars[pillar_number++] = std::move( pillar );
                 }
-                std::getline( file_, line );
+                std::getline( file, line );
             }
             return pillars;
         }
 
-        absl::FixedArray< double > read_depths()
+        absl::FixedArray< Pillar > read_pillars()
+        {
+            return read_pillars_from_file( file_ );
+        }
+
+        absl::FixedArray< Pillar > read_pillars_with_file()
+        {
+            std::ifstream file{ absl::StrCat(
+                filepath_, keyword_to_filename_map_["COORD"] ) };
+            return read_pillars_from_file( file );
+        }
+
+        absl::FixedArray< double > read_depths_from_file( std::ifstream& file )
         {
             absl::FixedArray< double > depths( 8 * nx_ * ny_ * nz_ );
-            auto line = geode::goto_keyword( file_, "ZCORN" );
+            auto line = geode::goto_keyword( file, "ZCORN" );
             geode::index_t depths_number{ 0 };
-            std::getline( file_, line );
+            std::getline( file, line );
             while( line != "/" )
             {
                 const auto tokens = geode::string_split( line );
@@ -127,9 +184,21 @@ namespace
                     depths[depths_number++] =
                         geode::string_to_double( tokens[depths_id] );
                 }
-                std::getline( file_, line );
+                std::getline( file, line );
             }
             return depths;
+        }
+
+        absl::FixedArray< double > read_depths()
+        {
+            return read_depths_from_file( file_ );
+        }
+
+        absl::FixedArray< double > read_depths_with_file()
+        {
+            std::ifstream file{ absl::StrCat(
+                filepath_, keyword_to_filename_map_["ZCORN"] ) };
+            return read_depths_from_file( file );
         }
 
         std::array< geode::Point3D, 8 > cell_points(
@@ -254,11 +323,14 @@ namespace
 
     private:
         std::ifstream file_;
+        std::string filepath_;
         geode::HybridSolid3D& solid_;
         std::unique_ptr< geode::HybridSolidBuilder3D > builder_{ nullptr };
         geode::index_t nx_{ geode::NO_ID };
         geode::index_t ny_{ geode::NO_ID };
         geode::index_t nz_{ geode::NO_ID };
+        absl::flat_hash_map< std::string, std::string >
+            keyword_to_filename_map_{};
     };
 } // namespace
 
@@ -274,5 +346,6 @@ namespace geode
             reader.read_file();
             return solid;
         }
+
     } // namespace detail
 } // namespace geode
