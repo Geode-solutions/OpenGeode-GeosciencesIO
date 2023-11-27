@@ -59,6 +59,7 @@ int main()
                         geode::detail::GRDECLInput::extension() ),
             20 * 20 * 5, 21 * 6 * ( 21 + 1 ) );
         geode::Logger::info( "[TEST SUCCESS]" );
+
         return 0;
     }
     catch( ... )
