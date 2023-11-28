@@ -25,6 +25,7 @@ add_geode_test(
         OpenGeode::model
         OpenGeode-Geosciences::explicit
         ${PROJECT_NAME}::model
+    ESSENTIAL
 )
 add_geode_test(
     SOURCE "test-lso.cpp"

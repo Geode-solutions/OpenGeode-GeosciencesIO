@@ -1,11 +1,11 @@
-name: Deploy
+name: Test PR
 
 on:
-  workflow_dispatch:
+  pull_request:
 
 jobs:
-  deploy:
-    uses: Geode-solutions/actions/.github/workflows/cpp-deploy.yml@master
+  test:
+    uses: Geode-solutions/actions/.github/workflows/cpp-test-pr.yml@master
     with:
       name: OPENGEODE_GEOSCIENCESIO
       repos: OpenGeode;OpenGeode-IO;OpenGeode-Geosciences

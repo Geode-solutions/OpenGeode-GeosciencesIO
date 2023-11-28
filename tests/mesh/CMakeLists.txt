@@ -24,6 +24,7 @@ add_geode_test(
         OpenGeode::basic
         OpenGeode::mesh
         ${PROJECT_NAME}::mesh
+    ESSENTIAL
 )
 add_geode_test(
     SOURCE "test-pl.cpp"
