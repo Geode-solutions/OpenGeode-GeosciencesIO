@@ -24,6 +24,8 @@
 #include <geode/geosciences_io/model/private/lso_output.h>
 
 #include <fstream>
+#include <string>
+#include <vector>
 
 #include <geode/basic/attribute_manager.h>
 
@@ -265,10 +267,12 @@ namespace geode
 {
     namespace detail
     {
-        void LSOOutput::write( const StructuralModel& structural_model ) const
+        std::vector< std::string > LSOOutput::write(
+            const StructuralModel& structural_model ) const
         {
             LSOOutputImpl impl{ filename(), structural_model };
             impl.write_file();
+            return { to_string( filename() ) };
         }
 
         bool LSOOutput::is_saveable(

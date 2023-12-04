@@ -23,6 +23,9 @@
 
 #pragma once
 
+#include <string>
+#include <vector>
+
 #include <geode/geosciences_io/mesh/common.h>
 #include <geode/mesh/io/triangulated_surface_output.h>
 
@@ -50,7 +53,8 @@ namespace geode
                 return ext;
             }
 
-            void write( const TriangulatedSurface3D& surface ) const final;
+            std::vector< std::string > write(
+                const TriangulatedSurface3D& surface ) const final;
         };
     } // namespace detail
 } // namespace geode

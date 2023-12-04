@@ -23,6 +23,9 @@
 
 #pragma once
 
+#include <string>
+#include <vector>
+
 #include <geode/geosciences/explicit/representation/io/structural_model_output.h>
 #include <geode/geosciences_io/model/common.h>
 
@@ -44,7 +47,8 @@ namespace geode
                 return ext;
             }
 
-            void write( const StructuralModel& structural_model ) const final;
+            std::vector< std::string > write(
+                const StructuralModel& structural_model ) const final;
 
             bool is_saveable(
                 const StructuralModel& structural_model ) const final;

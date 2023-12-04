@@ -23,6 +23,9 @@
 
 #include <geode/geosciences_io/model/private/ml_output_structural_model.h>
 
+#include <string>
+#include <vector>
+
 #include <geode/mesh/core/surface_mesh.h>
 
 #include <geode/geosciences/explicit/representation/builder/structural_model_builder.h>
@@ -231,17 +234,12 @@ namespace geode
 {
     namespace detail
     {
-        void MLOutputStructuralModel::write(
+        std::vector< std::string > MLOutputStructuralModel::write(
             const StructuralModel& structural_model ) const
         {
-            const auto only_triangles = check_brep_polygons( structural_model );
-            if( !only_triangles )
-            {
-                geode::Logger::info(
-                    "[MLOutput::write] Can not export into .ml a "
-                    "StructuralModel with non triangular surface polygons." );
-                return;
-            }
+            OPENGEODE_EXCEPTION( check_brep_polygons( structural_model ),
+                "[MLOutput::write] Can not export into .ml a "
+                "StructuralModel with non triangular surface polygons." );
             if( structural_model.nb_model_boundaries() > 0 )
             {
                 MLOutputImplSM impl{ filename(), structural_model };
@@ -254,6 +252,7 @@ namespace geode
                 MLOutputImplSM impl{ filename(), new_structural_model };
                 impl.write_file();
             }
+            return { to_string( filename() ) };
         }
 
         bool MLOutputStructuralModel::is_saveable(
