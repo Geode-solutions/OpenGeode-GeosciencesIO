@@ -23,6 +23,9 @@
 
 #include <geode/geosciences_io/model/private/ml_output_brep.h>
 
+#include <string>
+#include <vector>
+
 #include <geode/mesh/core/surface_mesh.h>
 
 #include <geode/model/representation/builder/brep_builder.h>
@@ -82,16 +85,11 @@ namespace geode
 {
     namespace detail
     {
-        void MLOutputBRep::write( const BRep& brep ) const
+        std::vector< std::string > MLOutputBRep::write( const BRep& brep ) const
         {
-            const auto only_triangles = check_brep_polygons( brep );
-            if( !only_triangles )
-            {
-                geode::Logger::info(
-                    "[MLOutput::write] Can not export into .ml a "
-                    "BRep with non triangular surface polygons." );
-                return;
-            }
+            OPENGEODE_EXCEPTION( check_brep_polygons( brep ),
+                "[MLOutput::write] Can not export into .ml a "
+                "BRep with non triangular surface polygons." );
             if( brep.nb_model_boundaries() > 0 )
             {
                 MLOutputImplBRep impl{ filename(), brep };
@@ -103,6 +101,7 @@ namespace geode
                 MLOutputImplBRep impl{ filename(), new_brep };
                 impl.write_file();
             }
+            return { to_string( filename() ) };
         }
 
         bool MLOutputBRep::is_saveable( const BRep& brep ) const

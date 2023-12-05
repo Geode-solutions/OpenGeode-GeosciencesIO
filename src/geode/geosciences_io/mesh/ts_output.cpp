@@ -25,6 +25,7 @@
 
 #include <fstream>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include <geode/basic/attribute_manager.h>
@@ -181,10 +182,12 @@ namespace geode
 {
     namespace detail
     {
-        void TSOutput::write( const TriangulatedSurface3D& surface ) const
+        std::vector< std::string > TSOutput::write(
+            const TriangulatedSurface3D& surface ) const
         {
             TSOutputImpl impl{ filename(), surface };
             impl.write_file();
+            return { to_string( filename() ) };
         }
     } // namespace detail
 } // namespace geode

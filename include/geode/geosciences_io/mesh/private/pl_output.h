@@ -23,6 +23,9 @@
 
 #pragma once
 
+#include <string>
+#include <vector>
+
 #include <geode/geosciences_io/mesh/common.h>
 #include <geode/mesh/io/edged_curve_output.h>
 
@@ -50,7 +53,8 @@ namespace geode
                 return ext;
             }
 
-            void write( const EdgedCurve3D& edged_curve ) const final;
+            std::vector< std::string > write(
+                const EdgedCurve3D& edged_curve ) const final;
         };
     } // namespace detail
 } // namespace geode

@@ -25,6 +25,7 @@
 
 #include <fstream>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include <geode/basic/attribute_manager.h>
@@ -238,10 +239,12 @@ namespace geode
 {
     namespace detail
     {
-        void PLOutput::write( const EdgedCurve3D& edged_curve ) const
+        std::vector< std::string > PLOutput::write(
+            const EdgedCurve3D& edged_curve ) const
         {
             PLOutputImpl impl{ filename(), edged_curve };
             impl.write_file();
+            return { to_string( filename() ) };
         }
     } // namespace detail
 } // namespace geode
