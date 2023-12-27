@@ -33,6 +33,8 @@
 #include <geode/geosciences/explicit/representation/io/structural_model_output.h>
 #include <geode/geosciences/implicit/representation/io/horizons_stack_input.h>
 
+#include <geode/geosciences_io/model/private/geos_output_brep.h>
+#include <geode/geosciences_io/model/private/geos_output_structural_model.h>
 #include <geode/geosciences_io/model/private/horizons_stack_skua_input.h>
 #include <geode/geosciences_io/model/private/lso_input.h>
 #include <geode/geosciences_io/model/private/lso_output.h>
@@ -59,6 +61,9 @@ namespace
             geode::detail::MLOutputStructuralModel >(
             geode::detail::MLOutputStructuralModel::extension().data() );
         geode::StructuralModelOutputFactory::register_creator<
+            geode::detail::GeosOutputStructuralModel >(
+            geode::detail::GeosOutputStructuralModel::extension().data() );
+        geode::StructuralModelOutputFactory::register_creator<
             geode::detail::LSOOutput >(
             geode::detail::LSOOutput::extension().data() );
     }
@@ -77,6 +82,9 @@ namespace
         geode::BRepOutputFactory::register_creator<
             geode::detail::MLOutputBRep >(
             geode::detail::MLOutputBRep::extension().data() );
+        geode::BRepOutputFactory::register_creator<
+            geode::detail::GeosOutputBRep >(
+            geode::detail::GeosOutputBRep::extension().data() );
     }
 
     void register_horizons_stack_input()
