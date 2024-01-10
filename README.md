@@ -40,19 +40,20 @@ OpenGeode-GeosciencesIO provides input and output formats for [OpenGeode-Geoscie
 To check out our live documentation, visit [docs.geode-solutions.com](https://docs.geode-solutions.com).
 
 Installing OpenGeode-GeosciencesIO is done:
- * either, by compiling the C++ source.
- * or, by using pip command ```pip install OpenGeode-GeosciencesIO``` and add ```import opengeode_geosciencesio``` in your Python script.
+
+- either, by compiling the C++ source.
+- or, by using pip command `pip install OpenGeode-GeosciencesIO` and add `import opengeode_geosciencesio` in your Python script.
 
 ## Questions
-For questions and support please use the official [slack](https://opengeode-slack-invite.herokuapp.com) and go to the channel #geosciences_io. The issue list of this repo is exclusively for bug reports and feature requests. 
+
+For questions and support please use the official [slack](https://opengeode-slack-invite.herokuapp.com) and go to the channel #geosciences_io. The issue list of this repo is exclusively for bug reports and feature requests.
 
 ## Changelog
 
 Detailed changes for each release are documented in the [release notes](https://github.com/Geode-solutions/OpenGeode-GeosciencesIO/releases).
 
-
 ## License
 
 [MIT](https://opensource.org/licenses/MIT)
 
-Copyright (c) 2019 - 2023, Geode-solutions
+Copyright (c) 2019 - 2024, Geode-solutions
