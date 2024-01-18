@@ -34,12 +34,11 @@
 
 #include <geode/mesh/core/hybrid_solid.h>
 #include <geode/mesh/core/polyhedral_solid.h>
-#include <geode/mesh/core/regular_grid_solid.h>
 #include <geode/mesh/core/solid_mesh.h>
+#include <geode/mesh/core/surface_mesh.h>
 #include <geode/mesh/core/tetrahedral_solid.h>
 #include <geode/mesh/io/hybrid_solid_output.h>
 #include <geode/mesh/io/polyhedral_solid_output.h>
-#include <geode/mesh/io/regular_grid_output.h>
 #include <geode/mesh/io/tetrahedral_solid_output.h>
 
 #include <geode/model/helpers/convert_to_mesh.h>
@@ -121,8 +120,11 @@ namespace geode
             void write_file()
             {
                 std::string REGION_ID_ATTRIBUTE_NAME{ "attribute" };
+                std::unique_ptr< geode::SurfaceMesh3D > surface;
+                std::unique_ptr< geode::SolidMesh3D > solid;
+                std::tie( surface, solid ) =
+                    geode::convert_brep_into_surface_and_solid( model_ );
 
-                auto solid = geode::convert_brep_into_solid( model_ );
                 const auto brep_component_uuid_attribute =
                     solid->polyhedron_attribute_manager()
                         .find_attribute<
@@ -175,16 +177,10 @@ namespace geode
                 {
                     geode::save_polyhedral_solid( *poly, file );
                 }
-                else if( const auto* grid =
-                             dynamic_cast< const geode::RegularGrid3D* >(
-                                 solid.get() ) )
-                {
-                    geode::save_regular_grid( *grid, file );
-                }
                 else
                 {
                     throw geode::OpenGeodeException(
-                        "[Blocks::save_blocks] Cannot find the explicit "
+                        "[Blocks::save_geos] Cannot find the explicit "
                         "SolidMesh type" );
                 }
             }
