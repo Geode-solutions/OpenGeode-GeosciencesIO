@@ -8,5 +8,8 @@ opengeode-core==14.*,>=14.12.3
     # via
     #   -r bindings/python/requirements.in
     #   opengeode-geosciences
+    #   opengeode-io
 opengeode-geosciences==7.*,>=7.3.4
+    # via -r bindings/python/requirements.in
+opengeode-io==6.*,>=6.3.0
     # via -r bindings/python/requirements.in
