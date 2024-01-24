@@ -56,29 +56,36 @@ namespace
                 { line.component_id(), mesh.edge_vertex( { 0, 0 } ) } );
             const auto uid1 = brep.unique_vertex(
                 { line.component_id(), mesh.edge_vertex( { 0, 1 } ) } );
-            const auto surface_cmvs0 = brep.component_mesh_vertices(
-                uid0, geode::Surface3D::component_type_static() );
-            const auto surface_cmvs1 = brep.component_mesh_vertices(
-                uid1, geode::Surface3D::component_type_static() );
+            const auto& cmvs0 = brep.component_mesh_vertices( uid0 );
+            const auto& cmvs1 = brep.component_mesh_vertices( uid1 );
             absl::flat_hash_map< geode::uuid, bool > surface_direct_edges;
             surface_direct_edges.reserve(
-                std::min( surface_cmvs0.size(), surface_cmvs1.size() ) );
-            for( const auto& surface_cmv0 : surface_cmvs0 )
+                std::min( cmvs0.size(), cmvs1.size() ) );
+            for( const auto& cmv0 : cmvs0 )
             {
-                for( const auto& surface_cmv1 : surface_cmvs1 )
+                if( cmv0.component_id.type()
+                    != geode::Surface3D::component_type_static() )
                 {
-                    if( surface_cmv1.component_id.id()
-                        != surface_cmv0.component_id.id() )
+                    continue;
+                }
+                for( const auto& cmv1 : cmvs1 )
+                {
+                    if( cmv1.component_id.type()
+                        != geode::Surface3D::component_type_static() )
+                    {
+                        continue;
+                    }
+                    if( cmv1.component_id.id() != cmv0.component_id.id() )
                     {
                         continue;
                     }
                     const auto& surface =
-                        brep.surface( surface_cmv0.component_id.id() );
+                        brep.surface( cmv0.component_id.id() );
                     const auto& surface_mesh = surface.mesh();
                     const auto v0v1 = surface_mesh.polygon_edge_from_vertices(
-                        surface_cmv0.vertex, surface_cmv1.vertex );
+                        cmv0.vertex, cmv1.vertex );
                     const auto v1v0 = surface_mesh.polygon_edge_from_vertices(
-                        surface_cmv1.vertex, surface_cmv0.vertex );
+                        cmv1.vertex, cmv0.vertex );
                     if( v0v1 && !v1v0 )
                     {
                         surface_direct_edges.emplace( surface.id(), true );
