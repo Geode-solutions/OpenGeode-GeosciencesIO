@@ -236,7 +236,8 @@ namespace geode
         CRSData read_CRS( std::ifstream& file )
         {
             CRSData crs;
-            if( !line_starts_with( file, "GOCAD_ORIGINAL_COORDINATE_SYSTEM" ) )
+            if( !next_keyword_if_it_exists(
+                    file, "GOCAD_ORIGINAL_COORDINATE_SYSTEM" ) )
             {
                 return crs;
             }
