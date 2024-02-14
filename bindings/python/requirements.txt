@@ -4,12 +4,12 @@
 #
 #    pip-compile --pre bindings/python/requirements.in
 #
-opengeode-core==14.*,>=14.14.1
+opengeode-core==14.*,>=14.14.2rc1
     # via
     #   -r bindings/python/requirements.in
     #   opengeode-geosciences
     #   opengeode-io
 opengeode-geosciences==7.*,>=7.4.1
     # via -r bindings/python/requirements.in
-opengeode-io==6.*,>=6.4.2
+opengeode-io==6.*,>=6.4.3rc1
     # via -r bindings/python/requirements.in
