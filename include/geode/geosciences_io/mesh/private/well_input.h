@@ -21,6 +21,8 @@
  *
  */
 
+#pragma once
+
 #include <fstream>
 
 #include <geode/basic/filename.h>

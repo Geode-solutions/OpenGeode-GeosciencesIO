@@ -322,9 +322,17 @@ namespace geode
                                            ( edge.edge_id + 1 ) % 3 ) } );
                 const auto uid1 =
                     model_.unique_vertex( { surface.component_id(), v1 } );
-                const auto corner_cmvs1 = model_.component_mesh_vertices(
-                    uid1, Corner3D::component_type_static() );
-                if( !corner_cmvs1.empty() )
+                bool is_corner{ false };
+                for( const auto& cmv1 : model_.component_mesh_vertices( uid1 ) )
+                {
+                    if( cmv1.component_id.type()
+                        == Corner3D::component_type_static() )
+                    {
+                        is_corner = true;
+                        break;
+                    }
+                }
+                if( is_corner )
                 {
                     line_starts.emplace_back( std::array< index_t, 2 >{
                         v1 + current_offset, v0 + current_offset } );

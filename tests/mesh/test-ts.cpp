@@ -85,6 +85,9 @@ int main()
         check_file( absl::StrCat( geode::data_path, "/sgrid_tsurf.",
                         geode::detail::TSInput::extension() ),
             4, 2 );
+        check_file( absl::StrCat( geode::data_path, "Fault_without_crs.",
+                        geode::detail::TSInput::extension() ),
+            189, 324 );
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
