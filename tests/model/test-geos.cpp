@@ -23,7 +23,7 @@
 
 #include <geode/tests_config.h>
 
-#include <geode/geosciences_io/model/private/geos_output_brep.h>
+#include <geode/geosciences_io/model/helpers/brep_geos_export.h>
 
 #include <geode/io/mesh/common.h>
 #include <geode/io/model/common.h>
@@ -35,8 +35,8 @@ void test_picasso()
     // Load structural model
     auto model =
         geode::load_brep( absl::StrCat( geode::data_path, "picasso.og_brep" ) );
-
-    geode::save_brep( model, "picasso.geos" );
+    geode::BRepGeosExporter exporter( model, "picasso" );
+    exporter.export_meshes();
 }
 
 int main()

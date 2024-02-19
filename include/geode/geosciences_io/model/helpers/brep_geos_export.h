@@ -21,40 +21,27 @@
  *
  */
 
-#include <geode/geosciences_io/model/private/geos_output.h>
-#include <geode/geosciences_io/model/private/geos_output_brep.h>
+#pragma once
 
-namespace
-{
-    class GeosBRepOutputImpl
-        : public geode::detail::GeosOutputImpl< geode::BRep >
-    {
-    public:
-        GeosBRepOutputImpl(
-            absl::string_view files_directory, const geode::BRep& model )
-            : geode::detail::GeosOutputImpl< geode::BRep >(
-                files_directory, model )
-        {
-        }
-    };
-} // namespace
+#include <geode/geosciences_io/model/common.h>
+
+#include <absl/strings/string_view.h>
+
+#include <geode/basic/pimpl.h>
+#include <geode/model/representation/core/brep.h>
 
 namespace geode
 {
-    namespace detail
+    class opengeode_geosciencesio_model_api BRepGeosExporter
     {
-        std::vector< std::string > GeosOutputBRep::write(
-            const BRep& brep ) const
-        {
-            GeosBRepOutputImpl impl{ filename(), brep };
-            impl.write_file();
-            return { to_string( filename() ) };
-        }
+    public:
+        BRepGeosExporter( const BRep& brep, absl::string_view files_directory );
 
-        bool GeosOutputBRep::is_saveable( const BRep& brep ) const
-        {
-            return false;
-            // return check_brep_polygons( brep );
-        }
-    } // namespace detail
+        ~BRepGeosExporter() = default;
+
+        void export_meshes() const;
+
+    private:
+        IMPLEMENTATION_MEMBER( impl_ );
+    };
 } // namespace geode

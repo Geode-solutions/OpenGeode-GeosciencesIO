@@ -23,8 +23,8 @@ add_geode_library(
     FOLDER "geode/geosciences_io/model"
     SOURCES
         "common.cpp"
-        "geos_output_brep.cpp"
-        "geos_output_structural_model.cpp"
+        "helpers/brep_geos_export.cpp"
+        #"helpers/structural_model_geos_export.cpp"
         "gocad_common.cpp"
         "lso_input.cpp"
         "lso_output.cpp"
@@ -36,9 +36,9 @@ add_geode_library(
     PUBLIC_HEADERS
         "common.h"
     PRIVATE_HEADERS
-        "private/geos_output.h"
-        "private/geos_output_brep.h"
-        "private/geos_output_structural_model.h"
+        #"helpers/geos_export.h"
+        "helpers/brep_geos_export.h"
+        #"helpers/structural_model_geos_export.h"
         "private/gocad_common.h"
         "private/lso_input.h"
         "private/lso_output.h"

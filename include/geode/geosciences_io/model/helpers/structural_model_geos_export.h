@@ -37,15 +37,16 @@ namespace geode
         class GeosOutputStructuralModel final : public StructuralModelOutput
         {
         public:
-            GeosOutputStructuralModel( absl::string_view files_directory )
+            explicit GeosOutputStructuralModel(
+                absl::string_view files_directory )
                 : StructuralModelOutput( files_directory )
             {
             }
 
             static absl::string_view extension()
             {
-                static constexpr auto ext = "geos";
-                return ext;
+                static constexpr auto EXT = "geos";
+                return EXT;
             }
 
             std::vector< std::string > write(
