@@ -55,6 +55,7 @@
 #include <geode/model/representation/core/brep.h>
 
 #include <geode/geometry/aabb.h>
+#include <geode/geometry/distance.h>
 #include <geode/mesh/helpers/aabb_solid_helpers.h>
 
 namespace geode
@@ -178,7 +179,7 @@ namespace geode
                     auto selected_cell_id{ NO_ID };
                     for( auto cell_id : neih_cells )
                     {
-                        auto tmp_dist = point_point_distance(
+                        auto tmp_dist = point_point_distance< 3 >(
                             well->point( point ),
                             model_solid_->polyhedron_barycenter( cell_id ) );
                         if( distance_to_nearest_cell_center < tmp_dist )
@@ -211,7 +212,8 @@ namespace geode
             DEBUG( "start" );
             const auto brep_mesh_elements =
                 model_solid_->polyhedron_attribute_manager()
-                    .find_attribute< geode::mesh_elements_attribute_type >(
+                    .template find_attribute< geode::VariableAttribute,
+                        geode::mesh_elements_attribute_type >(
                         geode::MESH_ELEMENT_ATTRIBUTE_NAME );
             DEBUG( "start1" );
             for( const auto& property_name : cell_property_names_ )
@@ -234,7 +236,8 @@ namespace geode
                         model_.block( polygon_mesh_element.mesh_id )
                             .mesh()
                             .polyhedron_attribute_manager()
-                            .find_attribute< double >( property_name );
+                            .template find_attribute< geode::VariableAttribute,
+                                double >( property_name );
                     auto value = model_property->value(
                         polygon_mesh_element.element_id );
                     solid_property->set_value( polyhedron_id, value );
