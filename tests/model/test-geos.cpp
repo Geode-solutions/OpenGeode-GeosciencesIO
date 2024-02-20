@@ -25,8 +25,11 @@
 
 #include <geode/geosciences_io/model/helpers/brep_geos_export.h>
 
+#include <geode/geometry/point.h>
 #include <geode/io/mesh/common.h>
 #include <geode/io/model/common.h>
+#include <geode/mesh/builder/geode/geode_point_set_builder.h>
+#include <geode/mesh/core/geode/geode_point_set.h>
 
 #include <geode/model/representation/core/brep.h>
 #include <geode/model/representation/io/brep_input.h>
@@ -36,9 +39,25 @@ void test_picasso()
     auto model =
         geode::load_brep( absl::StrCat( geode::data_path, "picasso.og_brep" ) );
     geode::BRepGeosExporter exporter( model, "picasso" );
-    exporter.export_meshes();
+    exporter.run();
 }
-
+void toy_model()
+{
+    DEBUG( "toy model" );
+    auto model = geode::load_brep( absl::StrCat(
+        geode::data_path, "adaptive_brep_perm_and_poro.og_brep" ) );
+    DEBUG( model.nb_blocks() );
+    geode::BRepGeosExporter exporter( model, "toy_model" );
+    DEBUG( "exporter" );
+    /* exporter.add_cell_property( "permeability" );
+     exporter.add_cell_property( "porosity" );
+     auto point_set = geode::PointSet3D::create(
+         geode::OpenGeodePointSet3D::impl_name_static() );
+     auto builder = geode::PointSetBuilder3D::create( *point_set );
+     builder->create_point( { { 20., 20., 10. } } );
+     exporter.add_well_perforations( *point_set );*/
+    exporter.run();
+}
 int main()
 {
     try
@@ -46,8 +65,8 @@ int main()
         geode::GeosciencesIOModelLibrary::initialize();
         geode::IOMeshLibrary::initialize();
         geode::IOModelLibrary::initialize();
-        test_picasso();
-
+        // test_picasso();
+        toy_model();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }

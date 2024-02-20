@@ -36,7 +36,7 @@ add_geode_library(
     PUBLIC_HEADERS
         "common.h"
     PRIVATE_HEADERS
-        #"helpers/geos_export.h"
+        "helpers/geos_export.h"
         "helpers/brep_geos_export.h"
         #"helpers/structural_model_geos_export.h"
         "private/gocad_common.h"

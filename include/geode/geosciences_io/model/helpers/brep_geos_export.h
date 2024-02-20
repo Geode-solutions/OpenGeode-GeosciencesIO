@@ -28,7 +28,14 @@
 #include <absl/strings/string_view.h>
 
 #include <geode/basic/pimpl.h>
+#include <geode/mesh/core/point_set.h>
+
 #include <geode/model/representation/core/brep.h>
+namespace geode
+{
+    FORWARD_DECLARATION_DIMENSION_CLASS( PointSet );
+    ALIAS_3D( PointSet );
+} // namespace geode
 
 namespace geode
 {
@@ -39,7 +46,10 @@ namespace geode
 
         ~BRepGeosExporter() = default;
 
-        void export_meshes() const;
+        void add_well_perforations( const PointSet3D& well_perforation );
+        void add_cell_property( absl::string_view name );
+
+        void run();
 
     private:
         IMPLEMENTATION_MEMBER( impl_ );
