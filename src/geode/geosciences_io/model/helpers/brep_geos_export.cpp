@@ -46,8 +46,7 @@ namespace geode
             absl::flat_hash_map< geode::uuid, geode::index_t > region_map_id;
             for( const auto& block : model.blocks() )
             {
-                region_map_id.emplace( block.id(), region_id );
-                region_id += 1;
+                region_map_id.emplace( block.id(), region_id++ );
             }
             return region_map_id;
         }

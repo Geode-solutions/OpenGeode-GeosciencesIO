@@ -81,6 +81,42 @@ namespace geode
     class GeosExporterImpl
     {
     public:
+        GeosExporterImpl(
+            absl::string_view files_directory, const Model& model )
+            : model_( model ),
+              files_directory_{ ghc::filesystem::path{
+                  geode::to_string( files_directory ) }
+                                    .string() },
+              prefix_{ geode::filename_without_extension( files_directory ) }
+        {
+            DEBUG( "exporter builder" );
+            std::tie( model_curve_, model_surface_, model_solid_ ) =
+                geode::convert_brep_into_curve_and_surface_and_solid( model_ );
+            DEBUG( "exporter convert" );
+            static constexpr std::string REGION_ID_ATTRIBUTE_NAME{
+                "attribute"
+            };
+            region_attribute_ =
+                model_solid_->polyhedron_attribute_manager()
+                    .template find_or_create_attribute<
+                        geode::VariableAttribute, geode::index_t >(
+                        REGION_ID_ATTRIBUTE_NAME, geode::NO_ID );
+            DEBUG( "exporter region_attribute_" );
+
+            if( ghc::filesystem::path{ geode::to_string( files_directory ) }
+                    .is_relative() )
+            {
+                ghc::filesystem::create_directory(
+                    ghc::filesystem::current_path() / files_directory_ );
+            }
+            else
+            {
+                ghc::filesystem::create_directory( files_directory_ );
+            }
+        }
+
+        virtual ~GeosExporterImpl() = default;
+
         void write_files() const
         {
             DEBUG( "write" );
@@ -109,21 +145,22 @@ namespace geode
 
                 {
                     Logger::info( "The property ", property_name,
-                        " will not be exorted because it is not defined on "
+                        " will not be exported because it is not defined on "
                         "every block of the model." );
                     return;
                 }
             }
             cell_property_names_.push_back( geode::to_string( property_name ) );
         }
+
         void prepare_export()
         {
             DEBUG( "init" );
             init_solid_region_attribute();
             DEBUG( "prop" );
-            // transfert_cell_properties();
+            // transfer_cell_properties();
             DEBUG( "clean" );
-            // delete_mapping_attributs();
+            // delete_mapping_attributes();
             DEBUG( "ok" );
         }
 
@@ -132,12 +169,12 @@ namespace geode
         {
             return files_directory_;
         }
+
         absl::string_view prefix() const
         {
             return prefix_;
         }
-        virtual absl::flat_hash_map< geode::uuid, geode::index_t >
-            create_region_attribute_map( const Model& model ) const = 0;
+
         index_t init_solid_region_attribute()
         {
             auto region_map_id = create_region_attribute_map( model_ );
@@ -158,6 +195,9 @@ namespace geode
             return region_map_id.size();
         }
 
+        virtual absl::flat_hash_map< geode::uuid, geode::index_t >
+            create_region_attribute_map( const Model& model ) const = 0;
+
         void write_well_perforations_boxes() const
         {
             auto aabb = create_aabb_tree( *model_solid_ );
@@ -165,21 +205,25 @@ namespace geode
                 files_directory(), "/", prefix(), "_wellbox.xml" );
             std::ofstream file( filename, std::ofstream::out );
             file << "<Geometry>" << std::endl;
-            auto well_id{ 0 };
+            index_t well_id{ 0 };
             for( const auto& well : well_perforations_ )
             {
                 BoundingBox3D perf_box;
                 for( const auto point : geode::Range( well->nb_vertices() ) )
                 {
-                    auto neih_cells =
+                    const auto neigh_cells =
                         aabb.containing_boxes( well->point( point ) );
-                    auto distance_to_nearest_cell_center{
+                    if( neigh_cells.empty() )
+                    {
+                        continue;
+                    }
+                    double distance_to_nearest_cell_center{
                         std::numeric_limits< double >::max()
                     };
-                    auto selected_cell_id{ NO_ID };
-                    for( auto cell_id : neih_cells )
+                    index_t selected_cell_id{ NO_ID };
+                    for( const auto cell_id : neigh_cells )
                     {
-                        auto tmp_dist = point_point_distance< 3 >(
+                        DEBUG_CONST auto tmp_dist = point_point_distance< 3 >(
                             well->point( point ),
                             model_solid_->polyhedron_barycenter( cell_id ) );
                         if( distance_to_nearest_cell_center < tmp_dist )
@@ -196,18 +240,17 @@ namespace geode
                     }
                 }
                 const auto boxstr =
-                    absl::StrCat( "<Box name=\"well_", well_id, " xMin = \"{",
+                    absl::StrCat( "<Box name=\"well_", well_id++, " xMin = \"{",
                         perf_box.min().value( 0 ), perf_box.min().value( 1 ),
                         perf_box.min().value( 2 ), "}\" xMax = \"{",
                         perf_box.max().value( 0 ), perf_box.max().value( 1 ),
                         perf_box.max().value( 2 ), "}\"  />" );
                 file << boxstr << std::endl;
-                well_id++;
             }
             file << "</Geometry>" << std::endl;
         }
 
-        void transfert_cell_properties()
+        void transfer_cell_properties()
         {
             DEBUG( "start" );
             const auto brep_mesh_elements =
@@ -242,10 +285,10 @@ namespace geode
                     solid_property->set_value( polyhedron_id, value );
                 }
             }
-            DEBUG( "ok transfert" );
+            DEBUG( "ok transfer" );
         }
 
-        void delete_mapping_attributs()
+        void delete_mapping_attributes()
         {
             model_solid_->vertex_attribute_manager().delete_attribute(
                 geode::unique_vertex_from_conversion_attribute_name );
@@ -301,39 +344,6 @@ namespace geode
                 id++;
             }
         }
-
-        GeosExporterImpl(
-            absl::string_view files_directory, const Model& model )
-            : model_( model ),
-              files_directory_{ ghc::filesystem::path{
-                  geode::to_string( files_directory ) }
-                                    .string() },
-              prefix_{ geode::filename_without_extension( files_directory ) }
-        {
-            DEBUG( "exporter builder" );
-            std::tie( model_curve_, model_surface_, model_solid_ ) =
-                geode::convert_brep_into_curve_and_surface_and_solid( model_ );
-            DEBUG( "exporter convert" );
-            std::string REGION_ID_ATTRIBUTE_NAME{ "attribute" };
-            region_attribute_ =
-                model_solid_->polyhedron_attribute_manager()
-                    .template find_or_create_attribute<
-                        geode::VariableAttribute, geode::index_t >(
-                        REGION_ID_ATTRIBUTE_NAME, geode::NO_ID );
-            DEBUG( "exporter region_attribute_" );
-
-            if( ghc::filesystem::path{ geode::to_string( files_directory ) }
-                    .is_relative() )
-            {
-                ghc::filesystem::create_directory(
-                    ghc::filesystem::current_path() / files_directory_ );
-            }
-            else
-            {
-                ghc::filesystem::create_directory( files_directory_ );
-            }
-        }
-        virtual ~GeosExporterImpl() = default;
 
     private:
         const Model& model_;
