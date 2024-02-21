@@ -212,7 +212,7 @@ namespace geode
             DEBUG( "start" );
             const auto brep_mesh_elements =
                 model_solid_->polyhedron_attribute_manager()
-                    .template find_attribute< geode::VariableAttribute,
+                    .template find_attribute<
                         geode::mesh_elements_attribute_type >(
                         geode::MESH_ELEMENT_ATTRIBUTE_NAME );
             DEBUG( "start1" );
@@ -236,8 +236,7 @@ namespace geode
                         model_.block( polygon_mesh_element.mesh_id )
                             .mesh()
                             .polyhedron_attribute_manager()
-                            .template find_attribute< geode::VariableAttribute,
-                                double >( property_name );
+                            .template find_attribute< double >( property_name );
                     auto value = model_property->value(
                         polygon_mesh_element.element_id );
                     solid_property->set_value( polyhedron_id, value );

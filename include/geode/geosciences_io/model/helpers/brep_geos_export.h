@@ -28,13 +28,12 @@
 #include <absl/strings/string_view.h>
 
 #include <geode/basic/pimpl.h>
-#include <geode/mesh/core/point_set.h>
 
-#include <geode/model/representation/core/brep.h>
 namespace geode
 {
     FORWARD_DECLARATION_DIMENSION_CLASS( PointSet );
     ALIAS_3D( PointSet );
+    class BRep;
 } // namespace geode
 
 namespace geode
