@@ -49,13 +49,13 @@ void toy_model()
     DEBUG( model.nb_blocks() );
     geode::BRepGeosExporter exporter( model, "toy_model" );
     DEBUG( "exporter" );
-    /* exporter.add_cell_property( "permeability" );
-     exporter.add_cell_property( "porosity" );
-     auto point_set = geode::PointSet3D::create(
-         geode::OpenGeodePointSet3D::impl_name_static() );
-     auto builder = geode::PointSetBuilder3D::create( *point_set );
-     builder->create_point( { { 20., 20., 10. } } );
-     exporter.add_well_perforations( *point_set );*/
+    exporter.add_cell_property( "permeability" );
+    exporter.add_cell_property( "porosity" );
+    auto point_set = geode::PointSet3D::create(
+        geode::OpenGeodePointSet3D::impl_name_static() );
+    auto builder = geode::PointSetBuilder3D::create( *point_set );
+    builder->create_point( { { 20., 20., 10. } } );
+    exporter.add_well_perforations( *point_set );
     exporter.run();
 }
 int main()
@@ -65,9 +65,12 @@ int main()
         geode::GeosciencesIOModelLibrary::initialize();
         geode::IOMeshLibrary::initialize();
         geode::IOModelLibrary::initialize();
-        // test_picasso();
-        toy_model();
-        geode::Logger::info( "TEST SUCCESS" );
+        for( auto i : geode::Range( 100 ) )
+        {
+            test_picasso();
+            toy_model();
+            geode::Logger::info( "TEST SUCCESS" );
+        }
         return 0;
     }
     catch( ... )

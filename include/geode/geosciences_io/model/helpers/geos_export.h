@@ -89,20 +89,14 @@ namespace geode
                                     .string() },
               prefix_{ geode::filename_without_extension( files_directory ) }
         {
-            DEBUG( "exporter builder" );
             std::tie( model_curve_, model_surface_, model_solid_ ) =
                 geode::convert_brep_into_curve_and_surface_and_solid( model_ );
-            DEBUG( "exporter convert" );
-            static constexpr std::string REGION_ID_ATTRIBUTE_NAME{
-                "attribute"
-            };
+            static constexpr auto REGION_ID_ATTRIBUTE_NAME{ "attribute" };
             region_attribute_ =
                 model_solid_->polyhedron_attribute_manager()
                     .template find_or_create_attribute<
                         geode::VariableAttribute, geode::index_t >(
                         REGION_ID_ATTRIBUTE_NAME, geode::NO_ID );
-            DEBUG( "exporter region_attribute_" );
-
             if( ghc::filesystem::path{ geode::to_string( files_directory ) }
                     .is_relative() )
             {
@@ -155,13 +149,13 @@ namespace geode
 
         void prepare_export()
         {
-            DEBUG( "init" );
+            DEBUG( "prepare" );
             init_solid_region_attribute();
             DEBUG( "prop" );
-            // transfer_cell_properties();
+            transfert_cell_properties();
             DEBUG( "clean" );
-            // delete_mapping_attributes();
-            DEBUG( "ok" );
+            delete_mapping_attributs();
+            DEBUG( "prepare ok" );
         }
 
     protected:
@@ -239,12 +233,12 @@ namespace geode
                         perf_box.add_point( model_solid_->point( vertex_id ) );
                     }
                 }
-                const auto boxstr =
-                    absl::StrCat( "<Box name=\"well_", well_id++, " xMin = \"{",
-                        perf_box.min().value( 0 ), perf_box.min().value( 1 ),
-                        perf_box.min().value( 2 ), "}\" xMax = \"{",
-                        perf_box.max().value( 0 ), perf_box.max().value( 1 ),
-                        perf_box.max().value( 2 ), "}\"  />" );
+                const auto boxstr = absl::StrCat( "    <Box name=\"well_\"",
+                    well_id++, " xMin = \"{", perf_box.min().value( 0 ),
+                    perf_box.min().value( 1 ), perf_box.min().value( 2 ),
+                    "}\" xMax = \"{", perf_box.max().value( 0 ),
+                    perf_box.max().value( 1 ), perf_box.max().value( 2 ),
+                    "}\"  />" );
                 file << boxstr << std::endl;
             }
             file << "</Geometry>" << std::endl;
@@ -252,26 +246,21 @@ namespace geode
 
         void transfer_cell_properties()
         {
-            DEBUG( "start" );
             const auto brep_mesh_elements =
                 model_solid_->polyhedron_attribute_manager()
                     .template find_attribute<
                         geode::mesh_elements_attribute_type >(
                         geode::MESH_ELEMENT_ATTRIBUTE_NAME );
-            DEBUG( "start1" );
             for( const auto& property_name : cell_property_names_ )
             {
-                DEBUG( property_name );
                 auto solid_property =
                     model_solid_->polyhedron_attribute_manager()
                         .template find_or_create_attribute<
                             geode::VariableAttribute, double >(
                             property_name, 0. );
-                DEBUG( model_solid_->nb_polyhedra() );
                 for( const auto polyhedron_id :
                     geode::Range( model_solid_->nb_polyhedra() ) )
                 {
-                    DEBUG( polyhedron_id );
                     auto polygon_mesh_element =
                         brep_mesh_elements->value( polyhedron_id );
 
@@ -285,7 +274,6 @@ namespace geode
                     solid_property->set_value( polyhedron_id, value );
                 }
             }
-            DEBUG( "ok transfer" );
         }
 
         void delete_mapping_attributes()
@@ -300,10 +288,8 @@ namespace geode
 
         void write_solid_file() const
         {
-            DEBUG( "file" );
             const auto file =
                 absl::StrCat( files_directory(), "/", prefix(), ".vtu" );
-            DEBUG( file );
 
             if( const auto* tetra =
                     dynamic_cast< const geode::TetrahedralSolid3D* >(
@@ -333,8 +319,6 @@ namespace geode
 
         void write_well_perforation_file() const
         {
-            DEBUG( "perf" );
-
             auto id{ 0 };
             for( const auto& well : well_perforations_ )
             {
