@@ -43,7 +43,7 @@ namespace geode
     public:
         BRepGeosExporter( const BRep& brep, absl::string_view files_directory );
 
-        ~BRepGeosExporter() = default;
+        ~BRepGeosExporter();
 
         void add_well_perforations( const PointSet3D& well_perforation );
         void add_cell_property( absl::string_view name );

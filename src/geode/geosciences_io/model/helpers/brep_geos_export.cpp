@@ -62,6 +62,9 @@ namespace geode
         : impl_( brep, files_directory )
     {
     }
+
+    BRepGeosExporter::~BRepGeosExporter() = default;
+
     void BRepGeosExporter::add_well_perforations(
         const PointSet3D& well_perforation )
     {
