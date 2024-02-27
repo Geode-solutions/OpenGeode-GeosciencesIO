@@ -37,6 +37,9 @@
 #include <geode/basic/attribute_manager.h>
 #include <geode/basic/filename.h>
 
+#include <geode/geometry/aabb.h>
+#include <geode/geometry/distance.h>
+
 #include <geode/geosciences_io/model/common.h>
 
 #include <geode/mesh/core/hybrid_solid.h>
@@ -45,6 +48,8 @@
 #include <geode/mesh/core/solid_mesh.h>
 #include <geode/mesh/core/surface_mesh.h>
 #include <geode/mesh/core/tetrahedral_solid.h>
+#include <geode/mesh/helpers/aabb_solid_helpers.h>
+
 #include <geode/mesh/io/hybrid_solid_output.h>
 #include <geode/mesh/io/point_set_output.h>
 #include <geode/mesh/io/polyhedral_solid_output.h>
@@ -54,29 +59,8 @@
 #include <geode/model/mixin/core/block.h>
 #include <geode/model/representation/core/brep.h>
 
-#include <geode/geometry/aabb.h>
-#include <geode/geometry/distance.h>
-#include <geode/mesh/helpers/aabb_solid_helpers.h>
-
 namespace geode
 {
-    /*  absl::flat_hash_map< geode::uuid, geode::index_t >
-          create_region_attribute_map( const geode::StructuralModel& model )
-      {
-          auto region_id{ 0 };
-          absl::flat_hash_map< geode::uuid, geode::index_t > region_map_id;
-          for( const auto& strat_unit : model.stratigraphic_units() )
-          {
-              for( const auto& strat_unit_item :
-                  model.stratigraphic_unit_items( strat_unit ) )
-              {
-                  region_map_id.emplace( strat_unit_item.id(), region_id );
-              }
-              region_id += 1;
-          }
-          return region_map_id;
-      }*/
-
     template < typename Model >
     class GeosExporterImpl
     {
@@ -113,15 +97,28 @@ namespace geode
 
         void write_files() const
         {
-            DEBUG( "write" );
-
-            DEBUG( "solid" );
-            write_well_perforations_boxes();
-            DEBUG( "perfb" );
+            auto geometry_file = write_well_perforations_boxes();
             write_well_perforation_file();
-            DEBUG( "perfok" );
-            write_solid_file();
-            DEBUG( "write ok" );
+            auto mesh_file = write_mesh_files();
+
+            const auto simu_xml = absl::StrCat(
+                files_directory(), "/", prefix(), "_simulation.xml" );
+            std::ofstream file( simu_xml, std::ofstream::out );
+            file << "<?xml version=\" 1.0 \"?>" << std::endl;
+            file << "<Problem>" << std::endl;
+            file << "<!-- include mesh xml file -->" << std::endl;
+            file << "    <Included>" << std::endl;
+            file << "        <File name = \"./" << mesh_file << "\"/>"
+                 << std::endl;
+            file << "    </Included>" << std::endl;
+            file << "    <!-- include geometry xml file -->" << std::endl;
+            file << "    <Included>" << std::endl;
+            file << "        <File name = \"./" << geometry_file << "\"/>"
+                 << std::endl;
+            file << "    </Included>" << std::endl;
+            file << "    <!-- please complete simulation file here -->"
+                 << std::endl;
+            file << "</Problem>" << std::endl;
         }
 
         void add_well_perforations( const PointSet3D& perforations )
@@ -129,33 +126,35 @@ namespace geode
             well_perforations_.push_back( perforations.clone() );
         }
 
-        void add_cell_property( absl::string_view property_name )
+        void add_cell_property1D( absl::string_view property_name )
         {
-            for( const auto& block : model_.blocks() )
+            if( check_property_name( property_name ) )
             {
-                if( !block.mesh()
-                         .polyhedron_attribute_manager()
-                         .attribute_exists( property_name ) )
-
-                {
-                    Logger::info( "The property ", property_name,
-                        " will not be exported because it is not defined on "
-                        "every block of the model." );
-                    return;
-                }
+                cell_1Dproperty_names_.push_back(
+                    geode::to_string( property_name ) );
             }
-            cell_property_names_.push_back( geode::to_string( property_name ) );
         }
-
+        void add_cell_property2D( absl::string_view property_name )
+        {
+            if( check_property_name( property_name ) )
+            {
+                cell_2Dproperty_names_.push_back(
+                    geode::to_string( property_name ) );
+            }
+        }
+        void add_cell_property3D( absl::string_view property_name )
+        {
+            if( check_property_name( property_name ) )
+            {
+                cell_3Dproperty_names_.push_back(
+                    geode::to_string( property_name ) );
+            }
+        }
         void prepare_export()
         {
-            DEBUG( "prepare" );
             init_solid_region_attribute();
-            DEBUG( "prop" );
-            transfert_cell_properties();
-            DEBUG( "clean" );
-            delete_mapping_attributs();
-            DEBUG( "prepare ok" );
+            transfer_cell_properties();
+            delete_mapping_attributes();
         }
 
     protected:
@@ -192,13 +191,16 @@ namespace geode
         virtual absl::flat_hash_map< geode::uuid, geode::index_t >
             create_region_attribute_map( const Model& model ) const = 0;
 
-        void write_well_perforations_boxes() const
+        std::string write_well_perforations_boxes() const
         {
             auto aabb = create_aabb_tree( *model_solid_ );
-            const auto filename = absl::StrCat(
+            const auto filename = absl::StrCat( prefix(), "_wellbox.xml" );
+            const auto file_xml = absl::StrCat(
                 files_directory(), "/", prefix(), "_wellbox.xml" );
-            std::ofstream file( filename, std::ofstream::out );
-            file << "<Geometry>" << std::endl;
+            std::ofstream file( file_xml, std::ofstream::out );
+            file << "<?xml version=\" 1.0 \"?>" << std::endl;
+            file << "<Problem>" << std::endl;
+            file << "    <Geometry>" << std::endl;
             index_t well_id{ 0 };
             for( const auto& well : well_perforations_ )
             {
@@ -233,15 +235,99 @@ namespace geode
                         perf_box.add_point( model_solid_->point( vertex_id ) );
                     }
                 }
-                const auto boxstr = absl::StrCat( "    <Box name=\"well_\"",
-                    well_id++, " xMin = \"{", perf_box.min().value( 0 ),
-                    perf_box.min().value( 1 ), perf_box.min().value( 2 ),
-                    "}\" xMax = \"{", perf_box.max().value( 0 ),
-                    perf_box.max().value( 1 ), perf_box.max().value( 2 ),
-                    "}\"  />" );
+                auto safety_lag = perf_box.diagonal().length() * 0.001;
+                const auto boxstr = absl::StrCat( "        <Box name=\"well_",
+                    well_id++, "\" xMin = \"{",
+                    perf_box.min().value( 0 ) - safety_lag, ", ",
+                    perf_box.min().value( 1 ) - safety_lag, ", ",
+                    perf_box.min().value( 2 ) - safety_lag, "}\" xMax = \"{",
+                    perf_box.max().value( 0 ) + safety_lag, ", ",
+                    perf_box.max().value( 1 ) + safety_lag, ", ",
+                    perf_box.max().value( 2 ) + safety_lag, "}\"  />" );
                 file << boxstr << std::endl;
             }
-            file << "</Geometry>" << std::endl;
+            file << "    </Geometry>" << std::endl;
+            file << "</Problem>" << std::endl;
+            return filename;
+        }
+
+        std::string write_mesh_files() const
+        {
+            const auto file_vtu = write_solid_file();
+
+            const auto filename = absl::StrCat( prefix(), "_mesh.xml" );
+            const auto file_xml =
+                absl::StrCat( files_directory(), "/", filename );
+            std::ofstream file( file_xml, std::ofstream::out );
+            file << "<?xml version=\" 1.0 \"?>" << std::endl;
+            file << "<Problem>" << std::endl;
+            file << "    <Mesh>" << std::endl;
+            file << "        <VTKMesh" << std::endl;
+            file << "            name = \"" << prefix() << "\"" << std::endl;
+            file << "            file = \"./" << file_vtu << "\"" << std::endl;
+            file << "            fieldsToImport = \"{";
+            auto first = true;
+            for( const auto& cell_prop_name : cell_1Dproperty_names_ )
+            {
+                if( !first )
+                {
+                    file << ",";
+                }
+                else
+                {
+                    first = false;
+                }
+                file << cell_prop_name;
+            }
+            for( const auto& cell_prop_name : cell_2Dproperty_names_ )
+            {
+                if( !first )
+                {
+                    file << ",";
+                }
+                else
+                {
+                    first = false;
+                }
+                file << cell_prop_name;
+            }
+            for( const auto& cell_prop_name : cell_3Dproperty_names_ )
+            {
+                if( !first )
+                {
+                    file << ",";
+                }
+                else
+                {
+                    first = false;
+                }
+                file << cell_prop_name;
+            }
+            file << "}\"" << std::endl;
+            file << "            fieldNamesInGEOSX = \"{ please enter property "
+                    "name in Geos}\"/>"
+                 << std::endl;
+            file << "    </Mesh>" << std::endl;
+            file << "</Problem>" << std::endl;
+            return filename;
+        }
+
+        bool check_property_name( absl::string_view property_name ) const
+        {
+            for( const auto& block : model_.blocks() )
+            {
+                if( !block.mesh()
+                         .polyhedron_attribute_manager()
+                         .attribute_exists( property_name ) )
+
+                {
+                    Logger::info( "The property ", property_name,
+                        " will not be exported because it is not defined on "
+                        "every block of the model." );
+                    return false;
+                }
+            }
+            return true;
         }
 
         void transfer_cell_properties()
@@ -251,7 +337,7 @@ namespace geode
                     .template find_attribute<
                         geode::mesh_elements_attribute_type >(
                         geode::MESH_ELEMENT_ATTRIBUTE_NAME );
-            for( const auto& property_name : cell_property_names_ )
+            for( const auto& property_name : cell_1Dproperty_names_ )
             {
                 auto solid_property =
                     model_solid_->polyhedron_attribute_manager()
@@ -274,6 +360,54 @@ namespace geode
                     solid_property->set_value( polyhedron_id, value );
                 }
             }
+            for( const auto& property_name : cell_2Dproperty_names_ )
+            {
+                auto solid_property =
+                    model_solid_->polyhedron_attribute_manager()
+                        .template find_or_create_attribute<
+                            geode::VariableAttribute, std::array< double, 2 > >(
+                            property_name, { 0., 0. } );
+                for( const auto polyhedron_id :
+                    geode::Range( model_solid_->nb_polyhedra() ) )
+                {
+                    auto polygon_mesh_element =
+                        brep_mesh_elements->value( polyhedron_id );
+
+                    const auto model_property =
+                        model_.block( polygon_mesh_element.mesh_id )
+                            .mesh()
+                            .polyhedron_attribute_manager()
+                            .template find_attribute< std::array< double, 2 > >(
+                                property_name );
+                    auto value = model_property->value(
+                        polygon_mesh_element.element_id );
+                    solid_property->set_value( polyhedron_id, value );
+                }
+            }
+            for( const auto& property_name : cell_3Dproperty_names_ )
+            {
+                auto solid_property =
+                    model_solid_->polyhedron_attribute_manager()
+                        .template find_or_create_attribute<
+                            geode::VariableAttribute, std::array< double, 3 > >(
+                            property_name, { 0., 0., 0. } );
+                for( const auto polyhedron_id :
+                    geode::Range( model_solid_->nb_polyhedra() ) )
+                {
+                    auto polygon_mesh_element =
+                        brep_mesh_elements->value( polyhedron_id );
+
+                    const auto model_property =
+                        model_.block( polygon_mesh_element.mesh_id )
+                            .mesh()
+                            .polyhedron_attribute_manager()
+                            .template find_attribute< std::array< double, 3 > >(
+                                property_name );
+                    auto value = model_property->value(
+                        polygon_mesh_element.element_id );
+                    solid_property->set_value( polyhedron_id, value );
+                }
+            }
         }
 
         void delete_mapping_attributes()
@@ -286,28 +420,28 @@ namespace geode
                 geode::uuid_from_conversion_attribute_name );
         }
 
-        void write_solid_file() const
+        std::string write_solid_file() const
         {
-            const auto file =
-                absl::StrCat( files_directory(), "/", prefix(), ".vtu" );
-
+            const auto filename = absl::StrCat( prefix(), ".vtu" );
+            const auto file_vtu =
+                absl::StrCat( files_directory(), "/", filename );
             if( const auto* tetra =
                     dynamic_cast< const geode::TetrahedralSolid3D* >(
                         model_solid_.get() ) )
             {
-                geode::save_tetrahedral_solid( *tetra, file );
+                geode::save_tetrahedral_solid( *tetra, file_vtu );
             }
             else if( const auto* hybrid =
                          dynamic_cast< const geode::HybridSolid3D* >(
                              model_solid_.get() ) )
             {
-                geode::save_hybrid_solid( *hybrid, file );
+                geode::save_hybrid_solid( *hybrid, file_vtu );
             }
             else if( const auto* poly =
                          dynamic_cast< const geode::PolyhedralSolid3D* >(
                              model_solid_.get() ) )
             {
-                geode::save_polyhedral_solid( *poly, file );
+                geode::save_polyhedral_solid( *poly, file_vtu );
             }
             else
             {
@@ -315,6 +449,7 @@ namespace geode
                     "[Blocks::save_geos] Cannot find the explicit "
                     "SolidMesh type" );
             }
+            return filename;
         }
 
         void write_well_perforation_file() const
@@ -341,7 +476,10 @@ namespace geode
         DEBUG_CONST std::string files_directory_;
         DEBUG_CONST std::string prefix_;
 
-        std::vector< std::string > cell_property_names_;
+        std::vector< std::string > cell_1Dproperty_names_;
+        std::vector< std::string > cell_2Dproperty_names_;
+        std::vector< std::string > cell_3Dproperty_names_;
+
         std::vector< std::unique_ptr< PointSet3D > > well_perforations_;
     };
 } // namespace geode

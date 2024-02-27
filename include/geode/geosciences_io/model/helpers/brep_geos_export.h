@@ -46,7 +46,9 @@ namespace geode
         ~BRepGeosExporter();
 
         void add_well_perforations( const PointSet3D& well_perforation );
-        void add_cell_property( absl::string_view name );
+        void add_cell_property_1D( absl::string_view name );
+        void add_cell_property_2D( absl::string_view name );
+        void add_cell_property_3D( absl::string_view name );
 
         void run();
 

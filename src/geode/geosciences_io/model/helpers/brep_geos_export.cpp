@@ -42,7 +42,7 @@ namespace geode
         absl::flat_hash_map< geode::uuid, geode::index_t >
             create_region_attribute_map( const geode::BRep& model ) const final
         {
-            auto region_id{ 0 };
+            auto region_id = 0;
             absl::flat_hash_map< geode::uuid, geode::index_t > region_map_id;
             for( const auto& block : model.blocks() )
             {
@@ -69,9 +69,17 @@ namespace geode
     {
         impl_->add_well_perforations( well_perforation );
     }
-    void BRepGeosExporter::add_cell_property( absl::string_view name )
+    void BRepGeosExporter::add_cell_property_1D( absl::string_view name )
     {
-        impl_->add_cell_property( name );
+        impl_->add_cell_property1D( name );
+    }
+    void BRepGeosExporter::add_cell_property_2D( absl::string_view name )
+    {
+        impl_->add_cell_property2D( name );
+    }
+    void BRepGeosExporter::add_cell_property_3D( absl::string_view name )
+    {
+        impl_->add_cell_property3D( name );
     }
 
     void BRepGeosExporter::run()

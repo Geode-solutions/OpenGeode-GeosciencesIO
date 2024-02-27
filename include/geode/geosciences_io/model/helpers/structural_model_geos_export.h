@@ -23,36 +23,37 @@
 
 #pragma once
 
-#include <string>
-#include <vector>
-
-#include <geode/geosciences/explicit/representation/io/structural_model_output.h>
-
 #include <geode/geosciences_io/model/common.h>
+
+#include <absl/strings/string_view.h>
+
+#include <geode/basic/pimpl.h>
 
 namespace geode
 {
-    namespace detail
+    FORWARD_DECLARATION_DIMENSION_CLASS( PointSet );
+    ALIAS_3D( PointSet );
+    class StructuralModel;
+} // namespace geode
+
+namespace geode
+{
+    class opengeode_geosciencesio_model_api StructuralModelGeosExporter
     {
-        class GeosOutputStructuralModel final : public StructuralModelOutput
-        {
-        public:
-            explicit GeosOutputStructuralModel(
-                absl::string_view files_directory )
-                : StructuralModelOutput( files_directory )
-            {
-            }
+    public:
+        StructuralModelGeosExporter(
+            const StructuralModel& model, absl::string_view files_directory );
 
-            static absl::string_view extension()
-            {
-                static constexpr auto EXT = "geos";
-                return EXT;
-            }
+        ~StructuralModelGeosExporter();
 
-            std::vector< std::string > write(
-                const StructuralModel& brep ) const final;
+        void add_well_perforations( const PointSet3D& well_perforation );
+        void add_cell_property_1D( absl::string_view name );
+        void add_cell_property_2D( absl::string_view name );
+        void add_cell_property_3D( absl::string_view name );
 
-            bool is_saveable( const StructuralModel& brep ) const final;
-        };
-    } // namespace detail
+        void run();
+
+    private:
+        IMPLEMENTATION_MEMBER( impl_ );
+    };
 } // namespace geode

@@ -21,46 +21,87 @@
  *
  */
 
-#include <geode/geosciences_io/model/private/geos_output.h>
-#include <geode/geosciences_io/model/private/geos_output_structural_model.h>
+#include <geode/geosciences_io/model/helpers/structural_model_geos_export.h>
+
+#include <geode/geosciences_io/model/helpers/geos_export.h>
+
+#include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.h>
+#include <geode/geosciences/explicit/mixin/core/stratigraphic_units.h>
 
 #include <geode/geosciences/explicit/representation/core/structural_model.h>
 
-// #include <string>
-//  #include <vector>
-
-namespace
-{
-    class GeosOutputStructuralModelImpl
-        : public geode::detail::GeosOutputImpl< geode::StructuralModel >
-    {
-    public:
-        GeosOutputStructuralModelImpl( absl::string_view files_directory,
-            const geode::StructuralModel& model )
-            : geode::detail::GeosOutputImpl< geode::StructuralModel >(
-                files_directory, model )
-        {
-        }
-    };
-
-} // namespace
+#include <geode/basic/pimpl_impl.h>
 
 namespace geode
 {
-    namespace detail
+    class StructuralModelGeosExporter::Impl
+        : public geode::GeosExporterImpl< geode::StructuralModel >
     {
-        std::vector< std::string > GeosOutputStructuralModel::write(
-            const StructuralModel& model ) const
+    public:
+        Impl( const StructuralModel& model, absl::string_view files_directory )
+            : geode::GeosExporterImpl< geode::StructuralModel >(
+                files_directory, model )
         {
-            GeosOutputStructuralModelImpl impl{ filename(), model };
-            impl.write_file();
-            return { to_string( filename() ) };
         }
+        virtual ~Impl() = default;
 
-        bool GeosOutputStructuralModel::is_saveable(
-            const StructuralModel& model ) const
+    protected:
+        absl::flat_hash_map< geode::uuid, geode::index_t >
+            create_region_attribute_map(
+                const geode::StructuralModel& model ) const final
         {
-            return false;
+            auto region_id = 0;
+            absl::flat_hash_map< geode::uuid, geode::index_t > region_map_id;
+            for( const auto& strat_unit : model.stratigraphic_units() )
+            {
+                for( const auto& strat_unit_item :
+                    model.stratigraphic_unit_items( strat_unit ) )
+                {
+                    region_map_id.emplace( strat_unit_item.id(), region_id );
+                }
+                region_id += 1;
+            }
+            return region_map_id;
         }
-    } // namespace detail
+    };
+
+} // namespace geode
+
+namespace geode
+{
+    StructuralModelGeosExporter::StructuralModelGeosExporter(
+        const StructuralModel& model, absl::string_view files_directory )
+        : impl_( model, files_directory )
+    {
+    }
+
+    StructuralModelGeosExporter::~StructuralModelGeosExporter() = default;
+
+    void StructuralModelGeosExporter::add_well_perforations(
+        const PointSet3D& well_perforation )
+    {
+        impl_->add_well_perforations( well_perforation );
+    }
+    void StructuralModelGeosExporter::add_cell_property_1D(
+        absl::string_view name )
+    {
+        impl_->add_cell_property1D( name );
+    }
+    void StructuralModelGeosExporter::add_cell_property_2D(
+        absl::string_view name )
+    {
+        impl_->add_cell_property2D( name );
+    }
+    void StructuralModelGeosExporter::add_cell_property_3D(
+        absl::string_view name )
+    {
+        impl_->add_cell_property3D( name );
+    }
+
+    void StructuralModelGeosExporter::run()
+    {
+        impl_->prepare_export();
+        impl_->write_files();
+    }
+
 } // namespace geode
