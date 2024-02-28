@@ -23,12 +23,10 @@
 
 #pragma once
 
+#include <fstream>
 #include <memory>
 #include <string>
-#include <tuple>
-#include <vector>
 
-#include <absl/container/flat_hash_map.h>
 #include <absl/strings/string_view.h>
 
 #include <ghc/filesystem.hpp>
@@ -36,6 +34,7 @@
 #include <geode/basic/attribute.h>
 #include <geode/basic/attribute_manager.h>
 #include <geode/basic/filename.h>
+#include <geode/basic/logger.h>
 
 #include <geode/geometry/aabb.h>
 #include <geode/geometry/distance.h>
@@ -64,14 +63,24 @@ namespace geode
     template < typename Model >
     class GeosExporterImpl
     {
+        OPENGEODE_DISABLE_COPY_AND_MOVE( GeosExporterImpl );
+
     public:
         GeosExporterImpl(
             absl::string_view files_directory, const Model& model )
             : model_( model ),
+              model_curve_{},
+              model_surface_{},
+              model_solid_{},
+              region_attribute_{},
               files_directory_{ ghc::filesystem::path{
                   geode::to_string( files_directory ) }
                                     .string() },
-              prefix_{ geode::filename_without_extension( files_directory ) }
+              prefix_{ geode::filename_without_extension( files_directory ) },
+              cell_1Dproperty_names_{},
+              cell_2Dproperty_names_{},
+              cell_3Dproperty_names_{},
+              well_perforations_{}
         {
             std::tie( model_curve_, model_surface_, model_solid_ ) =
                 geode::convert_brep_into_curve_and_surface_and_solid( model_ );
@@ -126,7 +135,7 @@ namespace geode
             well_perforations_.push_back( perforations.clone() );
         }
 
-        void add_cell_property1D( absl::string_view property_name )
+        void add_cell_property1d( absl::string_view property_name )
         {
             if( check_property_name( property_name ) )
             {
@@ -134,7 +143,7 @@ namespace geode
                     geode::to_string( property_name ) );
             }
         }
-        void add_cell_property2D( absl::string_view property_name )
+        void add_cell_property2d( absl::string_view property_name )
         {
             if( check_property_name( property_name ) )
             {
@@ -142,7 +151,7 @@ namespace geode
                     geode::to_string( property_name ) );
             }
         }
-        void add_cell_property3D( absl::string_view property_name )
+        void add_cell_property3d( absl::string_view property_name )
         {
             if( check_property_name( property_name ) )
             {
@@ -454,15 +463,18 @@ namespace geode
 
         void write_well_perforation_file() const
         {
-            auto id{ 0 };
+            index_t well_id{ 0 };
             for( const auto& well : well_perforations_ )
             {
-                const auto file = absl::StrCat(
-                    files_directory(), "/", prefix(), "_well", id, ".vtp" );
+                const auto file = absl::StrCat( files_directory(), "/",
+                    prefix(), "_well", well_id, ".vtp" );
                 geode::save_point_set( *well, file );
-                id++;
+                well_id++;
             }
         }
+
+    private:
+        GeosExporterImpl() = default;
 
     private:
         const Model& model_;

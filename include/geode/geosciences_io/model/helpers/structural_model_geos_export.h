@@ -40,6 +40,8 @@ namespace geode
 {
     class opengeode_geosciencesio_model_api StructuralModelGeosExporter
     {
+        OPENGEODE_DISABLE_COPY_AND_MOVE( StructuralModelGeosExporter );
+
     public:
         StructuralModelGeosExporter(
             const StructuralModel& model, absl::string_view files_directory );
@@ -47,11 +49,14 @@ namespace geode
         ~StructuralModelGeosExporter();
 
         void add_well_perforations( const PointSet3D& well_perforation );
-        void add_cell_property_1D( absl::string_view name );
-        void add_cell_property_2D( absl::string_view name );
-        void add_cell_property_3D( absl::string_view name );
+        void add_cell_property_1d( absl::string_view name );
+        void add_cell_property_2d( absl::string_view name );
+        void add_cell_property_3d( absl::string_view name );
 
         void run();
+
+    private:
+        StructuralModelGeosExporter() = default;
 
     private:
         IMPLEMENTATION_MEMBER( impl_ );

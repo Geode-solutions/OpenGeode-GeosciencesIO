@@ -40,17 +40,21 @@ namespace geode
 {
     class opengeode_geosciencesio_model_api BRepGeosExporter
     {
+        OPENGEODE_DISABLE_COPY_AND_MOVE( BRepGeosExporter );
+
     public:
         BRepGeosExporter( const BRep& brep, absl::string_view files_directory );
-
         ~BRepGeosExporter();
 
         void add_well_perforations( const PointSet3D& well_perforation );
-        void add_cell_property_1D( absl::string_view name );
-        void add_cell_property_2D( absl::string_view name );
-        void add_cell_property_3D( absl::string_view name );
+        void add_cell_property_1d( absl::string_view name );
+        void add_cell_property_2d( absl::string_view name );
+        void add_cell_property_3d( absl::string_view name );
 
         void run();
+
+    private:
+        BRepGeosExporter() = default;
 
     private:
         IMPLEMENTATION_MEMBER( impl_ );

@@ -20,12 +20,14 @@
  * SOFTWARE.
  *
  */
+#include <absl/container/flat_hash_map.h>
+#include <absl/strings/string_view.h>
 
 #include <geode/geosciences_io/model/helpers/structural_model_geos_export.h>
 
 #include <geode/geosciences_io/model/helpers/geos_export.h>
 
-#include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.h>
+// #include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.h>
 #include <geode/geosciences/explicit/mixin/core/stratigraphic_units.h>
 
 #include <geode/geosciences/explicit/representation/core/structural_model.h>
@@ -82,20 +84,20 @@ namespace geode
     {
         impl_->add_well_perforations( well_perforation );
     }
-    void StructuralModelGeosExporter::add_cell_property_1D(
+    void StructuralModelGeosExporter::add_cell_property_1d(
         absl::string_view name )
     {
-        impl_->add_cell_property1D( name );
+        impl_->add_cell_property1d( name );
     }
-    void StructuralModelGeosExporter::add_cell_property_2D(
+    void StructuralModelGeosExporter::add_cell_property_2d(
         absl::string_view name )
     {
-        impl_->add_cell_property2D( name );
+        impl_->add_cell_property2d( name );
     }
-    void StructuralModelGeosExporter::add_cell_property_3D(
+    void StructuralModelGeosExporter::add_cell_property_3d(
         absl::string_view name )
     {
-        impl_->add_cell_property3D( name );
+        impl_->add_cell_property3d( name );
     }
 
     void StructuralModelGeosExporter::run()

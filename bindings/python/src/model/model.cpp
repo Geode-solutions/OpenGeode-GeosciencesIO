@@ -21,6 +21,8 @@
  *
  */
 
+#include <absl/strings/string_view.h>
+
 #include <geode/geosciences/explicit/representation/core/structural_model.h>
 #include <geode/geosciences_io/model/helpers/brep_geos_export.h>
 #include <geode/geosciences_io/model/helpers/geos_export.h>
@@ -39,12 +41,12 @@ PYBIND11_MODULE( opengeode_geosciencesio_py_model, module )
         .def( pybind11::init< const geode::BRep&, absl::string_view >() )
         .def( "add_well_perforations",
             &geode::BRepGeosExporter::add_well_perforations )
-        .def( "add_cell_property_1D",
-            &geode::BRepGeosExporter::add_cell_property_1D )
-        .def( "add_cell_property_2D",
-            &geode::BRepGeosExporter::add_cell_property_2D )
-        .def( "add_cell_property_3D",
-            &geode::BRepGeosExporter::add_cell_property_3D )
+        .def( "add_cell_property_1d",
+            &geode::BRepGeosExporter::add_cell_property_1d )
+        .def( "add_cell_property_2d",
+            &geode::BRepGeosExporter::add_cell_property_2d )
+        .def( "add_cell_property_3d",
+            &geode::BRepGeosExporter::add_cell_property_3d )
         .def( "run", &geode::BRepGeosExporter::run );
 
     pybind11::class_< geode::StructuralModelGeosExporter >(
@@ -53,11 +55,11 @@ PYBIND11_MODULE( opengeode_geosciencesio_py_model, module )
             absl::string_view >() )
         .def( "add_well_perforations",
             &geode::StructuralModelGeosExporter::add_well_perforations )
-        .def( "add_cell_property_1D",
-            &geode::StructuralModelGeosExporter::add_cell_property_1D )
-        .def( "add_cell_property_2D",
-            &geode::StructuralModelGeosExporter::add_cell_property_2D )
-        .def( "add_cell_property_3D",
-            &geode::StructuralModelGeosExporter::add_cell_property_3D )
+        .def( "add_cell_property_1d",
+            &geode::StructuralModelGeosExporter::add_cell_property_1d )
+        .def( "add_cell_property_2d",
+            &geode::StructuralModelGeosExporter::add_cell_property_2d )
+        .def( "add_cell_property_3d",
+            &geode::StructuralModelGeosExporter::add_cell_property_3d )
         .def( "run", &geode::StructuralModelGeosExporter::run );
 }
