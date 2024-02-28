@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2023 Geode-solutions
+ * Copyright (c) 2019 - 2024 Geode-solutions
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,7 +48,7 @@ namespace geode
 
         ~StructuralModelGeosExporter();
 
-        void add_well_perforations( const PointSet3D& well_perforation );
+        void add_well_perforations( const PointSet3D& well_perforations );
         void add_cell_property_1d( absl::string_view name );
         void add_cell_property_2d( absl::string_view name );
         void add_cell_property_3d( absl::string_view name );

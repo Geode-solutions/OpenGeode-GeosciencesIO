@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2023 Geode-solutions
+ * Copyright (c) 2019 - 2024 Geode-solutions
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,26 +26,28 @@
 #include <geode/geosciences_io/model/helpers/brep_geos_export.h>
 
 #include <geode/geosciences_io/model/helpers/geos_export.h>
+#include <geode/model/mixin/core/block.h>
+#include <geode/model/representation/core/brep.h>
 
 #include <geode/basic/pimpl_impl.h>
 
 namespace geode
 {
-    class BRepGeosExporter::Impl : public geode::GeosExporterImpl< geode::BRep >
+    class BRepGeosExporter::Impl : public GeosExporterImpl< BRep >
     {
     public:
         Impl( const BRep& brep, absl::string_view files_directory )
-            : geode::GeosExporterImpl< geode::BRep >( files_directory, brep )
+            : GeosExporterImpl< BRep >( files_directory, brep )
         {
         }
         virtual ~Impl() = default;
 
     protected:
-        absl::flat_hash_map< geode::uuid, geode::index_t >
-            create_region_attribute_map( const geode::BRep& model ) const final
+        absl::flat_hash_map< uuid, index_t > create_region_attribute_map(
+            const BRep& model ) const final
         {
             auto region_id = 0;
-            absl::flat_hash_map< geode::uuid, geode::index_t > region_map_id;
+            absl::flat_hash_map< uuid, index_t > region_map_id;
             for( const auto& block : model.blocks() )
             {
                 region_map_id.emplace( block.id(), region_id++ );
@@ -54,10 +56,6 @@ namespace geode
         }
     };
 
-} // namespace geode
-
-namespace geode
-{
     BRepGeosExporter::BRepGeosExporter(
         const BRep& brep, absl::string_view files_directory )
         : impl_( brep, files_directory )

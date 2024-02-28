@@ -24,6 +24,7 @@ add_geode_library(
     SOURCES
         "common.cpp"
         "helpers/brep_geos_export.cpp"
+        "helpers/geos_export.cpp"
         "helpers/structural_model_geos_export.cpp"
         "gocad_common.cpp"
         "lso_input.cpp"

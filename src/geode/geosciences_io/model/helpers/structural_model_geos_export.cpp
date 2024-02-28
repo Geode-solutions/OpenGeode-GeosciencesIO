@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2023 Geode-solutions
+ * Copyright (c) 2019 - 2024 Geode-solutions
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,23 +36,21 @@
 namespace geode
 {
     class StructuralModelGeosExporter::Impl
-        : public geode::GeosExporterImpl< geode::StructuralModel >
+        : public GeosExporterImpl< StructuralModel >
     {
     public:
         Impl( const StructuralModel& model, absl::string_view files_directory )
-            : geode::GeosExporterImpl< geode::StructuralModel >(
-                files_directory, model )
+            : GeosExporterImpl< StructuralModel >( files_directory, model )
         {
         }
         virtual ~Impl() = default;
 
     protected:
-        absl::flat_hash_map< geode::uuid, geode::index_t >
-            create_region_attribute_map(
-                const geode::StructuralModel& model ) const final
+        absl::flat_hash_map< uuid, index_t > create_region_attribute_map(
+            const StructuralModel& model ) const final
         {
             auto region_id = 0;
-            absl::flat_hash_map< geode::uuid, geode::index_t > region_map_id;
+            absl::flat_hash_map< uuid, index_t > region_map_id;
             for( const auto& strat_unit : model.stratigraphic_units() )
             {
                 for( const auto& strat_unit_item :
@@ -66,10 +64,6 @@ namespace geode
         }
     };
 
-} // namespace geode
-
-namespace geode
-{
     StructuralModelGeosExporter::StructuralModelGeosExporter(
         const StructuralModel& model, absl::string_view files_directory )
         : impl_( model, files_directory )
