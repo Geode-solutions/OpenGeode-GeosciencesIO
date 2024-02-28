@@ -22,13 +22,19 @@
  */
 
 #pragma once
+#include <memory>
+#include <string>
+#include <vector>
+
+#include <absl/strings/string_view.h>
+
 #include <geode/basic/attribute.h>
 #include <geode/geosciences_io/model/common.h>
 
 namespace pugi
 {
     class xml_node;
-}
+} // namespace pugi
 namespace geode
 {
     struct uuid;
@@ -84,19 +90,19 @@ namespace geode
 
     private:
         const Model& model_;
-        std::unique_ptr< EdgedCurve3D > model_curve_;
-        std::unique_ptr< SurfaceMesh3D > model_surface_;
-        std::unique_ptr< SolidMesh3D > model_solid_;
+        std::unique_ptr< EdgedCurve3D > model_curve_{};
+        std::unique_ptr< SurfaceMesh3D > model_surface_{};
+        std::unique_ptr< SolidMesh3D > model_solid_{};
 
-        std::shared_ptr< VariableAttribute< index_t > > region_attribute_;
+        std::shared_ptr< VariableAttribute< index_t > > region_attribute_{};
 
         DEBUG_CONST std::string files_directory_;
         DEBUG_CONST std::string prefix_;
 
-        std::vector< std::string > cell_1Dproperty_names_;
-        std::vector< std::string > cell_2Dproperty_names_;
-        std::vector< std::string > cell_3Dproperty_names_;
+        std::vector< std::string > cell_1Dproperty_names_{};
+        std::vector< std::string > cell_2Dproperty_names_{};
+        std::vector< std::string > cell_3Dproperty_names_{};
 
-        std::vector< std::unique_ptr< PointSet3D > > well_perforations_;
+        std::vector< std::unique_ptr< PointSet3D > > well_perforations_{};
     };
 } // namespace geode

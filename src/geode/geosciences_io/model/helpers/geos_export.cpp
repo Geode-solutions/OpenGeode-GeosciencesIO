@@ -69,18 +69,10 @@ namespace geode
     GeosExporterImpl< Model >::GeosExporterImpl(
         absl::string_view files_directory, const Model& model )
         : model_( model ),
-          model_curve_{},
-          model_surface_{},
-          model_solid_{},
-          region_attribute_{},
           files_directory_{
               ghc::filesystem::path{ to_string( files_directory ) }.string()
           },
-          prefix_{ filename_without_extension( files_directory ) },
-          cell_1Dproperty_names_{},
-          cell_2Dproperty_names_{},
-          cell_3Dproperty_names_{},
-          well_perforations_{}
+          prefix_{ filename_without_extension( files_directory ) }
     {
         std::tie( model_curve_, model_surface_, model_solid_ ) =
             convert_brep_into_curve_and_surface_and_solid( model_ );
