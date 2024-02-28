@@ -38,7 +38,10 @@ namespace geode
     class StructuralModelGeosExporter::Impl
         : public GeosExporterImpl< StructuralModel >
     {
+        OPENGEODE_DISABLE_COPY_AND_MOVE( Impl );
+
     public:
+        Impl() = delete;
         Impl( const StructuralModel& model, absl::string_view files_directory )
             : GeosExporterImpl< StructuralModel >( files_directory, model )
         {

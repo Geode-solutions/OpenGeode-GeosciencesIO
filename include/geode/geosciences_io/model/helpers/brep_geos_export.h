@@ -43,6 +43,7 @@ namespace geode
         OPENGEODE_DISABLE_COPY_AND_MOVE( BRepGeosExporter );
 
     public:
+        BRepGeosExporter() = delete;
         BRepGeosExporter( const BRep& brep, absl::string_view files_directory );
         ~BRepGeosExporter();
 
@@ -52,9 +53,6 @@ namespace geode
         void add_cell_property_3d( absl::string_view name );
 
         void run();
-
-    private:
-        BRepGeosExporter() = default;
 
     private:
         IMPLEMENTATION_MEMBER( impl_ );

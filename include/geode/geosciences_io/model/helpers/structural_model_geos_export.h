@@ -43,6 +43,7 @@ namespace geode
         OPENGEODE_DISABLE_COPY_AND_MOVE( StructuralModelGeosExporter );
 
     public:
+        StructuralModelGeosExporter() = delete;
         StructuralModelGeosExporter(
             const StructuralModel& model, absl::string_view files_directory );
 
@@ -54,9 +55,6 @@ namespace geode
         void add_cell_property_3d( absl::string_view name );
 
         void run();
-
-    private:
-        StructuralModelGeosExporter() = default;
 
     private:
         IMPLEMENTATION_MEMBER( impl_ );

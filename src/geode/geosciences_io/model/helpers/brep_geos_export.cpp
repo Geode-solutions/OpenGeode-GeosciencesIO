@@ -35,7 +35,10 @@ namespace geode
 {
     class BRepGeosExporter::Impl : public GeosExporterImpl< BRep >
     {
+        OPENGEODE_DISABLE_COPY_AND_MOVE( Impl );
+
     public:
+        Impl() = delete;
         Impl( const BRep& brep, absl::string_view files_directory )
             : GeosExporterImpl< BRep >( files_directory, brep )
         {

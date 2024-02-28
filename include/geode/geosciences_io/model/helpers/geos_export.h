@@ -55,6 +55,7 @@ namespace geode
         OPENGEODE_DISABLE_COPY_AND_MOVE( GeosExporterImpl );
 
     public:
+        GeosExporterImpl() = delete;
         GeosExporterImpl(
             absl::string_view files_directory, const Model& model );
         virtual ~GeosExporterImpl() = default;
@@ -84,9 +85,6 @@ namespace geode
 
         std::string write_solid_file() const;
         void write_well_perforation_file() const;
-
-    private:
-        GeosExporterImpl() = default;
 
     private:
         const Model& model_;
