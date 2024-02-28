@@ -51,7 +51,7 @@ namespace geode
             std::string name{ "Default" };
             std::array< std::string, 3 > axis_names{ { "X", "Y", "Z" } };
             std::array< std::string, 3 > axis_units{ { "m", "m", "m" } };
-            int z_sign{ 1 };
+            int z_sign{ -1 };
         };
         CRSData opengeode_geosciencesio_mesh_api read_CRS(
             std::ifstream& file );
