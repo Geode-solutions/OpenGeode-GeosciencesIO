@@ -51,3 +51,13 @@ add_geode_test(
         OpenGeode-Geosciences::implicit
         ${PROJECT_NAME}::model
 )
+add_geode_test(
+    SOURCE "test-geos.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
+        OpenGeode::model
+        OpenGeode-IO::mesh
+        OpenGeode-IO::model
+        ${PROJECT_NAME}::model
+)
