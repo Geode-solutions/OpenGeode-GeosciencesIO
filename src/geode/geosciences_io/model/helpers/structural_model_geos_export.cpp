@@ -27,7 +27,6 @@
 
 #include <geode/geosciences_io/model/helpers/geos_export.h>
 
-// #include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.h>
 #include <geode/geosciences/explicit/mixin/core/stratigraphic_units.h>
 
 #include <geode/geosciences/explicit/representation/core/structural_model.h>
