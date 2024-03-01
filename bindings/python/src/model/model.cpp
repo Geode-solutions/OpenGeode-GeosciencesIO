@@ -21,8 +21,6 @@
  *
  */
 
-#include <absl/strings/string_view.h>
-
 #include <geode/mesh/core/point_set.h>
 
 #include <geode/geosciences/explicit/representation/core/structural_model.h>
@@ -31,6 +29,20 @@
 #include <geode/geosciences_io/model/helpers/structural_model_geos_export.h>
 
 #include <pybind11/pybind11.h>
+
+#include <absl/strings/string_view.h>
+
+namespace pybind11
+{
+    namespace detail
+    {
+        template <>
+        struct type_caster< absl::string_view >
+            : string_caster< absl::string_view, true >
+        {
+        };
+    } // namespace detail
+} // namespace pybind11
 
 PYBIND11_MODULE( opengeode_geosciencesio_py_model, module )
 {
