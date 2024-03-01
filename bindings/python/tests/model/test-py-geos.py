@@ -40,9 +40,9 @@ if __name__ == '__main__':
     model = geosciences.load_structural_model(
         os.path.join(data_dir, "test.lso"))
     exporter = geosciences_io.BRepGeosExporter(model,"brep_to_geos")
-    exporter.run()
+    #exporter.run()
     exporter = geosciences_io.StructuralModelGeosExporter(model,"SM_to_geos")
-    exporter.run()
+    #exporter.run()
 
 
 
