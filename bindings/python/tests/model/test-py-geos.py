@@ -27,6 +27,7 @@ if sys.version_info >= (3, 8, 0) and platform.system() == "Windows":
         os.add_dll_directory(path)
 
 import opengeode
+import opengeode_io
 import opengeode_geosciences as geosciences
 import opengeode_geosciencesio_py_model as geosciences_io
 
