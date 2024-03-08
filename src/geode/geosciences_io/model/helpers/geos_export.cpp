@@ -64,6 +64,7 @@
 
 namespace geode
 {
+    constexpr auto REGION_ID_ATTRIBUTE_NAME = "attribute";
 
     template < typename Model >
     GeosExporterImpl< Model >::GeosExporterImpl(
@@ -76,7 +77,6 @@ namespace geode
     {
         std::tie( model_curve_, model_surface_, model_solid_ ) =
             convert_brep_into_curve_and_surface_and_solid( model_ );
-        static constexpr auto REGION_ID_ATTRIBUTE_NAME{ "attribute" };
         region_attribute_ =
             model_solid_->polyhedron_attribute_manager()
                 .template find_or_create_attribute< VariableAttribute,
