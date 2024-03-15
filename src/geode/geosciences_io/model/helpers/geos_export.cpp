@@ -229,15 +229,16 @@ namespace geode
             auto box_node = root.append_child( "Box" );
             box_node.append_attribute( "name" ).set_value(
                 absl::StrCat( "well_", well_id++ ).c_str() );
+            static constexpr auto SAFETY_OFFSET = 100. * global_epsilon;
             box_node.append_attribute( "xMin" ).set_value(
-                absl::StrCat( "{", perf_box.min().value( 0 ) - global_epsilon,
-                    ", ", perf_box.min().value( 1 ) - global_epsilon, ", ",
-                    perf_box.min().value( 2 ) - global_epsilon, "}" )
+                absl::StrCat( "{", perf_box.min().value( 0 ) - SAFETY_OFFSET,
+                    ", ", perf_box.min().value( 1 ) - SAFETY_OFFSET, ", ",
+                    perf_box.min().value( 2 ) - SAFETY_OFFSET, "}" )
                     .c_str() );
             box_node.append_attribute( "xMax" ).set_value(
-                absl::StrCat( "{", perf_box.max().value( 0 ) + global_epsilon,
-                    ", ", perf_box.max().value( 1 ) + global_epsilon, ", ",
-                    perf_box.max().value( 2 ) + global_epsilon, "}" )
+                absl::StrCat( "{", perf_box.max().value( 0 ) + SAFETY_OFFSET,
+                    ", ", perf_box.max().value( 1 ) + SAFETY_OFFSET, ", ",
+                    perf_box.max().value( 2 ) + SAFETY_OFFSET, "}" )
                     .c_str() );
         }
     }
