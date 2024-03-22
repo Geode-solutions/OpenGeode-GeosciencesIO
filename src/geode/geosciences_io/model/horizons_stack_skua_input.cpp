@@ -36,6 +36,7 @@
 #include <geode/geosciences/explicit/representation/io/structural_model_input.h>
 
 #include <geode/geosciences/implicit/representation/builder/horizons_stack_builder.h>
+#include <geode/geosciences/implicit/representation/core/detail/helpers.h>
 #include <geode/geosciences/implicit/representation/core/horizons_stack.h>
 
 namespace
@@ -115,6 +116,7 @@ namespace
                     }
                 }
             }
+            geode::detail::repair_horizon_stack_if_possible( horizons_stack );
             return horizons_stack;
         }
 
