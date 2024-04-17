@@ -75,7 +75,9 @@ void test_file()
         "[TEST] Unit 'eroded_unit' should be above horizon "
         "'model_horizon_h1'" );
     OPENGEODE_EXCEPTION(
-        horizons_stack.is_eroded_by( eroded_unit_uuid, erosion_horizon_uuid ),
+        horizons_stack.is_eroded_by(
+            horizons_stack.stratigraphic_unit( eroded_unit_uuid ),
+            horizons_stack.horizon( erosion_horizon_uuid ) ),
         "[TEST] Horizon 'model_erosion' should erode unit 'eroded_unit'" );
 
     geode::save_horizons_stack(
