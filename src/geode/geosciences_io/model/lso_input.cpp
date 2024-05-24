@@ -45,7 +45,7 @@
 
 #include <geode/model/helpers/component_mesh_edges.h>
 #include <geode/model/helpers/detail/build_model_boundaries.h>
-#include <geode/model/helpers/detail/cut_along_internal_lines.h>
+#include <geode/model/helpers/detail/split_along_surface_mesh_borders.h>
 #include <geode/model/mixin/core/block.h>
 #include <geode/model/mixin/core/corner.h>
 #include <geode/model/mixin/core/line.h>
@@ -118,7 +118,7 @@ namespace
             geode::detail::build_model_boundaries( model_, builder_ );
             build_corners();
             build_lines();
-            cut_on_internal_lines();
+            split_on_internal_lines();
             return !inspect_required_;
         }
 
@@ -697,7 +697,7 @@ namespace
             return absl::nullopt;
         }
 
-        void cut_on_internal_lines()
+        void split_on_internal_lines()
         {
             for( const auto& line : model_.lines() )
             {
@@ -712,8 +712,8 @@ namespace
                         continue;
                     }
                     geode::Logger::warn( "Surface ", surface.name(),
-                        " was not cut by one of its internal lines, adding "
-                        "the relation and cutting the surface to ensure "
+                        " was not split by one of its internal lines, adding "
+                        "the relation and splitting the surface to ensure "
                         "model validity." );
                     builder_.add_line_surface_internal_relationship(
                         line, surface );
@@ -721,10 +721,10 @@ namespace
                 }
             }
 
-            geode::detail::CutAlongInternalLines< geode::BRep > cutter{
+            geode::detail::SplitAlongSurfaceMeshBorders< geode::BRep > splitter{
                 model_
             };
-            cutter.cut_all_surfaces();
+            splitter.split_all_surfaces();
         }
 
     private:

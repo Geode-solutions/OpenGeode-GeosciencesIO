@@ -43,7 +43,7 @@
 #include <geode/mesh/core/edged_curve.h>
 #include <geode/mesh/core/geode/geode_triangulated_surface.h>
 
-#include <geode/model/helpers/detail/cut_along_internal_lines.h>
+#include <geode/model/helpers/detail/split_along_surface_mesh_borders.h>
 #include <geode/model/mixin/core/corner.h>
 #include <geode/model/mixin/core/line.h>
 #include <geode/model/mixin/core/surface.h>
@@ -307,7 +307,7 @@ namespace
             {
                 const auto surface_id = surface.component_id();
                 const auto& mesh = surface.mesh();
-                bool need_to_cut{ false };
+                bool need_to_split{ false };
                 for( const auto v : geode::Range{ mesh.nb_vertices() } )
                 {
                     const geode::ComponentMeshVertex cmv{ surface_id, v };
@@ -341,19 +341,18 @@ namespace
                             if( !model_.is_internal( line, surface )
                                 && should_line_be_internal( line, surface ) )
                             {
-                                need_to_cut = true;
+                                need_to_split = true;
                                 builder_.add_line_surface_internal_relationship(
                                     line, surface );
                             }
                         }
                     }
                 }
-                if( need_to_cut )
+                if( need_to_split )
                 {
-                    geode::detail::CutAlongInternalLines< geode::BRep > cutter{
-                        model_
-                    };
-                    cutter.cut_surface( surface );
+                    geode::detail::SplitAlongSurfaceMeshBorders< geode::BRep >
+                        splitter{ model_ };
+                    splitter.split_surface( surface );
                 }
             }
         }
