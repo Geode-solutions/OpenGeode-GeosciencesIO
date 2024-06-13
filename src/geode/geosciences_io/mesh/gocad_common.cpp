@@ -39,7 +39,29 @@ namespace
     static constexpr char EOL{ '\n' };
     static constexpr char SPACE{ ' ' };
 
-    std::vector< std::string > split_composed_strings(
+    std::string get_string_between_quote(
+        const std::vector< absl::string_view > tokens,
+        geode::index_t& from_to_id )
+    {
+        std::string string_between_quote;
+        while(
+            from_to_id++ < tokens.size() && tokens[from_to_id].back() != '\"' )
+        {
+            absl::StrAppend( &string_between_quote, tokens[from_to_id], " " );
+        }
+        if( from_to_id == tokens.size() )
+        {
+            throw geode::OpenGeodeException{
+                "[Reading Inputs From Skua-Gocad] missing a closing "
+                "quote character."
+            };
+        }
+        absl::StrAppend( &string_between_quote, tokens[from_to_id] );
+        string_between_quote.erase( string_between_quote.size() - 1, 1 );
+        return string_between_quote;
+    }
+
+    std::vector< std::string > split_string_considering_quotes(
         absl::string_view string_to_split )
     {
         std::vector< std::string > merged;
@@ -49,22 +71,8 @@ namespace
         {
             if( tokens[token_id] == "\"" )
             {
-                merged.emplace_back();
-                auto& token = merged.back();
-                while( token_id++ < tokens.size()
-                       && tokens[token_id].back() != '\"' )
-                {
-                    absl::StrAppend( &token, " ", tokens[token_id] );
-                }
-                if( token_id == tokens.size() )
-                {
-                    throw geode::OpenGeodeException{
-                        "[Reading Inputs From Skua-Gocad] missing a closing "
-                        "quote character."
-                    };
-                }
-                absl::StrAppend( &token, " ", tokens[token_id] );
-                token.erase( token.size() - 1, 1 );
+                merged.emplace_back(
+                    get_string_between_quote( tokens, token_id ) );
             }
             else
             {
@@ -74,7 +82,7 @@ namespace
         }
         return merged;
     }
-    std::string write_composed_strings( absl::string_view string )
+    std::string write_string_with_quotes( absl::string_view string )
     {
         const auto tokens = geode::string_split( string );
         if( tokens.size() > 1 )
@@ -161,7 +169,7 @@ namespace
         geode::index_t nb_attributes )
     {
         auto line = geode::goto_keyword( file, keyword );
-        const auto split_line = split_composed_strings( line );
+        const auto split_line = split_string_considering_quotes( line );
         keyword_data.resize( nb_attributes );
         for( const auto attr_id : geode::Range{ nb_attributes } )
         {
@@ -296,7 +304,7 @@ namespace geode
                 {
                     return crs;
                 }
-                const auto tokens = split_composed_strings( line );
+                const auto tokens = split_string_considering_quotes( line );
                 if( tokens[0] == "ZPOSITIVE" )
                 {
                     crs.z_sign = tokens[1] == "Elevation" ? 1 : -1;
@@ -322,7 +330,7 @@ namespace geode
         void write_CRS( std::ofstream& file, const CRSData& data )
         {
             file << "GOCAD_ORIGINAL_COORDINATE_SYSTEM" << EOL;
-            file << "NAME " << write_composed_strings( data.name ) << EOL;
+            file << "NAME " << write_string_with_quotes( data.name ) << EOL;
             file << "PROJECTION " << data.projection << EOL;
             file << "DATUM " << data.datum << EOL;
             file << "AXIS_NAME " << data.axis_names[0] << SPACE
@@ -347,7 +355,8 @@ namespace geode
                     "corresponding attributes will not be loaded." );
                 return header;
             }
-            const auto split_line = split_composed_strings( opt_line.value() );
+            const auto split_line =
+                split_string_considering_quotes( opt_line.value() );
             const auto nb_attributes = split_line.size() - 1;
             if( nb_attributes == 0 )
             {
@@ -466,7 +475,7 @@ namespace geode
             file << "PROPERTIES";
             for( const auto& name : data.names )
             {
-                file << SPACE << write_composed_strings( name );
+                file << SPACE << write_string_with_quotes( name );
             }
             file << EOL;
             file << "PROP_LEGAL_RANGES";
@@ -484,13 +493,13 @@ namespace geode
             file << "PROPERTY_CLASSES";
             for( const auto& prop_class : data.property_classes )
             {
-                file << SPACE << write_composed_strings( prop_class );
+                file << SPACE << write_string_with_quotes( prop_class );
             }
             file << EOL;
             file << "PROPERTY_KINDS";
             for( const auto& kind : data.kinds )
             {
-                file << SPACE << write_composed_strings( kind );
+                file << SPACE << write_string_with_quotes( kind );
             }
             file << EOL;
             file << "PROPERTY_SUBCLASSES";
@@ -509,7 +518,7 @@ namespace geode
             file << "UNITS";
             for( const auto& unit : data.units )
             {
-                file << SPACE << write_composed_strings( unit );
+                file << SPACE << write_string_with_quotes( unit );
             }
             file << EOL;
         }
