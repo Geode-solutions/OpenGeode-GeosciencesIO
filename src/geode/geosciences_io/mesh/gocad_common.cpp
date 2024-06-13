@@ -24,6 +24,7 @@
 #include <geode/geosciences_io/mesh/private/gocad_common.h>
 
 #include <fstream>
+#include <string>
 
 #include <absl/strings/match.h>
 #include <absl/strings/str_join.h>
@@ -39,33 +40,36 @@ namespace
     static constexpr char SPACE{ ' ' };
 
     std::vector< std::string > split_composed_strings(
-        absl::string_view string )
+        absl::string_view string_to_split )
     {
         std::vector< std::string > merged;
-        const auto tokens = geode::string_split( string );
+        const auto tokens = geode::string_split( string_to_split );
         geode::index_t token_id{ 0 };
         while( token_id < tokens.size() )
         {
-            std::string token;
             if( tokens[token_id] == "\"" )
             {
-                token_id++;
-                OPENGEODE_ASSERT( token_id < tokens.size() );
-                while( tokens[token_id].back() != '\"'
-                       && token_id < tokens.size() )
+                merged.emplace_back();
+                auto& token = merged.back();
+                while( token_id++ < tokens.size()
+                       && tokens[token_id].back() != '\"' )
                 {
                     absl::StrAppend( &token, " ", tokens[token_id] );
-                    token_id++;
-                    OPENGEODE_ASSERT( token_id < tokens.size() );
+                }
+                if( token_id == tokens.size() )
+                {
+                    throw geode::OpenGeodeException{
+                        "[Reading Inputs From Skua-Gocad] missing a closing "
+                        "quote character."
+                    };
                 }
                 absl::StrAppend( &token, " ", tokens[token_id] );
                 token.erase( token.size() - 1, 1 );
             }
             else
             {
-                absl::StrAppend( &token, " ", tokens[token_id] );
+                merged.emplace_back( tokens[token_id] );
             }
-            merged.push_back( token );
             token_id++;
         }
         return merged;
