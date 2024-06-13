@@ -64,6 +64,7 @@ namespace
 
             for( const auto& name : names )
             {
+                VRTX_KEYWORD = "PVRTX";
                 const auto attribute = edged_curve_.vertex_attribute_manager()
                                            .find_generic_attribute( name );
                 if( !attribute || !attribute->is_genericable() )
@@ -126,7 +127,7 @@ namespace
         void write_pvrtx(
             const geode::index_t v, const geode::index_t current_offset )
         {
-            file_ << "PVRTX" << SPACE << current_offset << SPACE
+            file_ << VRTX_KEYWORD << SPACE << current_offset << SPACE
                   << edged_curve_.point( v ).value( 0 ) << SPACE
                   << edged_curve_.point( v ).value( 1 ) << SPACE
                   << edged_curve_.point( v ).value( 2 );
@@ -232,6 +233,7 @@ namespace
         const geode::EdgedCurve3D& edged_curve_;
         std::vector< std::shared_ptr< geode::AttributeBase > > generic_att_;
         std::vector< bool > edge_done_;
+        std::string VRTX_KEYWORD{ "VRTX" };
     };
 } // namespace
 
