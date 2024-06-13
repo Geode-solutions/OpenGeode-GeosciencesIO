@@ -88,6 +88,9 @@ int main()
         check_file( absl::StrCat( geode::data_path, "Fault_without_crs.",
                         geode::detail::TSInput::extension() ),
             189, 324 );
+        check_file( absl::StrCat( geode::data_path, "ts-2props.",
+                        geode::detail::TSInput::extension() ),
+            4, 2 );
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

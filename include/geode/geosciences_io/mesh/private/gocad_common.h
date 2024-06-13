@@ -48,10 +48,14 @@ namespace geode
 
         struct CRSData
         {
-            std::string name{ "Default" };
             std::array< std::string, 3 > axis_names{ { "X", "Y", "Z" } };
             std::array< std::string, 3 > axis_units{ { "m", "m", "m" } };
             int z_sign{ -1 };
+
+            // information read but not used in the OpenGeode DataModel
+            std::string name{ "Default" };
+            std::string projection{ "Unknown" };
+            std::string datum{ "Unknown" };
         };
         CRSData opengeode_geosciencesio_mesh_api read_CRS(
             std::ifstream& file );

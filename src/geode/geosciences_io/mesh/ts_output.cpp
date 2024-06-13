@@ -77,6 +77,7 @@ namespace
 
             for( const auto& name : names )
             {
+                VRTX_KEYWORD = "PVRTX";
                 const auto attribute =
                     surface_.vertex_attribute_manager().find_generic_attribute(
                         name );
@@ -154,7 +155,7 @@ namespace
 
         void write_vrtx( const geode::index_t vertex_id )
         {
-            file_ << "VRTX" << SPACE << vertex_id << SPACE
+            file_ << VRTX_KEYWORD << SPACE << vertex_id << SPACE
                   << surface_.point( vertex_id ).string();
             for( const auto& att : generic_att_ )
             {
@@ -175,6 +176,7 @@ namespace
         std::ofstream file_;
         const geode::TriangulatedSurface3D& surface_;
         std::vector< std::shared_ptr< geode::AttributeBase > > generic_att_{};
+        std::string VRTX_KEYWORD{ "VRTX" };
     };
 } // namespace
 
