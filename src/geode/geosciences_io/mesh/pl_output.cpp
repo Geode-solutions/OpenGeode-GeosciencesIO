@@ -180,9 +180,14 @@ namespace
         {
             std::vector< geode::index_t > start_point;
             start_point.push_back( 0 );
-            for( auto v : geode::Range{ 1, edged_curve_.nb_vertices() } )
+            for( auto v : geode::Range{ 1, edged_curve_.nb_vertices() - 1 } )
             {
                 bool are_vertices_connected{ false };
+                if( edged_curve_.edges_around_vertex( v ).size() != 2 )
+                {
+                    start_point.push_back( v + 1 );
+                    continue;
+                }
                 const std::array< geode::index_t, 2 >
                     previous_vertex_edges_id = {
                         edged_curve_.edges_around_vertex( v )[0].edge_id,
