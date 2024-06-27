@@ -63,23 +63,13 @@ namespace
             {
                 builder_->create_point( point );
             }
-            if( offset == 0 )
+            for( auto edge : ecurve.edges )
             {
-                for( const auto& edge : ecurve.edges )
+                for( auto& vertex : edge )
                 {
-                    builder_->create_edge( edge[0], edge[1] );
+                    vertex += offset;
                 }
-            }
-            else
-            {
-                for( auto edge : ecurve.edges )
-                {
-                    for( auto& vertex : edge )
-                    {
-                        vertex += offset;
-                    }
-                    builder_->create_edge( edge[0], edge[1] );
-                }
+                builder_->create_edge( edge[0], edge[1] );
             }
         }
 

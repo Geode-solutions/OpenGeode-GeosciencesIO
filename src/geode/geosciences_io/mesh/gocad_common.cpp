@@ -107,18 +107,18 @@ namespace
                 {
                     ecurve.OFFSET_START = geode::string_to_index( tokens[1] );
                 }
-                ecurve.points.push_back(
-                    { { geode::string_to_double( tokens[2] ),
-                        geode::string_to_double( tokens[3] ),
-                        ecurve.crs.z_sign
-                            * geode::string_to_double( tokens[4] ) } } );
+                ecurve.points.emplace_back( std::array< double, 3 >{
+                    geode::string_to_double( tokens[2] ),
+                    geode::string_to_double( tokens[3] ),
+                    ecurve.crs.z_sign
+                        * geode::string_to_double( tokens[4] ) } );
             }
             else if( keyword == "SEG" )
             {
-                ecurve.edges.push_back(
-                    { geode::string_to_index( tokens[1] ) - ecurve.OFFSET_START,
-                        geode::string_to_index( tokens[2] )
-                            - ecurve.OFFSET_START } );
+                ecurve.edges.emplace_back( std::array< geode::index_t, 2 >{
+                    geode::string_to_index( tokens[1] ) - ecurve.OFFSET_START,
+                    geode::string_to_index( tokens[2] )
+                        - ecurve.OFFSET_START } );
             }
             else if( keyword == "END" )
             {
@@ -141,11 +141,10 @@ namespace
                 {
                     tsurf.OFFSET_START = geode::string_to_index( tokens[1] );
                 }
-                tsurf.points.push_back(
-                    { { geode::string_to_double( tokens[2] ),
-                        geode::string_to_double( tokens[3] ),
-                        tsurf.crs.z_sign
-                            * geode::string_to_double( tokens[4] ) } } );
+                tsurf.points.emplace_back( std::array< double, 3 >{
+                    geode::string_to_double( tokens[2] ),
+                    geode::string_to_double( tokens[3] ),
+                    tsurf.crs.z_sign * geode::string_to_double( tokens[4] ) } );
                 geode::detail::read_properties(
                     tsurf.vertices_properties_header,
                     tsurf.vertices_attribute_values, tokens, 5 );
@@ -161,8 +160,8 @@ namespace
             }
             else if( keyword == "TRGL" )
             {
-                tsurf.triangles.push_back( { geode::string_to_index( tokens[1] )
-                                                 - tsurf.OFFSET_START,
+                tsurf.triangles.emplace_back( std::array< geode::index_t, 3 >{
+                    geode::string_to_index( tokens[1] ) - tsurf.OFFSET_START,
                     geode::string_to_index( tokens[2] ) - tsurf.OFFSET_START,
                     geode::string_to_index( tokens[3] )
                         - tsurf.OFFSET_START } );
