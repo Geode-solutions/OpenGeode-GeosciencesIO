@@ -27,6 +27,7 @@
 #include <geode/mesh/io/triangulated_surface_input.h>
 
 #include <geode/geosciences_io/mesh/private/grdecl_input.h>
+#include <geode/geosciences_io/mesh/private/pl_input.h>
 #include <geode/geosciences_io/mesh/private/pl_output.h>
 #include <geode/geosciences_io/mesh/private/ts_input.h>
 #include <geode/geosciences_io/mesh/private/ts_output.h>
@@ -73,6 +74,9 @@ namespace
         geode::EdgedCurveInputFactory3D::register_creator<
             geode::detail::WellDevInput >(
             geode::detail::WellDevInput::extension().data() );
+        geode::EdgedCurveInputFactory3D::register_creator<
+            geode::detail::PLInput >(
+            geode::detail::PLInput::extension().data() );
     }
 
     void register_regular_grid_input()

@@ -25,6 +25,7 @@ add_geode_library(
         "common.cpp"
         "gocad_common.cpp"
         "grdecl_input.cpp"
+        "pl_input.cpp"
         "pl_output.cpp"
         "ts_input.cpp"
         "ts_output.cpp"
@@ -38,6 +39,7 @@ add_geode_library(
     PRIVATE_HEADERS
         "private/gocad_common.h"
         "private/grdecl_input.h"
+        "private/pl_input.h"
         "private/pl_output.h"
         "private/ts_input.h"
         "private/ts_output.h"

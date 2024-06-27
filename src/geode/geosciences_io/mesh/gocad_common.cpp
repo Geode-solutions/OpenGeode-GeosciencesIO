@@ -93,6 +93,40 @@ namespace
         return geode::detail::read_name( tokens );
     }
 
+    void read_ilines( std::ifstream& file, geode::detail::ECurveData& ecurve )
+    {
+        geode::goto_keyword( file, "ILINE" );
+        std::string line;
+        while( std::getline( file, line ) )
+        {
+            const auto tokens = geode::string_split( line );
+            const auto& keyword = tokens.front();
+            if( keyword == "VRTX" || keyword == "PVRTX" )
+            {
+                if( ecurve.points.empty() )
+                {
+                    ecurve.OFFSET_START = geode::string_to_index( tokens[1] );
+                }
+                ecurve.points.push_back(
+                    { { geode::string_to_double( tokens[2] ),
+                        geode::string_to_double( tokens[3] ),
+                        ecurve.crs.z_sign
+                            * geode::string_to_double( tokens[4] ) } } );
+            }
+            else if( keyword == "SEG" )
+            {
+                ecurve.edges.push_back(
+                    { geode::string_to_index( tokens[1] ) - ecurve.OFFSET_START,
+                        geode::string_to_index( tokens[2] )
+                            - ecurve.OFFSET_START } );
+            }
+            else if( keyword == "END" )
+            {
+                return;
+            }
+        }
+    }
+
     void read_tfaces( std::ifstream& file, geode::detail::TSurfData& tsurf )
     {
         geode::goto_keyword( file, "TFACE" );
@@ -559,6 +593,19 @@ namespace geode
                 tsurf.vertices_properties_header.names.size() );
             read_tfaces( file, tsurf );
             return tsurf;
+        }
+
+        absl::optional< ECurveData > read_ecurve( std::ifstream& file )
+        {
+            if( !goto_keyword_if_it_exists( file, "GOCAD PLine" ) )
+            {
+                return absl::nullopt;
+            }
+            ECurveData ecurve;
+            ecurve.header = read_header( file );
+            ecurve.crs = read_CRS( file );
+            read_ilines( file, ecurve );
+            return ecurve;
         }
     } // namespace detail
 } // namespace geode

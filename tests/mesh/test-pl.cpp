@@ -20,43 +20,61 @@
  * SOFTWARE.
  *
  */
+
+#include <geode/tests_config.h>
+
 #include <geode/basic/assert.h>
 #include <geode/basic/attribute_manager.h>
 #include <geode/basic/logger.h>
+
 #include <geode/geometry/point.h>
+
 #include <geode/mesh/builder/geode/geode_edged_curve_builder.h>
 #include <geode/mesh/core/geode/geode_edged_curve.h>
+#include <geode/mesh/io/edged_curve_input.h>
+#include <geode/mesh/io/edged_curve_output.h>
 
+#include <geode/geosciences_io/mesh/private/pl_input.h>
 #include <geode/geosciences_io/mesh/private/pl_output.h>
 
 namespace
 {
-    void init_edged_curve_geometry( const geode::EdgedCurve3D& edged_curve,
-        geode::EdgedCurveBuilder3D& builder )
+    void check_curve( const geode::EdgedCurve3D& curve,
+        geode::index_t nb_vertices,
+        geode::index_t nb_edges )
     {
-        builder.create_vertices( 4 );
-        builder.set_point( 0, { { 0.5, 0.5, 0.5 } } );
-        builder.set_point( 1, { { 1., 1., 1. } } );
-        builder.set_point( 2, { { 7.5, 5.2, 6.3 } } );
-        builder.set_point( 3, { { 8.7, 1.4, 4.7 } } );
-        builder.create_edges( 3 );
-        builder.set_edge_vertex( { 0, 0 }, 0 );
-        builder.set_edge_vertex( { 0, 1 }, 1 );
-        builder.set_edge_vertex( { 1, 0 }, 1 );
-        builder.set_edge_vertex( { 1, 1 }, 2 );
-        builder.set_edge_vertex( { 2, 0 }, 1 );
-        builder.set_edge_vertex( { 2, 1 }, 3 );
-
-        std::shared_ptr< geode::VariableAttribute< double > > attribut =
-            edged_curve.vertex_attribute_manager()
-                .find_or_create_attribute< geode::VariableAttribute, double >(
-                    "attribute_double", -999. );
-        attribut->set_value( 0, 0. );
-        attribut->set_value( 1, 1. );
-        attribut->set_value( 2, 2. );
-        attribut->set_value( 3, 3. );
+        OPENGEODE_EXCEPTION( curve.nb_vertices() == nb_vertices,
+            "Number of vertices in the ECurve 3D is not correct" );
+        OPENGEODE_EXCEPTION( curve.nb_edges() == nb_edges,
+            "Number of edges in the ECurve 3D is not correct" );
     }
 
+    void check_file( std::string file,
+        geode::index_t nb_vertices,
+        geode::index_t nb_edges,
+        std::string output_file )
+    {
+        // Load file
+        auto curve = geode::load_edged_curve< 3 >( file );
+        DEBUG( curve->edges_around_vertex( 9394 ).size() );
+        check_curve( *curve, nb_vertices, nb_edges );
+
+        // Save Edged Curve
+        const auto output_file_native =
+            absl::StrCat( output_file, curve->native_extension() );
+        geode::save_edged_curve( *curve, output_file_native );
+        const auto output_file_pl = "test_output.pl";
+        geode::save_edged_curve( *curve, output_file_pl );
+
+        // Load file
+        auto reloaded_curve =
+            geode::load_edged_curve< 3 >( output_file_native );
+        check_curve( *reloaded_curve, nb_vertices, nb_edges );
+        auto reloaded_curve_ec = geode::load_edged_curve< 3 >( output_file_pl );
+        check_curve( *reloaded_curve_ec, nb_vertices, nb_edges );
+        save_edged_curve(
+            *reloaded_curve, absl::StrCat( "reloaded_", output_file_native ) );
+    }
 } // namespace
 
 int main()
@@ -64,16 +82,12 @@ int main()
     try
     {
         geode::GeosciencesIOMeshLibrary::initialize();
-
-        auto edged_curve = geode::EdgedCurve3D::create(
-            geode::OpenGeodeEdgedCurve3D::impl_name_static() );
-        auto builder = geode::EdgedCurveBuilder3D::create( *edged_curve );
-        init_edged_curve_geometry( *edged_curve, *builder );
-
-        const auto output_file_native =
-            absl::StrCat( "pl3d.", geode::detail::PLOutput::extension() );
-        geode::save_edged_curve( *edged_curve, output_file_native );
-
+        check_file( absl::StrCat( geode::data_path, "/normal_lines.",
+                        geode::detail::PLInput::extension() ),
+            11391, 11374, "normal_lines." );
+        check_file( absl::StrCat( geode::data_path, "/closed_lines.",
+                        geode::detail::PLInput::extension() ),
+            9395, 9395, "closed_lines." );
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }

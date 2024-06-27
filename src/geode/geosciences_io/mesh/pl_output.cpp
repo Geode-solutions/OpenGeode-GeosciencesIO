@@ -146,16 +146,17 @@ namespace
             auto propagate = true;
             while( propagate )
             {
+                propagate = false;
                 ev_on_iline.push_back( next_ev );
                 edge_done_[next_ev.edge_id] = true;
-
                 next_ev = { next_ev.edge_id,
                     static_cast< geode::local_index_t >(
                         ( next_ev.vertex_id + 1 ) % 2 ) };
                 auto edges_around = edged_curve_.edges_around_vertex(
                     edged_curve_.edge_vertex( next_ev ) );
-
-                propagate = edges_around.size() == 2;
+                propagate = edges_around.size() == 2
+                            && ( !edge_done_[edges_around[0].edge_id]
+                                 || !edge_done_[edges_around[1].edge_id] );
                 if( propagate )
                 {
                     for( const auto& edge : edges_around )
@@ -167,7 +168,7 @@ namespace
                         next_ev = edge;
                     }
                 }
-                else
+                else if( edges_around.size() != 2 )
                 {
                     ev_on_iline.push_back( next_ev );
                 }
@@ -178,11 +179,29 @@ namespace
         void write_ilines()
         {
             std::vector< geode::index_t > start_point;
-            for( auto v : geode::Range{ edged_curve_.nb_vertices() } )
+            start_point.push_back( 0 );
+            for( auto v : geode::Range{ 1, edged_curve_.nb_vertices() } )
             {
-                if( edged_curve_.edges_around_vertex( v ).size() != 2 )
+                bool are_vertices_connected{ false };
+                const std::array< geode::index_t, 2 >
+                    previous_vertex_edges_id = {
+                        edged_curve_.edges_around_vertex( v )[0].edge_id,
+                        edged_curve_.edges_around_vertex( v )[1].edge_id
+                    };
+                const auto next_vertex_edges =
+                    edged_curve_.edges_around_vertex( v + 1 );
+                for( const auto& edge : next_vertex_edges )
                 {
-                    start_point.push_back( v );
+                    if( absl::c_find( previous_vertex_edges_id, edge.edge_id )
+                        != previous_vertex_edges_id.end() )
+                    {
+                        are_vertices_connected = true;
+                        break;
+                    }
+                }
+                if( !are_vertices_connected )
+                {
+                    start_point.push_back( v + 1 );
                 }
             }
             auto current_offset = OFFSET_START;
@@ -208,6 +227,16 @@ namespace
                     {
                         file_ << "SEG" << SPACE << current_offset + cur_seg
                               << SPACE << current_offset + cur_seg + 1 << EOL;
+                    }
+                    if( edged_curve_
+                            .edges_around_vertex(
+                                ev_on_iline.size() - 2 + current_offset )
+                            .size()
+                        == 2 )
+                    {
+                        file_ << "SEG" << SPACE
+                              << ev_on_iline.size() - 1 + current_offset
+                              << SPACE << v_id + 1 << EOL;
                     }
                     current_offset += ev_on_iline.size();
                 }
