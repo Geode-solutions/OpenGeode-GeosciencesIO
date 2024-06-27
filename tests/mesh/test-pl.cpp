@@ -56,7 +56,6 @@ namespace
     {
         // Load file
         auto curve = geode::load_edged_curve< 3 >( file );
-        DEBUG( curve->edges_around_vertex( 9394 ).size() );
         check_curve( *curve, nb_vertices, nb_edges );
 
         // Save Edged Curve
