@@ -50,7 +50,7 @@ namespace geode
         {
             std::array< std::string, 3 > axis_names{ { "X", "Y", "Z" } };
             std::array< std::string, 3 > axis_units{ { "m", "m", "m" } };
-            int z_sign{ -1 };
+            double z_sign{ 1. };
 
             // information read but not used in the OpenGeode DataModel
             std::string name{ "Default" };
@@ -148,5 +148,16 @@ namespace geode
         };
         absl::optional< TSurfData > opengeode_geosciencesio_mesh_api read_tsurf(
             std::ifstream& file );
+
+        struct ECurveData
+        {
+            index_t OFFSET_START{ 1 };
+            HeaderData header;
+            CRSData crs;
+            std::vector< Point3D > points;
+            std::vector< std::array< index_t, 2 > > edges;
+        };
+        absl::optional< ECurveData >
+            opengeode_geosciencesio_mesh_api read_ecurve( std::ifstream& file );
     } // namespace detail
 } // namespace geode

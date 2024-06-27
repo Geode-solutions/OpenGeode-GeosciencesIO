@@ -146,16 +146,17 @@ namespace
             auto propagate = true;
             while( propagate )
             {
+                propagate = false;
                 ev_on_iline.push_back( next_ev );
                 edge_done_[next_ev.edge_id] = true;
-
                 next_ev = { next_ev.edge_id,
                     static_cast< geode::local_index_t >(
                         ( next_ev.vertex_id + 1 ) % 2 ) };
                 auto edges_around = edged_curve_.edges_around_vertex(
                     edged_curve_.edge_vertex( next_ev ) );
-
-                propagate = edges_around.size() == 2;
+                propagate = edges_around.size() == 2
+                            && ( !edge_done_[edges_around[0].edge_id]
+                                 || !edge_done_[edges_around[1].edge_id] );
                 if( propagate )
                 {
                     for( const auto& edge : edges_around )
@@ -167,7 +168,7 @@ namespace
                         next_ev = edge;
                     }
                 }
-                else
+                else if( edges_around.size() != 2 )
                 {
                     ev_on_iline.push_back( next_ev );
                 }
@@ -186,6 +187,7 @@ namespace
                 }
             }
             auto current_offset = OFFSET_START;
+            geode::index_t nb_edges_done{ 0 };
             for( const auto& v_id : start_point )
             {
                 for( const auto& edge :
@@ -195,23 +197,55 @@ namespace
                     {
                         continue;
                     }
-                    file_ << "ILINE" << EOL;
-                    auto ev_on_iline = get_edged_vertex_on_iline( edge );
-                    geode::index_t cur_v = 0;
-                    for( const auto& ev : ev_on_iline )
-                    {
-                        write_pvrtx( edged_curve_.edge_vertex( ev ),
-                            current_offset + cur_v );
-                        ++cur_v;
-                    }
-                    for( auto cur_seg : geode::Range{ ev_on_iline.size() - 1 } )
-                    {
-                        file_ << "SEG" << SPACE << current_offset + cur_seg
-                              << SPACE << current_offset + cur_seg + 1 << EOL;
-                    }
-                    current_offset += ev_on_iline.size();
+                    write_edge_and_vertex(
+                        edge, current_offset, nb_edges_done );
                 }
             }
+            while( nb_edges_done != edged_curve_.nb_edges() )
+            {
+                const auto start_edge = starting_edge();
+                write_edge_and_vertex(
+                    { start_edge, 0 }, current_offset, nb_edges_done );
+                file_ << "SEG" << SPACE << current_offset - 1 << SPACE
+                      << edged_curve_.edge_vertices( start_edge )[0] + 1 << EOL;
+                nb_edges_done++;
+            }
+        }
+
+        geode::index_t starting_edge()
+        {
+            geode::index_t starting_edge{ 0 };
+            for( const auto& edge : geode::Range( edged_curve_.nb_edges() ) )
+            {
+                if( !edge_done_[edge] )
+                {
+                    starting_edge = edge;
+                    break;
+                }
+            }
+            return starting_edge;
+        }
+
+        void write_edge_and_vertex( const geode::EdgeVertex& edge,
+            geode::index_t& current_offset,
+            geode::index_t& nb_edges_done )
+        {
+            file_ << "ILINE" << EOL;
+            auto ev_on_iline = get_edged_vertex_on_iline( edge );
+            geode::index_t cur_v = 0;
+            for( const auto& ev : ev_on_iline )
+            {
+                write_pvrtx(
+                    edged_curve_.edge_vertex( ev ), current_offset + cur_v );
+                ++cur_v;
+            }
+            for( auto cur_seg : geode::Range{ ev_on_iline.size() - 1 } )
+            {
+                file_ << "SEG" << SPACE << current_offset + cur_seg << SPACE
+                      << current_offset + cur_seg + 1 << EOL;
+                nb_edges_done++;
+            }
+            current_offset += ev_on_iline.size();
         }
 
         void write_file()
