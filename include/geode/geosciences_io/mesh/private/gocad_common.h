@@ -23,6 +23,8 @@
 
 #pragma once
 
+#include <optional>
+
 #include <geode/basic/attribute_manager.h>
 
 #include <geode/geometry/point.h>
@@ -146,7 +148,7 @@ namespace geode
             std::deque< TSurfBorderData > borders;
             std::vector< std::vector< double > > vertices_attribute_values;
         };
-        absl::optional< TSurfData > opengeode_geosciencesio_mesh_api read_tsurf(
+        std::optional< TSurfData > opengeode_geosciencesio_mesh_api read_tsurf(
             std::ifstream& file );
 
         struct ECurveData
@@ -157,7 +159,7 @@ namespace geode
             std::vector< Point3D > points;
             std::vector< std::array< index_t, 2 > > edges;
         };
-        absl::optional< ECurveData >
+        std::optional< ECurveData >
             opengeode_geosciencesio_mesh_api read_ecurve( std::ifstream& file );
     } // namespace detail
 } // namespace geode
