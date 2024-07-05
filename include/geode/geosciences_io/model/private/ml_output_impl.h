@@ -24,6 +24,7 @@
 #pragma once
 
 #include <fstream>
+#include <optional>
 
 #include <absl/strings/str_replace.h>
 
@@ -74,7 +75,7 @@ namespace geode
             return true;
         }
 
-        inline absl::optional< PolygonEdge > get_one_border_edge(
+        inline std::optional< PolygonEdge > get_one_border_edge(
             const SurfaceMesh3D& mesh )
         {
             for( const auto p : Range{ mesh.nb_polygons() } )
@@ -87,7 +88,7 @@ namespace geode
                     }
                 }
             }
-            return absl::nullopt;
+            return std::nullopt;
         }
 
         template < typename Model >

@@ -672,7 +672,7 @@ namespace
                 model_.corner( corner1.component_id.id() ), line );
         }
 
-        absl::optional< geode::uuid > common_line(
+        std::optional< geode::uuid > common_line(
             geode::index_t unique_id0, geode::index_t unique_id1 )
         {
             const auto lines0 = model_.component_mesh_vertices(
@@ -694,7 +694,7 @@ namespace
                     }
                 }
             }
-            return absl::nullopt;
+            return std::nullopt;
         }
 
         void split_on_internal_lines()

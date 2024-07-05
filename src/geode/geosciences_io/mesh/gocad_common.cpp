@@ -24,6 +24,7 @@
 #include <geode/geosciences_io/mesh/private/gocad_common.h>
 
 #include <fstream>
+#include <optional>
 #include <string>
 
 #include <absl/strings/match.h>
@@ -577,11 +578,11 @@ namespace geode
                 { { "\"", "" } } );
         }
 
-        absl::optional< TSurfData > read_tsurf( std::ifstream& file )
+        std::optional< TSurfData > read_tsurf( std::ifstream& file )
         {
             if( !goto_keyword_if_it_exists( file, "GOCAD TSurf" ) )
             {
-                return absl::nullopt;
+                return std::nullopt;
             }
             TSurfData tsurf;
             tsurf.header = read_header( file );
@@ -594,11 +595,11 @@ namespace geode
             return tsurf;
         }
 
-        absl::optional< ECurveData > read_ecurve( std::ifstream& file )
+        std::optional< ECurveData > read_ecurve( std::ifstream& file )
         {
             if( !goto_keyword_if_it_exists( file, "GOCAD PLine" ) )
             {
-                return absl::nullopt;
+                return std::nullopt;
             }
             ECurveData ecurve;
             ecurve.header = read_header( file );
