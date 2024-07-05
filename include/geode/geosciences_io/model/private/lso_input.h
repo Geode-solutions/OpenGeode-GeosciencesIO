@@ -33,7 +33,7 @@ namespace geode
         class LSOInput final : public StructuralModelInput
         {
         public:
-            LSOInput( absl::string_view filename )
+            explicit LSOInput( absl::string_view filename )
                 : StructuralModelInput( filename )
             {
             }

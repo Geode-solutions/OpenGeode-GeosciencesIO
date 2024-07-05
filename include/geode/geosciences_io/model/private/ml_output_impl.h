@@ -316,7 +316,7 @@ namespace geode
                 std::vector< std::array< index_t, 2 > >& line_starts ) const
             {
                 const auto& mesh = surface.mesh();
-                const auto v0 = mesh.polygon_vertex( edge );
+                const auto v0 = mesh.polygon_vertex( PolygonVertex{ edge } );
                 const auto v1 = mesh.polygon_vertex(
                     { edge.polygon_id, static_cast< local_index_t >(
                                            ( edge.edge_id + 1 ) % 3 ) } );
@@ -458,8 +458,7 @@ namespace geode
                     detail::write_CRS( file_, {} );
                     file_ << "GEOLOGICAL_FEATURE " << component_name( surface )
                           << EOL;
-                    file_ << "GEOLOGICAL_TYPE "
-                          << "boundary" << EOL;
+                    file_ << "GEOLOGICAL_TYPE " << "boundary" << EOL;
                     index_t current_offset{ OFFSET_START };
                     file_ << "TFACE" << EOL;
                     current_offset = write_surface( surface, current_offset );

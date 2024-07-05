@@ -42,7 +42,7 @@ namespace geode
         class VOInput : public RegularGridInput< 3 >
         {
         public:
-            VOInput( absl::string_view filename )
+            explicit VOInput( absl::string_view filename )
                 : RegularGridInput< 3 >( filename )
             {
             }

@@ -34,7 +34,10 @@ namespace geode
         class SHPInput final : public SectionInput
         {
         public:
-            SHPInput( absl::string_view filename ) : SectionInput( filename ) {}
+            explicit SHPInput( absl::string_view filename )
+                : SectionInput( filename )
+            {
+            }
 
             static std::vector< std::string > extensions()
             {

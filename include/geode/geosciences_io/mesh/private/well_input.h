@@ -40,16 +40,14 @@ namespace geode
         class WellInputImpl
         {
         public:
-            WellInputImpl(
-                absl::string_view filename, geode::EdgedCurve3D& curve )
-                : file_{ geode::to_string( filename ) },
+            WellInputImpl( absl::string_view filename, EdgedCurve3D& curve )
+                : file_{ to_string( filename ) },
                   curve_( curve ),
-                  builder_( geode::EdgedCurveBuilder3D::create( curve ) )
+                  builder_( EdgedCurveBuilder3D::create( curve ) )
             {
                 OPENGEODE_EXCEPTION(
                     file_.good(), "Error while opening file: ", filename );
-                builder_->set_name(
-                    geode::filename_without_extension( filename ) );
+                builder_->set_name( filename_without_extension( filename ) );
             }
 
             void read_file()
@@ -66,20 +64,20 @@ namespace geode
             }
 
         private:
-            geode::Point3D read_coord( absl::string_view line ) const
+            Point3D read_coord( absl::string_view line ) const
             {
-                const auto tokens = geode::string_split( line );
+                const auto tokens = string_split( line );
                 OPENGEODE_ASSERT( tokens.size() == 3,
                     "[WellInput::read_coord] Wrong number of tokens" );
-                return { { geode::string_to_double( tokens[0] ),
-                    geode::string_to_double( tokens[1] ),
-                    geode::string_to_double( tokens[2] ) } };
+                return Point3D{ { string_to_double( tokens[0] ),
+                    string_to_double( tokens[1] ),
+                    string_to_double( tokens[2] ) } };
             }
 
         private:
             std::ifstream file_;
-            geode::EdgedCurve3D& curve_;
-            std::unique_ptr< geode::EdgedCurveBuilder3D > builder_;
+            EdgedCurve3D& curve_;
+            std::unique_ptr< EdgedCurveBuilder3D > builder_;
         };
     } // namespace detail
 } // namespace geode

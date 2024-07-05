@@ -145,12 +145,14 @@ namespace
                         "[GRDECLInput::read_pillars] Wrong "
                         "number of coordinates" );
                     Pillar pillar;
-                    pillar.top = { { geode::string_to_double( tokens[0] ),
-                        geode::string_to_double( tokens[1] ),
-                        geode::string_to_double( tokens[2] ) } };
-                    pillar.bottom = { { geode::string_to_double( tokens[3] ),
-                        geode::string_to_double( tokens[4] ),
-                        geode::string_to_double( tokens[5] ) } };
+                    pillar.top =
+                        geode::Point3D{ { geode::string_to_double( tokens[0] ),
+                            geode::string_to_double( tokens[1] ),
+                            geode::string_to_double( tokens[2] ) } };
+                    pillar.bottom =
+                        geode::Point3D{ { geode::string_to_double( tokens[3] ),
+                            geode::string_to_double( tokens[4] ),
+                            geode::string_to_double( tokens[5] ) } };
                     pillars[pillar_number++] = std::move( pillar );
                 }
                 std::getline( file, line );
