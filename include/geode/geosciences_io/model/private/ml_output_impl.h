@@ -458,7 +458,8 @@ namespace geode
                     detail::write_CRS( file_, {} );
                     file_ << "GEOLOGICAL_FEATURE " << component_name( surface )
                           << EOL;
-                    file_ << "GEOLOGICAL_TYPE " << "boundary" << EOL;
+                    file_ << "GEOLOGICAL_TYPE "
+                          << "boundary" << EOL;
                     index_t current_offset{ OFFSET_START };
                     file_ << "TFACE" << EOL;
                     current_offset = write_surface( surface, current_offset );

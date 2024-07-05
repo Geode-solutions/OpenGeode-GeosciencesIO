@@ -538,8 +538,8 @@ namespace
             return result;
         }
 
-        bool are_equal( const std::vector< geode::uuid >& lhs,
-            const std::vector< geode::uuid >& rhs ) const
+        static bool are_equal( const std::vector< geode::uuid >& lhs,
+            const std::vector< geode::uuid >& rhs )
         {
             for( const auto& uuid0 : lhs )
             {
