@@ -24,10 +24,10 @@
 #include <geode/geosciences_io/mesh/private/vo_input.h>
 
 #include <fstream>
+#include <optional>
 #include <string>
 
 #include <absl/strings/str_replace.h>
-#include <absl/types/optional.h>
 
 #include <geode/basic/attribute_manager.h>
 #include <geode/basic/file.h>
@@ -46,13 +46,13 @@
 namespace
 {
 
-    absl::optional< std::string > get_data_file( std::ifstream& file )
+    std::optional< std::string > get_data_file( std::ifstream& file )
     {
         const auto line =
             geode::goto_keyword_if_it_exists( file, "ASCII_DATA_FILE" );
         if( !line.has_value() )
         {
-            return absl::nullopt;
+            return std::nullopt;
         }
         return absl::StrReplaceAll(
             line.value(), { { "ASCII_DATA_FILE ", "" }, { "\"", "" } } );

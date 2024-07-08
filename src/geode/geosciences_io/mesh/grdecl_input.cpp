@@ -24,13 +24,11 @@
 #include <geode/geosciences_io/mesh/private/grdecl_input.h>
 
 #include <fstream>
-
+#include <optional>
 #include <string>
 
 #include <absl/strings/match.h>
 #include <absl/strings/str_split.h>
-
-#include <absl/types/optional.h>
 
 #include <geode/basic/attribute_manager.h>
 #include <geode/basic/file.h>
@@ -91,7 +89,7 @@ namespace
         void get_filenames_and_keywords()
         {
             auto line = geode::goto_keyword_if_it_exists( file_, "INCLUDE" );
-            while( line != absl::nullopt )
+            while( line != std::nullopt )
             {
                 std::getline( file_, line.value() );
                 const auto tokens = absl::StrSplit( line.value(), "_" );

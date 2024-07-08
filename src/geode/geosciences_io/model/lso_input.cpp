@@ -695,7 +695,7 @@ namespace
             }
         }
 
-        absl::optional< geode::uuid > common_line(
+        std::optional< geode::uuid > common_line(
             geode::index_t unique_id0, geode::index_t unique_id1 )
         {
             for( const auto& cmv0 :
@@ -720,7 +720,7 @@ namespace
                     }
                 }
             }
-            return absl::nullopt;
+            return std::nullopt;
         }
 
         void split_on_internal_lines()
