@@ -41,7 +41,7 @@ namespace geode
         {
         public:
             WellInputImpl(
-                absl::string_view filename, geode::EdgedCurve3D& curve )
+                std::string_view filename, geode::EdgedCurve3D& curve )
                 : file_{ geode::to_string( filename ) },
                   curve_( curve ),
                   builder_( geode::EdgedCurveBuilder3D::create( curve ) )
@@ -66,7 +66,7 @@ namespace geode
             }
 
         private:
-            geode::Point3D read_coord( absl::string_view line ) const
+            geode::Point3D read_coord( std::string_view line ) const
             {
                 const auto tokens = geode::string_split( line );
                 OPENGEODE_ASSERT( tokens.size() == 3,

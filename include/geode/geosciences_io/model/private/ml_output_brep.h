@@ -36,11 +36,11 @@ namespace geode
         class MLOutputBRep final : public BRepOutput
         {
         public:
-            MLOutputBRep( absl::string_view filename ) : BRepOutput( filename )
+            MLOutputBRep( std::string_view filename ) : BRepOutput( filename )
             {
             }
 
-            static absl::string_view extension()
+            static std::string_view extension()
             {
                 static constexpr auto ext = "ml";
                 return ext;

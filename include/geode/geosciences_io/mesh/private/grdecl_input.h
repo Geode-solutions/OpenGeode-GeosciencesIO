@@ -39,12 +39,12 @@ namespace geode
         class GRDECLInput : public HybridSolidInput< 3 >
         {
         public:
-            GRDECLInput( absl::string_view filename )
+            GRDECLInput( std::string_view filename )
                 : HybridSolidInput< 3 >( filename )
             {
             }
 
-            static absl::string_view extension()
+            static std::string_view extension()
             {
                 static constexpr auto ext = "grdecl";
                 return ext;

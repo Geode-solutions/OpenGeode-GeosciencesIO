@@ -42,12 +42,12 @@ namespace geode
         class TSOutput final : public TriangulatedSurfaceOutput< 3 >
         {
         public:
-            explicit TSOutput( absl::string_view filename )
+            explicit TSOutput( std::string_view filename )
                 : TriangulatedSurfaceOutput< 3 >( filename )
             {
             }
 
-            static absl::string_view extension()
+            static std::string_view extension()
             {
                 static constexpr auto ext = "ts";
                 return ext;

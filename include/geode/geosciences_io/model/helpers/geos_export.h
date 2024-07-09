@@ -22,11 +22,11 @@
  */
 
 #pragma once
+
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
-
-#include <absl/strings/string_view.h>
 
 #include <geode/basic/attribute.h>
 #include <geode/geosciences_io/model/common.h>
@@ -57,20 +57,20 @@ namespace geode
     public:
         GeosExporterImpl() = delete;
         GeosExporterImpl(
-            absl::string_view files_directory, const Model& model );
+            std::string_view files_directory, const Model& model );
         virtual ~GeosExporterImpl() = default;
 
         void prepare_export();
         void write_files() const;
 
         void add_well_perforations( const PointSet3D& perforations );
-        void add_cell_property1d( absl::string_view property_name );
-        void add_cell_property2d( absl::string_view property_name );
-        void add_cell_property3d( absl::string_view property_name );
+        void add_cell_property1d( std::string_view property_name );
+        void add_cell_property2d( std::string_view property_name );
+        void add_cell_property3d( std::string_view property_name );
 
     protected:
-        absl::string_view files_directory() const;
-        absl::string_view prefix() const;
+        std::string_view files_directory() const;
+        std::string_view prefix() const;
 
         index_t initialize_solid_region_attribute();
         virtual absl::flat_hash_map< uuid, index_t >
@@ -79,7 +79,7 @@ namespace geode
         void write_well_perforations_boxes( pugi::xml_node& root ) const;
         void write_mesh_files( pugi::xml_node& root ) const;
 
-        bool check_property_name( absl::string_view property_name ) const;
+        bool check_property_name( std::string_view property_name ) const;
         void transfer_cell_properties();
         void delete_mapping_attributes();
 

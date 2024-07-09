@@ -33,12 +33,12 @@ namespace geode
         class MLInput final : public StructuralModelInput
         {
         public:
-            MLInput( absl::string_view filename )
+            MLInput( std::string_view filename )
                 : StructuralModelInput( filename )
             {
             }
 
-            static absl::string_view extension()
+            static std::string_view extension()
             {
                 static constexpr auto ext = "ml";
                 return ext;

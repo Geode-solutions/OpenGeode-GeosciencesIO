@@ -36,12 +36,12 @@ namespace geode
         class LSOOutput final : public StructuralModelOutput
         {
         public:
-            LSOOutput( absl::string_view filename )
+            LSOOutput( std::string_view filename )
                 : StructuralModelOutput( filename )
             {
             }
 
-            static absl::string_view extension()
+            static std::string_view extension()
             {
                 static constexpr auto ext = "lso";
                 return ext;

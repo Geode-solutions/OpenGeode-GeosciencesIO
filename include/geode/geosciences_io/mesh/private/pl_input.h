@@ -40,12 +40,12 @@ namespace geode
         class PLInput : public EdgedCurveInput< 3 >
         {
         public:
-            PLInput( absl::string_view filename )
+            PLInput( std::string_view filename )
                 : EdgedCurveInput< 3 >( filename )
             {
             }
 
-            static absl::string_view extension()
+            static std::string_view extension()
             {
                 static constexpr auto ext = "pl";
                 return ext;

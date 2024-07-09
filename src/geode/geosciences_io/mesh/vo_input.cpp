@@ -61,7 +61,7 @@ namespace
     class VOInputImpl
     {
     public:
-        VOInputImpl( absl::string_view filename, geode::RegularGrid3D& grid )
+        VOInputImpl( std::string_view filename, geode::RegularGrid3D& grid )
             : file_{ geode::to_string( filename ) },
               file_folder_{ geode::filepath_without_filename( filename ) },
               grid_( grid ),
@@ -136,7 +136,7 @@ namespace
         }
 
         geode::Point3D read_coord(
-            absl::string_view line, geode::index_t offset ) const
+            std::string_view line, geode::index_t offset ) const
         {
             const auto tokens = geode::string_split( line );
             OPENGEODE_ASSERT( tokens.size() == 3 + offset,

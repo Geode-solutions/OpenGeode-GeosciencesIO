@@ -33,12 +33,12 @@ namespace geode
         class LSOInput final : public StructuralModelInput
         {
         public:
-            LSOInput( absl::string_view filename )
+            LSOInput( std::string_view filename )
                 : StructuralModelInput( filename )
             {
             }
 
-            static absl::string_view extension()
+            static std::string_view extension()
             {
                 static constexpr auto ext = "lso";
                 return ext;

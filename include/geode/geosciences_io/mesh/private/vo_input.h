@@ -42,12 +42,12 @@ namespace geode
         class VOInput : public RegularGridInput< 3 >
         {
         public:
-            VOInput( absl::string_view filename )
+            VOInput( std::string_view filename )
                 : RegularGridInput< 3 >( filename )
             {
             }
 
-            static absl::string_view extension()
+            static std::string_view extension()
             {
                 static constexpr auto ext = "vo";
                 return ext;

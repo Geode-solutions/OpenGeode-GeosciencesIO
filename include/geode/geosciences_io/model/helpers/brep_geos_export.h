@@ -25,7 +25,7 @@
 
 #include <geode/geosciences_io/model/common.h>
 
-#include <absl/strings/string_view.h>
+#include <string_view>
 
 #include <geode/basic/pimpl.h>
 
@@ -44,13 +44,13 @@ namespace geode
 
     public:
         BRepGeosExporter() = delete;
-        BRepGeosExporter( const BRep& brep, absl::string_view files_directory );
+        BRepGeosExporter( const BRep& brep, std::string_view files_directory );
         ~BRepGeosExporter();
 
         void add_well_perforations( const PointSet3D& well_perforations );
-        void add_cell_property_1d( absl::string_view name );
-        void add_cell_property_2d( absl::string_view name );
-        void add_cell_property_3d( absl::string_view name );
+        void add_cell_property_1d( std::string_view name );
+        void add_cell_property_2d( std::string_view name );
+        void add_cell_property_3d( std::string_view name );
 
         void run();
 

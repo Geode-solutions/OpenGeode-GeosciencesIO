@@ -41,7 +41,7 @@ namespace
     static constexpr char SPACE{ ' ' };
 
     std::string get_string_between_quote(
-        const std::vector< absl::string_view > tokens,
+        const std::vector< std::string_view > tokens,
         geode::index_t& from_to_id )
     {
         std::string string_between_quote;
@@ -63,7 +63,7 @@ namespace
     }
 
     std::vector< std::string > split_string_considering_quotes(
-        absl::string_view string_to_split )
+        std::string_view string_to_split )
     {
         std::vector< std::string > merged;
         const auto tokens = geode::string_split( string_to_split );
@@ -83,7 +83,7 @@ namespace
         }
         return merged;
     }
-    std::string write_string_with_quotes( absl::string_view string )
+    std::string write_string_with_quotes( std::string_view string )
     {
         const auto tokens = geode::string_split( string );
         if( tokens.size() > 1 )
@@ -198,7 +198,7 @@ namespace
     }
 
     void read_property_keyword_with_one_string( std::ifstream& file,
-        absl::string_view keyword,
+        std::string_view keyword,
         std::vector< std::string >& keyword_data,
         geode::index_t nb_attributes )
     {
@@ -212,7 +212,7 @@ namespace
     }
 
     void read_property_keyword_with_two_strings( std::ifstream& file,
-        absl::string_view keyword,
+        std::string_view keyword,
         std::vector< std::pair< std::string, std::string > >& keyword_data,
         geode::index_t nb_attributes )
     {
@@ -234,7 +234,7 @@ namespace
     }
 
     void read_property_keyword_with_one_double( std::ifstream& file,
-        absl::string_view keyword,
+        std::string_view keyword,
         std::vector< double >& keyword_data,
         geode::index_t nb_attributes )
     {
@@ -249,7 +249,7 @@ namespace
     }
 
     void read_property_keyword_with_one_index_t( std::ifstream& file,
-        absl::string_view keyword,
+        std::string_view keyword,
         std::vector< geode::index_t >& keyword_data,
         geode::index_t nb_attributes )
     {
@@ -264,7 +264,7 @@ namespace
     }
 
     template < typename Container >
-    void add_vertices_container_attribute( absl::string_view attribute_name,
+    void add_vertices_container_attribute( std::string_view attribute_name,
         absl::Span< const double > attribute_values,
         geode::AttributeManager& attribute_manager,
         geode::index_t nb_vertices,
@@ -305,7 +305,7 @@ namespace geode
                 const auto tokens = geode::string_split( line );
                 if( tokens.front() == "name:" )
                 {
-                    absl::Span< const absl::string_view > remaining_tokens(
+                    absl::Span< const std::string_view > remaining_tokens(
                         &tokens[1], tokens.size() - 1 );
                     header.name = read_name( remaining_tokens );
                 }
@@ -377,7 +377,7 @@ namespace geode
         }
 
         PropHeaderData read_prop_header(
-            std::ifstream& file, absl::string_view prefix )
+            std::ifstream& file, std::string_view prefix )
         {
             PropHeaderData header;
             const auto opt_line = geode::next_keyword_if_it_exists(
@@ -427,7 +427,7 @@ namespace geode
 
         void read_properties( const PropHeaderData& properties_header,
             std::vector< std::vector< double > >& attribute_values,
-            absl::Span< const absl::string_view > tokens,
+            absl::Span< const std::string_view > tokens,
             geode::index_t line_properties_position )
         {
             for( const auto attr_id :
@@ -571,7 +571,7 @@ namespace geode
             file << "}" << EOL;
         }
 
-        std::string read_name( absl::Span< const absl::string_view > tokens )
+        std::string read_name( absl::Span< const std::string_view > tokens )
         {
             return absl::StrReplaceAll(
                 absl::StrJoin( tokens.begin(), tokens.end(), " " ),

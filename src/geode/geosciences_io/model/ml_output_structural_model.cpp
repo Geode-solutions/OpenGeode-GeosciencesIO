@@ -44,9 +44,9 @@ namespace
         static constexpr char SPACE{ ' ' };
 
         MLOutputImplSM(
-            absl::string_view filename, const geode::StructuralModel& model )
+            std::string_view filename, const geode::StructuralModel& model )
             : geode::detail::MLOutputImpl< geode::StructuralModel >(
-                filename, model ),
+                  filename, model ),
               model_( model )
         {
         }
