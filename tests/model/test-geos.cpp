@@ -38,6 +38,7 @@
 
 #include <geode/model/representation/core/brep.h>
 #include <geode/model/representation/io/brep_input.h>
+
 void test_picasso()
 {
     // Load structural model
@@ -56,7 +57,7 @@ void toy_model()
     auto point_set = geode::PointSet3D::create(
         geode::OpenGeodePointSet3D::impl_name_static() );
     auto builder = geode::PointSetBuilder3D::create( *point_set );
-    builder->create_point( { { 20., 20., 10. } } );
+    builder->create_point( geode::Point3D{ { 20., 20., 10. } } );
     exporter.add_well_perforations( *point_set );
     exporter.run();
 }

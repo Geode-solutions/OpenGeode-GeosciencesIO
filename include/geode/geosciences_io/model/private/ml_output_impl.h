@@ -317,7 +317,7 @@ namespace geode
                 std::vector< std::array< index_t, 2 > >& line_starts ) const
             {
                 const auto& mesh = surface.mesh();
-                const auto v0 = mesh.polygon_vertex( edge );
+                const auto v0 = mesh.polygon_vertex( PolygonVertex{ edge } );
                 const auto v1 = mesh.polygon_vertex(
                     { edge.polygon_id, static_cast< local_index_t >(
                                            ( edge.edge_id + 1 ) % 3 ) } );

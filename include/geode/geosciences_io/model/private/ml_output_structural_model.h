@@ -36,7 +36,7 @@ namespace geode
         class MLOutputStructuralModel final : public StructuralModelOutput
         {
         public:
-            MLOutputStructuralModel( absl::string_view filename )
+            explicit MLOutputStructuralModel( absl::string_view filename )
                 : StructuralModelOutput( filename )
             {
             }

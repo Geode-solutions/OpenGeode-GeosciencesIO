@@ -81,12 +81,14 @@ int main()
     try
     {
         geode::GeosciencesIOMeshLibrary::initialize();
+        // NOLINTBEGIN(*-magic-numbers)
         check_file( absl::StrCat( geode::data_path, "/normal_lines.",
                         geode::detail::PLInput::extension() ),
             11391, 11374, "normal_lines." );
         check_file( absl::StrCat( geode::data_path, "/closed_lines.",
                         geode::detail::PLInput::extension() ),
             9395, 9395, "closed_lines." );
+        // NOLINTEND(*-magic-numbers)
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }

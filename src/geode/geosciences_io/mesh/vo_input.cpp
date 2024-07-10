@@ -141,7 +141,7 @@ namespace
             const auto tokens = geode::string_split( line );
             OPENGEODE_ASSERT( tokens.size() == 3 + offset,
                 "[VOInput::read_coord] Wrong number of tokens" );
-            return { { geode::string_to_double( tokens[offset] ),
+            return geode::Point3D{ { geode::string_to_double( tokens[offset] ),
                 geode::string_to_double( tokens[1 + offset] ),
                 geode::string_to_double( tokens[2 + offset] ) } };
         }

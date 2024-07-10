@@ -40,7 +40,7 @@ namespace geode
         class WLInput : public EdgedCurveInput< 3 >
         {
         public:
-            WLInput( absl::string_view filename )
+            explicit WLInput( absl::string_view filename )
                 : EdgedCurveInput< 3 >( filename )
             {
             }

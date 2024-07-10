@@ -42,7 +42,7 @@ namespace geode
         class PLOutput final : public EdgedCurveOutput< 3 >
         {
         public:
-            PLOutput( absl::string_view filename )
+            explicit PLOutput( absl::string_view filename )
                 : EdgedCurveOutput< 3 >( filename )
             {
             }
