@@ -33,7 +33,7 @@ namespace geode
         class MLInput final : public StructuralModelInput
         {
         public:
-            MLInput( absl::string_view filename )
+            explicit MLInput( absl::string_view filename )
                 : StructuralModelInput( filename )
             {
             }

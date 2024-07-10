@@ -40,7 +40,7 @@ namespace geode
         class WellTxtInput : public EdgedCurveInput< 3 >
         {
         public:
-            WellTxtInput( absl::string_view filename )
+            explicit WellTxtInput( absl::string_view filename )
                 : EdgedCurveInput< 3 >( filename )
             {
             }

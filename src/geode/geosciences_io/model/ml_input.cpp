@@ -329,13 +329,17 @@ namespace
                             "same point" );
                         const auto vertex = result.front();
                         builder_.set_unique_vertex( cmv, vertex );
-                        const auto lines = model_.component_mesh_vertices(
-                            vertex, geode::Line3D::component_type_static() );
                         OPENGEODE_ASSERT( result.size() == 1,
                             "[MLInput] Several unique vertices found for the "
                             "same point" );
-                        for( const auto& line_cmv : lines )
+                        for( const auto& line_cmv :
+                            model_.component_mesh_vertices( vertex ) )
                         {
+                            if( line_cmv.component_id.type()
+                                != geode::Line3D::component_type_static() )
+                            {
+                                continue;
+                            }
                             const auto& line =
                                 model_.line( line_cmv.component_id.id() );
                             if( !model_.is_internal( line, surface )
@@ -379,16 +383,24 @@ namespace
             std::vector< geode::Point3D > points( model_.nb_unique_vertices() );
             for( const auto v : geode::Range{ model_.nb_unique_vertices() } )
             {
-                const auto cmvs = model_.component_mesh_vertices(
-                    v, geode::Line3D::component_type_static() );
-                OPENGEODE_ASSERT( !cmvs.empty(),
+                bool done{ false };
+                for( const auto& cmv : model_.component_mesh_vertices( v ) )
+                {
+                    if( cmv.component_id.type()
+                        != geode::Line3D::component_type_static() )
+                    {
+                        continue;
+                    }
+                    const auto& line = model_.line( cmv.component_id.id() );
+                    points[v] = line.mesh().point( cmv.vertex );
+                    done = true;
+                    break;
+                }
+                OPENGEODE_ASSERT( done,
                     "[MLInput] All current unique vertices should be "
                     "associated to at least one Line" );
-                const auto& cmv = cmvs.front();
-                const auto& line = model_.line( cmv.component_id.id() );
-                points[v] = line.mesh().point( cmv.vertex );
             }
-            return { std::move( points ) };
+            return geode::NNSearch3D{ std::move( points ) };
         }
 
         const geode::uuid& find_or_create_line( LineData& line_data )
@@ -602,16 +614,19 @@ namespace
                 mesh, line_start.second.vertex, line_start.first.vertex );
             if( orientation )
             {
-                while( model_.unique_vertex( { surface.component_id(),
-                           mesh.polygon_vertex( edge ) } )
-                       == geode::NO_ID )
+                while(
+                    model_.unique_vertex( { surface.component_id(),
+                        mesh.polygon_vertex( geode::PolygonVertex{ edge } ) } )
+                    == geode::NO_ID )
                 {
-                    result.indices.push_back( mesh.polygon_vertex( edge ) );
+                    result.indices.push_back(
+                        mesh.polygon_vertex( geode::PolygonVertex{ edge } ) );
                     result.points.emplace_back(
                         mesh.point( result.indices.back() ) );
                     edge = mesh.previous_on_border( edge );
                 }
-                result.indices.push_back( mesh.polygon_vertex( edge ) );
+                result.indices.push_back(
+                    mesh.polygon_vertex( geode::PolygonVertex{ edge } ) );
                 result.points.emplace_back(
                     mesh.point( result.indices.back() ) );
             }
@@ -631,15 +646,17 @@ namespace
                 result.points.emplace_back(
                     mesh.point( result.indices.back() ) );
             }
-
-            result.corner1 =
-                model_
-                    .component_mesh_vertices(
-                        model_.unique_vertex(
-                            { surface.component_id(), result.indices.back() } ),
-                        geode::Corner3D::component_type_static() )
-                    .front()
-                    .component_id.id();
+            for( const auto& cmv :
+                model_.component_mesh_vertices( model_.unique_vertex(
+                    { surface.component_id(), result.indices.back() } ) ) )
+            {
+                if( cmv.component_id.type()
+                    == geode::Corner3D::component_type_static() )
+                {
+                    result.corner1 = cmv.component_id.id();
+                    break;
+                }
+            }
             return result;
         }
 
