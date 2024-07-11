@@ -39,7 +39,7 @@ namespace geode
         class GRDECLInput : public HybridSolidInput< 3 >
         {
         public:
-            GRDECLInput( std::string_view filename )
+            explicit GRDECLInput( std::string_view filename )
                 : HybridSolidInput< 3 >( filename )
             {
             }

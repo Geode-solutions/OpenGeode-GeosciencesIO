@@ -40,7 +40,7 @@ namespace geode
         class PLInput : public EdgedCurveInput< 3 >
         {
         public:
-            PLInput( std::string_view filename )
+            explicit PLInput( std::string_view filename )
                 : EdgedCurveInput< 3 >( filename )
             {
             }

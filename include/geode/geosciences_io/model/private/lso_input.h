@@ -33,7 +33,7 @@ namespace geode
         class LSOInput final : public StructuralModelInput
         {
         public:
-            LSOInput( std::string_view filename )
+            explicit LSOInput( std::string_view filename )
                 : StructuralModelInput( filename )
             {
             }

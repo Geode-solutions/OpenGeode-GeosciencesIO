@@ -36,7 +36,7 @@ namespace geode
             : public HorizonsStackInput< dimension >
         {
         public:
-            HorizonStackSKUAInput( std::string_view filename )
+            explicit HorizonStackSKUAInput( std::string_view filename )
                 : HorizonsStackInput< dimension >( filename )
             {
             }

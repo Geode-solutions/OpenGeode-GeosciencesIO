@@ -36,7 +36,7 @@ namespace geode
         class LSOOutput final : public StructuralModelOutput
         {
         public:
-            LSOOutput( std::string_view filename )
+            explicit LSOOutput( std::string_view filename )
                 : StructuralModelOutput( filename )
             {
             }

@@ -40,7 +40,7 @@ namespace geode
         class WellDatInput : public EdgedCurveInput< 3 >
         {
         public:
-            WellDatInput( std::string_view filename )
+            explicit WellDatInput( std::string_view filename )
                 : EdgedCurveInput< 3 >( filename )
             {
             }

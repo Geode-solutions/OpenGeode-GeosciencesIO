@@ -100,8 +100,8 @@ namespace
                 {
                     case OGRwkbGeometryType::wkbPoint: {
                         const auto* point = geometry->toPoint();
-                        corner_builder->create_point(
-                            { { point->getX(), point->getY() } } );
+                        corner_builder->create_point( geode::Point2D{
+                            { point->getX(), point->getY() } } );
                         break;
                     }
                     default: {
@@ -176,8 +176,8 @@ namespace
             {
                 OGRPoint point;
                 line.getPoint( p, &point );
-                mesh_builder.set_point(
-                    start + p, { { point.getX(), point.getY() } } );
+                mesh_builder.set_point( start + p,
+                    geode::Point2D{ { point.getX(), point.getY() } } );
             }
             return start;
         }

@@ -163,9 +163,9 @@ namespace
         geode::index_t create_point(
             absl::Span< const std::string_view > split_line )
         {
-            return builder_->create_point(
-                { { geode::string_to_double(
-                        split_line[header_.xyz_attributes_position[0]] ),
+            return builder_->create_point( geode::Point3D{
+                { geode::string_to_double(
+                      split_line[header_.xyz_attributes_position[0]] ),
                     geode::string_to_double(
                         split_line[header_.xyz_attributes_position[1]] ),
                     geode::string_to_double(

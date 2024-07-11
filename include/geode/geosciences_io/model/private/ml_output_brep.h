@@ -36,7 +36,8 @@ namespace geode
         class MLOutputBRep final : public BRepOutput
         {
         public:
-            MLOutputBRep( std::string_view filename ) : BRepOutput( filename )
+            explicit MLOutputBRep( std::string_view filename )
+                : BRepOutput( filename )
             {
             }
 

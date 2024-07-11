@@ -497,14 +497,12 @@ namespace
             const auto vertex0 = mesh.polygon_edge_vertex( border, 0 );
             const auto unique_id0 =
                 model_.unique_vertex( { component_id, vertex0 } );
-            const auto surfaces0 = model_.component_mesh_vertices(
-                unique_id0, geode::Surface3D::component_type_static() );
-
             const auto vertex1 = mesh.polygon_edge_vertex( border, 1 );
             const auto unique_id1 =
                 model_.unique_vertex( { component_id, vertex1 } );
-            const auto surfaces1 = model_.component_mesh_vertices(
-                unique_id1, geode::Surface3D::component_type_static() );
+
+            const auto surfaces0 = containing_surfaces_ids( unique_id0 );
+            const auto surfaces1 = containing_surfaces_ids( unique_id1 );
             if( surfaces0.size() > surfaces1.size() )
             {
                 create_corner( mesh.point( vertex0 ), unique_id0 );
@@ -523,15 +521,31 @@ namespace
             }
         }
 
-        bool are_equal( const std::vector< geode::ComponentMeshVertex >& lhs,
-            const std::vector< geode::ComponentMeshVertex >& rhs ) const
+        std::vector< geode::uuid > containing_surfaces_ids(
+            geode::index_t unique_vertex_id )
         {
-            for( const auto& v0 : lhs )
+            std::vector< geode::uuid > result;
+            for( const auto& cmv :
+                model_.component_mesh_vertices( unique_vertex_id ) )
+            {
+                if( cmv.component_id.type()
+                    == geode::Surface3D::component_type_static() )
+                {
+                    result.emplace_back( cmv.component_id.id() );
+                }
+            }
+            return result;
+        }
+
+        static bool are_equal( const std::vector< geode::uuid >& lhs,
+            const std::vector< geode::uuid >& rhs )
+        {
+            for( const auto& uuid0 : lhs )
             {
                 bool found{ false };
-                for( const auto& v1 : rhs )
+                for( const auto& uuid1 : rhs )
                 {
-                    if( v0.component_id.id() == v1.component_id.id() )
+                    if( uuid0 == uuid1 )
                     {
                         found = true;
                         break;
@@ -661,26 +675,38 @@ namespace
                 builder->create_edge( v_id - 1, v_id );
             } while(
                 !model_.has_component_mesh_vertices( unique_id, corner_type ) );
-            const auto corner0 =
-                model_.component_mesh_vertices( unique_id0, corner_type )[0];
-            const auto corner1 =
-                model_.component_mesh_vertices( unique_id, corner_type )[0];
-            builder_.add_corner_line_boundary_relationship(
-                model_.corner( corner0.component_id.id() ), line );
-            builder_.add_corner_line_boundary_relationship(
-                model_.corner( corner1.component_id.id() ), line );
+            for( const auto& cmv :
+                model_.component_mesh_vertices( unique_id0 ) )
+            {
+                if( cmv.component_id.type() == corner_type )
+                {
+                    builder_.add_corner_line_boundary_relationship(
+                        model_.corner( cmv.component_id.id() ), line );
+                }
+            }
+            for( const auto& cmv : model_.component_mesh_vertices( unique_id ) )
+            {
+                if( cmv.component_id.type() == corner_type )
+                {
+                    builder_.add_corner_line_boundary_relationship(
+                        model_.corner( cmv.component_id.id() ), line );
+                }
+            }
         }
 
         std::optional< geode::uuid > common_line(
             geode::index_t unique_id0, geode::index_t unique_id1 )
         {
-            const auto lines0 = model_.component_mesh_vertices(
-                unique_id0, geode::Line3D::component_type_static() );
-            const auto lines1 = model_.component_mesh_vertices(
-                unique_id1, geode::Line3D::component_type_static() );
-            for( const auto& cmv0 : lines0 )
+            for( const auto& cmv0 :
+                model_.component_mesh_vertices( unique_id0 ) )
             {
-                for( const auto& cmv1 : lines1 )
+                if( cmv0.component_id.type()
+                    != geode::Line3D::component_type_static() )
+                {
+                    continue;
+                }
+                for( const auto& cmv1 :
+                    model_.component_mesh_vertices( unique_id1 ) )
                 {
                     if( cmv0.component_id == cmv1.component_id )
                     {

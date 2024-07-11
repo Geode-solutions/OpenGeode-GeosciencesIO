@@ -40,7 +40,7 @@ namespace geode
         class TSInput : public TriangulatedSurfaceInput< 3 >
         {
         public:
-            TSInput( std::string_view filename )
+            explicit TSInput( std::string_view filename )
                 : TriangulatedSurfaceInput< 3 >( filename )
             {
             }
