@@ -273,7 +273,7 @@ namespace
             }
             const auto collocated_mapping =
                 geode::NNSearch3D{ points }.colocated_index_mapping(
-                    geode::global_epsilon );
+                    geode::GLOBAL_EPSILON );
             for( const auto& point : collocated_mapping.unique_points )
             {
                 builder_->create_point( point );
