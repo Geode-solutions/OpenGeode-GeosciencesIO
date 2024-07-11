@@ -35,7 +35,7 @@
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         class WellInputImpl
         {
@@ -79,5 +79,5 @@ namespace geode
             EdgedCurve3D& curve_;
             std::unique_ptr< EdgedCurveBuilder3D > builder_;
         };
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

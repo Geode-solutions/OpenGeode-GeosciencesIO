@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences_io/model/private/ml_output_structural_model.h>
+#include <geode/geosciences_io/model/internal/ml_output_structural_model.h>
 
 #include <string>
 #include <vector>
@@ -30,13 +30,13 @@
 
 #include <geode/geosciences/explicit/representation/builder/structural_model_builder.h>
 #include <geode/geosciences/explicit/representation/core/structural_model.h>
-#include <geode/geosciences_io/model/private/gocad_common.h>
-#include <geode/geosciences_io/model/private/ml_output_impl.h>
+#include <geode/geosciences_io/model/internal/gocad_common.h>
+#include <geode/geosciences_io/model/internal/ml_output_impl.h>
 
 namespace
 {
     class MLOutputImplSM
-        : public geode::detail::MLOutputImpl< geode::StructuralModel >
+        : public geode::internal::MLOutputImpl< geode::StructuralModel >
     {
     public:
         static constexpr geode::index_t OFFSET_START{ 1 };
@@ -45,8 +45,8 @@ namespace
 
         MLOutputImplSM(
             std::string_view filename, const geode::StructuralModel& model )
-            : geode::detail::MLOutputImpl< geode::StructuralModel >(
-                filename, model ),
+            : geode::internal::MLOutputImpl< geode::StructuralModel >(
+                  filename, model ),
               model_( model )
         {
         }
@@ -163,10 +163,10 @@ namespace
             for( const auto& fault : model_.faults() )
             {
                 file() << "GOCAD TSurf 1" << EOL;
-                geode::detail::HeaderData header;
+                geode::internal::HeaderData header;
                 header.name = geode::to_string( fault.name() );
-                geode::detail::write_header( file(), header );
-                geode::detail::write_CRS( file(), {} );
+                geode::internal::write_header( file(), header );
+                geode::internal::write_CRS( file(), {} );
                 file() << "GEOLOGICAL_FEATURE " << fault.name() << EOL;
                 file() << "GEOLOGICAL_TYPE " << fault_map_.at( fault.type() )
                        << EOL;
@@ -187,10 +187,10 @@ namespace
             for( const auto& horizon : model_.horizons() )
             {
                 file() << "GOCAD TSurf 1" << EOL;
-                geode::detail::HeaderData header;
+                geode::internal::HeaderData header;
                 header.name = geode::to_string( horizon.name() );
-                geode::detail::write_header( file(), header );
-                geode::detail::write_CRS( file(), {} );
+                geode::internal::write_header( file(), header );
+                geode::internal::write_CRS( file(), {} );
                 file() << "GEOLOGICAL_FEATURE " << horizon.name() << EOL;
                 file() << "GEOLOGICAL_TYPE "
                        << horizon_map_.at( horizon.type() ) << EOL;
@@ -232,7 +232,7 @@ namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         std::vector< std::string > MLOutputStructuralModel::write(
             const StructuralModel& structural_model ) const
@@ -260,5 +260,5 @@ namespace geode
         {
             return check_brep_polygons( structural_model );
         }
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

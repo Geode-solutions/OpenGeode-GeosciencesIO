@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences_io/model/private/gocad_common.h>
+#include <geode/geosciences_io/model/internal/gocad_common.h>
 
 #include <queue>
 
@@ -253,7 +253,7 @@ namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         RegionSurfaceSide determine_surface_to_regions_sides( const BRep& brep )
         {
@@ -268,5 +268,5 @@ namespace geode
                 determine_regions_sides( brep, paired_signs );
             return result;
         }
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

@@ -26,32 +26,35 @@
 #include <string>
 #include <vector>
 
-#include <geode/geosciences/explicit/representation/io/structural_model_output.h>
-#include <geode/geosciences_io/model/common.h>
+#include <geode/geosciences_io/mesh/common.h>
+#include <geode/mesh/io/triangulated_surface_output.h>
 
 namespace geode
 {
-    namespace detail
+    FORWARD_DECLARATION_DIMENSION_CLASS( TriangulatedSurface );
+    ALIAS_3D( TriangulatedSurface );
+} // namespace geode
+
+namespace geode
+{
+    namespace internal
     {
-        class LSOOutput final : public StructuralModelOutput
+        class TSOutput final : public TriangulatedSurfaceOutput< 3 >
         {
         public:
-            explicit LSOOutput( std::string_view filename )
-                : StructuralModelOutput( filename )
+            explicit TSOutput( std::string_view filename )
+                : TriangulatedSurfaceOutput< 3 >( filename )
             {
             }
 
             static std::string_view extension()
             {
-                static constexpr auto ext = "lso";
+                static constexpr auto ext = "ts";
                 return ext;
             }
 
             std::vector< std::string > write(
-                const StructuralModel& structural_model ) const final;
-
-            bool is_saveable(
-                const StructuralModel& structural_model ) const final;
+                const TriangulatedSurface3D& surface ) const final;
         };
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences_io/model/private/horizons_stack_skua_input.h>
+#include <geode/geosciences_io/model/internal/horizons_stack_skua_input.h>
 
 #include <fstream>
 
@@ -144,7 +144,7 @@ namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         template < index_t dimension >
         HorizonsStack< dimension > HorizonStackSKUAInput< dimension >::read()
@@ -155,5 +155,5 @@ namespace geode
 
         template class HorizonStackSKUAInput< 2 >;
         template class HorizonStackSKUAInput< 3 >;
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

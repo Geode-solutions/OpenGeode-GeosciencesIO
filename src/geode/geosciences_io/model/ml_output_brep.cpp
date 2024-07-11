@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences_io/model/private/ml_output_brep.h>
+#include <geode/geosciences_io/model/internal/ml_output_brep.h>
 
 #include <string>
 #include <vector>
@@ -30,16 +30,16 @@
 
 #include <geode/model/representation/builder/brep_builder.h>
 
-#include <geode/geosciences_io/model/private/gocad_common.h>
-#include <geode/geosciences_io/model/private/ml_output_impl.h>
+#include <geode/geosciences_io/model/internal/gocad_common.h>
+#include <geode/geosciences_io/model/internal/ml_output_impl.h>
 
 namespace
 {
-    class MLOutputImplBRep : public geode::detail::MLOutputImpl< geode::BRep >
+    class MLOutputImplBRep : public geode::internal::MLOutputImpl< geode::BRep >
     {
     public:
         MLOutputImplBRep( std::string_view filename, const geode::BRep& model )
-            : geode::detail::MLOutputImpl< geode::BRep >( filename, model ),
+            : geode::internal::MLOutputImpl< geode::BRep >( filename, model ),
               model_( model )
         {
         }
@@ -83,7 +83,7 @@ namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         std::vector< std::string > MLOutputBRep::write( const BRep& brep ) const
         {
@@ -108,5 +108,5 @@ namespace geode
         {
             return check_brep_polygons( brep );
         }
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

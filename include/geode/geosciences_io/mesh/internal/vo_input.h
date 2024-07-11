@@ -23,28 +23,40 @@
 
 #pragma once
 
-#include <geode/geosciences/explicit/representation/io/structural_model_input.h>
-#include <geode/geosciences_io/model/common.h>
+#include <geode/basic/input.h>
+
+#include <geode/mesh/io/regular_grid_input.h>
+
+#include <geode/geosciences_io/mesh/common.h>
 
 namespace geode
 {
-    namespace detail
+    FORWARD_DECLARATION_DIMENSION_CLASS( RegularGrid );
+    ALIAS_3D( RegularGrid );
+} // namespace geode
+
+namespace geode
+{
+    namespace internal
     {
-        class LSOInput final : public StructuralModelInput
+        class VOInput : public RegularGridInput< 3 >
         {
         public:
-            explicit LSOInput( std::string_view filename )
-                : StructuralModelInput( filename )
+            explicit VOInput( std::string_view filename )
+                : RegularGridInput< 3 >( filename )
             {
             }
 
             static std::string_view extension()
             {
-                static constexpr auto ext = "lso";
+                static constexpr auto ext = "vo";
                 return ext;
             }
 
-            StructuralModel read() final;
+            std::unique_ptr< RegularGrid3D > read( const MeshImpl& impl ) final;
+
+            RegularGridInput< 3 >::MissingFiles
+                check_missing_files() const final;
         };
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

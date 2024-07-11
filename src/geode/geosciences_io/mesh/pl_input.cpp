@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/private/pl_input.h>
+#include <geode/geosciences_io/mesh/internal/pl_input.h>
 
 #include <fstream>
 
@@ -30,7 +30,7 @@
 #include <geode/mesh/builder/edged_curve_builder.h>
 #include <geode/mesh/core/edged_curve.h>
 
-#include <geode/geosciences_io/mesh/private/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.h>
 
 namespace
 {
@@ -48,14 +48,14 @@ namespace
 
         void read_file()
         {
-            while( const auto ecurve = geode::detail::read_ecurve( file_ ) )
+            while( const auto ecurve = geode::internal::read_ecurve( file_ ) )
             {
                 build_curve( ecurve.value() );
             }
         }
 
     private:
-        void build_curve( const geode::detail::ECurveData& ecurve )
+        void build_curve( const geode::internal::ECurveData& ecurve )
         {
             const auto offset = curve_.nb_vertices();
             builder_->set_name( ecurve.header.name );
@@ -82,7 +82,7 @@ namespace
 } // namespace
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         std::unique_ptr< EdgedCurve3D > PLInput::read( const MeshImpl& impl )
         {
@@ -91,5 +91,5 @@ namespace geode
             reader.read_file();
             return curve;
         }
-    } // namespace detail
+    } // namespace internal
 } // namespace geode
