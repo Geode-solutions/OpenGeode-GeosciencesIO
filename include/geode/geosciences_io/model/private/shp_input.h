@@ -34,7 +34,7 @@ namespace geode
         class SHPInput final : public SectionInput
         {
         public:
-            explicit SHPInput( absl::string_view filename )
+            explicit SHPInput( std::string_view filename )
                 : SectionInput( filename )
             {
             }

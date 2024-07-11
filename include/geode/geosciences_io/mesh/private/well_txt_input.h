@@ -40,12 +40,12 @@ namespace geode
         class WellTxtInput : public EdgedCurveInput< 3 >
         {
         public:
-            explicit WellTxtInput( absl::string_view filename )
+            explicit WellTxtInput( std::string_view filename )
                 : EdgedCurveInput< 3 >( filename )
             {
             }
 
-            static absl::string_view extension()
+            static std::string_view extension()
             {
                 static constexpr auto ext = "txt";
                 return ext;

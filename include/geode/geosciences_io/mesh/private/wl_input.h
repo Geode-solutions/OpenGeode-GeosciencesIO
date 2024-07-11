@@ -40,12 +40,12 @@ namespace geode
         class WLInput : public EdgedCurveInput< 3 >
         {
         public:
-            explicit WLInput( absl::string_view filename )
+            explicit WLInput( std::string_view filename )
                 : EdgedCurveInput< 3 >( filename )
             {
             }
 
-            static absl::string_view extension()
+            static std::string_view extension()
             {
                 static constexpr auto ext = "wl";
                 return ext;

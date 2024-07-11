@@ -42,7 +42,7 @@ void check_solid( const geode::HybridSolid3D& solid,
         "Number of vertices in the GrdeclHybridSolid is not correct " );
 }
 
-void check_file( absl::string_view filename,
+void check_file( std::string_view filename,
     geode::index_t nb_polyhedra,
     geode::index_t nb_vertices )
 {

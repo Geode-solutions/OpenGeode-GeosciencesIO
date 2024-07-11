@@ -40,12 +40,12 @@ namespace geode
         class TSInput : public TriangulatedSurfaceInput< 3 >
         {
         public:
-            explicit TSInput( absl::string_view filename )
+            explicit TSInput( std::string_view filename )
                 : TriangulatedSurfaceInput< 3 >( filename )
             {
             }
 
-            static absl::string_view extension()
+            static std::string_view extension()
             {
                 static constexpr auto ext = "ts";
                 return ext;

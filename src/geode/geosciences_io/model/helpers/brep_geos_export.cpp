@@ -20,8 +20,9 @@
  * SOFTWARE.
  *
  */
+#include <string_view>
+
 #include <absl/container/flat_hash_map.h>
-#include <absl/strings/string_view.h>
 
 #include <geode/geosciences_io/model/helpers/brep_geos_export.h>
 
@@ -39,7 +40,7 @@ namespace geode
 
     public:
         Impl() = delete;
-        Impl( const BRep& brep, absl::string_view files_directory )
+        Impl( const BRep& brep, std::string_view files_directory )
             : GeosExporterImpl< BRep >( files_directory, brep )
         {
         }
@@ -60,7 +61,7 @@ namespace geode
     };
 
     BRepGeosExporter::BRepGeosExporter(
-        const BRep& brep, absl::string_view files_directory )
+        const BRep& brep, std::string_view files_directory )
         : impl_( brep, files_directory )
     {
     }
@@ -72,15 +73,15 @@ namespace geode
     {
         impl_->add_well_perforations( well_perforation );
     }
-    void BRepGeosExporter::add_cell_property_1d( absl::string_view name )
+    void BRepGeosExporter::add_cell_property_1d( std::string_view name )
     {
         impl_->add_cell_property1d( name );
     }
-    void BRepGeosExporter::add_cell_property_2d( absl::string_view name )
+    void BRepGeosExporter::add_cell_property_2d( std::string_view name )
     {
         impl_->add_cell_property2d( name );
     }
-    void BRepGeosExporter::add_cell_property_3d( absl::string_view name )
+    void BRepGeosExporter::add_cell_property_3d( std::string_view name )
     {
         impl_->add_cell_property3d( name );
     }

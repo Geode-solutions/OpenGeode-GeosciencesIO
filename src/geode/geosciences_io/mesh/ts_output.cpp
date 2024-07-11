@@ -44,7 +44,7 @@ namespace
         static constexpr geode::index_t OFFSET_START{ 1 };
         static constexpr char EOL{ '\n' };
         static constexpr char SPACE{ ' ' };
-        TSOutputImpl( absl::string_view filename,
+        TSOutputImpl( std::string_view filename,
             const geode::TriangulatedSurface3D& surface )
             : file_{ geode::to_string( filename ) }, surface_( surface )
         {

@@ -25,7 +25,7 @@
 
 #include <geode/geosciences_io/model/common.h>
 
-#include <absl/strings/string_view.h>
+#include <string_view>
 
 #include <geode/basic/pimpl.h>
 
@@ -45,14 +45,14 @@ namespace geode
     public:
         StructuralModelGeosExporter() = delete;
         StructuralModelGeosExporter(
-            const StructuralModel& model, absl::string_view files_directory );
+            const StructuralModel& model, std::string_view files_directory );
 
         ~StructuralModelGeosExporter();
 
         void add_well_perforations( const PointSet3D& well_perforations );
-        void add_cell_property_1d( absl::string_view name );
-        void add_cell_property_2d( absl::string_view name );
-        void add_cell_property_3d( absl::string_view name );
+        void add_cell_property_1d( std::string_view name );
+        void add_cell_property_2d( std::string_view name );
+        void add_cell_property_3d( std::string_view name );
 
         void run();
 

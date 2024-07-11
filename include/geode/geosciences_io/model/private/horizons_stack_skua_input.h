@@ -36,12 +36,12 @@ namespace geode
             : public HorizonsStackInput< dimension >
         {
         public:
-            explicit HorizonStackSKUAInput( absl::string_view filename )
+            explicit HorizonStackSKUAInput( std::string_view filename )
                 : HorizonsStackInput< dimension >( filename )
             {
             }
 
-            static absl::string_view extension()
+            static std::string_view extension()
             {
                 static constexpr auto ext = "xml";
                 return ext;

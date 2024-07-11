@@ -20,8 +20,10 @@
  * SOFTWARE.
  *
  */
+
+#include <string_view>
+
 #include <absl/container/flat_hash_map.h>
-#include <absl/strings/string_view.h>
 
 #include <geode/geosciences_io/model/helpers/structural_model_geos_export.h>
 
@@ -42,7 +44,7 @@ namespace geode
 
     public:
         Impl() = delete;
-        Impl( const StructuralModel& model, absl::string_view files_directory )
+        Impl( const StructuralModel& model, std::string_view files_directory )
             : GeosExporterImpl< StructuralModel >( files_directory, model )
         {
         }
@@ -68,7 +70,7 @@ namespace geode
     };
 
     StructuralModelGeosExporter::StructuralModelGeosExporter(
-        const StructuralModel& model, absl::string_view files_directory )
+        const StructuralModel& model, std::string_view files_directory )
         : impl_( model, files_directory )
     {
     }
@@ -81,17 +83,17 @@ namespace geode
         impl_->add_well_perforations( well_perforation );
     }
     void StructuralModelGeosExporter::add_cell_property_1d(
-        absl::string_view name )
+        std::string_view name )
     {
         impl_->add_cell_property1d( name );
     }
     void StructuralModelGeosExporter::add_cell_property_2d(
-        absl::string_view name )
+        std::string_view name )
     {
         impl_->add_cell_property2d( name );
     }
     void StructuralModelGeosExporter::add_cell_property_3d(
-        absl::string_view name )
+        std::string_view name )
     {
         impl_->add_cell_property3d( name );
     }

@@ -113,7 +113,7 @@ namespace geode
             }
 
         protected:
-            MLOutputImpl( absl::string_view filename, const Model& model )
+            MLOutputImpl( std::string_view filename, const Model& model )
                 : file_{ to_string( filename ) },
                   model_( model ),
                   sides_( determine_surface_to_regions_sides( model ) )

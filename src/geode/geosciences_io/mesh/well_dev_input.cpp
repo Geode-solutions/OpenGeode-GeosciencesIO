@@ -47,7 +47,7 @@ namespace
     {
     public:
         WellDevInputImpl(
-            absl::string_view filename, geode::EdgedCurve3D& curve )
+            std::string_view filename, geode::EdgedCurve3D& curve )
             : file_{ geode::to_string( filename ) },
               curve_( curve ),
               builder_( geode::EdgedCurveBuilder3D::create( curve ) )
@@ -161,7 +161,7 @@ namespace
         }
 
         geode::index_t create_point(
-            absl::Span< const absl::string_view > split_line )
+            absl::Span< const std::string_view > split_line )
         {
             return builder_->create_point( geode::Point3D{
                 { geode::string_to_double(
@@ -173,7 +173,7 @@ namespace
         }
 
         void assign_point_attributes(
-            absl::Span< const absl::string_view > split_line,
+            absl::Span< const std::string_view > split_line,
             geode::index_t point_id )
         {
             geode::index_t attr_counter{ 0 };

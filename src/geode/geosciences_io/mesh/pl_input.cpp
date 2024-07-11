@@ -37,7 +37,7 @@ namespace
     class PLInputImpl
     {
     public:
-        PLInputImpl( absl::string_view filename, geode::EdgedCurve3D& curve )
+        PLInputImpl( std::string_view filename, geode::EdgedCurve3D& curve )
             : file_{ geode::to_string( filename ) },
               curve_( curve ),
               builder_( geode::EdgedCurveBuilder< 3 >::create( curve ) )

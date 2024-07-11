@@ -43,7 +43,7 @@ namespace geode
             std::ifstream& file );
 
         std::string opengeode_geosciencesio_mesh_api read_name(
-            absl::Span< const absl::string_view > tokens );
+            absl::Span< const std::string_view > tokens );
 
         void opengeode_geosciencesio_mesh_api write_header(
             std::ofstream& file, const HeaderData& data );
@@ -84,12 +84,12 @@ namespace geode
             }
         };
         PropHeaderData opengeode_geosciencesio_mesh_api read_prop_header(
-            std::ifstream& file, absl::string_view prefix );
+            std::ifstream& file, std::string_view prefix );
 
         void opengeode_geosciencesio_mesh_api read_properties(
             const PropHeaderData& properties_header,
             std::vector< std::vector< double > >& attribute_values,
-            absl::Span< const absl::string_view > tokens,
+            absl::Span< const std::string_view > tokens,
             geode::index_t line_properties_position );
 
         void opengeode_geosciencesio_mesh_api create_attributes(
