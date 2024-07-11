@@ -46,7 +46,7 @@ namespace
         MLOutputImplSM(
             absl::string_view filename, const geode::StructuralModel& model )
             : geode::detail::MLOutputImpl< geode::StructuralModel >(
-                filename, model ),
+                  filename, model ),
               model_( model )
         {
         }
@@ -213,19 +213,19 @@ namespace
     private:
         const geode::StructuralModel& model_;
         const absl::flat_hash_map< geode::Fault3D::FAULT_TYPE, std::string >
-            fault_map_ = { { geode::Fault3D::FAULT_TYPE::NO_TYPE, "fault" },
-                { geode::Fault3D::FAULT_TYPE::NORMAL, "normal_fault" },
-                { geode::Fault3D::FAULT_TYPE::REVERSE, "reverse_fault" },
-                { geode::Fault3D::FAULT_TYPE::STRIKE_SLIP, "fault" },
-                { geode::Fault3D::FAULT_TYPE::LISTRIC, "fault" },
-                { geode::Fault3D::FAULT_TYPE::DECOLLEMENT, "fault" } };
+            fault_map_ = { { geode::Fault3D::FAULT_TYPE::no_type, "fault" },
+                { geode::Fault3D::FAULT_TYPE::normal, "normal_fault" },
+                { geode::Fault3D::FAULT_TYPE::reverse, "reverse_fault" },
+                { geode::Fault3D::FAULT_TYPE::strike_slip, "fault" },
+                { geode::Fault3D::FAULT_TYPE::listric, "fault" },
+                { geode::Fault3D::FAULT_TYPE::decollement, "fault" } };
         const absl::flat_hash_map< geode::Horizon3D::HORIZON_TYPE, std::string >
-            horizon_map_ = { { geode::Horizon3D::HORIZON_TYPE::NO_TYPE,
+            horizon_map_ = { { geode::Horizon3D::HORIZON_TYPE::no_type,
                                  "none" },
-                { geode::Horizon3D::HORIZON_TYPE::CONFORMAL, "top" },
-                { geode::Horizon3D::HORIZON_TYPE::TOPOGRAPHY, "topographic" },
-                { geode::Horizon3D::HORIZON_TYPE::INTRUSION, "intrusive" },
-                { geode::Horizon3D::HORIZON_TYPE::NON_CONFORMAL,
+                { geode::Horizon3D::HORIZON_TYPE::conformal, "top" },
+                { geode::Horizon3D::HORIZON_TYPE::topography, "topographic" },
+                { geode::Horizon3D::HORIZON_TYPE::intrusion, "intrusive" },
+                { geode::Horizon3D::HORIZON_TYPE::non_conformal,
                     "unconformity" } };
     };
 } // namespace
