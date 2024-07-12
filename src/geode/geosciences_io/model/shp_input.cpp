@@ -47,7 +47,7 @@ namespace
     class SHPInputImpl
     {
     public:
-        SHPInputImpl( geode::Section& section, absl::string_view filename )
+        SHPInputImpl( geode::Section& section, std::string_view filename )
             : section_( section ),
               builder_{ section },
               gdal_data_{ GDALDataset::Open(

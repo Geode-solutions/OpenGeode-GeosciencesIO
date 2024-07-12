@@ -36,12 +36,12 @@ namespace geode
         class MLOutputStructuralModel final : public StructuralModelOutput
         {
         public:
-            explicit MLOutputStructuralModel( absl::string_view filename )
+            explicit MLOutputStructuralModel( std::string_view filename )
                 : StructuralModelOutput( filename )
             {
             }
 
-            static absl::string_view extension()
+            static std::string_view extension()
             {
                 static constexpr auto ext = "ml";
                 return ext;

@@ -26,8 +26,7 @@
 #include <fstream>
 #include <memory>
 #include <string>
-
-#include <absl/strings/string_view.h>
+#include <string_view>
 
 #include <ghc/filesystem.hpp>
 #include <pugixml.hpp>
@@ -68,7 +67,7 @@ namespace geode
 
     template < typename Model >
     GeosExporterImpl< Model >::GeosExporterImpl(
-        absl::string_view files_directory, const Model& model )
+        std::string_view files_directory, const Model& model )
         : model_( model ),
           files_directory_{
               ghc::filesystem::path{ to_string( files_directory ) }.string()
@@ -124,7 +123,7 @@ namespace geode
 
     template < typename Model >
     void GeosExporterImpl< Model >::add_cell_property1d(
-        absl::string_view property_name )
+        std::string_view property_name )
     {
         if( check_property_name( property_name ) )
         {
@@ -133,7 +132,7 @@ namespace geode
     }
     template < typename Model >
     void GeosExporterImpl< Model >::add_cell_property2d(
-        absl::string_view property_name )
+        std::string_view property_name )
     {
         if( check_property_name( property_name ) )
         {
@@ -142,7 +141,7 @@ namespace geode
     }
     template < typename Model >
     void GeosExporterImpl< Model >::add_cell_property3d(
-        absl::string_view property_name )
+        std::string_view property_name )
     {
         if( check_property_name( property_name ) )
         {
@@ -158,12 +157,12 @@ namespace geode
     }
 
     template < typename Model >
-    absl::string_view GeosExporterImpl< Model >::files_directory() const
+    std::string_view GeosExporterImpl< Model >::files_directory() const
     {
         return files_directory_;
     }
     template < typename Model >
-    absl::string_view GeosExporterImpl< Model >::prefix() const
+    std::string_view GeosExporterImpl< Model >::prefix() const
     {
         return prefix_;
     }
@@ -302,7 +301,7 @@ namespace geode
 
     template < typename Model >
     bool GeosExporterImpl< Model >::check_property_name(
-        absl::string_view property_name ) const
+        std::string_view property_name ) const
     {
         for( const auto& block : model_.blocks() )
         {

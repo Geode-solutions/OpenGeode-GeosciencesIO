@@ -81,7 +81,7 @@ namespace
         static constexpr geode::index_t OFFSET_START{ 1 };
         static constexpr char EOL{ '\n' };
 
-        MLInputImpl( absl::string_view filename, geode::StructuralModel& model )
+        MLInputImpl( std::string_view filename, geode::StructuralModel& model )
             : file_{ geode::to_string( filename ) },
               model_( model ),
               builder_( model )
@@ -673,7 +673,7 @@ namespace
 
                 const auto tokens = geode::string_split( line );
                 const auto& component_type = tokens.front();
-                absl::Span< const absl::string_view > remaining_tokens(
+                absl::Span< const std::string_view > remaining_tokens(
                     &tokens[1], tokens.size() - 1 );
                 if( component_type == "TSURF" )
                 {
@@ -780,7 +780,7 @@ namespace
         }
 
         void process_TSURF_keyword(
-            absl::Span< const absl::string_view > tokens )
+            absl::Span< const std::string_view > tokens )
         {
             auto name = geode::detail::read_name( tokens );
             tsurf_names2index_.emplace( name, tsurfs_.size() );
@@ -788,9 +788,9 @@ namespace
         }
 
         void process_TFACE_keyword(
-            absl::Span< const absl::string_view > tokens )
+            absl::Span< const std::string_view > tokens )
         {
-            absl::Span< const absl::string_view > remaining_tokens(
+            absl::Span< const std::string_view > remaining_tokens(
                 &tokens[2], tokens.size() - 2 );
             std::string name = geode::detail::read_name( remaining_tokens );
             const auto& surface_id = builder_.add_surface(
@@ -803,9 +803,9 @@ namespace
         }
 
         void process_REGION_keyword(
-            absl::Span< const absl::string_view > tokens )
+            absl::Span< const std::string_view > tokens )
         {
-            absl::Span< const absl::string_view > remaining_tokens(
+            absl::Span< const std::string_view > remaining_tokens(
                 &tokens[1], tokens.size() - 1 );
             auto name = geode::detail::read_name( remaining_tokens );
             if( name == "Universe" )
@@ -820,7 +820,7 @@ namespace
         }
 
         void process_LAYER_keyword(
-            absl::Span< const absl::string_view > tokens )
+            absl::Span< const std::string_view > tokens )
         {
             auto name = geode::detail::read_name( tokens );
             const auto& stratigraphic_unit_id =
@@ -831,7 +831,7 @@ namespace
         }
 
         void process_FAULT_BLOCK_keyword(
-            absl::Span< const absl::string_view > tokens )
+            absl::Span< const std::string_view > tokens )
         {
             auto name = geode::detail::read_name( tokens );
             const auto& fault_block_id = builder_.add_fault_block();

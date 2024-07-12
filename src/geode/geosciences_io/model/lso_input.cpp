@@ -66,8 +66,7 @@ namespace
         static constexpr auto block_name_attribute_name =
             "geode_block_name_attribute_name";
 
-        LSOInputImpl(
-            absl::string_view filename, geode::StructuralModel& model )
+        LSOInputImpl( std::string_view filename, geode::StructuralModel& model )
             : file_{ geode::to_string( filename ) },
               model_( model ),
               builder_{ model },
@@ -126,7 +125,7 @@ namespace
         void read_vertices()
         {
             line_ = geode::goto_keywords(
-                file_, std::array< absl::string_view, 2 >{ "VRTX", "PVRTX" } );
+                file_, std::array< std::string_view, 2 >{ "VRTX", "PVRTX" } );
             geode::index_t nb_unique_vertices{ 0 };
             do
             {
@@ -239,7 +238,7 @@ namespace
             while( geode::string_starts_with( line_, "SURFACE" ) )
             {
                 const auto tokens = geode::string_split( line_ );
-                absl::Span< const absl::string_view > remaining_tokens(
+                absl::Span< const std::string_view > remaining_tokens(
                     &tokens[1], tokens.size() - 1 );
                 const auto h_id = builder_.add_horizon();
                 builder_.set_horizon_name(
@@ -573,7 +572,7 @@ namespace
             }
         }
 
-        std::vector< absl::string_view > get_tokens() const
+        std::vector< std::string_view > get_tokens() const
         {
             return geode::string_split( line_ );
         }

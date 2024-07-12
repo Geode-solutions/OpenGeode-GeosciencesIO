@@ -45,7 +45,7 @@ namespace
         static constexpr char EOL{ '\n' };
         static constexpr char SPACE{ ' ' };
         PLOutputImpl(
-            absl::string_view filename, const geode::EdgedCurve3D& edged_curve )
+            std::string_view filename, const geode::EdgedCurve3D& edged_curve )
             : file_{ geode::to_string( filename ) },
               edged_curve_( edged_curve ),
               edge_done_( edged_curve.nb_edges(), false )

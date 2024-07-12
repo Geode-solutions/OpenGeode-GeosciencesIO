@@ -45,7 +45,7 @@ namespace
     class HorizonStackSKUAInputImpl
     {
     public:
-        HorizonStackSKUAInputImpl( absl::string_view filename )
+        HorizonStackSKUAInputImpl( std::string_view filename )
             : filename_( filename )
         {
         }

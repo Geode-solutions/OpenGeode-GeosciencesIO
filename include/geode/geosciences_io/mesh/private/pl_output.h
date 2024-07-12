@@ -42,12 +42,12 @@ namespace geode
         class PLOutput final : public EdgedCurveOutput< 3 >
         {
         public:
-            explicit PLOutput( absl::string_view filename )
+            explicit PLOutput( std::string_view filename )
                 : EdgedCurveOutput< 3 >( filename )
             {
             }
 
-            static absl::string_view extension()
+            static std::string_view extension()
             {
                 static constexpr auto ext = "pl";
                 return ext;

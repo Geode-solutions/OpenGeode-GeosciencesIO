@@ -56,7 +56,7 @@ namespace
         static constexpr char EOL{ '\n' };
 
         LSOOutputImpl(
-            absl::string_view file, const geode::StructuralModel& model )
+            std::string_view file, const geode::StructuralModel& model )
             : file_{ geode::to_string( file ) },
               model_( model ),
               sides_(

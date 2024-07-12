@@ -38,7 +38,7 @@ namespace
     class MLOutputImplBRep : public geode::detail::MLOutputImpl< geode::BRep >
     {
     public:
-        MLOutputImplBRep( absl::string_view filename, const geode::BRep& model )
+        MLOutputImplBRep( std::string_view filename, const geode::BRep& model )
             : geode::detail::MLOutputImpl< geode::BRep >( filename, model ),
               model_( model )
         {
