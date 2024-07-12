@@ -43,8 +43,8 @@ namespace geode
 
             static std::string_view extension()
             {
-                static constexpr auto ext = "lso";
-                return ext;
+                static constexpr auto EXT = "lso";
+                return EXT;
             }
 
             std::vector< std::string > write(

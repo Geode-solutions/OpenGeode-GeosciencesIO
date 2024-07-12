@@ -37,7 +37,7 @@ int main()
     {
         geode::GeosciencesIOMeshLibrary::initialize();
         auto curve = geode::load_edged_curve< 3 >(
-            absl::StrCat( geode::data_path, "test.wl" ) );
+            absl::StrCat( geode::DATA_PATH, "test.wl" ) );
         OPENGEODE_EXCEPTION(
             curve->nb_vertices() == 55, "[Test] Wrong number of vertices" );
         OPENGEODE_EXCEPTION(

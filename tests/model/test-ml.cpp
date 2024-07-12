@@ -71,7 +71,7 @@ void test_modelA4()
 {
     // Load structural model
     auto model = geode::load_structural_model( absl::StrCat(
-        geode::data_path, "/modelA4.", geode::detail::MLInput::extension() ) );
+        geode::DATA_PATH, "/modelA4.", geode::detail::MLInput::extension() ) );
     check_model( model, 52, 98, 55, 8, 2, 3, 6 );
 
     geode::index_t nb_block_internals{ 0 };

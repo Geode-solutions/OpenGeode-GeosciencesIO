@@ -73,22 +73,22 @@ int main()
     try
     {
         geode::GeosciencesIOMeshLibrary::initialize();
-        check_file( absl::StrCat( geode::data_path, "/surf2d_multi.",
+        check_file( absl::StrCat( geode::DATA_PATH, "/surf2d_multi.",
                         geode::detail::TSInput::extension() ),
             92, 92 );
-        check_file( absl::StrCat( geode::data_path, "/surf2d.",
+        check_file( absl::StrCat( geode::DATA_PATH, "/surf2d.",
                         geode::detail::TSInput::extension() ),
             46, 46 );
-        check_file( absl::StrCat( geode::data_path, "/2triangles.",
+        check_file( absl::StrCat( geode::DATA_PATH, "/2triangles.",
                         geode::detail::TSInput::extension() ),
             4, 2 );
-        check_file( absl::StrCat( geode::data_path, "/sgrid_tsurf.",
+        check_file( absl::StrCat( geode::DATA_PATH, "/sgrid_tsurf.",
                         geode::detail::TSInput::extension() ),
             4, 2 );
-        check_file( absl::StrCat( geode::data_path, "Fault_without_crs.",
+        check_file( absl::StrCat( geode::DATA_PATH, "Fault_without_crs.",
                         geode::detail::TSInput::extension() ),
             189, 324 );
-        check_file( absl::StrCat( geode::data_path, "ts-2props.",
+        check_file( absl::StrCat( geode::DATA_PATH, "ts-2props.",
                         geode::detail::TSInput::extension() ),
             4, 2 );
 

@@ -40,8 +40,8 @@ namespace geode
 
             static std::string_view extension()
             {
-                static constexpr auto ext = "ml";
-                return ext;
+                static constexpr auto EXT = "ml";
+                return EXT;
             }
 
             StructuralModel read() final;
