@@ -72,7 +72,7 @@ namespace geode
           files_directory_{
               std::filesystem::path{ to_string( files_directory ) }.string()
           },
-          prefix_{ filename_without_extension( files_directory ) }
+          prefix_{ filename_without_extension( files_directory ).string() }
     {
         std::tie( model_curve_, model_surface_, model_solid_ ) =
             convert_brep_into_curve_and_surface_and_solid( model_ );
