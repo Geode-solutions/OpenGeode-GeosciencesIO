@@ -46,7 +46,7 @@ namespace
         MLOutputImplSM(
             std::string_view filename, const geode::StructuralModel& model )
             : geode::detail::MLOutputImpl< geode::StructuralModel >(
-                  filename, model ),
+                filename, model ),
               model_( model )
         {
         }
