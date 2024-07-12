@@ -47,7 +47,8 @@ namespace geode
             {
                 OPENGEODE_EXCEPTION(
                     file_.good(), "Error while opening file: ", filename );
-                builder_->set_name( filename_without_extension( filename ) );
+                builder_->set_name(
+                    filename_without_extension( filename ).string() );
             }
 
             void read_file()

@@ -252,7 +252,7 @@ namespace geode
         SectionInput::MissingFiles SHPInput::check_missing_files() const
         {
             const auto file_path = filepath_without_extension( filename() );
-            const auto shx_file = absl::StrCat( file_path, ".shx" );
+            const auto shx_file = absl::StrCat( file_path.string(), ".shx" );
             SectionInput::MissingFiles missing;
             if( !file_exists( shx_file ) )
             {
