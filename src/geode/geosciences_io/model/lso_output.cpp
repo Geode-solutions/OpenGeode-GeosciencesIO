@@ -204,8 +204,17 @@ namespace
             std::vector< geode::index_t > atoms;
             for( const auto v : geode::Range{ nb_vertices } )
             {
-                const auto block_vertices = model_.component_mesh_vertices(
-                    v, geode::Block3D::component_type_static() );
+                std::vector< geode::ComponentMeshVertex > block_vertices;
+                const auto cmv = model_.component_mesh_vertices( v );
+                for( const auto& mv : cmv )
+                {
+                    if( mv.component_id.type()
+                        != geode::Block3D::component_type_static() )
+                    {
+                        continue;
+                    }
+                    block_vertices.push_back( mv );
+                }
                 auto& cmvs = vertices_[v];
                 cmvs.reserve( block_vertices.size() );
                 const auto first = first_block( block_vertices );
