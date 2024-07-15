@@ -63,7 +63,9 @@ namespace
     public:
         VOInputImpl( std::string_view filename, geode::RegularGrid3D& grid )
             : file_{ geode::to_string( filename ) },
-              file_folder_{ geode::filepath_without_filename( filename ) },
+              file_folder_{
+                  geode::filepath_without_filename( filename ).string()
+              },
               grid_( grid ),
               builder_{ geode::RegularGridBuilder3D::create( grid ) }
         {

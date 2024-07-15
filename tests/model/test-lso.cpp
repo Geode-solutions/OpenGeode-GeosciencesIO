@@ -107,8 +107,8 @@ void test_file( std::string file,
     {
         const auto& block_mesh = block.mesh< geode::TetrahedralSolid3D >();
         const auto block_mesh_filename =
-            absl::StrCat( geode::filename_without_extension( file ), "_b",
-                counter, ".og_tso3d" );
+            absl::StrCat( geode::filename_without_extension( file ).string(),
+                "_b", counter, ".og_tso3d" );
         geode::save_tetrahedral_solid( block_mesh, block_mesh_filename );
         const auto reload_block_mesh =
             geode::load_tetrahedral_solid< 3 >( block_mesh_filename );
