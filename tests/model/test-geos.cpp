@@ -43,14 +43,14 @@ void test_picasso()
 {
     // Load structural model
     auto model =
-        geode::load_brep( absl::StrCat( geode::data_path, "picasso.og_brep" ) );
+        geode::load_brep( absl::StrCat( geode::DATA_PATH, "picasso.og_brep" ) );
     geode::BRepGeosExporter exporter( model, "picasso" );
     exporter.run();
 }
 void toy_model()
 {
     auto model = geode::load_brep( absl::StrCat(
-        geode::data_path, "adaptive_brep_perm_and_poro.og_brep" ) );
+        geode::DATA_PATH, "adaptive_brep_perm_and_poro.og_brep" ) );
     geode::BRepGeosExporter exporter( model, "toy_model" );
     exporter.add_cell_property_1d( "permeability" );
     exporter.add_cell_property_1d( "porosity" );
