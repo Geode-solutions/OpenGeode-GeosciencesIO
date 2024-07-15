@@ -174,7 +174,7 @@ namespace geode
         const auto brep_component_uuid_attribute =
             model_solid_->polyhedron_attribute_manager()
                 .find_attribute< uuid_from_conversion_attribute_type >(
-                    uuid_from_conversion_attribute_name );
+                    UUID_FROM_CONVERSION_ATTRIBUTE_NAME );
         for( const auto polyhedron_id : Range( model_solid_->nb_polyhedra() ) )
         {
             region_attribute_->set_value( polyhedron_id,
@@ -228,7 +228,7 @@ namespace geode
             auto box_node = root.append_child( "Box" );
             box_node.append_attribute( "name" ).set_value(
                 absl::StrCat( "well_", well_id++ ).c_str() );
-            static constexpr auto SAFETY_OFFSET = 100. * global_epsilon;
+            static constexpr auto SAFETY_OFFSET = 100. * GLOBAL_EPSILON;
             box_node.append_attribute( "xMin" ).set_value(
                 absl::StrCat( "{", perf_box.min().value( 0 ) - SAFETY_OFFSET,
                     ", ", perf_box.min().value( 1 ) - SAFETY_OFFSET, ", ",
@@ -400,11 +400,11 @@ namespace geode
     void GeosExporterImpl< Model >::delete_mapping_attributes()
     {
         model_solid_->vertex_attribute_manager().delete_attribute(
-            unique_vertex_from_conversion_attribute_name );
+            UNIQUE_VERTEX_FROM_CONVERSION_ATTRIBUTE_NAME );
         model_solid_->polyhedron_attribute_manager().delete_attribute(
             MESH_ELEMENT_ATTRIBUTE_NAME );
         model_solid_->polyhedron_attribute_manager().delete_attribute(
-            uuid_from_conversion_attribute_name );
+            UUID_FROM_CONVERSION_ATTRIBUTE_NAME );
     }
 
     template < typename Model >

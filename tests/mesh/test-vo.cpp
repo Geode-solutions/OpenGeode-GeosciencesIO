@@ -38,7 +38,7 @@
 void test_grid_input()
 {
     const auto grid = geode::load_regular_grid< 3 >(
-        absl::StrCat( geode::data_path, "test.vo" ) );
+        absl::StrCat( geode::DATA_PATH, "test.vo" ) );
 
     auto attribute_to_test =
         grid->cell_attribute_manager().find_attribute< double >( "random" );

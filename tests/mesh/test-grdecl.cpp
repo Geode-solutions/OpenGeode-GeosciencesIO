@@ -55,8 +55,10 @@ int main()
     try
     {
         geode::GeosciencesIOMeshLibrary::initialize();
-        check_file( absl::StrCat( geode::data_path, "Simple20x20x5_Fault.",
+
+        check_file( absl::StrCat( geode::DATA_PATH, "Simple20x20x5_Fault.",
                         geode::internal::GRDECLInput::extension() ),
+
             20 * 20 * 5, 21 * 6 * ( 21 + 1 ) );
         geode::Logger::info( "[TEST SUCCESS]" );
 

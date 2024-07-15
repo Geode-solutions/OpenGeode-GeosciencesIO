@@ -37,7 +37,7 @@ int main()
     {
         geode::GeosciencesIOModelLibrary::initialize();
         const auto section = geode::load_section(
-            absl::StrCat( geode::data_path, "toulouse.shz" ) );
+            absl::StrCat( geode::DATA_PATH, "toulouse.shz" ) );
         OPENGEODE_EXCEPTION(
             section.nb_corners() == 7, "[Test] Wrong number of corners" );
         OPENGEODE_EXCEPTION(

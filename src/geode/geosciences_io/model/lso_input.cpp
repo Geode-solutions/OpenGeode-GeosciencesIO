@@ -63,7 +63,7 @@ namespace
     public:
         static constexpr geode::index_t OFFSET_START{ 1 };
         static constexpr char EOL{ '\n' };
-        static constexpr auto block_name_attribute_name =
+        static constexpr auto BLOCK_NAME_ATTRIBUTE_NAME =
             "geode_block_name_attribute_name";
 
         LSOInputImpl( std::string_view filename, geode::StructuralModel& model )
@@ -81,7 +81,7 @@ namespace
               block_name_attribute_{
                   solid_->polyhedron_attribute_manager()
                       .find_or_create_attribute< geode::VariableAttribute,
-                          std::string >( block_name_attribute_name, "" )
+                          std::string >( BLOCK_NAME_ATTRIBUTE_NAME, "" )
               }
         {
             solid_->enable_facets();
