@@ -27,7 +27,7 @@
 
 #include <geode/geosciences_io/model/helpers/structural_model_geos_export.h>
 
-#include <geode/geosciences_io/model/helpers/geos_export.h>
+#include <geode/geosciences_io/model/private/geos_export.h>
 
 #include <geode/geosciences/explicit/mixin/core/stratigraphic_units.h>
 
@@ -38,14 +38,15 @@
 namespace geode
 {
     class StructuralModelGeosExporter::Impl
-        : public GeosExporterImpl< StructuralModel >
+        : public internal::GeosExporterImpl< StructuralModel >
     {
         OPENGEODE_DISABLE_COPY_AND_MOVE( Impl );
 
     public:
         Impl() = delete;
         Impl( const StructuralModel& model, std::string_view files_directory )
-            : GeosExporterImpl< StructuralModel >( files_directory, model )
+            : internal::GeosExporterImpl< StructuralModel >(
+                  files_directory, model )
         {
         }
         virtual ~Impl() = default;

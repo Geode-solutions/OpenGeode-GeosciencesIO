@@ -24,8 +24,8 @@ add_geode_library(
     SOURCES
         "common.cpp"
         "helpers/brep_geos_export.cpp"
-        "helpers/geos_export.cpp"
         "helpers/structural_model_geos_export.cpp"
+        "geos_export.cpp"
         "gocad_common.cpp"
         "lso_input.cpp"
         "lso_output.cpp"
@@ -37,9 +37,9 @@ add_geode_library(
     PUBLIC_HEADERS
         "common.h"
     INTERNAL_HEADERS
-        "helpers/geos_export.h"
         "helpers/brep_geos_export.h"
         "helpers/structural_model_geos_export.h"
+        "internal/geos_export.h"
         "internal/gocad_common.h"
         "internal/lso_input.h"
         "internal/lso_output.h"

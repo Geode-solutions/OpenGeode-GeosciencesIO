@@ -26,7 +26,7 @@
 
 #include <geode/geosciences_io/model/helpers/brep_geos_export.h>
 
-#include <geode/geosciences_io/model/helpers/geos_export.h>
+#include <geode/geosciences_io/model/private/geos_export.h>
 #include <geode/model/mixin/core/block.h>
 #include <geode/model/representation/core/brep.h>
 
@@ -34,14 +34,14 @@
 
 namespace geode
 {
-    class BRepGeosExporter::Impl : public GeosExporterImpl< BRep >
+    class BRepGeosExporter::Impl : public internal::GeosExporterImpl< BRep >
     {
         OPENGEODE_DISABLE_COPY_AND_MOVE( Impl );
 
     public:
         Impl() = delete;
         Impl( const BRep& brep, std::string_view files_directory )
-            : GeosExporterImpl< BRep >( files_directory, brep )
+            : internal::GeosExporterImpl< BRep >( files_directory, brep )
         {
         }
         virtual ~Impl() = default;
