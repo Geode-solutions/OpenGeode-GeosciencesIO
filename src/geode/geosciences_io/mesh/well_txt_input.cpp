@@ -21,13 +21,13 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/private/well_txt_input.h>
+#include <geode/geosciences_io/mesh/internal/well_txt_input.h>
 
-#include <geode/geosciences_io/mesh/private/well_input.h>
+#include <geode/geosciences_io/mesh/internal/well_input.h>
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         std::unique_ptr< EdgedCurve3D > WellTxtInput::read(
             const MeshImpl& impl )
@@ -37,5 +37,5 @@ namespace geode
             reader.read_file();
             return well;
         }
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

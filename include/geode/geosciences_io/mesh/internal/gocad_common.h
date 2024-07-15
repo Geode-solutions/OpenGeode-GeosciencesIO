@@ -33,7 +33,7 @@
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         struct HeaderData
         {
@@ -161,5 +161,5 @@ namespace geode
         };
         std::optional< ECurveData >
             opengeode_geosciencesio_mesh_api read_ecurve( std::ifstream& file );
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

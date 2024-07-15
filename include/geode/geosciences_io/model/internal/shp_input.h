@@ -23,35 +23,32 @@
 
 #pragma once
 
-#include <geode/mesh/io/edged_curve_input.h>
+#include <geode/model/representation/io/section_input.h>
 
-#include <geode/geosciences_io/mesh/common.h>
-
-namespace geode
-{
-    FORWARD_DECLARATION_DIMENSION_CLASS( EdgedCurve );
-    ALIAS_3D( EdgedCurve );
-} // namespace geode
+#include <geode/geosciences_io/model/common.h>
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
-        class PLInput : public EdgedCurveInput< 3 >
+        class SHPInput final : public SectionInput
         {
         public:
-            explicit PLInput( std::string_view filename )
-                : EdgedCurveInput< 3 >( filename )
+            explicit SHPInput( std::string_view filename )
+                : SectionInput( filename )
             {
             }
 
-            static std::string_view extension()
+            static std::vector< std::string > extensions()
             {
-                static constexpr auto EXT = "pl";
-                return EXT;
+                static const std::vector< std::string > extensions{ "shp",
+                    "shz" };
+                return extensions;
             }
 
-            std::unique_ptr< EdgedCurve3D > read( const MeshImpl& impl ) final;
+            Section read() final;
+
+            SectionInput::MissingFiles check_missing_files() const final;
         };
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

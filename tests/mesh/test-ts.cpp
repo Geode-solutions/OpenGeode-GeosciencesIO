@@ -33,7 +33,7 @@
 
 #include <geode/model/mixin/core/surface.h>
 
-#include <geode/geosciences_io/mesh/private/ts_input.h>
+#include <geode/geosciences_io/mesh/internal/ts_input.h>
 
 void check_surface( const geode::SurfaceMesh3D& surface,
     geode::index_t nb_vertices,
@@ -74,22 +74,22 @@ int main()
     {
         geode::GeosciencesIOMeshLibrary::initialize();
         check_file( absl::StrCat( geode::DATA_PATH, "/surf2d_multi.",
-                        geode::detail::TSInput::extension() ),
+                        geode::internal::TSInput::extension() ),
             92, 92 );
         check_file( absl::StrCat( geode::DATA_PATH, "/surf2d.",
-                        geode::detail::TSInput::extension() ),
+                        geode::internal::TSInput::extension() ),
             46, 46 );
         check_file( absl::StrCat( geode::DATA_PATH, "/2triangles.",
-                        geode::detail::TSInput::extension() ),
+                        geode::internal::TSInput::extension() ),
             4, 2 );
         check_file( absl::StrCat( geode::DATA_PATH, "/sgrid_tsurf.",
-                        geode::detail::TSInput::extension() ),
+                        geode::internal::TSInput::extension() ),
             4, 2 );
         check_file( absl::StrCat( geode::DATA_PATH, "Fault_without_crs.",
-                        geode::detail::TSInput::extension() ),
+                        geode::internal::TSInput::extension() ),
             189, 324 );
         check_file( absl::StrCat( geode::DATA_PATH, "ts-2props.",
-                        geode::detail::TSInput::extension() ),
+                        geode::internal::TSInput::extension() ),
             4, 2 );
 
         geode::Logger::info( "TEST SUCCESS" );

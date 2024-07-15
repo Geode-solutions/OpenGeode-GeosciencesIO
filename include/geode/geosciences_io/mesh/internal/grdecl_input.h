@@ -22,29 +22,35 @@
  */
 
 #pragma once
+#include <geode/mesh/io/hybrid_solid_input.h>
 
-#include <geode/geosciences/explicit/representation/io/structural_model_input.h>
-#include <geode/geosciences_io/model/common.h>
+#include <geode/geosciences_io/mesh/common.h>
 
 namespace geode
 {
-    namespace detail
+    FORWARD_DECLARATION_DIMENSION_CLASS( HybridSolid );
+    ALIAS_3D( HybridSolid );
+} // namespace geode
+
+namespace geode
+{
+    namespace internal
     {
-        class MLInput final : public StructuralModelInput
+        class GRDECLInput : public HybridSolidInput< 3 >
         {
         public:
-            explicit MLInput( std::string_view filename )
-                : StructuralModelInput( filename )
+            explicit GRDECLInput( std::string_view filename )
+                : HybridSolidInput< 3 >( filename )
             {
             }
 
             static std::string_view extension()
             {
-                static constexpr auto EXT = "ml";
+                static constexpr auto EXT = "grdecl";
                 return EXT;
             }
 
-            StructuralModel read() final;
+            std::unique_ptr< HybridSolid3D > read( const MeshImpl& impl ) final;
         };
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

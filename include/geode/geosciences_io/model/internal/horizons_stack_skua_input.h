@@ -23,35 +23,32 @@
 
 #pragma once
 
-#include <string>
-#include <vector>
+#include <geode/geosciences/implicit/representation/io/horizons_stack_input.h>
 
-#include <geode/geosciences/explicit/representation/io/structural_model_output.h>
 #include <geode/geosciences_io/model/common.h>
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
-        class MLOutputStructuralModel final : public StructuralModelOutput
+        template < index_t dimension >
+        class HorizonStackSKUAInput final
+            : public HorizonsStackInput< dimension >
         {
         public:
-            explicit MLOutputStructuralModel( std::string_view filename )
-                : StructuralModelOutput( filename )
+            explicit HorizonStackSKUAInput( std::string_view filename )
+                : HorizonsStackInput< dimension >( filename )
             {
             }
 
             static std::string_view extension()
             {
-                static constexpr auto EXT = "ml";
+                static constexpr auto EXT = "xml";
                 return EXT;
             }
 
-            std::vector< std::string > write(
-                const StructuralModel& structural_model ) const final;
-
-            bool is_saveable(
-                const StructuralModel& structural_model ) const final;
+            HorizonsStack< dimension > read() final;
         };
-    } // namespace detail
+        ALIAS_2D_AND_3D( HorizonStackSKUAInput );
+    } // namespace internal
 } // namespace geode

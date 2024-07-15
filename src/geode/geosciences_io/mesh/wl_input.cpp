@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/private/wl_input.h>
+#include <geode/geosciences_io/mesh/internal/wl_input.h>
 
 #include <fstream>
 
@@ -33,7 +33,7 @@
 #include <geode/mesh/builder/edged_curve_builder.h>
 #include <geode/mesh/core/edged_curve.h>
 
-#include <geode/geosciences_io/mesh/private/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.h>
 
 namespace
 {
@@ -57,9 +57,9 @@ namespace
                     "[WLInput] Cannot find Well in the file"
                 };
             }
-            const auto header = geode::detail::read_header( file_ );
+            const auto header = geode::internal::read_header( file_ );
             builder_->set_name( header.name );
-            crs_ = geode::detail::read_CRS( file_ );
+            crs_ = geode::internal::read_CRS( file_ );
             const auto ref = read_ref();
             builder_->create_point( ref );
             read_paths( ref );
@@ -108,13 +108,13 @@ namespace
         std::ifstream file_;
         geode::EdgedCurve3D& curve_;
         std::unique_ptr< geode::EdgedCurveBuilder3D > builder_;
-        geode::detail::CRSData crs_;
+        geode::internal::CRSData crs_;
     };
 } // namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         std::unique_ptr< EdgedCurve3D > WLInput::read( const MeshImpl& impl )
         {
@@ -123,5 +123,5 @@ namespace geode
             reader.read_file();
             return well;
         }
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

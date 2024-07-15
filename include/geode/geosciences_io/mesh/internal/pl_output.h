@@ -22,35 +22,39 @@
  */
 
 #pragma once
-#include <geode/mesh/io/hybrid_solid_input.h>
+
+#include <string>
+#include <vector>
 
 #include <geode/geosciences_io/mesh/common.h>
+#include <geode/mesh/io/edged_curve_output.h>
 
 namespace geode
 {
-    FORWARD_DECLARATION_DIMENSION_CLASS( HybridSolid );
-    ALIAS_3D( HybridSolid );
+    FORWARD_DECLARATION_DIMENSION_CLASS( EdgedCurve );
+    ALIAS_3D( EdgedCurve );
 } // namespace geode
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
-        class GRDECLInput : public HybridSolidInput< 3 >
+        class PLOutput final : public EdgedCurveOutput< 3 >
         {
         public:
-            explicit GRDECLInput( std::string_view filename )
-                : HybridSolidInput< 3 >( filename )
+            explicit PLOutput( std::string_view filename )
+                : EdgedCurveOutput< 3 >( filename )
             {
             }
 
             static std::string_view extension()
             {
-                static constexpr auto EXT = "grdecl";
+                static constexpr auto EXT = "pl";
                 return EXT;
             }
 
-            std::unique_ptr< HybridSolid3D > read( const MeshImpl& impl ) final;
+            std::vector< std::string > write(
+                const EdgedCurve3D& edged_curve ) const final;
         };
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

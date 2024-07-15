@@ -37,7 +37,7 @@ namespace geode
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         class TSOutput final : public TriangulatedSurfaceOutput< 3 >
         {
@@ -56,5 +56,5 @@ namespace geode
             std::vector< std::string > write(
                 const TriangulatedSurface3D& surface ) const final;
         };
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

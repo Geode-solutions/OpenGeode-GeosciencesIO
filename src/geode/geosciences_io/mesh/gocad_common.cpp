@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/private/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.h>
 
 #include <fstream>
 #include <optional>
@@ -89,12 +89,12 @@ namespace
         if( tokens.size() > 1 )
         {
             return absl::StrCat(
-                "\" ", geode::detail::read_name( tokens ), "\"" );
+                "\" ", geode::internal::read_name( tokens ), "\"" );
         }
-        return geode::detail::read_name( tokens );
+        return geode::internal::read_name( tokens );
     }
 
-    void read_ilines( std::ifstream& file, geode::detail::ECurveData& ecurve )
+    void read_ilines( std::ifstream& file, geode::internal::ECurveData& ecurve )
     {
         geode::goto_keyword( file, "ILINE" );
         std::string line;
@@ -128,7 +128,7 @@ namespace
         }
     }
 
-    void read_tfaces( std::ifstream& file, geode::detail::TSurfData& tsurf )
+    void read_tfaces( std::ifstream& file, geode::internal::TSurfData& tsurf )
     {
         geode::goto_keyword( file, "TFACE" );
         std::string line;
@@ -146,7 +146,7 @@ namespace
                     geode::string_to_double( tokens[2] ),
                     geode::string_to_double( tokens[3] ),
                     tsurf.crs.z_sign * geode::string_to_double( tokens[4] ) } );
-                geode::detail::read_properties(
+                geode::internal::read_properties(
                     tsurf.vertices_properties_header,
                     tsurf.vertices_attribute_values, tokens, 5 );
             }
@@ -155,7 +155,7 @@ namespace
                 tsurf.points.push_back(
                     tsurf.points.at( geode::string_to_index( tokens[2] )
                                      - tsurf.OFFSET_START ) );
-                geode::detail::read_properties(
+                geode::internal::read_properties(
                     tsurf.vertices_properties_header,
                     tsurf.vertices_attribute_values, tokens, 3 );
             }
@@ -289,7 +289,7 @@ namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         HeaderData read_header( std::ifstream& file )
         {
@@ -588,7 +588,7 @@ namespace geode
             tsurf.header = read_header( file );
             tsurf.crs = read_CRS( file );
             tsurf.vertices_properties_header =
-                geode::detail::read_prop_header( file, "" );
+                geode::internal::read_prop_header( file, "" );
             tsurf.vertices_attribute_values.resize(
                 tsurf.vertices_properties_header.names.size() );
             read_tfaces( file, tsurf );
@@ -607,5 +607,5 @@ namespace geode
             read_ilines( file, ecurve );
             return ecurve;
         }
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

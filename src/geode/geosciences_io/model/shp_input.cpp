@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences_io/model/private/shp_input.h>
+#include <geode/geosciences_io/model/internal/shp_input.h>
 
 #include <ogrsf_frmts.h>
 
@@ -239,7 +239,7 @@ namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         Section SHPInput::read()
         {
@@ -261,5 +261,5 @@ namespace geode
             return missing;
         }
 
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

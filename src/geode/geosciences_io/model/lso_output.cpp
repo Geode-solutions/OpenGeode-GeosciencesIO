@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences_io/model/private/lso_output.h>
+#include <geode/geosciences_io/model/internal/lso_output.h>
 
 #include <fstream>
 #include <string>
@@ -44,8 +44,8 @@
 #include <geode/model/mixin/core/vertex_identifier.h>
 
 #include <geode/geosciences/explicit/representation/core/structural_model.h>
-#include <geode/geosciences_io/mesh/private/gocad_common.h>
-#include <geode/geosciences_io/model/private/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.h>
+#include <geode/geosciences_io/model/internal/gocad_common.h>
 
 namespace
 {
@@ -60,7 +60,7 @@ namespace
             : file_{ geode::to_string( file ) },
               model_( model ),
               sides_(
-                  geode::detail::determine_surface_to_regions_sides( model ) )
+                  geode::internal::determine_surface_to_regions_sides( model ) )
         {
             OPENGEODE_EXCEPTION(
                 file_.good(), "[LSOOutput] Error while opening file: ", file );
@@ -76,10 +76,10 @@ namespace
         void write_file()
         {
             file_ << "GOCAD LightTSolid 1" << EOL;
-            geode::detail::HeaderData header;
+            geode::internal::HeaderData header;
             header.name = geode::to_string( model_.name() );
-            geode::detail::write_header( file_, header );
-            geode::detail::write_CRS( file_, {} );
+            geode::internal::write_header( file_, header );
+            geode::internal::write_CRS( file_, {} );
             write_vertices();
             write_tetrahedron();
             write_model();
@@ -255,7 +255,7 @@ namespace
     private:
         std::ofstream file_;
         const geode::StructuralModel& model_;
-        const geode::detail::RegionSurfaceSide sides_;
+        const geode::internal::RegionSurfaceSide sides_;
         std::vector<
             absl::flat_hash_map< geode::ComponentMeshVertex, geode::index_t > >
             vertices_;
@@ -265,7 +265,7 @@ namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         std::vector< std::string > LSOOutput::write(
             const StructuralModel& structural_model ) const
@@ -300,5 +300,5 @@ namespace geode
             }
             return true;
         }
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

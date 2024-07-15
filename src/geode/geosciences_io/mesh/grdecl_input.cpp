@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/private/grdecl_input.h>
+#include <geode/geosciences_io/mesh/internal/grdecl_input.h>
 
 #include <fstream>
 #include <optional>
@@ -41,7 +41,7 @@
 #include <geode/mesh/builder/hybrid_solid_builder.h>
 #include <geode/mesh/core/hybrid_solid.h>
 
-#include <geode/geosciences_io/mesh/private/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.h>
 
 namespace
 {
@@ -338,7 +338,7 @@ namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         std::unique_ptr< HybridSolid3D > GRDECLInput::read(
             const MeshImpl& impl )
@@ -349,5 +349,5 @@ namespace geode
             return solid;
         }
 
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

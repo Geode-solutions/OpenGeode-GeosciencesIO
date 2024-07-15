@@ -36,19 +36,19 @@ add_geode_library(
         "well_txt_input.cpp"
     PUBLIC_HEADERS
         "common.h"
-    PRIVATE_HEADERS
-        "private/gocad_common.h"
-        "private/grdecl_input.h"
-        "private/pl_input.h"
-        "private/pl_output.h"
-        "private/ts_input.h"
-        "private/ts_output.h"
-        "private/vo_input.h"
-        "private/well_input.h"
-        "private/well_dat_input.h"
-        "private/well_dev_input.h"
-        "private/well_txt_input.h"
-        "private/wl_input.h"
+    INTERNAL_HEADERS
+        "internal/gocad_common.h"
+        "internal/grdecl_input.h"
+        "internal/pl_input.h"
+        "internal/pl_output.h"
+        "internal/ts_input.h"
+        "internal/ts_output.h"
+        "internal/vo_input.h"
+        "internal/well_input.h"
+        "internal/well_dat_input.h"
+        "internal/well_dev_input.h"
+        "internal/well_txt_input.h"
+        "internal/wl_input.h"
     PUBLIC_DEPENDENCIES
         OpenGeode::basic
     PRIVATE_DEPENDENCIES

@@ -23,11 +23,9 @@
 
 #pragma once
 
-#include <string>
-#include <vector>
+#include <geode/mesh/io/edged_curve_input.h>
 
 #include <geode/geosciences_io/mesh/common.h>
-#include <geode/mesh/io/edged_curve_output.h>
 
 namespace geode
 {
@@ -37,24 +35,23 @@ namespace geode
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
-        class PLOutput final : public EdgedCurveOutput< 3 >
+        class WellDatInput : public EdgedCurveInput< 3 >
         {
         public:
-            explicit PLOutput( std::string_view filename )
-                : EdgedCurveOutput< 3 >( filename )
+            explicit WellDatInput( std::string_view filename )
+                : EdgedCurveInput< 3 >( filename )
             {
             }
 
             static std::string_view extension()
             {
-                static constexpr auto EXT = "pl";
+                static constexpr auto EXT = "dat";
                 return EXT;
             }
 
-            std::vector< std::string > write(
-                const EdgedCurve3D& edged_curve ) const final;
+            std::unique_ptr< EdgedCurve3D > read( const MeshImpl& impl ) final;
         };
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

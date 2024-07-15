@@ -39,7 +39,7 @@
 
 #include <geode/geosciences/explicit/representation/core/structural_model.h>
 #include <geode/geosciences/explicit/representation/io/structural_model_output.h>
-#include <geode/geosciences_io/model/private/lso_input.h>
+#include <geode/geosciences_io/model/internal/lso_input.h>
 
 constexpr auto nb_mandatory_attributes = 4;
 
@@ -144,11 +144,11 @@ int main()
 
         geode::Logger::info( "Reading the test.lso file" );
         test_file( absl::StrCat( geode::DATA_PATH, "test.",
-                       geode::detail::LSOInput::extension() ),
+                       geode::internal::LSOInput::extension() ),
             22, 39, 23, 4, 4, 2, 1 );
         geode::Logger::info( "Reading the vri.lso file" );
         test_file( absl::StrCat( geode::DATA_PATH, "vri.",
-                       geode::detail::LSOInput::extension() ),
+                       geode::internal::LSOInput::extension() ),
             12, 20, 11, 2, 7, 0, 9 );
 
         geode::Logger::info( "TEST SUCCESS" );

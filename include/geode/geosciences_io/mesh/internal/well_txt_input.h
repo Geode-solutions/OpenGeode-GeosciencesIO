@@ -23,40 +23,35 @@
 
 #pragma once
 
-#include <geode/basic/input.h>
-
-#include <geode/mesh/io/regular_grid_input.h>
+#include <geode/mesh/io/edged_curve_input.h>
 
 #include <geode/geosciences_io/mesh/common.h>
 
 namespace geode
 {
-    FORWARD_DECLARATION_DIMENSION_CLASS( RegularGrid );
-    ALIAS_3D( RegularGrid );
+    FORWARD_DECLARATION_DIMENSION_CLASS( EdgedCurve );
+    ALIAS_3D( EdgedCurve );
 } // namespace geode
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
-        class VOInput : public RegularGridInput< 3 >
+        class WellTxtInput : public EdgedCurveInput< 3 >
         {
         public:
-            explicit VOInput( std::string_view filename )
-                : RegularGridInput< 3 >( filename )
+            explicit WellTxtInput( std::string_view filename )
+                : EdgedCurveInput< 3 >( filename )
             {
             }
 
             static std::string_view extension()
             {
-                static constexpr auto EXT = "vo";
+                static constexpr auto EXT = "txt";
                 return EXT;
             }
 
-            std::unique_ptr< RegularGrid3D > read( const MeshImpl& impl ) final;
-
-            RegularGridInput< 3 >::MissingFiles
-                check_missing_files() const final;
+            std::unique_ptr< EdgedCurve3D > read( const MeshImpl& impl ) final;
         };
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences_io/model/private/lso_input.h>
+#include <geode/geosciences_io/model/internal/lso_input.h>
 
 #include <fstream>
 
@@ -53,8 +53,8 @@
 
 #include <geode/geosciences/explicit/representation/builder/structural_model_builder.h>
 #include <geode/geosciences/explicit/representation/core/structural_model.h>
-#include <geode/geosciences_io/mesh/private/gocad_common.h>
-#include <geode/geosciences_io/model/private/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.h>
+#include <geode/geosciences_io/model/internal/gocad_common.h>
 
 namespace
 {
@@ -98,13 +98,13 @@ namespace
                     "[LSOInput] Cannot find LightTSolid in the file"
                 };
             }
-            const auto header = geode::detail::read_header( file_ );
+            const auto header = geode::internal::read_header( file_ );
             builder_.set_name( header.name );
-            crs_ = geode::detail::read_CRS( file_ );
+            crs_ = geode::internal::read_CRS( file_ );
             vertices_prop_header_ =
-                geode::detail::read_prop_header( file_, "" );
+                geode::internal::read_prop_header( file_, "" );
             tetrahedra_prop_header_ =
-                geode::detail::read_prop_header( file_, "TETRA_" );
+                geode::internal::read_prop_header( file_, "TETRA_" );
             vertices_attributes_.resize( vertices_prop_header_.names.size() );
             tetrahedra_attributes_.resize(
                 tetrahedra_prop_header_.names.size() );
@@ -134,14 +134,14 @@ namespace
                 if( geode::string_starts_with( line_, "SHARED" ) )
                 {
                     std::tie( point, unique_id ) = read_shared_point();
-                    geode::detail::read_properties( vertices_prop_header_,
+                    geode::internal::read_properties( vertices_prop_header_,
                         vertices_attributes_, get_tokens(), 3 );
                 }
                 else
                 {
                     unique_id = nb_unique_vertices;
                     point = read_point();
-                    geode::detail::read_properties( vertices_prop_header_,
+                    geode::internal::read_properties( vertices_prop_header_,
                         vertices_attributes_, get_tokens(), 5 );
                     vertex_mapping_.emplace_back();
                     nb_unique_vertices++;
@@ -203,7 +203,7 @@ namespace
                 }
                 const auto tetra_id =
                     solid_builder_->create_tetrahedron( vertices );
-                geode::detail::read_properties( tetrahedra_prop_header_,
+                geode::internal::read_properties( tetrahedra_prop_header_,
                     tetrahedra_attributes_, tokens, 5 );
                 std::getline( file_, line_ );
                 const auto tokens2 = get_tokens();
@@ -242,7 +242,7 @@ namespace
                     &tokens[1], tokens.size() - 1 );
                 const auto h_id = builder_.add_horizon();
                 builder_.set_horizon_name(
-                    h_id, geode::detail::read_name( remaining_tokens ) );
+                    h_id, geode::internal::read_name( remaining_tokens ) );
                 const auto& horizon = model_.horizon( h_id );
                 read_tfaces( horizon );
             }
@@ -402,10 +402,10 @@ namespace
             }
             builder->compute_polyhedron_adjacencies();
             const auto& block_mesh = model_.block( block_id ).mesh();
-            geode::detail::create_attributes( vertices_prop_header_,
+            geode::internal::create_attributes( vertices_prop_header_,
                 vertices_attributes_, block_mesh.vertex_attribute_manager(),
                 block_mesh.nb_vertices(), inverse_vertex_mapping );
-            geode::detail::create_attributes( tetrahedra_prop_header_,
+            geode::internal::create_attributes( tetrahedra_prop_header_,
                 tetrahedra_attributes_,
                 block_mesh.polyhedron_attribute_manager(),
                 block_mesh.nb_vertices(), inverse_vertex_mapping );
@@ -758,9 +758,9 @@ namespace
         std::string line_;
         geode::StructuralModel& model_;
         geode::StructuralModelBuilder builder_;
-        geode::detail::CRSData crs_;
-        geode::detail::PropHeaderData vertices_prop_header_;
-        geode::detail::PropHeaderData tetrahedra_prop_header_;
+        geode::internal::CRSData crs_;
+        geode::internal::PropHeaderData vertices_prop_header_;
+        geode::internal::PropHeaderData tetrahedra_prop_header_;
         std::vector< std::vector< double > > vertices_attributes_;
         std::vector< std::vector< double > > tetrahedra_attributes_;
         std::unique_ptr< geode::TetrahedralSolid3D > solid_;
@@ -777,7 +777,7 @@ namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         StructuralModel LSOInput::read()
         {
@@ -790,5 +790,5 @@ namespace geode
             }
             return structural_model;
         }
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

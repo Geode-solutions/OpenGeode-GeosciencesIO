@@ -23,32 +23,36 @@
 
 #pragma once
 
-#include <geode/model/representation/io/section_input.h>
+#include <geode/mesh/io/triangulated_surface_input.h>
 
-#include <geode/geosciences_io/model/common.h>
+#include <geode/geosciences_io/mesh/common.h>
 
 namespace geode
 {
-    namespace detail
+    FORWARD_DECLARATION_DIMENSION_CLASS( TriangulatedSurface );
+    ALIAS_3D( TriangulatedSurface );
+} // namespace geode
+
+namespace geode
+{
+    namespace internal
     {
-        class SHPInput final : public SectionInput
+        class TSInput : public TriangulatedSurfaceInput< 3 >
         {
         public:
-            explicit SHPInput( std::string_view filename )
-                : SectionInput( filename )
+            explicit TSInput( std::string_view filename )
+                : TriangulatedSurfaceInput< 3 >( filename )
             {
             }
 
-            static std::vector< std::string > extensions()
+            static std::string_view extension()
             {
-                static const std::vector< std::string > extensions{ "shp",
-                    "shz" };
-                return extensions;
+                static constexpr auto EXT = "ts";
+                return EXT;
             }
 
-            Section read() final;
-
-            SectionInput::MissingFiles check_missing_files() const final;
+            std::unique_ptr< TriangulatedSurface3D > read(
+                const MeshImpl& impl ) final;
         };
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

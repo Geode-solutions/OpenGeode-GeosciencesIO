@@ -35,23 +35,23 @@ namespace geode
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
-        class WellDatInput : public EdgedCurveInput< 3 >
+        class WellDevInput : public EdgedCurveInput< 3 >
         {
         public:
-            explicit WellDatInput( std::string_view filename )
+            explicit WellDevInput( std::string_view filename )
                 : EdgedCurveInput< 3 >( filename )
             {
             }
 
             static std::string_view extension()
             {
-                static constexpr auto EXT = "dat";
+                static constexpr auto EXT = "dev";
                 return EXT;
             }
 
             std::unique_ptr< EdgedCurve3D > read( const MeshImpl& impl ) final;
         };
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

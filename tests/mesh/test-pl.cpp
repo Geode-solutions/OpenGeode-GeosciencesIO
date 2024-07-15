@@ -34,8 +34,8 @@
 #include <geode/mesh/io/edged_curve_input.h>
 #include <geode/mesh/io/edged_curve_output.h>
 
-#include <geode/geosciences_io/mesh/private/pl_input.h>
-#include <geode/geosciences_io/mesh/private/pl_output.h>
+#include <geode/geosciences_io/mesh/internal/pl_input.h>
+#include <geode/geosciences_io/mesh/internal/pl_output.h>
 
 namespace
 {
@@ -83,10 +83,10 @@ int main()
         geode::GeosciencesIOMeshLibrary::initialize();
         // NOLINTBEGIN(*-magic-numbers)
         check_file( absl::StrCat( geode::DATA_PATH, "/normal_lines.",
-                        geode::detail::PLInput::extension() ),
+                        geode::internal::PLInput::extension() ),
             11391, 11374, "normal_lines." );
         check_file( absl::StrCat( geode::DATA_PATH, "/closed_lines.",
-                        geode::detail::PLInput::extension() ),
+                        geode::internal::PLInput::extension() ),
             9395, 9395, "closed_lines." );
         // NOLINTEND(*-magic-numbers)
         geode::Logger::info( "TEST SUCCESS" );

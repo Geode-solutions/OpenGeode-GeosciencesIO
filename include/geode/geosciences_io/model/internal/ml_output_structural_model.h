@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Geode-solutions
+ * Copyright (c) 2019 - 2024 Geode-solutions
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,26 +23,35 @@
 
 #pragma once
 
-#include <absl/container/flat_hash_map.h>
+#include <string>
+#include <vector>
 
-#include <geode/basic/uuid.h>
-
-namespace geode
-{
-    class BRep;
-} // namespace geode
+#include <geode/geosciences/explicit/representation/io/structural_model_output.h>
+#include <geode/geosciences_io/model/common.h>
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
-        struct RegionSurfaceSide
+        class MLOutputStructuralModel final : public StructuralModelOutput
         {
-            absl::flat_hash_map< uuid, bool > universe_surface_sides;
-            absl::flat_hash_map< std::pair< uuid, uuid >, bool >
-                regions_surface_sides;
+        public:
+            explicit MLOutputStructuralModel( std::string_view filename )
+                : StructuralModelOutput( filename )
+            {
+            }
+
+            static std::string_view extension()
+            {
+                static constexpr auto EXT = "ml";
+                return EXT;
+            }
+
+            std::vector< std::string > write(
+                const StructuralModel& structural_model ) const final;
+
+            bool is_saveable(
+                const StructuralModel& structural_model ) const final;
         };
-        RegionSurfaceSide determine_surface_to_regions_sides(
-            const BRep& brep );
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

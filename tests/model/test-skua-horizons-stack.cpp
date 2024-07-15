@@ -31,7 +31,7 @@
 #include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.h>
 #include <geode/geosciences/implicit/representation/core/horizons_stack.h>
 #include <geode/geosciences/implicit/representation/io/horizons_stack_output.h>
-#include <geode/geosciences_io/model/private/horizons_stack_skua_input.h>
+#include <geode/geosciences_io/model/internal/horizons_stack_skua_input.h>
 
 void test_file()
 {
