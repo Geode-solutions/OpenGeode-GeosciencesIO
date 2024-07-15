@@ -27,7 +27,7 @@
 
 #include <geode/geosciences_io/model/helpers/structural_model_geos_export.h>
 
-#include <geode/geosciences_io/model/private/geos_export.h>
+#include <geode/geosciences_io/model/internal/geos_export.h>
 
 #include <geode/geosciences/explicit/mixin/core/stratigraphic_units.h>
 
@@ -46,7 +46,7 @@ namespace geode
         Impl() = delete;
         Impl( const StructuralModel& model, std::string_view files_directory )
             : internal::GeosExporterImpl< StructuralModel >(
-                files_directory, model )
+                  files_directory, model )
         {
         }
         virtual ~Impl() = default;

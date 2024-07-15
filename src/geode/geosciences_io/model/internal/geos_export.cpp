@@ -57,7 +57,7 @@
 #include <geode/model/mixin/core/block.h>
 
 #include <geode/geosciences/explicit/representation/core/structural_model.h>
-#include <geode/geosciences_io/model/private/geos_export.h>
+#include <geode/geosciences_io/model/internal/geos_export.h>
 #include <geode/model/representation/core/brep.h>
 
 namespace geode

@@ -26,7 +26,7 @@
 
 #include <geode/geosciences_io/model/helpers/brep_geos_export.h>
 
-#include <geode/geosciences_io/model/private/geos_export.h>
+#include <geode/geosciences_io/model/internal/geos_export.h>
 #include <geode/model/mixin/core/block.h>
 #include <geode/model/representation/core/brep.h>
 
