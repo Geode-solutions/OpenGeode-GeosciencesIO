@@ -32,8 +32,8 @@
 
 #include <geode/geosciences/explicit/representation/core/structural_model.h>
 #include <geode/geosciences/explicit/representation/io/structural_model_output.h>
-#include <geode/geosciences_io/model/private/ml_input.h>
-#include <geode/geosciences_io/model/private/ml_output_structural_model.h>
+#include <geode/geosciences_io/model/internal/ml_input.h>
+#include <geode/geosciences_io/model/internal/ml_output_structural_model.h>
 
 void check_model( const geode::StructuralModel& model,
     geode::index_t nb_corners,
@@ -70,8 +70,8 @@ void check_model( const geode::StructuralModel& model,
 void test_modelA4()
 {
     // Load structural model
-    auto model = geode::load_structural_model( absl::StrCat(
-        geode::data_path, "/modelA4.", geode::detail::MLInput::extension() ) );
+    auto model = geode::load_structural_model( absl::StrCat( geode::data_path,
+        "/modelA4.", geode::internal::MLInput::extension() ) );
     check_model( model, 52, 98, 55, 8, 2, 3, 6 );
 
     geode::index_t nb_block_internals{ 0 };

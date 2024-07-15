@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/private/vo_input.h>
+#include <geode/geosciences_io/mesh/internal/vo_input.h>
 
 #include <fstream>
 #include <optional>
@@ -41,7 +41,7 @@
 #include <geode/mesh/core/regular_grid_solid.h>
 #include <geode/mesh/io/regular_grid_input.h>
 
-#include <geode/geosciences_io/mesh/private/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.h>
 
 namespace
 {
@@ -81,9 +81,9 @@ namespace
                     "[VOInput] Cannot find Voxet in the file"
                 };
             }
-            const auto header = geode::detail::read_header( file_ );
+            const auto header = geode::internal::read_header( file_ );
             builder_->set_name( header.name );
-            geode::detail::read_CRS( file_ );
+            geode::internal::read_CRS( file_ );
             initialize_grid();
             read_data_file();
         }
@@ -203,7 +203,7 @@ namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         std::unique_ptr< RegularGrid3D > VOInput::read( const MeshImpl& impl )
         {
@@ -229,5 +229,5 @@ namespace geode
             }
             return missing;
         }
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

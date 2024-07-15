@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2024 Geode-solutions
+ * Copyright (c) 2019 Geode-solutions
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,35 +23,26 @@
 
 #pragma once
 
-#include <geode/mesh/io/edged_curve_input.h>
+#include <absl/container/flat_hash_map.h>
 
-#include <geode/geosciences_io/mesh/common.h>
+#include <geode/basic/uuid.h>
 
 namespace geode
 {
-    FORWARD_DECLARATION_DIMENSION_CLASS( EdgedCurve );
-    ALIAS_3D( EdgedCurve );
+    class BRep;
 } // namespace geode
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
-        class WellDevInput : public EdgedCurveInput< 3 >
+        struct RegionSurfaceSide
         {
-        public:
-            explicit WellDevInput( std::string_view filename )
-                : EdgedCurveInput< 3 >( filename )
-            {
-            }
-
-            static std::string_view extension()
-            {
-                static constexpr auto ext = "dev";
-                return ext;
-            }
-
-            std::unique_ptr< EdgedCurve3D > read( const MeshImpl& impl ) final;
+            absl::flat_hash_map< uuid, bool > universe_surface_sides;
+            absl::flat_hash_map< std::pair< uuid, uuid >, bool >
+                regions_surface_sides;
         };
-    } // namespace detail
+        RegionSurfaceSide determine_surface_to_regions_sides(
+            const BRep& brep );
+    } // namespace internal
 } // namespace geode

@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences_io/model/private/ml_input.h>
+#include <geode/geosciences_io/model/internal/ml_input.h>
 
 #include <algorithm>
 #include <fstream>
@@ -52,8 +52,8 @@
 #include <geode/basic/file.h>
 #include <geode/geosciences/explicit/representation/builder/structural_model_builder.h>
 #include <geode/geosciences/explicit/representation/core/structural_model.h>
-#include <geode/geosciences_io/mesh/private/gocad_common.h>
-#include <geode/geosciences_io/model/private/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.h>
+#include <geode/geosciences_io/model/internal/gocad_common.h>
 
 namespace
 {
@@ -98,13 +98,13 @@ namespace
                     "[MLInput] Cannot find Model3d in the file"
                 };
             }
-            const auto header = geode::detail::read_header( file_ );
+            const auto header = geode::internal::read_header( file_ );
             builder_.set_name( header.name );
-            geode::detail::read_CRS( file_ );
+            geode::internal::read_CRS( file_ );
             read_model_components();
             for( auto& tsurf : tsurfs_ )
             {
-                tsurf.data = geode::detail::read_tsurf( file_ ).value();
+                tsurf.data = geode::internal::read_tsurf( file_ ).value();
                 build_surfaces( tsurf );
             }
             compute_epsilon();
@@ -120,7 +120,7 @@ namespace
             {
             }
 
-            geode::detail::TSurfData data;
+            geode::internal::TSurfData data;
             std::vector< std::reference_wrapper< const geode::uuid > > tfaces;
             std::string feature;
             std::string name = std::string( "unknown" );
@@ -782,7 +782,7 @@ namespace
         void process_TSURF_keyword(
             absl::Span< const std::string_view > tokens )
         {
-            auto name = geode::detail::read_name( tokens );
+            auto name = geode::internal::read_name( tokens );
             tsurf_names2index_.emplace( name, tsurfs_.size() );
             tsurfs_.emplace_back( std::move( name ) );
         }
@@ -792,7 +792,7 @@ namespace
         {
             absl::Span< const std::string_view > remaining_tokens(
                 &tokens[2], tokens.size() - 2 );
-            std::string name = geode::detail::read_name( remaining_tokens );
+            std::string name = geode::internal::read_name( remaining_tokens );
             const auto& surface_id = builder_.add_surface(
                 geode::OpenGeodeTriangulatedSurface3D::impl_name_static() );
             builder_.set_surface_name( surface_id, name );
@@ -807,7 +807,7 @@ namespace
         {
             absl::Span< const std::string_view > remaining_tokens(
                 &tokens[1], tokens.size() - 1 );
-            auto name = geode::detail::read_name( remaining_tokens );
+            auto name = geode::internal::read_name( remaining_tokens );
             if( name == "Universe" )
             {
                 read_universe();
@@ -822,7 +822,7 @@ namespace
         void process_LAYER_keyword(
             absl::Span< const std::string_view > tokens )
         {
-            auto name = geode::detail::read_name( tokens );
+            auto name = geode::internal::read_name( tokens );
             const auto& stratigraphic_unit_id =
                 builder_.add_stratigraphic_unit();
             builder_.set_stratigraphic_unit_name(
@@ -833,7 +833,7 @@ namespace
         void process_FAULT_BLOCK_keyword(
             absl::Span< const std::string_view > tokens )
         {
-            auto name = geode::detail::read_name( tokens );
+            auto name = geode::internal::read_name( tokens );
             const auto& fault_block_id = builder_.add_fault_block();
             builder_.set_fault_block_name( fault_block_id, std::move( name ) );
             create_fault_block_topology( fault_block_id );
@@ -1024,7 +1024,7 @@ namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         StructuralModel MLInput::read()
         {
@@ -1033,5 +1033,5 @@ namespace geode
             impl.read_file();
             return structural_model;
         }
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

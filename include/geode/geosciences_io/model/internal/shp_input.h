@@ -23,40 +23,32 @@
 
 #pragma once
 
-#include <geode/basic/input.h>
+#include <geode/model/representation/io/section_input.h>
 
-#include <geode/mesh/io/regular_grid_input.h>
-
-#include <geode/geosciences_io/mesh/common.h>
+#include <geode/geosciences_io/model/common.h>
 
 namespace geode
 {
-    FORWARD_DECLARATION_DIMENSION_CLASS( RegularGrid );
-    ALIAS_3D( RegularGrid );
-} // namespace geode
-
-namespace geode
-{
-    namespace detail
+    namespace internal
     {
-        class VOInput : public RegularGridInput< 3 >
+        class SHPInput final : public SectionInput
         {
         public:
-            explicit VOInput( std::string_view filename )
-                : RegularGridInput< 3 >( filename )
+            explicit SHPInput( std::string_view filename )
+                : SectionInput( filename )
             {
             }
 
-            static std::string_view extension()
+            static std::vector< std::string > extensions()
             {
-                static constexpr auto ext = "vo";
-                return ext;
+                static const std::vector< std::string > extensions{ "shp",
+                    "shz" };
+                return extensions;
             }
 
-            std::unique_ptr< RegularGrid3D > read( const MeshImpl& impl ) final;
+            Section read() final;
 
-            RegularGridInput< 3 >::MissingFiles
-                check_missing_files() const final;
+            SectionInput::MissingFiles check_missing_files() const final;
         };
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

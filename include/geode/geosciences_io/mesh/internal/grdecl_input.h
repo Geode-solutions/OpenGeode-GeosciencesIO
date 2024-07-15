@@ -34,7 +34,7 @@ namespace geode
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         class GRDECLInput : public HybridSolidInput< 3 >
         {
@@ -52,5 +52,5 @@ namespace geode
 
             std::unique_ptr< HybridSolid3D > read( const MeshImpl& impl ) final;
         };
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

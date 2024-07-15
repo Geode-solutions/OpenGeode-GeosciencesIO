@@ -26,7 +26,7 @@
 #include <geode/basic/assert.h>
 #include <geode/basic/logger.h>
 
-#include <geode/geosciences_io/mesh/private/grdecl_input.h>
+#include <geode/geosciences_io/mesh/internal/grdecl_input.h>
 #include <geode/mesh/core/geode/geode_hybrid_solid.h>
 #include <geode/mesh/core/hybrid_solid.h>
 #include <geode/mesh/io/hybrid_solid_input.h>
@@ -56,7 +56,7 @@ int main()
     {
         geode::GeosciencesIOMeshLibrary::initialize();
         check_file( absl::StrCat( geode::data_path, "Simple20x20x5_Fault.",
-                        geode::detail::GRDECLInput::extension() ),
+                        geode::internal::GRDECLInput::extension() ),
             20 * 20 * 5, 21 * 6 * ( 21 + 1 ) );
         geode::Logger::info( "[TEST SUCCESS]" );
 

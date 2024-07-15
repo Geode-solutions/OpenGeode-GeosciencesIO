@@ -23,33 +23,32 @@
 
 #pragma once
 
-#include <string>
-#include <vector>
+#include <geode/geosciences/implicit/representation/io/horizons_stack_input.h>
 
 #include <geode/geosciences_io/model/common.h>
-#include <geode/model/representation/io/brep_output.h>
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
-        class MLOutputBRep final : public BRepOutput
+        template < index_t dimension >
+        class HorizonStackSKUAInput final
+            : public HorizonsStackInput< dimension >
         {
         public:
-            explicit MLOutputBRep( std::string_view filename )
-                : BRepOutput( filename )
+            explicit HorizonStackSKUAInput( std::string_view filename )
+                : HorizonsStackInput< dimension >( filename )
             {
             }
 
             static std::string_view extension()
             {
-                static constexpr auto ext = "ml";
+                static constexpr auto ext = "xml";
                 return ext;
             }
 
-            std::vector< std::string > write( const BRep& brep ) const final;
-
-            bool is_saveable( const BRep& brep ) const final;
+            HorizonsStack< dimension > read() final;
         };
-    } // namespace detail
+        ALIAS_2D_AND_3D( HorizonStackSKUAInput );
+    } // namespace internal
 } // namespace geode

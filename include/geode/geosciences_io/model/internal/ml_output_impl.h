@@ -42,12 +42,12 @@
 #include <geode/model/mixin/core/surface.h>
 #include <geode/model/representation/core/brep.h>
 
-#include <geode/geosciences_io/mesh/private/gocad_common.h>
-#include <geode/geosciences_io/model/private/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.h>
+#include <geode/geosciences_io/model/internal/gocad_common.h>
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         template < typename Model >
         Model clone_with_model_boundaries( const Model& model )
@@ -55,7 +55,7 @@ namespace geode
             Model result;
             typename Model::Builder builder{ result };
             builder.copy( model );
-            build_model_boundaries( result, builder );
+            detail::build_model_boundaries( result, builder );
             return result;
         }
 
@@ -104,10 +104,10 @@ namespace geode
             void write_file()
             {
                 file_ << "GOCAD Model3d 1" << EOL;
-                detail::HeaderData header;
+                internal::HeaderData header;
                 header.name = to_string( model_.name() );
-                detail::write_header( file_, header );
-                detail::write_CRS( file_, {} );
+                internal::write_header( file_, header );
+                internal::write_CRS( file_, {} );
                 write_model_components();
                 write_model_surfaces();
             }
@@ -427,10 +427,10 @@ namespace geode
                 for( const auto& boundary : model_.model_boundaries() )
                 {
                     file_ << "GOCAD TSurf 1" << EOL;
-                    detail::HeaderData header;
+                    internal::HeaderData header;
                     header.name = component_name( boundary );
-                    detail::write_header( file_, header );
-                    detail::write_CRS( file_, {} );
+                    internal::write_header( file_, header );
+                    internal::write_CRS( file_, {} );
                     file_ << "GEOLOGICAL_FEATURE " << component_name( boundary )
                           << EOL;
                     file_ << "GEOLOGICAL_TYPE boundary" << EOL;
@@ -453,10 +453,10 @@ namespace geode
                 {
                     file_ << "GOCAD TSurf 1" << EOL;
                     const auto& surface = model_.surface( surface_id );
-                    detail::HeaderData header;
+                    internal::HeaderData header;
                     header.name = component_name( surface );
-                    detail::write_header( file_, header );
-                    detail::write_CRS( file_, {} );
+                    internal::write_header( file_, header );
+                    internal::write_CRS( file_, {} );
                     file_ << "GEOLOGICAL_FEATURE " << component_name( surface )
                           << EOL;
                     file_ << "GEOLOGICAL_TYPE "
@@ -488,5 +488,5 @@ namespace geode
             index_t component_id_{ OFFSET_START };
             std::vector< uuid > unclassified_surfaces_;
         };
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

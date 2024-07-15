@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/private/pl_output.h>
+#include <geode/geosciences_io/mesh/internal/pl_output.h>
 
 #include <fstream>
 #include <memory>
@@ -34,7 +34,7 @@
 #include <geode/mesh/core/edged_curve.h>
 #include <geode/mesh/core/graph.h>
 
-#include <geode/geosciences_io/mesh/private/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.h>
 
 namespace
 {
@@ -58,8 +58,9 @@ namespace
         {
             const auto names =
                 edged_curve_.vertex_attribute_manager().attribute_names();
-            geode::detail::PropHeaderData prop_header;
-            std::vector< geode::detail::PropClassHeaderData > prop_class_header;
+            geode::internal::PropHeaderData prop_header;
+            std::vector< geode::internal::PropClassHeaderData >
+                prop_class_header;
             prop_class_header.reserve( names.size() );
 
             for( const auto& name : names )
@@ -84,14 +85,14 @@ namespace
                 prop_header.esizes.push_back( 1 );
                 prop_header.units.push_back( "unitless" );
 
-                geode::detail::PropClassHeaderData tmp_prop_class_header;
+                geode::internal::PropClassHeaderData tmp_prop_class_header;
                 tmp_prop_class_header.name = geode::to_string( name );
 
                 prop_class_header.push_back( tmp_prop_class_header );
             }
             if( !prop_header.empty() )
             {
-                geode::detail::write_prop_header( file_, prop_header );
+                geode::internal::write_prop_header( file_, prop_header );
             }
             write_XYZ_prop_class_header();
             for( const auto& ch : prop_class_header )
@@ -102,21 +103,21 @@ namespace
 
         void write_XYZ_prop_class_header()
         {
-            geode::detail::PropClassHeaderData x_prop_header;
+            geode::internal::PropClassHeaderData x_prop_header;
             x_prop_header.name = "X";
             x_prop_header.kind = "X";
             x_prop_header.unit = "m";
             x_prop_header.is_z = false;
             write_property_class_header( file_, x_prop_header );
 
-            geode::detail::PropClassHeaderData y_prop_header;
+            geode::internal::PropClassHeaderData y_prop_header;
             y_prop_header.name = "Y";
             y_prop_header.kind = "Y";
             y_prop_header.unit = "m";
             y_prop_header.is_z = false;
             write_property_class_header( file_, y_prop_header );
 
-            geode::detail::PropClassHeaderData z_prop_header;
+            geode::internal::PropClassHeaderData z_prop_header;
             z_prop_header.name = "Z";
             z_prop_header.kind = "Z";
             z_prop_header.unit = "m";
@@ -252,10 +253,10 @@ namespace
         {
             geode::Logger::info( "[PLOutput::write] Writting pl file." );
             file_ << "GOCAD PLine 1" << EOL;
-            geode::detail::HeaderData header;
+            geode::internal::HeaderData header;
             header.name = "edged_curve_name";
-            geode::detail::write_header( file_, header );
-            geode::detail::write_CRS( file_, {} );
+            geode::internal::write_header( file_, header );
+            geode::internal::write_CRS( file_, {} );
             write_prop_header();
             write_ilines();
             file_ << "END" << EOL;
@@ -273,7 +274,7 @@ namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         std::vector< std::string > PLOutput::write(
             const EdgedCurve3D& edged_curve ) const
@@ -282,5 +283,5 @@ namespace geode
             impl.write_file();
             return { to_string( filename() ) };
         }
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

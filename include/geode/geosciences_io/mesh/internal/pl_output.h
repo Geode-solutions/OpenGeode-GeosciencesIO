@@ -23,32 +23,38 @@
 
 #pragma once
 
-#include <geode/geosciences/implicit/representation/io/horizons_stack_input.h>
+#include <string>
+#include <vector>
 
-#include <geode/geosciences_io/model/common.h>
+#include <geode/geosciences_io/mesh/common.h>
+#include <geode/mesh/io/edged_curve_output.h>
 
 namespace geode
 {
-    namespace detail
+    FORWARD_DECLARATION_DIMENSION_CLASS( EdgedCurve );
+    ALIAS_3D( EdgedCurve );
+} // namespace geode
+
+namespace geode
+{
+    namespace internal
     {
-        template < index_t dimension >
-        class HorizonStackSKUAInput final
-            : public HorizonsStackInput< dimension >
+        class PLOutput final : public EdgedCurveOutput< 3 >
         {
         public:
-            explicit HorizonStackSKUAInput( std::string_view filename )
-                : HorizonsStackInput< dimension >( filename )
+            explicit PLOutput( std::string_view filename )
+                : EdgedCurveOutput< 3 >( filename )
             {
             }
 
             static std::string_view extension()
             {
-                static constexpr auto ext = "xml";
+                static constexpr auto ext = "pl";
                 return ext;
             }
 
-            HorizonsStack< dimension > read() final;
+            std::vector< std::string > write(
+                const EdgedCurve3D& edged_curve ) const final;
         };
-        ALIAS_2D_AND_3D( HorizonStackSKUAInput );
-    } // namespace detail
+    } // namespace internal
 } // namespace geode
