@@ -66,7 +66,9 @@ namespace
         GRDECLInputImpl(
             std::string_view filename, geode::HybridSolid3D& solid )
             : file_{ geode::to_string( filename ) },
-              filepath_{ geode::filepath_without_filename( filename ) },
+              filepath_{
+                  geode::filepath_without_filename( filename ).string()
+              },
               solid_( solid ),
               builder_{ geode::HybridSolidBuilder< 3 >::create( solid ) }
         {

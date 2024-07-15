@@ -23,12 +23,12 @@
 
 #pragma once
 
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <string>
 #include <string_view>
 
-#include <ghc/filesystem.hpp>
 #include <pugixml.hpp>
 
 #include <geode/basic/attribute.h>
@@ -70,9 +70,9 @@ namespace geode
         std::string_view files_directory, const Model& model )
         : model_( model ),
           files_directory_{
-              ghc::filesystem::path{ to_string( files_directory ) }.string()
+              std::filesystem::path{ to_string( files_directory ) }.string()
           },
-          prefix_{ filename_without_extension( files_directory ) }
+          prefix_{ filename_without_extension( files_directory ).string() }
     {
         std::tie( model_curve_, model_surface_, model_solid_ ) =
             convert_brep_into_curve_and_surface_and_solid( model_ );
@@ -80,15 +80,15 @@ namespace geode
             model_solid_->polyhedron_attribute_manager()
                 .template find_or_create_attribute< VariableAttribute,
                     index_t >( REGION_ID_ATTRIBUTE_NAME, NO_ID );
-        if( ghc::filesystem::path{ to_string( files_directory ) }
+        if( std::filesystem::path{ to_string( files_directory ) }
                 .is_relative() )
         {
-            ghc::filesystem::create_directory(
-                ghc::filesystem::current_path() / files_directory_ );
+            std::filesystem::create_directory(
+                std::filesystem::current_path() / files_directory_ );
         }
         else
         {
-            ghc::filesystem::create_directory( files_directory_ );
+            std::filesystem::create_directory( files_directory_ );
         }
     }
 
