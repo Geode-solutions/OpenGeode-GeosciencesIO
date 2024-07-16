@@ -49,8 +49,8 @@ namespace geode
 
             static std::string_view extension()
             {
-                static constexpr auto ext = "vo";
-                return ext;
+                static constexpr auto EXT = "vo";
+                return EXT;
             }
 
             std::unique_ptr< RegularGrid3D > read( const MeshImpl& impl ) final;

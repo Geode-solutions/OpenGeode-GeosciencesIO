@@ -143,11 +143,11 @@ int main()
         geode::GeosciencesIOModelLibrary::initialize();
 
         geode::Logger::info( "Reading the test.lso file" );
-        test_file( absl::StrCat( geode::data_path, "test.",
+        test_file( absl::StrCat( geode::DATA_PATH, "test.",
                        geode::internal::LSOInput::extension() ),
             22, 39, 23, 4, 4, 2, 1 );
         geode::Logger::info( "Reading the vri.lso file" );
-        test_file( absl::StrCat( geode::data_path, "vri.",
+        test_file( absl::StrCat( geode::DATA_PATH, "vri.",
                        geode::internal::LSOInput::extension() ),
             12, 20, 11, 2, 7, 0, 9 );
 

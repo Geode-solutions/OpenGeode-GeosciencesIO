@@ -36,7 +36,7 @@
 void test_file()
 {
     const auto horizons_stack = geode::load_horizons_stack< 3 >(
-        absl::StrCat( geode::data_path, "test_skua_horizons_stack.xml" ) );
+        absl::StrCat( geode::DATA_PATH, "test_skua_horizons_stack.xml" ) );
 
     OPENGEODE_EXCEPTION( horizons_stack.name() == "skua_model",
         "[TEST] HorizonsStack should be named 'skua_model'" );

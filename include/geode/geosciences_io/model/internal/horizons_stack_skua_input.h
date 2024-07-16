@@ -43,8 +43,8 @@ namespace geode
 
             static std::string_view extension()
             {
-                static constexpr auto ext = "xml";
-                return ext;
+                static constexpr auto EXT = "xml";
+                return EXT;
             }
 
             HorizonsStack< dimension > read() final;

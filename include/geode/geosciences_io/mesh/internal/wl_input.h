@@ -47,8 +47,8 @@ namespace geode
 
             static std::string_view extension()
             {
-                static constexpr auto ext = "wl";
-                return ext;
+                static constexpr auto EXT = "wl";
+                return EXT;
             }
 
             std::unique_ptr< EdgedCurve3D > read( const MeshImpl& impl ) final;
