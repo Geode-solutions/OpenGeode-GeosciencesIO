@@ -21,38 +21,38 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/private/vo_input.h>
+#include <geode/geosciences_io/mesh/internal/vo_input.hpp>
 
 #include <fstream>
+#include <optional>
 #include <string>
 
 #include <absl/strings/str_replace.h>
-#include <absl/types/optional.h>
 
-#include <geode/basic/attribute_manager.h>
-#include <geode/basic/file.h>
-#include <geode/basic/filename.h>
-#include <geode/basic/string.h>
+#include <geode/basic/attribute_manager.hpp>
+#include <geode/basic/file.hpp>
+#include <geode/basic/filename.hpp>
+#include <geode/basic/string.hpp>
 
-#include <geode/geometry/distance.h>
-#include <geode/geometry/vector.h>
+#include <geode/geometry/distance.hpp>
+#include <geode/geometry/vector.hpp>
 
-#include <geode/mesh/builder/regular_grid_solid_builder.h>
-#include <geode/mesh/core/regular_grid_solid.h>
-#include <geode/mesh/io/regular_grid_input.h>
+#include <geode/mesh/builder/regular_grid_solid_builder.hpp>
+#include <geode/mesh/core/regular_grid_solid.hpp>
+#include <geode/mesh/io/regular_grid_input.hpp>
 
-#include <geode/geosciences_io/mesh/private/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
 
 namespace
 {
 
-    absl::optional< std::string > get_data_file( std::ifstream& file )
+    std::optional< std::string > get_data_file( std::ifstream& file )
     {
         const auto line =
             geode::goto_keyword_if_it_exists( file, "ASCII_DATA_FILE" );
         if( !line.has_value() )
         {
-            return absl::nullopt;
+            return std::nullopt;
         }
         return absl::StrReplaceAll(
             line.value(), { { "ASCII_DATA_FILE ", "" }, { "\"", "" } } );
@@ -61,9 +61,11 @@ namespace
     class VOInputImpl
     {
     public:
-        VOInputImpl( absl::string_view filename, geode::RegularGrid3D& grid )
+        VOInputImpl( std::string_view filename, geode::RegularGrid3D& grid )
             : file_{ geode::to_string( filename ) },
-              file_folder_{ geode::filepath_without_filename( filename ) },
+              file_folder_{
+                  geode::filepath_without_filename( filename ).string()
+              },
               grid_( grid ),
               builder_{ geode::RegularGridBuilder3D::create( grid ) }
         {
@@ -79,9 +81,9 @@ namespace
                     "[VOInput] Cannot find Voxet in the file"
                 };
             }
-            const auto header = geode::detail::read_header( file_ );
+            const auto header = geode::internal::read_header( file_ );
             builder_->set_name( header.name );
-            geode::detail::read_CRS( file_ );
+            geode::internal::read_CRS( file_ );
             initialize_grid();
             read_data_file();
         }
@@ -136,12 +138,12 @@ namespace
         }
 
         geode::Point3D read_coord(
-            absl::string_view line, geode::index_t offset ) const
+            std::string_view line, geode::index_t offset ) const
         {
             const auto tokens = geode::string_split( line );
             OPENGEODE_ASSERT( tokens.size() == 3 + offset,
                 "[VOInput::read_coord] Wrong number of tokens" );
-            return { { geode::string_to_double( tokens[offset] ),
+            return geode::Point3D{ { geode::string_to_double( tokens[offset] ),
                 geode::string_to_double( tokens[1 + offset] ),
                 geode::string_to_double( tokens[2 + offset] ) } };
         }
@@ -201,7 +203,7 @@ namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         std::unique_ptr< RegularGrid3D > VOInput::read( const MeshImpl& impl )
         {
@@ -227,5 +229,5 @@ namespace geode
             }
             return missing;
         }
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

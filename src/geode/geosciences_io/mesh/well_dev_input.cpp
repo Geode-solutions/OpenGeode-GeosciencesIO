@@ -21,18 +21,18 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/private/well_dev_input.h>
+#include <geode/geosciences_io/mesh/internal/well_dev_input.hpp>
 
 #include <fstream>
 
-#include <geode/basic/attribute_manager.h>
-#include <geode/basic/file.h>
-#include <geode/basic/string.h>
+#include <geode/basic/attribute_manager.hpp>
+#include <geode/basic/file.hpp>
+#include <geode/basic/string.hpp>
 
-#include <geode/geometry/point.h>
+#include <geode/geometry/point.hpp>
 
-#include <geode/mesh/builder/edged_curve_builder.h>
-#include <geode/mesh/core/edged_curve.h>
+#include <geode/mesh/builder/edged_curve_builder.hpp>
+#include <geode/mesh/core/edged_curve.hpp>
 
 namespace
 {
@@ -47,7 +47,7 @@ namespace
     {
     public:
         WellDevInputImpl(
-            absl::string_view filename, geode::EdgedCurve3D& curve )
+            std::string_view filename, geode::EdgedCurve3D& curve )
             : file_{ geode::to_string( filename ) },
               curve_( curve ),
               builder_( geode::EdgedCurveBuilder3D::create( curve ) )
@@ -161,11 +161,11 @@ namespace
         }
 
         geode::index_t create_point(
-            absl::Span< const absl::string_view > split_line )
+            absl::Span< const std::string_view > split_line )
         {
-            return builder_->create_point(
-                { { geode::string_to_double(
-                        split_line[header_.xyz_attributes_position[0]] ),
+            return builder_->create_point( geode::Point3D{
+                { geode::string_to_double(
+                      split_line[header_.xyz_attributes_position[0]] ),
                     geode::string_to_double(
                         split_line[header_.xyz_attributes_position[1]] ),
                     geode::string_to_double(
@@ -173,7 +173,7 @@ namespace
         }
 
         void assign_point_attributes(
-            absl::Span< const absl::string_view > split_line,
+            absl::Span< const std::string_view > split_line,
             geode::index_t point_id )
         {
             geode::index_t attr_counter{ 0 };
@@ -207,7 +207,7 @@ namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         std::unique_ptr< EdgedCurve3D > WellDevInput::read(
             const MeshImpl& impl )
@@ -217,5 +217,5 @@ namespace geode
             reader.read_file();
             return well;
         }
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

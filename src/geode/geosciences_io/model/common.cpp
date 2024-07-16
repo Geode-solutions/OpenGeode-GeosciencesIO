@@ -21,72 +21,72 @@
  *
  */
 
-#include <geode/geosciences_io/model/common.h>
+#include <geode/geosciences_io/model/common.hpp>
 
 #include <gdal_priv.h>
 
-#include <geode/mesh/io/regular_grid_input.h>
-#include <geode/mesh/io/triangulated_surface_input.h>
+#include <geode/mesh/io/regular_grid_input.hpp>
+#include <geode/mesh/io/triangulated_surface_input.hpp>
 
-#include <geode/geosciences/explicit/common.h>
-#include <geode/geosciences/explicit/representation/io/structural_model_input.h>
-#include <geode/geosciences/explicit/representation/io/structural_model_output.h>
-#include <geode/geosciences/implicit/representation/io/horizons_stack_input.h>
+#include <geode/geosciences/explicit/common.hpp>
+#include <geode/geosciences/explicit/representation/io/structural_model_input.hpp>
+#include <geode/geosciences/explicit/representation/io/structural_model_output.hpp>
+#include <geode/geosciences/implicit/representation/io/horizons_stack_input.hpp>
 
-#include <geode/geosciences_io/model/private/horizons_stack_skua_input.h>
-#include <geode/geosciences_io/model/private/lso_input.h>
-#include <geode/geosciences_io/model/private/lso_output.h>
-#include <geode/geosciences_io/model/private/ml_input.h>
-#include <geode/geosciences_io/model/private/ml_output_brep.h>
-#include <geode/geosciences_io/model/private/ml_output_structural_model.h>
-#include <geode/geosciences_io/model/private/shp_input.h>
+#include <geode/geosciences_io/model/internal/horizons_stack_skua_input.hpp>
+#include <geode/geosciences_io/model/internal/lso_input.hpp>
+#include <geode/geosciences_io/model/internal/lso_output.hpp>
+#include <geode/geosciences_io/model/internal/ml_input.hpp>
+#include <geode/geosciences_io/model/internal/ml_output_brep.hpp>
+#include <geode/geosciences_io/model/internal/ml_output_structural_model.hpp>
+#include <geode/geosciences_io/model/internal/shp_input.hpp>
 
 namespace
 {
     void register_structural_model_input()
     {
         geode::StructuralModelInputFactory::register_creator<
-            geode::detail::MLInput >(
-            geode::detail::MLInput::extension().data() );
+            geode::internal::MLInput >(
+            geode::internal::MLInput::extension().data() );
         geode::StructuralModelInputFactory::register_creator<
-            geode::detail::LSOInput >(
-            geode::detail::LSOInput::extension().data() );
+            geode::internal::LSOInput >(
+            geode::internal::LSOInput::extension().data() );
     }
 
     void register_structural_model_output()
     {
         geode::StructuralModelOutputFactory::register_creator<
-            geode::detail::MLOutputStructuralModel >(
-            geode::detail::MLOutputStructuralModel::extension().data() );
+            geode::internal::MLOutputStructuralModel >(
+            geode::internal::MLOutputStructuralModel::extension().data() );
         geode::StructuralModelOutputFactory::register_creator<
-            geode::detail::LSOOutput >(
-            geode::detail::LSOOutput::extension().data() );
+            geode::internal::LSOOutput >(
+            geode::internal::LSOOutput::extension().data() );
     }
 
     void register_section_input()
     {
-        for( const auto& shp_ext : geode::detail::SHPInput::extensions() )
+        for( const auto& shp_ext : geode::internal::SHPInput::extensions() )
         {
             geode::SectionInputFactory::register_creator<
-                geode::detail::SHPInput >( shp_ext );
+                geode::internal::SHPInput >( shp_ext );
         }
     }
 
     void register_brep_output()
     {
         geode::BRepOutputFactory::register_creator<
-            geode::detail::MLOutputBRep >(
-            geode::detail::MLOutputBRep::extension().data() );
+            geode::internal::MLOutputBRep >(
+            geode::internal::MLOutputBRep::extension().data() );
     }
 
     void register_horizons_stack_input()
     {
         geode::HorizonsStackInputFactory< 2 >::register_creator<
-            geode::detail::HorizonStackSKUAInput< 2 > >(
-            geode::detail::HorizonStackSKUAInput< 2 >::extension().data() );
+            geode::internal::HorizonStackSKUAInput< 2 > >(
+            geode::internal::HorizonStackSKUAInput< 2 >::extension().data() );
         geode::HorizonsStackInputFactory< 3 >::register_creator<
-            geode::detail::HorizonStackSKUAInput< 3 > >(
-            geode::detail::HorizonStackSKUAInput< 3 >::extension().data() );
+            geode::internal::HorizonStackSKUAInput< 3 > >(
+            geode::internal::HorizonStackSKUAInput< 3 >::extension().data() );
     }
 } // namespace
 

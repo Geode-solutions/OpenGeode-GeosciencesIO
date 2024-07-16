@@ -21,20 +21,20 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/private/ts_output.h>
+#include <geode/geosciences_io/mesh/internal/ts_output.hpp>
 
 #include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include <geode/basic/attribute_manager.h>
-#include <geode/basic/types.h>
+#include <geode/basic/attribute_manager.hpp>
+#include <geode/basic/types.hpp>
 
-#include <geode/basic/filename.h>
-#include <geode/mesh/core/triangulated_surface.h>
+#include <geode/basic/filename.hpp>
+#include <geode/mesh/core/triangulated_surface.hpp>
 
-#include <geode/geosciences_io/mesh/private/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
 
 namespace
 {
@@ -44,7 +44,7 @@ namespace
         static constexpr geode::index_t OFFSET_START{ 1 };
         static constexpr char EOL{ '\n' };
         static constexpr char SPACE{ ' ' };
-        TSOutputImpl( absl::string_view filename,
+        TSOutputImpl( std::string_view filename,
             const geode::TriangulatedSurface3D& surface )
             : file_{ geode::to_string( filename ) }, surface_( surface )
         {
@@ -56,10 +56,10 @@ namespace
         {
             geode::Logger::info( "[TSOutput::write] Writing ts file." );
             file_ << "GOCAD TSurf 1" << EOL;
-            geode::detail::HeaderData header;
+            geode::internal::HeaderData header;
             header.name = geode::to_string( surface_.name() );
-            geode::detail::write_header( file_, header );
-            geode::detail::write_CRS( file_, {} );
+            geode::internal::write_header( file_, header );
+            geode::internal::write_CRS( file_, {} );
             write_prop_header();
             write_tface();
             file_ << "END" << EOL;
@@ -69,8 +69,8 @@ namespace
         {
             const auto names =
                 surface_.vertex_attribute_manager().attribute_names();
-            geode::detail::PropHeaderData prop_header;
-            std::vector< geode::detail::PropClassHeaderData >
+            geode::internal::PropHeaderData prop_header;
+            std::vector< geode::internal::PropClassHeaderData >
                 header_properties_data;
             header_properties_data.reserve( names.size() );
             generic_att_.reserve( names.size() );
@@ -99,14 +99,14 @@ namespace
                 prop_header.esizes.push_back( 1 );
                 prop_header.units.push_back( "unitless" );
 
-                geode::detail::PropClassHeaderData tmp_prop_class_header;
+                geode::internal::PropClassHeaderData tmp_prop_class_header;
                 tmp_prop_class_header.name = geode::to_string( name );
 
                 header_properties_data.push_back( tmp_prop_class_header );
             }
             if( !prop_header.empty() )
             {
-                geode::detail::write_prop_header( file_, prop_header );
+                geode::internal::write_prop_header( file_, prop_header );
             }
             write_xyz_prop_class_header();
             for( const auto& property_data : header_properties_data )
@@ -117,21 +117,21 @@ namespace
 
         void write_xyz_prop_class_header()
         {
-            geode::detail::PropClassHeaderData x_prop_header;
+            geode::internal::PropClassHeaderData x_prop_header;
             x_prop_header.name = "X";
             x_prop_header.kind = "X";
             x_prop_header.unit = "m";
             x_prop_header.is_z = false;
             write_property_class_header( file_, x_prop_header );
 
-            geode::detail::PropClassHeaderData y_prop_header;
+            geode::internal::PropClassHeaderData y_prop_header;
             y_prop_header.name = "Y";
             y_prop_header.kind = "Y";
             y_prop_header.unit = "m";
             y_prop_header.is_z = false;
             write_property_class_header( file_, y_prop_header );
 
-            geode::detail::PropClassHeaderData z_prop_header;
+            geode::internal::PropClassHeaderData z_prop_header;
             z_prop_header.name = "Z";
             z_prop_header.kind = "Z";
             z_prop_header.unit = "m";
@@ -182,7 +182,7 @@ namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         std::vector< std::string > TSOutput::write(
             const TriangulatedSurface3D& surface ) const
@@ -191,5 +191,5 @@ namespace geode
             impl.write_file();
             return { to_string( filename() ) };
         }
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

@@ -21,16 +21,16 @@
  *
  */
 
-#include <geode/tests_config.h>
+#include <geode/tests_config.hpp>
 
-#include <geode/basic/assert.h>
-#include <geode/basic/logger.h>
+#include <geode/basic/assert.hpp>
+#include <geode/basic/logger.hpp>
 
-#include <geode/geosciences_io/mesh/private/grdecl_input.h>
-#include <geode/mesh/core/geode/geode_hybrid_solid.h>
-#include <geode/mesh/core/hybrid_solid.h>
-#include <geode/mesh/io/hybrid_solid_input.h>
-#include <geode/mesh/io/hybrid_solid_output.h>
+#include <geode/geosciences_io/mesh/internal/grdecl_input.hpp>
+#include <geode/mesh/core/geode/geode_hybrid_solid.hpp>
+#include <geode/mesh/core/hybrid_solid.hpp>
+#include <geode/mesh/io/hybrid_solid_input.hpp>
+#include <geode/mesh/io/hybrid_solid_output.hpp>
 
 void check_solid( const geode::HybridSolid3D& solid,
     geode::index_t nb_polyhedra,
@@ -42,7 +42,7 @@ void check_solid( const geode::HybridSolid3D& solid,
         "Number of vertices in the GrdeclHybridSolid is not correct " );
 }
 
-void check_file( absl::string_view filename,
+void check_file( std::string_view filename,
     geode::index_t nb_polyhedra,
     geode::index_t nb_vertices )
 {
@@ -55,8 +55,10 @@ int main()
     try
     {
         geode::GeosciencesIOMeshLibrary::initialize();
-        check_file( absl::StrCat( geode::data_path, "Simple20x20x5_Fault.",
-                        geode::detail::GRDECLInput::extension() ),
+
+        check_file( absl::StrCat( geode::DATA_PATH, "Simple20x20x5_Fault.",
+                        geode::internal::GRDECLInput::extension() ),
+
             20 * 20 * 5, 21 * 6 * ( 21 + 1 ) );
         geode::Logger::info( "[TEST SUCCESS]" );
 

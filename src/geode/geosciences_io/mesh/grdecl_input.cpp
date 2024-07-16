@@ -21,29 +21,27 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/private/grdecl_input.h>
+#include <geode/geosciences_io/mesh/internal/grdecl_input.hpp>
 
 #include <fstream>
-
+#include <optional>
 #include <string>
 
 #include <absl/strings/match.h>
 #include <absl/strings/str_split.h>
 
-#include <absl/types/optional.h>
+#include <geode/basic/attribute_manager.hpp>
+#include <geode/basic/file.hpp>
+#include <geode/basic/filename.hpp>
+#include <geode/basic/logger.hpp>
+#include <geode/basic/string.hpp>
 
-#include <geode/basic/attribute_manager.h>
-#include <geode/basic/file.h>
-#include <geode/basic/filename.h>
-#include <geode/basic/logger.h>
-#include <geode/basic/string.h>
+#include <geode/geometry/nn_search.hpp>
 
-#include <geode/geometry/nn_search.h>
+#include <geode/mesh/builder/hybrid_solid_builder.hpp>
+#include <geode/mesh/core/hybrid_solid.hpp>
 
-#include <geode/mesh/builder/hybrid_solid_builder.h>
-#include <geode/mesh/core/hybrid_solid.h>
-
-#include <geode/geosciences_io/mesh/private/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
 
 namespace
 {
@@ -66,9 +64,11 @@ namespace
     {
     public:
         GRDECLInputImpl(
-            absl::string_view filename, geode::HybridSolid3D& solid )
+            std::string_view filename, geode::HybridSolid3D& solid )
             : file_{ geode::to_string( filename ) },
-              filepath_{ geode::filepath_without_filename( filename ) },
+              filepath_{
+                  geode::filepath_without_filename( filename ).string()
+              },
               solid_( solid ),
               builder_{ geode::HybridSolidBuilder< 3 >::create( solid ) }
         {
@@ -91,7 +91,7 @@ namespace
         void get_filenames_and_keywords()
         {
             auto line = geode::goto_keyword_if_it_exists( file_, "INCLUDE" );
-            while( line != absl::nullopt )
+            while( line != std::nullopt )
             {
                 std::getline( file_, line.value() );
                 const auto tokens = absl::StrSplit( line.value(), "_" );
@@ -145,12 +145,14 @@ namespace
                         "[GRDECLInput::read_pillars] Wrong "
                         "number of coordinates" );
                     Pillar pillar;
-                    pillar.top = { { geode::string_to_double( tokens[0] ),
-                        geode::string_to_double( tokens[1] ),
-                        geode::string_to_double( tokens[2] ) } };
-                    pillar.bottom = { { geode::string_to_double( tokens[3] ),
-                        geode::string_to_double( tokens[4] ),
-                        geode::string_to_double( tokens[5] ) } };
+                    pillar.top =
+                        geode::Point3D{ { geode::string_to_double( tokens[0] ),
+                            geode::string_to_double( tokens[1] ),
+                            geode::string_to_double( tokens[2] ) } };
+                    pillar.bottom =
+                        geode::Point3D{ { geode::string_to_double( tokens[3] ),
+                            geode::string_to_double( tokens[4] ),
+                            geode::string_to_double( tokens[5] ) } };
                     pillars[pillar_number++] = std::move( pillar );
                 }
                 std::getline( file, line );
@@ -273,7 +275,7 @@ namespace
             }
             const auto collocated_mapping =
                 geode::NNSearch3D{ points }.colocated_index_mapping(
-                    geode::global_epsilon );
+                    geode::GLOBAL_EPSILON );
             for( const auto& point : collocated_mapping.unique_points )
             {
                 builder_->create_point( point );
@@ -336,7 +338,7 @@ namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         std::unique_ptr< HybridSolid3D > GRDECLInput::read(
             const MeshImpl& impl )
@@ -347,5 +349,5 @@ namespace geode
             return solid;
         }
 
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

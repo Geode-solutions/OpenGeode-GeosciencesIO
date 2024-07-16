@@ -20,30 +20,33 @@
  * SOFTWARE.
  *
  */
+
+#include <string_view>
+
 #include <absl/container/flat_hash_map.h>
-#include <absl/strings/string_view.h>
 
-#include <geode/geosciences_io/model/helpers/structural_model_geos_export.h>
+#include <geode/geosciences_io/model/helpers/structural_model_geos_export.hpp>
 
-#include <geode/geosciences_io/model/helpers/geos_export.h>
+#include <geode/geosciences_io/model/internal/geos_export.hpp>
 
-#include <geode/geosciences/explicit/mixin/core/stratigraphic_units.h>
+#include <geode/geosciences/explicit/mixin/core/stratigraphic_units.hpp>
 
-#include <geode/geosciences/explicit/representation/core/structural_model.h>
+#include <geode/geosciences/explicit/representation/core/structural_model.hpp>
 
-#include <geode/basic/pimpl_impl.h>
+#include <geode/basic/pimpl_impl.hpp>
 
 namespace geode
 {
     class StructuralModelGeosExporter::Impl
-        : public GeosExporterImpl< StructuralModel >
+        : public internal::GeosExporterImpl< StructuralModel >
     {
         OPENGEODE_DISABLE_COPY_AND_MOVE( Impl );
 
     public:
         Impl() = delete;
-        Impl( const StructuralModel& model, absl::string_view files_directory )
-            : GeosExporterImpl< StructuralModel >( files_directory, model )
+        Impl( const StructuralModel& model, std::string_view files_directory )
+            : internal::GeosExporterImpl< StructuralModel >(
+                files_directory, model )
         {
         }
         virtual ~Impl() = default;
@@ -68,7 +71,7 @@ namespace geode
     };
 
     StructuralModelGeosExporter::StructuralModelGeosExporter(
-        const StructuralModel& model, absl::string_view files_directory )
+        const StructuralModel& model, std::string_view files_directory )
         : impl_( model, files_directory )
     {
     }
@@ -81,17 +84,17 @@ namespace geode
         impl_->add_well_perforations( well_perforation );
     }
     void StructuralModelGeosExporter::add_cell_property_1d(
-        absl::string_view name )
+        std::string_view name )
     {
         impl_->add_cell_property1d( name );
     }
     void StructuralModelGeosExporter::add_cell_property_2d(
-        absl::string_view name )
+        std::string_view name )
     {
         impl_->add_cell_property2d( name );
     }
     void StructuralModelGeosExporter::add_cell_property_3d(
-        absl::string_view name )
+        std::string_view name )
     {
         impl_->add_cell_property3d( name );
     }

@@ -21,28 +21,15 @@
  *
  */
 
-#include <geode/mesh/core/point_set.h>
+#include <string_view>
 
-#include <geode/geosciences/explicit/representation/core/structural_model.h>
-#include <geode/geosciences_io/model/helpers/brep_geos_export.h>
-#include <geode/geosciences_io/model/helpers/geos_export.h>
-#include <geode/geosciences_io/model/helpers/structural_model_geos_export.h>
+#include <geode/mesh/core/point_set.hpp>
+
+#include <geode/geosciences/explicit/representation/core/structural_model.hpp>
+#include <geode/geosciences_io/model/helpers/brep_geos_export.hpp>
+#include <geode/geosciences_io/model/helpers/structural_model_geos_export.hpp>
 
 #include <pybind11/pybind11.h>
-
-#include <absl/strings/string_view.h>
-
-namespace pybind11
-{
-    namespace detail
-    {
-        template <>
-        struct type_caster< absl::string_view >
-            : string_caster< absl::string_view, true >
-        {
-        };
-    } // namespace detail
-} // namespace pybind11
 
 PYBIND11_MODULE( opengeode_geosciencesio_py_model, module )
 {
@@ -52,7 +39,7 @@ PYBIND11_MODULE( opengeode_geosciencesio_py_model, module )
         .def( "initialize", &geode::GeosciencesIOModelLibrary::initialize );
 
     pybind11::class_< geode::BRepGeosExporter >( module, "BRepGeosExporter" )
-        .def( pybind11::init< const geode::BRep&, absl::string_view >() )
+        .def( pybind11::init< const geode::BRep&, std::string_view >() )
         .def( "add_well_perforations",
             &geode::BRepGeosExporter::add_well_perforations )
         .def( "add_cell_property_1d",
@@ -66,7 +53,7 @@ PYBIND11_MODULE( opengeode_geosciencesio_py_model, module )
     pybind11::class_< geode::StructuralModelGeosExporter >(
         module, "StructuralModelGeosExporter" )
         .def( pybind11::init< const geode::StructuralModel&,
-            absl::string_view >() )
+            std::string_view >() )
         .def( "add_well_perforations",
             &geode::StructuralModelGeosExporter::add_well_perforations )
         .def( "add_cell_property_1d",

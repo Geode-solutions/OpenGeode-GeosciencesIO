@@ -21,22 +21,22 @@
  *
  */
 
-#include <geode/tests_config.h>
+#include <geode/tests_config.hpp>
 
-#include <geode/basic/assert.h>
-#include <geode/basic/filename.h>
-#include <geode/basic/logger.h>
+#include <geode/basic/assert.hpp>
+#include <geode/basic/filename.hpp>
+#include <geode/basic/logger.hpp>
 
-#include <geode/geosciences/explicit/mixin/core/horizon.h>
-#include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.h>
-#include <geode/geosciences/implicit/representation/core/horizons_stack.h>
-#include <geode/geosciences/implicit/representation/io/horizons_stack_output.h>
-#include <geode/geosciences_io/model/private/horizons_stack_skua_input.h>
+#include <geode/geosciences/explicit/mixin/core/horizon.hpp>
+#include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.hpp>
+#include <geode/geosciences/implicit/representation/core/horizons_stack.hpp>
+#include <geode/geosciences/implicit/representation/io/horizons_stack_output.hpp>
+#include <geode/geosciences_io/model/internal/horizons_stack_skua_input.hpp>
 
 void test_file()
 {
     const auto horizons_stack = geode::load_horizons_stack< 3 >(
-        absl::StrCat( geode::data_path, "test_skua_horizons_stack.xml" ) );
+        absl::StrCat( geode::DATA_PATH, "test_skua_horizons_stack.xml" ) );
 
     OPENGEODE_EXCEPTION( horizons_stack.name() == "skua_model",
         "[TEST] HorizonsStack should be named 'skua_model'" );

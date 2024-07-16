@@ -24,21 +24,21 @@
 // #include <stdexcept>
 // #include <string.h>
 
-#include <geode/tests_config.h>
+#include <geode/tests_config.hpp>
 
-#include <geode/basic/assert.h>
-#include <geode/basic/attribute_manager.h>
-#include <geode/basic/logger.h>
+#include <geode/basic/assert.hpp>
+#include <geode/basic/attribute_manager.hpp>
+#include <geode/basic/logger.hpp>
 
-#include <geode/mesh/core/regular_grid_solid.h>
-#include <geode/mesh/io/regular_grid_input.h>
+#include <geode/mesh/core/regular_grid_solid.hpp>
+#include <geode/mesh/io/regular_grid_input.hpp>
 
-#include <geode/geosciences_io/mesh/common.h>
+#include <geode/geosciences_io/mesh/common.hpp>
 
 void test_grid_input()
 {
     const auto grid = geode::load_regular_grid< 3 >(
-        absl::StrCat( geode::data_path, "test.vo" ) );
+        absl::StrCat( geode::DATA_PATH, "test.vo" ) );
 
     auto attribute_to_test =
         grid->cell_attribute_manager().find_attribute< double >( "random" );

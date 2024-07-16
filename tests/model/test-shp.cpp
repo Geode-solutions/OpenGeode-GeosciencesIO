@@ -21,15 +21,15 @@
  *
  */
 
-#include <geode/tests_config.h>
+#include <geode/tests_config.hpp>
 
-#include <geode/basic/assert.h>
-#include <geode/basic/logger.h>
+#include <geode/basic/assert.hpp>
+#include <geode/basic/logger.hpp>
 
-#include <geode/model/representation/core/section.h>
-#include <geode/model/representation/io/section_input.h>
+#include <geode/model/representation/core/section.hpp>
+#include <geode/model/representation/io/section_input.hpp>
 
-#include <geode/geosciences_io/model/common.h>
+#include <geode/geosciences_io/model/common.hpp>
 
 int main()
 {
@@ -37,7 +37,7 @@ int main()
     {
         geode::GeosciencesIOModelLibrary::initialize();
         const auto section = geode::load_section(
-            absl::StrCat( geode::data_path, "toulouse.shz" ) );
+            absl::StrCat( geode::DATA_PATH, "toulouse.shz" ) );
         OPENGEODE_EXCEPTION(
             section.nb_corners() == 7, "[Test] Wrong number of corners" );
         OPENGEODE_EXCEPTION(

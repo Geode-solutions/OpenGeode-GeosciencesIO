@@ -21,23 +21,23 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/private/pl_input.h>
+#include <geode/geosciences_io/mesh/internal/pl_input.hpp>
 
 #include <fstream>
 
-#include <geode/geometry/point.h>
+#include <geode/geometry/point.hpp>
 
-#include <geode/mesh/builder/edged_curve_builder.h>
-#include <geode/mesh/core/edged_curve.h>
+#include <geode/mesh/builder/edged_curve_builder.hpp>
+#include <geode/mesh/core/edged_curve.hpp>
 
-#include <geode/geosciences_io/mesh/private/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
 
 namespace
 {
     class PLInputImpl
     {
     public:
-        PLInputImpl( absl::string_view filename, geode::EdgedCurve3D& curve )
+        PLInputImpl( std::string_view filename, geode::EdgedCurve3D& curve )
             : file_{ geode::to_string( filename ) },
               curve_( curve ),
               builder_( geode::EdgedCurveBuilder< 3 >::create( curve ) )
@@ -48,14 +48,14 @@ namespace
 
         void read_file()
         {
-            while( const auto ecurve = geode::detail::read_ecurve( file_ ) )
+            while( const auto ecurve = geode::internal::read_ecurve( file_ ) )
             {
                 build_curve( ecurve.value() );
             }
         }
 
     private:
-        void build_curve( const geode::detail::ECurveData& ecurve )
+        void build_curve( const geode::internal::ECurveData& ecurve )
         {
             const auto offset = curve_.nb_vertices();
             builder_->set_name( ecurve.header.name );
@@ -82,7 +82,7 @@ namespace
 } // namespace
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         std::unique_ptr< EdgedCurve3D > PLInput::read( const MeshImpl& impl )
         {
@@ -91,5 +91,5 @@ namespace geode
             reader.read_file();
             return curve;
         }
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

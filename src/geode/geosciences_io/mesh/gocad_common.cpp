@@ -21,18 +21,19 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/private/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
 
 #include <fstream>
+#include <optional>
 #include <string>
 
 #include <absl/strings/match.h>
 #include <absl/strings/str_join.h>
 #include <absl/strings/str_replace.h>
 
-#include <geode/basic/file.h>
-#include <geode/basic/logger.h>
-#include <geode/basic/string.h>
+#include <geode/basic/file.hpp>
+#include <geode/basic/logger.hpp>
+#include <geode/basic/string.hpp>
 
 namespace
 {
@@ -40,7 +41,7 @@ namespace
     static constexpr char SPACE{ ' ' };
 
     std::string get_string_between_quote(
-        const std::vector< absl::string_view > tokens,
+        const std::vector< std::string_view > tokens,
         geode::index_t& from_to_id )
     {
         std::string string_between_quote;
@@ -62,7 +63,7 @@ namespace
     }
 
     std::vector< std::string > split_string_considering_quotes(
-        absl::string_view string_to_split )
+        std::string_view string_to_split )
     {
         std::vector< std::string > merged;
         const auto tokens = geode::string_split( string_to_split );
@@ -82,18 +83,18 @@ namespace
         }
         return merged;
     }
-    std::string write_string_with_quotes( absl::string_view string )
+    std::string write_string_with_quotes( std::string_view string )
     {
         const auto tokens = geode::string_split( string );
         if( tokens.size() > 1 )
         {
             return absl::StrCat(
-                "\" ", geode::detail::read_name( tokens ), "\"" );
+                "\" ", geode::internal::read_name( tokens ), "\"" );
         }
-        return geode::detail::read_name( tokens );
+        return geode::internal::read_name( tokens );
     }
 
-    void read_ilines( std::ifstream& file, geode::detail::ECurveData& ecurve )
+    void read_ilines( std::ifstream& file, geode::internal::ECurveData& ecurve )
     {
         geode::goto_keyword( file, "ILINE" );
         std::string line;
@@ -127,7 +128,7 @@ namespace
         }
     }
 
-    void read_tfaces( std::ifstream& file, geode::detail::TSurfData& tsurf )
+    void read_tfaces( std::ifstream& file, geode::internal::TSurfData& tsurf )
     {
         geode::goto_keyword( file, "TFACE" );
         std::string line;
@@ -145,7 +146,7 @@ namespace
                     geode::string_to_double( tokens[2] ),
                     geode::string_to_double( tokens[3] ),
                     tsurf.crs.z_sign * geode::string_to_double( tokens[4] ) } );
-                geode::detail::read_properties(
+                geode::internal::read_properties(
                     tsurf.vertices_properties_header,
                     tsurf.vertices_attribute_values, tokens, 5 );
             }
@@ -154,7 +155,7 @@ namespace
                 tsurf.points.push_back(
                     tsurf.points.at( geode::string_to_index( tokens[2] )
                                      - tsurf.OFFSET_START ) );
-                geode::detail::read_properties(
+                geode::internal::read_properties(
                     tsurf.vertices_properties_header,
                     tsurf.vertices_attribute_values, tokens, 3 );
             }
@@ -197,7 +198,7 @@ namespace
     }
 
     void read_property_keyword_with_one_string( std::ifstream& file,
-        absl::string_view keyword,
+        std::string_view keyword,
         std::vector< std::string >& keyword_data,
         geode::index_t nb_attributes )
     {
@@ -211,7 +212,7 @@ namespace
     }
 
     void read_property_keyword_with_two_strings( std::ifstream& file,
-        absl::string_view keyword,
+        std::string_view keyword,
         std::vector< std::pair< std::string, std::string > >& keyword_data,
         geode::index_t nb_attributes )
     {
@@ -233,7 +234,7 @@ namespace
     }
 
     void read_property_keyword_with_one_double( std::ifstream& file,
-        absl::string_view keyword,
+        std::string_view keyword,
         std::vector< double >& keyword_data,
         geode::index_t nb_attributes )
     {
@@ -248,7 +249,7 @@ namespace
     }
 
     void read_property_keyword_with_one_index_t( std::ifstream& file,
-        absl::string_view keyword,
+        std::string_view keyword,
         std::vector< geode::index_t >& keyword_data,
         geode::index_t nb_attributes )
     {
@@ -263,7 +264,7 @@ namespace
     }
 
     template < typename Container >
-    void add_vertices_container_attribute( absl::string_view attribute_name,
+    void add_vertices_container_attribute( std::string_view attribute_name,
         absl::Span< const double > attribute_values,
         geode::AttributeManager& attribute_manager,
         geode::index_t nb_vertices,
@@ -288,7 +289,7 @@ namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         HeaderData read_header( std::ifstream& file )
         {
@@ -304,7 +305,7 @@ namespace geode
                 const auto tokens = geode::string_split( line );
                 if( tokens.front() == "name:" )
                 {
-                    absl::Span< const absl::string_view > remaining_tokens(
+                    absl::Span< const std::string_view > remaining_tokens(
                         &tokens[1], tokens.size() - 1 );
                     header.name = read_name( remaining_tokens );
                 }
@@ -376,7 +377,7 @@ namespace geode
         }
 
         PropHeaderData read_prop_header(
-            std::ifstream& file, absl::string_view prefix )
+            std::ifstream& file, std::string_view prefix )
         {
             PropHeaderData header;
             const auto opt_line = geode::next_keyword_if_it_exists(
@@ -426,7 +427,7 @@ namespace geode
 
         void read_properties( const PropHeaderData& properties_header,
             std::vector< std::vector< double > >& attribute_values,
-            absl::Span< const absl::string_view > tokens,
+            absl::Span< const std::string_view > tokens,
             geode::index_t line_properties_position )
         {
             for( const auto attr_id :
@@ -570,35 +571,35 @@ namespace geode
             file << "}" << EOL;
         }
 
-        std::string read_name( absl::Span< const absl::string_view > tokens )
+        std::string read_name( absl::Span< const std::string_view > tokens )
         {
             return absl::StrReplaceAll(
                 absl::StrJoin( tokens.begin(), tokens.end(), " " ),
                 { { "\"", "" } } );
         }
 
-        absl::optional< TSurfData > read_tsurf( std::ifstream& file )
+        std::optional< TSurfData > read_tsurf( std::ifstream& file )
         {
             if( !goto_keyword_if_it_exists( file, "GOCAD TSurf" ) )
             {
-                return absl::nullopt;
+                return std::nullopt;
             }
             TSurfData tsurf;
             tsurf.header = read_header( file );
             tsurf.crs = read_CRS( file );
             tsurf.vertices_properties_header =
-                geode::detail::read_prop_header( file, "" );
+                geode::internal::read_prop_header( file, "" );
             tsurf.vertices_attribute_values.resize(
                 tsurf.vertices_properties_header.names.size() );
             read_tfaces( file, tsurf );
             return tsurf;
         }
 
-        absl::optional< ECurveData > read_ecurve( std::ifstream& file )
+        std::optional< ECurveData > read_ecurve( std::ifstream& file )
         {
             if( !goto_keyword_if_it_exists( file, "GOCAD PLine" ) )
             {
-                return absl::nullopt;
+                return std::nullopt;
             }
             ECurveData ecurve;
             ecurve.header = read_header( file );
@@ -606,5 +607,5 @@ namespace geode
             read_ilines( file, ecurve );
             return ecurve;
         }
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

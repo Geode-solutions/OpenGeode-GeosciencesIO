@@ -21,26 +21,26 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/private/wl_input.h>
+#include <geode/geosciences_io/mesh/internal/wl_input.hpp>
 
 #include <fstream>
 
-#include <geode/basic/file.h>
-#include <geode/basic/string.h>
+#include <geode/basic/file.hpp>
+#include <geode/basic/string.hpp>
 
-#include <geode/geometry/point.h>
+#include <geode/geometry/point.hpp>
 
-#include <geode/mesh/builder/edged_curve_builder.h>
-#include <geode/mesh/core/edged_curve.h>
+#include <geode/mesh/builder/edged_curve_builder.hpp>
+#include <geode/mesh/core/edged_curve.hpp>
 
-#include <geode/geosciences_io/mesh/private/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
 
 namespace
 {
     class WLInputImpl
     {
     public:
-        WLInputImpl( absl::string_view filename, geode::EdgedCurve3D& curve )
+        WLInputImpl( std::string_view filename, geode::EdgedCurve3D& curve )
             : file_{ geode::to_string( filename ) },
               curve_( curve ),
               builder_( geode::EdgedCurveBuilder3D::create( curve ) )
@@ -57,9 +57,9 @@ namespace
                     "[WLInput] Cannot find Well in the file"
                 };
             }
-            const auto header = geode::detail::read_header( file_ );
+            const auto header = geode::internal::read_header( file_ );
             builder_->set_name( header.name );
-            crs_ = geode::detail::read_CRS( file_ );
+            crs_ = geode::internal::read_CRS( file_ );
             const auto ref = read_ref();
             builder_->create_point( ref );
             read_paths( ref );
@@ -75,12 +75,12 @@ namespace
         }
 
         geode::Point3D read_coord(
-            absl::string_view line, geode::index_t offset ) const
+            std::string_view line, geode::index_t offset ) const
         {
             const auto tokens = geode::string_split( line );
             OPENGEODE_ASSERT( tokens.size() == 3 + offset,
                 "[WLInput::read_coord] Wrong number of tokens" );
-            return { { geode::string_to_double( tokens[offset] ),
+            return geode::Point3D{ { geode::string_to_double( tokens[offset] ),
                 geode::string_to_double( tokens[1 + offset] ),
                 geode::string_to_double( tokens[2 + offset] ) } };
         }
@@ -108,13 +108,13 @@ namespace
         std::ifstream file_;
         geode::EdgedCurve3D& curve_;
         std::unique_ptr< geode::EdgedCurveBuilder3D > builder_;
-        geode::detail::CRSData crs_;
+        geode::internal::CRSData crs_;
     };
 } // namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         std::unique_ptr< EdgedCurve3D > WLInput::read( const MeshImpl& impl )
         {
@@ -123,5 +123,5 @@ namespace geode
             reader.read_file();
             return well;
         }
-    } // namespace detail
+    } // namespace internal
 } // namespace geode

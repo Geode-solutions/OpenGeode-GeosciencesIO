@@ -21,42 +21,43 @@
  *
  */
 
-#include <geode/basic/logger.h>
-#include <geode/tests_config.h>
+#include <geode/basic/logger.hpp>
+#include <geode/tests_config.hpp>
 
 #include <absl/strings/str_cat.h>
 
-#include <geode/geosciences_io/model/helpers/brep_geos_export.h>
+#include <geode/geosciences_io/model/helpers/brep_geos_export.hpp>
 
-#include <geode/geometry/point.h>
-#include <geode/io/mesh/common.h>
-#include <geode/io/model/common.h>
-#include <geode/mesh/builder/point_set_builder.h>
-#include <geode/mesh/core/point_set.h>
+#include <geode/geometry/point.hpp>
+#include <geode/io/mesh/common.hpp>
+#include <geode/io/model/common.hpp>
+#include <geode/mesh/builder/point_set_builder.hpp>
+#include <geode/mesh/core/point_set.hpp>
 
-#include <geode/mesh/core/geode/geode_point_set.h>
+#include <geode/mesh/core/geode/geode_point_set.hpp>
 
-#include <geode/model/representation/core/brep.h>
-#include <geode/model/representation/io/brep_input.h>
+#include <geode/model/representation/core/brep.hpp>
+#include <geode/model/representation/io/brep_input.hpp>
+
 void test_picasso()
 {
     // Load structural model
     auto model =
-        geode::load_brep( absl::StrCat( geode::data_path, "picasso.og_brep" ) );
+        geode::load_brep( absl::StrCat( geode::DATA_PATH, "picasso.og_brep" ) );
     geode::BRepGeosExporter exporter( model, "picasso" );
     exporter.run();
 }
 void toy_model()
 {
     auto model = geode::load_brep( absl::StrCat(
-        geode::data_path, "adaptive_brep_perm_and_poro.og_brep" ) );
+        geode::DATA_PATH, "adaptive_brep_perm_and_poro.og_brep" ) );
     geode::BRepGeosExporter exporter( model, "toy_model" );
     exporter.add_cell_property_1d( "permeability" );
     exporter.add_cell_property_1d( "porosity" );
     auto point_set = geode::PointSet3D::create(
         geode::OpenGeodePointSet3D::impl_name_static() );
     auto builder = geode::PointSetBuilder3D::create( *point_set );
-    builder->create_point( { { 20., 20., 10. } } );
+    builder->create_point( geode::Point3D{ { 20., 20., 10. } } );
     exporter.add_well_perforations( *point_set );
     exporter.run();
 }

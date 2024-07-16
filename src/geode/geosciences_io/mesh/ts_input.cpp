@@ -21,16 +21,16 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/private/ts_input.h>
+#include <geode/geosciences_io/mesh/internal/ts_input.hpp>
 
 #include <fstream>
 
-#include <geode/geometry/point.h>
+#include <geode/geometry/point.hpp>
 
-#include <geode/mesh/builder/triangulated_surface_builder.h>
-#include <geode/mesh/core/triangulated_surface.h>
+#include <geode/mesh/builder/triangulated_surface_builder.hpp>
+#include <geode/mesh/core/triangulated_surface.hpp>
 
-#include <geode/geosciences_io/mesh/private/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
 
 namespace
 {
@@ -38,7 +38,7 @@ namespace
     {
     public:
         TSInputImpl(
-            absl::string_view filename, geode::TriangulatedSurface3D& surface )
+            std::string_view filename, geode::TriangulatedSurface3D& surface )
             : file_{ geode::to_string( filename ) },
               surface_( surface ),
               builder_(
@@ -50,7 +50,7 @@ namespace
 
         void read_file()
         {
-            while( const auto tsurf = geode::detail::read_tsurf( file_ ) )
+            while( const auto tsurf = geode::internal::read_tsurf( file_ ) )
             {
                 build_surface( tsurf.value() );
             }
@@ -58,7 +58,7 @@ namespace
         }
 
     private:
-        void build_surface( const geode::detail::TSurfData& tsurf )
+        void build_surface( const geode::internal::TSurfData& tsurf )
         {
             const auto offset = surface_.nb_vertices();
             builder_->set_name( tsurf.header.name );
@@ -87,7 +87,8 @@ namespace
             std::vector< geode::index_t > inverse_vertex_mapping(
                 tsurf.points.size() );
             absl::c_iota( inverse_vertex_mapping, 0 );
-            geode::detail::create_attributes( tsurf.vertices_properties_header,
+            geode::internal::create_attributes(
+                tsurf.vertices_properties_header,
                 tsurf.vertices_attribute_values,
                 surface_.vertex_attribute_manager(), tsurf.points.size(),
                 inverse_vertex_mapping );
@@ -102,7 +103,7 @@ namespace
 
 namespace geode
 {
-    namespace detail
+    namespace internal
     {
         std::unique_ptr< TriangulatedSurface3D > TSInput::read(
             const MeshImpl& impl )
@@ -112,5 +113,5 @@ namespace geode
             reader.read_file();
             return surface;
         }
-    } // namespace detail
+    } // namespace internal
 } // namespace geode
