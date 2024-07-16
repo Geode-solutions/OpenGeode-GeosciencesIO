@@ -26,35 +26,35 @@
 #include <string>
 #include <vector>
 
-#include <geode/geosciences_io/mesh/common.h>
-#include <geode/mesh/io/edged_curve_output.h>
+#include <geode/geosciences_io/mesh/common.hpp>
+#include <geode/mesh/io/triangulated_surface_output.hpp>
 
 namespace geode
 {
-    FORWARD_DECLARATION_DIMENSION_CLASS( EdgedCurve );
-    ALIAS_3D( EdgedCurve );
+    FORWARD_DECLARATION_DIMENSION_CLASS( TriangulatedSurface );
+    ALIAS_3D( TriangulatedSurface );
 } // namespace geode
 
 namespace geode
 {
     namespace internal
     {
-        class PLOutput final : public EdgedCurveOutput< 3 >
+        class TSOutput final : public TriangulatedSurfaceOutput< 3 >
         {
         public:
-            explicit PLOutput( std::string_view filename )
-                : EdgedCurveOutput< 3 >( filename )
+            explicit TSOutput( std::string_view filename )
+                : TriangulatedSurfaceOutput< 3 >( filename )
             {
             }
 
             static std::string_view extension()
             {
-                static constexpr auto EXT = "pl";
+                static constexpr auto EXT = "ts";
                 return EXT;
             }
 
             std::vector< std::string > write(
-                const EdgedCurve3D& edged_curve ) const final;
+                const TriangulatedSurface3D& surface ) const final;
         };
     } // namespace internal
 } // namespace geode

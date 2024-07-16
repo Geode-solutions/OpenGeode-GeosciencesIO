@@ -21,25 +21,25 @@
  *
  */
 
-#include <geode/tests_config.h>
+#include <geode/tests_config.hpp>
 
-#include <geode/basic/assert.h>
-#include <geode/basic/attribute_manager.h>
-#include <geode/basic/filename.h>
-#include <geode/basic/logger.h>
+#include <geode/basic/assert.hpp>
+#include <geode/basic/attribute_manager.hpp>
+#include <geode/basic/filename.hpp>
+#include <geode/basic/logger.hpp>
 
-#include <geode/mesh/core/solid_mesh.h>
-#include <geode/mesh/core/tetrahedral_solid.h>
-#include <geode/mesh/io/tetrahedral_solid_input.h>
-#include <geode/mesh/io/tetrahedral_solid_output.h>
+#include <geode/mesh/core/solid_mesh.hpp>
+#include <geode/mesh/core/tetrahedral_solid.hpp>
+#include <geode/mesh/io/tetrahedral_solid_input.hpp>
+#include <geode/mesh/io/tetrahedral_solid_output.hpp>
 
-#include <geode/model/mixin/core/block.h>
-#include <geode/model/mixin/core/model_boundary.h>
-#include <geode/model/mixin/core/surface.h>
+#include <geode/model/mixin/core/block.hpp>
+#include <geode/model/mixin/core/model_boundary.hpp>
+#include <geode/model/mixin/core/surface.hpp>
 
-#include <geode/geosciences/explicit/representation/core/structural_model.h>
-#include <geode/geosciences/explicit/representation/io/structural_model_output.h>
-#include <geode/geosciences_io/model/internal/lso_input.h>
+#include <geode/geosciences/explicit/representation/core/structural_model.hpp>
+#include <geode/geosciences/explicit/representation/io/structural_model_output.hpp>
+#include <geode/geosciences_io/model/internal/lso_input.hpp>
 
 constexpr auto nb_mandatory_attributes = 4;
 

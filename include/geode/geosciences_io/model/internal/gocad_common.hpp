@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2024 Geode-solutions
+ * Copyright (c) 2019 Geode-solutions
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,32 +23,26 @@
 
 #pragma once
 
-#include <geode/model/representation/io/section_input.h>
+#include <absl/container/flat_hash_map.h>
 
-#include <geode/geosciences_io/model/common.h>
+#include <geode/basic/uuid.hpp>
+
+namespace geode
+{
+    class BRep;
+} // namespace geode
 
 namespace geode
 {
     namespace internal
     {
-        class SHPInput final : public SectionInput
+        struct RegionSurfaceSide
         {
-        public:
-            explicit SHPInput( std::string_view filename )
-                : SectionInput( filename )
-            {
-            }
-
-            static std::vector< std::string > extensions()
-            {
-                static const std::vector< std::string > extensions{ "shp",
-                    "shz" };
-                return extensions;
-            }
-
-            Section read() final;
-
-            SectionInput::MissingFiles check_missing_files() const final;
+            absl::flat_hash_map< uuid, bool > universe_surface_sides;
+            absl::flat_hash_map< std::pair< uuid, uuid >, bool >
+                regions_surface_sides;
         };
+        RegionSurfaceSide determine_surface_to_regions_sides(
+            const BRep& brep );
     } // namespace internal
 } // namespace geode

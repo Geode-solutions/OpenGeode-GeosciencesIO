@@ -21,19 +21,19 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/internal/wl_input.h>
+#include <geode/geosciences_io/mesh/internal/wl_input.hpp>
 
 #include <fstream>
 
-#include <geode/basic/file.h>
-#include <geode/basic/string.h>
+#include <geode/basic/file.hpp>
+#include <geode/basic/string.hpp>
 
-#include <geode/geometry/point.h>
+#include <geode/geometry/point.hpp>
 
-#include <geode/mesh/builder/edged_curve_builder.h>
-#include <geode/mesh/core/edged_curve.h>
+#include <geode/mesh/builder/edged_curve_builder.hpp>
+#include <geode/mesh/core/edged_curve.hpp>
 
-#include <geode/geosciences_io/mesh/internal/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
 
 namespace
 {

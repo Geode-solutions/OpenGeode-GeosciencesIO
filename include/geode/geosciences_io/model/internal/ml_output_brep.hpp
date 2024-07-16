@@ -23,12 +23,33 @@
 
 #pragma once
 
-#include <geode/basic/common.h>
-#include <geode/basic/library.h>
+#include <string>
+#include <vector>
 
-#include <geode/geosciences_io/mesh/opengeode_geosciencesio_mesh_export.h>
+#include <geode/geosciences_io/model/common.hpp>
+#include <geode/model/representation/io/brep_output.hpp>
 
 namespace geode
 {
-    OPENGEODE_LIBRARY( opengeode_geosciencesio_mesh_api, GeosciencesIOMesh );
+    namespace internal
+    {
+        class MLOutputBRep final : public BRepOutput
+        {
+        public:
+            explicit MLOutputBRep( std::string_view filename )
+                : BRepOutput( filename )
+            {
+            }
+
+            static std::string_view extension()
+            {
+                static constexpr auto EXT = "ml";
+                return EXT;
+            }
+
+            std::vector< std::string > write( const BRep& brep ) const final;
+
+            bool is_saveable( const BRep& brep ) const final;
+        };
+    } // namespace internal
 } // namespace geode

@@ -25,11 +25,11 @@
 
 #include <optional>
 
-#include <geode/basic/attribute_manager.h>
+#include <geode/basic/attribute_manager.hpp>
 
-#include <geode/geometry/point.h>
+#include <geode/geometry/point.hpp>
 
-#include <geode/geosciences_io/mesh/common.h>
+#include <geode/geosciences_io/mesh/common.hpp>
 
 namespace geode
 {

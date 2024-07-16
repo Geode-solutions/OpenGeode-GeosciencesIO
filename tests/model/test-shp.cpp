@@ -21,15 +21,15 @@
  *
  */
 
-#include <geode/tests_config.h>
+#include <geode/tests_config.hpp>
 
-#include <geode/basic/assert.h>
-#include <geode/basic/logger.h>
+#include <geode/basic/assert.hpp>
+#include <geode/basic/logger.hpp>
 
-#include <geode/model/representation/core/section.h>
-#include <geode/model/representation/io/section_input.h>
+#include <geode/model/representation/core/section.hpp>
+#include <geode/model/representation/io/section_input.hpp>
 
-#include <geode/geosciences_io/model/common.h>
+#include <geode/geosciences_io/model/common.hpp>
 
 int main()
 {

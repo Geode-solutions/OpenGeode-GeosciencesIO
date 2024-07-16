@@ -31,34 +31,34 @@
 
 #include <pugixml.hpp>
 
-#include <geode/basic/attribute.h>
-#include <geode/basic/attribute_manager.h>
-#include <geode/basic/filename.h>
-#include <geode/basic/logger.h>
+#include <geode/basic/attribute.hpp>
+#include <geode/basic/attribute_manager.hpp>
+#include <geode/basic/filename.hpp>
+#include <geode/basic/logger.hpp>
 
-#include <geode/geometry/aabb.h>
-#include <geode/geometry/distance.h>
+#include <geode/geometry/aabb.hpp>
+#include <geode/geometry/distance.hpp>
 
-#include <geode/geosciences_io/model/common.h>
+#include <geode/geosciences_io/model/common.hpp>
 
-#include <geode/mesh/core/hybrid_solid.h>
-#include <geode/mesh/core/point_set.h>
-#include <geode/mesh/core/polyhedral_solid.h>
-#include <geode/mesh/core/solid_mesh.h>
-#include <geode/mesh/core/surface_mesh.h>
-#include <geode/mesh/core/tetrahedral_solid.h>
-#include <geode/mesh/helpers/aabb_solid_helpers.h>
+#include <geode/mesh/core/hybrid_solid.hpp>
+#include <geode/mesh/core/point_set.hpp>
+#include <geode/mesh/core/polyhedral_solid.hpp>
+#include <geode/mesh/core/solid_mesh.hpp>
+#include <geode/mesh/core/surface_mesh.hpp>
+#include <geode/mesh/core/tetrahedral_solid.hpp>
+#include <geode/mesh/helpers/aabb_solid_helpers.hpp>
 
-#include <geode/mesh/io/hybrid_solid_output.h>
-#include <geode/mesh/io/point_set_output.h>
-#include <geode/mesh/io/polyhedral_solid_output.h>
-#include <geode/mesh/io/tetrahedral_solid_output.h>
+#include <geode/mesh/io/hybrid_solid_output.hpp>
+#include <geode/mesh/io/point_set_output.hpp>
+#include <geode/mesh/io/polyhedral_solid_output.hpp>
+#include <geode/mesh/io/tetrahedral_solid_output.hpp>
 
-#include <geode/model/mixin/core/block.h>
+#include <geode/model/mixin/core/block.hpp>
 
-#include <geode/geosciences/explicit/representation/core/structural_model.h>
-#include <geode/geosciences_io/model/internal/geos_export.h>
-#include <geode/model/representation/core/brep.h>
+#include <geode/geosciences/explicit/representation/core/structural_model.hpp>
+#include <geode/geosciences_io/model/internal/geos_export.hpp>
+#include <geode/model/representation/core/brep.hpp>
 
 namespace geode
 {

@@ -21,23 +21,23 @@
  *
  */
 
-#include <geode/basic/logger.h>
-#include <geode/tests_config.h>
+#include <geode/basic/logger.hpp>
+#include <geode/tests_config.hpp>
 
 #include <absl/strings/str_cat.h>
 
-#include <geode/geosciences_io/model/helpers/brep_geos_export.h>
+#include <geode/geosciences_io/model/helpers/brep_geos_export.hpp>
 
-#include <geode/geometry/point.h>
-#include <geode/io/mesh/common.h>
-#include <geode/io/model/common.h>
-#include <geode/mesh/builder/point_set_builder.h>
-#include <geode/mesh/core/point_set.h>
+#include <geode/geometry/point.hpp>
+#include <geode/io/mesh/common.hpp>
+#include <geode/io/model/common.hpp>
+#include <geode/mesh/builder/point_set_builder.hpp>
+#include <geode/mesh/core/point_set.hpp>
 
-#include <geode/mesh/core/geode/geode_point_set.h>
+#include <geode/mesh/core/geode/geode_point_set.hpp>
 
-#include <geode/model/representation/core/brep.h>
-#include <geode/model/representation/io/brep_input.h>
+#include <geode/model/representation/core/brep.hpp>
+#include <geode/model/representation/io/brep_input.hpp>
 
 void test_picasso()
 {

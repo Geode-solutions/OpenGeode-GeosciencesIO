@@ -23,8 +23,8 @@
 
 #pragma once
 
-#include <geode/geosciences/explicit/representation/io/structural_model_input.h>
-#include <geode/geosciences_io/model/common.h>
+#include <geode/geosciences/explicit/representation/io/structural_model_input.hpp>
+#include <geode/geosciences_io/model/common.hpp>
 
 namespace geode
 {

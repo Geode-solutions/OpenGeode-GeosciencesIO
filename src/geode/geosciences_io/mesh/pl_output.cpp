@@ -21,20 +21,20 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/internal/pl_output.h>
+#include <geode/geosciences_io/mesh/internal/pl_output.hpp>
 
 #include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include <geode/basic/attribute_manager.h>
+#include <geode/basic/attribute_manager.hpp>
 
-#include <geode/basic/filename.h>
-#include <geode/mesh/core/edged_curve.h>
-#include <geode/mesh/core/graph.h>
+#include <geode/basic/filename.hpp>
+#include <geode/mesh/core/edged_curve.hpp>
+#include <geode/mesh/core/graph.hpp>
 
-#include <geode/geosciences_io/mesh/internal/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
 
 namespace
 {

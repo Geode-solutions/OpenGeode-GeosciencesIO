@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences_io/model/internal/ml_input.h>
+#include <geode/geosciences_io/model/internal/ml_input.hpp>
 
 #include <algorithm>
 #include <fstream>
@@ -29,31 +29,31 @@
 
 #include <absl/container/flat_hash_set.h>
 
-#include <geode/basic/string.h>
+#include <geode/basic/string.hpp>
 
-#include <geode/geometry/bounding_box.h>
-#include <geode/geometry/distance.h>
-#include <geode/geometry/nn_search.h>
-#include <geode/geometry/point.h>
-#include <geode/geometry/vector.h>
+#include <geode/geometry/bounding_box.hpp>
+#include <geode/geometry/distance.hpp>
+#include <geode/geometry/nn_search.hpp>
+#include <geode/geometry/point.hpp>
+#include <geode/geometry/vector.hpp>
 
-#include <geode/mesh/builder/edged_curve_builder.h>
-#include <geode/mesh/builder/point_set_builder.h>
-#include <geode/mesh/builder/triangulated_surface_builder.h>
-#include <geode/mesh/core/edged_curve.h>
-#include <geode/mesh/core/geode/geode_triangulated_surface.h>
+#include <geode/mesh/builder/edged_curve_builder.hpp>
+#include <geode/mesh/builder/point_set_builder.hpp>
+#include <geode/mesh/builder/triangulated_surface_builder.hpp>
+#include <geode/mesh/core/edged_curve.hpp>
+#include <geode/mesh/core/geode/geode_triangulated_surface.hpp>
 
-#include <geode/model/helpers/detail/split_along_surface_mesh_borders.h>
-#include <geode/model/mixin/core/corner.h>
-#include <geode/model/mixin/core/line.h>
-#include <geode/model/mixin/core/surface.h>
-#include <geode/model/mixin/core/vertex_identifier.h>
+#include <geode/model/helpers/detail/split_along_surface_mesh_borders.hpp>
+#include <geode/model/mixin/core/corner.hpp>
+#include <geode/model/mixin/core/line.hpp>
+#include <geode/model/mixin/core/surface.hpp>
+#include <geode/model/mixin/core/vertex_identifier.hpp>
 
-#include <geode/basic/file.h>
-#include <geode/geosciences/explicit/representation/builder/structural_model_builder.h>
-#include <geode/geosciences/explicit/representation/core/structural_model.h>
-#include <geode/geosciences_io/mesh/internal/gocad_common.h>
-#include <geode/geosciences_io/model/internal/gocad_common.h>
+#include <geode/basic/file.hpp>
+#include <geode/geosciences/explicit/representation/builder/structural_model_builder.hpp>
+#include <geode/geosciences/explicit/representation/core/structural_model.hpp>
+#include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
+#include <geode/geosciences_io/model/internal/gocad_common.hpp>
 
 namespace
 {

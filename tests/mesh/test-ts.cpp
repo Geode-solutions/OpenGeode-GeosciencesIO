@@ -21,19 +21,19 @@
  *
  */
 
-#include <geode/tests_config.h>
+#include <geode/tests_config.hpp>
 
-#include <geode/basic/assert.h>
-#include <geode/basic/logger.h>
+#include <geode/basic/assert.hpp>
+#include <geode/basic/logger.hpp>
 
-#include <geode/mesh/core/geode/geode_triangulated_surface.h>
-#include <geode/mesh/core/triangulated_surface.h>
-#include <geode/mesh/io/triangulated_surface_input.h>
-#include <geode/mesh/io/triangulated_surface_output.h>
+#include <geode/mesh/core/geode/geode_triangulated_surface.hpp>
+#include <geode/mesh/core/triangulated_surface.hpp>
+#include <geode/mesh/io/triangulated_surface_input.hpp>
+#include <geode/mesh/io/triangulated_surface_output.hpp>
 
-#include <geode/model/mixin/core/surface.h>
+#include <geode/model/mixin/core/surface.hpp>
 
-#include <geode/geosciences_io/mesh/internal/ts_input.h>
+#include <geode/geosciences_io/mesh/internal/ts_input.hpp>
 
 void check_surface( const geode::SurfaceMesh3D& surface,
     geode::index_t nb_vertices,

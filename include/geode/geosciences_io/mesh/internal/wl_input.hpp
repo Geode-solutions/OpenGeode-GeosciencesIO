@@ -23,40 +23,35 @@
 
 #pragma once
 
-#include <geode/geosciences_io/model/common.h>
+#include <geode/mesh/io/edged_curve_input.hpp>
 
-#include <string_view>
-
-#include <geode/basic/pimpl.h>
+#include <geode/geosciences_io/mesh/common.hpp>
 
 namespace geode
 {
-    FORWARD_DECLARATION_DIMENSION_CLASS( PointSet );
-    ALIAS_3D( PointSet );
-    class StructuralModel;
+    FORWARD_DECLARATION_DIMENSION_CLASS( EdgedCurve );
+    ALIAS_3D( EdgedCurve );
 } // namespace geode
 
 namespace geode
 {
-    class opengeode_geosciencesio_model_api StructuralModelGeosExporter
+    namespace internal
     {
-        OPENGEODE_DISABLE_COPY_AND_MOVE( StructuralModelGeosExporter );
+        class WLInput : public EdgedCurveInput< 3 >
+        {
+        public:
+            explicit WLInput( std::string_view filename )
+                : EdgedCurveInput< 3 >( filename )
+            {
+            }
 
-    public:
-        StructuralModelGeosExporter() = delete;
-        StructuralModelGeosExporter(
-            const StructuralModel& model, std::string_view files_directory );
+            static std::string_view extension()
+            {
+                static constexpr auto EXT = "wl";
+                return EXT;
+            }
 
-        ~StructuralModelGeosExporter();
-
-        void add_well_perforations( const PointSet3D& well_perforations );
-        void add_cell_property_1d( std::string_view name );
-        void add_cell_property_2d( std::string_view name );
-        void add_cell_property_3d( std::string_view name );
-
-        void run();
-
-    private:
-        IMPLEMENTATION_MEMBER( impl_ );
-    };
+            std::unique_ptr< EdgedCurve3D > read( const MeshImpl& impl ) final;
+        };
+    } // namespace internal
 } // namespace geode

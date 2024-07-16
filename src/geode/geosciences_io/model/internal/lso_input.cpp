@@ -21,40 +21,40 @@
  *
  */
 
-#include <geode/geosciences_io/model/internal/lso_input.h>
+#include <geode/geosciences_io/model/internal/lso_input.hpp>
 
 #include <fstream>
 
 #include <absl/container/flat_hash_set.h>
 #include <absl/strings/match.h>
 
-#include <geode/basic/file.h>
-#include <geode/basic/string.h>
+#include <geode/basic/file.hpp>
+#include <geode/basic/string.hpp>
 
-#include <geode/geometry/point.h>
+#include <geode/geometry/point.hpp>
 
-#include <geode/mesh/builder/edged_curve_builder.h>
-#include <geode/mesh/builder/point_set_builder.h>
-#include <geode/mesh/builder/tetrahedral_solid_builder.h>
-#include <geode/mesh/builder/triangulated_surface_builder.h>
-#include <geode/mesh/core/edged_curve.h>
-#include <geode/mesh/core/mesh_factory.h>
-#include <geode/mesh/core/solid_facets.h>
-#include <geode/mesh/core/tetrahedral_solid.h>
-#include <geode/mesh/core/triangulated_surface.h>
+#include <geode/mesh/builder/edged_curve_builder.hpp>
+#include <geode/mesh/builder/point_set_builder.hpp>
+#include <geode/mesh/builder/tetrahedral_solid_builder.hpp>
+#include <geode/mesh/builder/triangulated_surface_builder.hpp>
+#include <geode/mesh/core/edged_curve.hpp>
+#include <geode/mesh/core/mesh_factory.hpp>
+#include <geode/mesh/core/solid_facets.hpp>
+#include <geode/mesh/core/tetrahedral_solid.hpp>
+#include <geode/mesh/core/triangulated_surface.hpp>
 
-#include <geode/model/helpers/component_mesh_edges.h>
-#include <geode/model/helpers/detail/build_model_boundaries.h>
-#include <geode/model/helpers/detail/split_along_surface_mesh_borders.h>
-#include <geode/model/mixin/core/block.h>
-#include <geode/model/mixin/core/corner.h>
-#include <geode/model/mixin/core/line.h>
-#include <geode/model/mixin/core/surface.h>
+#include <geode/model/helpers/component_mesh_edges.hpp>
+#include <geode/model/helpers/detail/build_model_boundaries.hpp>
+#include <geode/model/helpers/detail/split_along_surface_mesh_borders.hpp>
+#include <geode/model/mixin/core/block.hpp>
+#include <geode/model/mixin/core/corner.hpp>
+#include <geode/model/mixin/core/line.hpp>
+#include <geode/model/mixin/core/surface.hpp>
 
-#include <geode/geosciences/explicit/representation/builder/structural_model_builder.h>
-#include <geode/geosciences/explicit/representation/core/structural_model.h>
-#include <geode/geosciences_io/mesh/internal/gocad_common.h>
-#include <geode/geosciences_io/model/internal/gocad_common.h>
+#include <geode/geosciences/explicit/representation/builder/structural_model_builder.hpp>
+#include <geode/geosciences/explicit/representation/core/structural_model.hpp>
+#include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
+#include <geode/geosciences_io/model/internal/gocad_common.hpp>
 
 namespace
 {

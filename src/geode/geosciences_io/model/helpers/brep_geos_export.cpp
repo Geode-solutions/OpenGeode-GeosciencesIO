@@ -24,13 +24,13 @@
 
 #include <absl/container/flat_hash_map.h>
 
-#include <geode/geosciences_io/model/helpers/brep_geos_export.h>
+#include <geode/geosciences_io/model/helpers/brep_geos_export.hpp>
 
-#include <geode/geosciences_io/model/internal/geos_export.h>
-#include <geode/model/mixin/core/block.h>
-#include <geode/model/representation/core/brep.h>
+#include <geode/geosciences_io/model/internal/geos_export.hpp>
+#include <geode/model/mixin/core/block.hpp>
+#include <geode/model/representation/core/brep.hpp>
 
-#include <geode/basic/pimpl_impl.h>
+#include <geode/basic/pimpl_impl.hpp>
 
 namespace geode
 {

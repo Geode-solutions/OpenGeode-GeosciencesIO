@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 Geode-solutions
+ * Copyright (c) 2019 - 2024 Geode-solutions
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,26 +23,40 @@
 
 #pragma once
 
-#include <absl/container/flat_hash_map.h>
+#include <geode/geosciences_io/model/common.hpp>
 
-#include <geode/basic/uuid.h>
+#include <string_view>
+
+#include <geode/basic/pimpl.hpp>
 
 namespace geode
 {
-    class BRep;
+    FORWARD_DECLARATION_DIMENSION_CLASS( PointSet );
+    ALIAS_3D( PointSet );
+    class StructuralModel;
 } // namespace geode
 
 namespace geode
 {
-    namespace internal
+    class opengeode_geosciencesio_model_api StructuralModelGeosExporter
     {
-        struct RegionSurfaceSide
-        {
-            absl::flat_hash_map< uuid, bool > universe_surface_sides;
-            absl::flat_hash_map< std::pair< uuid, uuid >, bool >
-                regions_surface_sides;
-        };
-        RegionSurfaceSide determine_surface_to_regions_sides(
-            const BRep& brep );
-    } // namespace internal
+        OPENGEODE_DISABLE_COPY_AND_MOVE( StructuralModelGeosExporter );
+
+    public:
+        StructuralModelGeosExporter() = delete;
+        StructuralModelGeosExporter(
+            const StructuralModel& model, std::string_view files_directory );
+
+        ~StructuralModelGeosExporter();
+
+        void add_well_perforations( const PointSet3D& well_perforations );
+        void add_cell_property_1d( std::string_view name );
+        void add_cell_property_2d( std::string_view name );
+        void add_cell_property_3d( std::string_view name );
+
+        void run();
+
+    private:
+        IMPLEMENTATION_MEMBER( impl_ );
+    };
 } // namespace geode

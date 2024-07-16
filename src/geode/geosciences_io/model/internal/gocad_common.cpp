@@ -21,21 +21,21 @@
  *
  */
 
-#include <geode/geosciences_io/model/internal/gocad_common.h>
+#include <geode/geosciences_io/model/internal/gocad_common.hpp>
 
 #include <queue>
 
-#include <geode/geometry/basic_objects/tetrahedron.h>
-#include <geode/geometry/bounding_box.h>
-#include <geode/geometry/mensuration.h>
+#include <geode/geometry/basic_objects/tetrahedron.hpp>
+#include <geode/geometry/bounding_box.hpp>
+#include <geode/geometry/mensuration.hpp>
 
-#include <geode/mesh/core/edged_curve.h>
-#include <geode/mesh/core/surface_mesh.h>
+#include <geode/mesh/core/edged_curve.hpp>
+#include <geode/mesh/core/surface_mesh.hpp>
 
-#include <geode/model/mixin/core/block.h>
-#include <geode/model/mixin/core/line.h>
-#include <geode/model/mixin/core/surface.h>
-#include <geode/model/representation/core/brep.h>
+#include <geode/model/mixin/core/block.hpp>
+#include <geode/model/mixin/core/line.hpp>
+#include <geode/model/mixin/core/surface.hpp>
+#include <geode/model/representation/core/brep.hpp>
 
 namespace
 {

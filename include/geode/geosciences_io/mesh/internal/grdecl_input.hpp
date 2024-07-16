@@ -22,9 +22,9 @@
  */
 
 #pragma once
-#include <geode/mesh/io/hybrid_solid_input.h>
+#include <geode/mesh/io/hybrid_solid_input.hpp>
 
-#include <geode/geosciences_io/mesh/common.h>
+#include <geode/geosciences_io/mesh/common.hpp>
 
 namespace geode
 {

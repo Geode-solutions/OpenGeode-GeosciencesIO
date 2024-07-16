@@ -21,31 +21,31 @@
  *
  */
 
-#include <geode/geosciences_io/model/internal/lso_output.h>
+#include <geode/geosciences_io/model/internal/lso_output.hpp>
 
 #include <fstream>
 #include <string>
 #include <vector>
 
-#include <geode/basic/attribute_manager.h>
+#include <geode/basic/attribute_manager.hpp>
 
-#include <geode/geometry/point.h>
+#include <geode/geometry/point.hpp>
 
-#include <geode/mesh/core/edged_curve.h>
-#include <geode/mesh/core/mesh_factory.h>
-#include <geode/mesh/core/tetrahedral_solid.h>
-#include <geode/mesh/core/triangulated_surface.h>
+#include <geode/mesh/core/edged_curve.hpp>
+#include <geode/mesh/core/mesh_factory.hpp>
+#include <geode/mesh/core/tetrahedral_solid.hpp>
+#include <geode/mesh/core/triangulated_surface.hpp>
 
-#include <geode/model/mixin/core/block.h>
-#include <geode/model/mixin/core/corner.h>
-#include <geode/model/mixin/core/line.h>
-#include <geode/model/mixin/core/model_boundary.h>
-#include <geode/model/mixin/core/surface.h>
-#include <geode/model/mixin/core/vertex_identifier.h>
+#include <geode/model/mixin/core/block.hpp>
+#include <geode/model/mixin/core/corner.hpp>
+#include <geode/model/mixin/core/line.hpp>
+#include <geode/model/mixin/core/model_boundary.hpp>
+#include <geode/model/mixin/core/surface.hpp>
+#include <geode/model/mixin/core/vertex_identifier.hpp>
 
-#include <geode/geosciences/explicit/representation/core/structural_model.h>
-#include <geode/geosciences_io/mesh/internal/gocad_common.h>
-#include <geode/geosciences_io/model/internal/gocad_common.h>
+#include <geode/geosciences/explicit/representation/core/structural_model.hpp>
+#include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
+#include <geode/geosciences_io/model/internal/gocad_common.hpp>
 
 namespace
 {
