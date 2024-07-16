@@ -27,7 +27,6 @@
 
 #include <geode/geosciences/explicit/representation/core/structural_model.h>
 #include <geode/geosciences_io/model/helpers/brep_geos_export.h>
-#include <geode/geosciences_io/model/helpers/geos_export.h>
 #include <geode/geosciences_io/model/helpers/structural_model_geos_export.h>
 
 #include <pybind11/pybind11.h>
