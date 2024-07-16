@@ -597,14 +597,17 @@ namespace
         {
             LineData result;
             result.surface = surface.id();
-            result.corner0 =
-                model_
-                    .component_mesh_vertices(
-                        model_.unique_vertex( { surface.component_id(),
-                            line_start.first.vertex } ),
-                        geode::Corner3D::component_type_static() )
-                    .front()
-                    .component_id.id();
+            for( const auto& cmv :
+                model_.component_mesh_vertices( model_.unique_vertex(
+                    { surface.component_id(), line_start.first.vertex } ) ) )
+            {
+                if( cmv.component_id.type()
+                    == geode::Corner3D::component_type_static() )
+                {
+                    result.corner0 = cmv.component_id.id();
+                    break;
+                }
+            }
             const auto& mesh = surface.mesh();
             result.indices.push_back( line_start.first.vertex );
             result.points.emplace_back( mesh.point( result.indices.back() ) );
