@@ -23,38 +23,28 @@
 
 #pragma once
 
-#include <string>
-#include <vector>
-
-#include <geode/geosciences_io/mesh/common.h>
-#include <geode/mesh/io/triangulated_surface_output.h>
-
-namespace geode
-{
-    FORWARD_DECLARATION_DIMENSION_CLASS( TriangulatedSurface );
-    ALIAS_3D( TriangulatedSurface );
-} // namespace geode
+#include <geode/geosciences/explicit/representation/io/structural_model_input.hpp>
+#include <geode/geosciences_io/model/common.hpp>
 
 namespace geode
 {
     namespace internal
     {
-        class TSOutput final : public TriangulatedSurfaceOutput< 3 >
+        class MLInput final : public StructuralModelInput
         {
         public:
-            explicit TSOutput( std::string_view filename )
-                : TriangulatedSurfaceOutput< 3 >( filename )
+            explicit MLInput( std::string_view filename )
+                : StructuralModelInput( filename )
             {
             }
 
             static std::string_view extension()
             {
-                static constexpr auto EXT = "ts";
+                static constexpr auto EXT = "ml";
                 return EXT;
             }
 
-            std::vector< std::string > write(
-                const TriangulatedSurface3D& surface ) const final;
+            StructuralModel read() final;
         };
     } // namespace internal
 } // namespace geode

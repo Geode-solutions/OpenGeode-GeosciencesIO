@@ -23,9 +23,9 @@
 
 #pragma once
 
-#include <geode/geosciences/implicit/representation/io/horizons_stack_input.h>
+#include <geode/geosciences/implicit/representation/io/horizons_stack_input.hpp>
 
-#include <geode/geosciences_io/model/common.h>
+#include <geode/geosciences_io/model/common.hpp>
 
 namespace geode
 {

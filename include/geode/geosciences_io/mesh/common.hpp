@@ -23,38 +23,12 @@
 
 #pragma once
 
-#include <geode/geosciences_io/model/common.h>
+#include <geode/basic/common.hpp>
+#include <geode/basic/library.hpp>
 
-#include <string_view>
-
-#include <geode/basic/pimpl.h>
-
-namespace geode
-{
-    FORWARD_DECLARATION_DIMENSION_CLASS( PointSet );
-    ALIAS_3D( PointSet );
-    class BRep;
-} // namespace geode
+#include <geode/geosciences_io/mesh/opengeode_geosciencesio_mesh_export.hpp>
 
 namespace geode
 {
-    class opengeode_geosciencesio_model_api BRepGeosExporter
-    {
-        OPENGEODE_DISABLE_COPY_AND_MOVE( BRepGeosExporter );
-
-    public:
-        BRepGeosExporter() = delete;
-        BRepGeosExporter( const BRep& brep, std::string_view files_directory );
-        ~BRepGeosExporter();
-
-        void add_well_perforations( const PointSet3D& well_perforations );
-        void add_cell_property_1d( std::string_view name );
-        void add_cell_property_2d( std::string_view name );
-        void add_cell_property_3d( std::string_view name );
-
-        void run();
-
-    private:
-        IMPLEMENTATION_MEMBER( impl_ );
-    };
+    OPENGEODE_LIBRARY( opengeode_geosciencesio_mesh_api, GeosciencesIOMesh );
 } // namespace geode

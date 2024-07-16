@@ -35,20 +35,20 @@ add_geode_library(
         "internal/shp_input.cpp"
         "internal/horizons_stack_skua_input.cpp"
     PUBLIC_HEADERS
-        "common.h"
+        "common.hpp"
     INTERNAL_HEADERS
-        "helpers/brep_geos_export.h"
-        "helpers/structural_model_geos_export.h"
-        "internal/geos_export.h"
-        "internal/gocad_common.h"
-        "internal/lso_input.h"
-        "internal/lso_output.h"
-        "internal/ml_input.h"
-        "internal/ml_output_brep.h"
-        "internal/ml_output_impl.h"
-        "internal/ml_output_structural_model.h"
-        "internal/shp_input.h"
-        "internal/horizons_stack_skua_input.h"
+        "helpers/brep_geos_export.hpp"
+        "helpers/structural_model_geos_export.hpp"
+        "internal/geos_export.hpp"
+        "internal/gocad_common.hpp"
+        "internal/lso_input.hpp"
+        "internal/lso_output.hpp"
+        "internal/ml_input.hpp"
+        "internal/ml_output_brep.hpp"
+        "internal/ml_output_impl.hpp"
+        "internal/ml_output_structural_model.hpp"
+        "internal/shp_input.hpp"
+        "internal/horizons_stack_skua_input.hpp"
     PUBLIC_DEPENDENCIES
         OpenGeode::basic
     PRIVATE_DEPENDENCIES

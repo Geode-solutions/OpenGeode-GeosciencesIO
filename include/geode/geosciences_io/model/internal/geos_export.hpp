@@ -28,11 +28,11 @@
 #include <string_view>
 #include <vector>
 
-#include <geode/basic/attribute.h>
+#include <geode/basic/attribute.hpp>
 
-#include <geode/model/helpers/convert_to_mesh.h>
+#include <geode/model/helpers/convert_to_mesh.hpp>
 
-#include <geode/geosciences_io/model/common.h>
+#include <geode/geosciences_io/model/common.hpp>
 
 namespace pugi
 {

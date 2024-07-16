@@ -23,35 +23,35 @@
 
 #pragma once
 
-#include <string>
-#include <vector>
+#include <geode/mesh/io/edged_curve_input.hpp>
 
-#include <geode/geosciences/explicit/representation/io/structural_model_output.h>
-#include <geode/geosciences_io/model/common.h>
+#include <geode/geosciences_io/mesh/common.hpp>
+
+namespace geode
+{
+    FORWARD_DECLARATION_DIMENSION_CLASS( EdgedCurve );
+    ALIAS_3D( EdgedCurve );
+} // namespace geode
 
 namespace geode
 {
     namespace internal
     {
-        class MLOutputStructuralModel final : public StructuralModelOutput
+        class WellDatInput : public EdgedCurveInput< 3 >
         {
         public:
-            explicit MLOutputStructuralModel( std::string_view filename )
-                : StructuralModelOutput( filename )
+            explicit WellDatInput( std::string_view filename )
+                : EdgedCurveInput< 3 >( filename )
             {
             }
 
             static std::string_view extension()
             {
-                static constexpr auto EXT = "ml";
+                static constexpr auto EXT = "dat";
                 return EXT;
             }
 
-            std::vector< std::string > write(
-                const StructuralModel& structural_model ) const final;
-
-            bool is_saveable(
-                const StructuralModel& structural_model ) const final;
+            std::unique_ptr< EdgedCurve3D > read( const MeshImpl& impl ) final;
         };
     } // namespace internal
 } // namespace geode

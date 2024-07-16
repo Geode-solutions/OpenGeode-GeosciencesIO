@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/internal/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
 
 #include <fstream>
 #include <optional>
@@ -31,9 +31,9 @@
 #include <absl/strings/str_join.h>
 #include <absl/strings/str_replace.h>
 
-#include <geode/basic/file.h>
-#include <geode/basic/logger.h>
-#include <geode/basic/string.h>
+#include <geode/basic/file.hpp>
+#include <geode/basic/logger.hpp>
+#include <geode/basic/string.hpp>
 
 namespace
 {

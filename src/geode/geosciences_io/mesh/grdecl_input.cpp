@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/internal/grdecl_input.h>
+#include <geode/geosciences_io/mesh/internal/grdecl_input.hpp>
 
 #include <fstream>
 #include <optional>
@@ -30,18 +30,18 @@
 #include <absl/strings/match.h>
 #include <absl/strings/str_split.h>
 
-#include <geode/basic/attribute_manager.h>
-#include <geode/basic/file.h>
-#include <geode/basic/filename.h>
-#include <geode/basic/logger.h>
-#include <geode/basic/string.h>
+#include <geode/basic/attribute_manager.hpp>
+#include <geode/basic/file.hpp>
+#include <geode/basic/filename.hpp>
+#include <geode/basic/logger.hpp>
+#include <geode/basic/string.hpp>
 
-#include <geode/geometry/nn_search.h>
+#include <geode/geometry/nn_search.hpp>
 
-#include <geode/mesh/builder/hybrid_solid_builder.h>
-#include <geode/mesh/core/hybrid_solid.h>
+#include <geode/mesh/builder/hybrid_solid_builder.hpp>
+#include <geode/mesh/core/hybrid_solid.hpp>
 
-#include <geode/geosciences_io/mesh/internal/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
 
 namespace
 {

@@ -28,22 +28,22 @@
 
 #include <absl/strings/str_replace.h>
 
-#include <geode/basic/filename.h>
+#include <geode/basic/filename.hpp>
 
-#include <geode/geometry/point.h>
+#include <geode/geometry/point.hpp>
 
-#include <geode/mesh/core/surface_mesh.h>
+#include <geode/mesh/core/surface_mesh.hpp>
 
-#include <geode/model/helpers/detail/build_model_boundaries.h>
-#include <geode/model/mixin/core/block.h>
-#include <geode/model/mixin/core/corner.h>
-#include <geode/model/mixin/core/line.h>
-#include <geode/model/mixin/core/model_boundary.h>
-#include <geode/model/mixin/core/surface.h>
-#include <geode/model/representation/core/brep.h>
+#include <geode/model/helpers/detail/build_model_boundaries.hpp>
+#include <geode/model/mixin/core/block.hpp>
+#include <geode/model/mixin/core/corner.hpp>
+#include <geode/model/mixin/core/line.hpp>
+#include <geode/model/mixin/core/model_boundary.hpp>
+#include <geode/model/mixin/core/surface.hpp>
+#include <geode/model/representation/core/brep.hpp>
 
-#include <geode/geosciences_io/mesh/internal/gocad_common.h>
-#include <geode/geosciences_io/model/internal/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
+#include <geode/geosciences_io/model/internal/gocad_common.hpp>
 
 namespace geode
 {
@@ -459,8 +459,7 @@ namespace geode
                     internal::write_CRS( file_, {} );
                     file_ << "GEOLOGICAL_FEATURE " << component_name( surface )
                           << EOL;
-                    file_ << "GEOLOGICAL_TYPE "
-                          << "boundary" << EOL;
+                    file_ << "GEOLOGICAL_TYPE " << "boundary" << EOL;
                     index_t current_offset{ OFFSET_START };
                     file_ << "TFACE" << EOL;
                     current_offset = write_surface( surface, current_offset );

@@ -21,19 +21,19 @@
  *
  */
 
-#include <geode/tests_config.h>
+#include <geode/tests_config.hpp>
 
-#include <geode/basic/assert.h>
-#include <geode/basic/logger.h>
+#include <geode/basic/assert.hpp>
+#include <geode/basic/logger.hpp>
 
-#include <geode/model/mixin/core/block.h>
-#include <geode/model/mixin/core/model_boundary.h>
-#include <geode/model/mixin/core/surface.h>
+#include <geode/model/mixin/core/block.hpp>
+#include <geode/model/mixin/core/model_boundary.hpp>
+#include <geode/model/mixin/core/surface.hpp>
 
-#include <geode/geosciences/explicit/representation/core/structural_model.h>
-#include <geode/geosciences/explicit/representation/io/structural_model_output.h>
-#include <geode/geosciences_io/model/internal/ml_input.h>
-#include <geode/geosciences_io/model/internal/ml_output_structural_model.h>
+#include <geode/geosciences/explicit/representation/core/structural_model.hpp>
+#include <geode/geosciences/explicit/representation/io/structural_model_output.hpp>
+#include <geode/geosciences_io/model/internal/ml_input.hpp>
+#include <geode/geosciences_io/model/internal/ml_output_structural_model.hpp>
 
 void check_model( const geode::StructuralModel& model,
     geode::index_t nb_corners,

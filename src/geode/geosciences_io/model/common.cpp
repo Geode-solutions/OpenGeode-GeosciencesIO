@@ -21,25 +21,25 @@
  *
  */
 
-#include <geode/geosciences_io/model/common.h>
+#include <geode/geosciences_io/model/common.hpp>
 
 #include <gdal_priv.h>
 
-#include <geode/mesh/io/regular_grid_input.h>
-#include <geode/mesh/io/triangulated_surface_input.h>
+#include <geode/mesh/io/regular_grid_input.hpp>
+#include <geode/mesh/io/triangulated_surface_input.hpp>
 
-#include <geode/geosciences/explicit/common.h>
-#include <geode/geosciences/explicit/representation/io/structural_model_input.h>
-#include <geode/geosciences/explicit/representation/io/structural_model_output.h>
-#include <geode/geosciences/implicit/representation/io/horizons_stack_input.h>
+#include <geode/geosciences/explicit/common.hpp>
+#include <geode/geosciences/explicit/representation/io/structural_model_input.hpp>
+#include <geode/geosciences/explicit/representation/io/structural_model_output.hpp>
+#include <geode/geosciences/implicit/representation/io/horizons_stack_input.hpp>
 
-#include <geode/geosciences_io/model/internal/horizons_stack_skua_input.h>
-#include <geode/geosciences_io/model/internal/lso_input.h>
-#include <geode/geosciences_io/model/internal/lso_output.h>
-#include <geode/geosciences_io/model/internal/ml_input.h>
-#include <geode/geosciences_io/model/internal/ml_output_brep.h>
-#include <geode/geosciences_io/model/internal/ml_output_structural_model.h>
-#include <geode/geosciences_io/model/internal/shp_input.h>
+#include <geode/geosciences_io/model/internal/horizons_stack_skua_input.hpp>
+#include <geode/geosciences_io/model/internal/lso_input.hpp>
+#include <geode/geosciences_io/model/internal/lso_output.hpp>
+#include <geode/geosciences_io/model/internal/ml_input.hpp>
+#include <geode/geosciences_io/model/internal/ml_output_brep.hpp>
+#include <geode/geosciences_io/model/internal/ml_output_structural_model.hpp>
+#include <geode/geosciences_io/model/internal/shp_input.hpp>
 
 namespace
 {

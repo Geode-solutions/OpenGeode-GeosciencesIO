@@ -21,16 +21,16 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/internal/ts_input.h>
+#include <geode/geosciences_io/mesh/internal/ts_input.hpp>
 
 #include <fstream>
 
-#include <geode/geometry/point.h>
+#include <geode/geometry/point.hpp>
 
-#include <geode/mesh/builder/triangulated_surface_builder.h>
-#include <geode/mesh/core/triangulated_surface.h>
+#include <geode/mesh/builder/triangulated_surface_builder.hpp>
+#include <geode/mesh/core/triangulated_surface.hpp>
 
-#include <geode/geosciences_io/mesh/internal/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
 
 namespace
 {

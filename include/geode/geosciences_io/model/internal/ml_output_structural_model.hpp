@@ -23,18 +23,21 @@
 
 #pragma once
 
-#include <geode/geosciences/explicit/representation/io/structural_model_input.h>
-#include <geode/geosciences_io/model/common.h>
+#include <string>
+#include <vector>
+
+#include <geode/geosciences/explicit/representation/io/structural_model_output.hpp>
+#include <geode/geosciences_io/model/common.hpp>
 
 namespace geode
 {
     namespace internal
     {
-        class MLInput final : public StructuralModelInput
+        class MLOutputStructuralModel final : public StructuralModelOutput
         {
         public:
-            explicit MLInput( std::string_view filename )
-                : StructuralModelInput( filename )
+            explicit MLOutputStructuralModel( std::string_view filename )
+                : StructuralModelOutput( filename )
             {
             }
 
@@ -44,7 +47,11 @@ namespace geode
                 return EXT;
             }
 
-            StructuralModel read() final;
+            std::vector< std::string > write(
+                const StructuralModel& structural_model ) const final;
+
+            bool is_saveable(
+                const StructuralModel& structural_model ) const final;
         };
     } // namespace internal
 } // namespace geode

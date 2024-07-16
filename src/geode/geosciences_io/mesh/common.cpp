@@ -21,21 +21,21 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/common.h>
+#include <geode/geosciences_io/mesh/common.hpp>
 
-#include <geode/mesh/io/regular_grid_input.h>
-#include <geode/mesh/io/triangulated_surface_input.h>
+#include <geode/mesh/io/regular_grid_input.hpp>
+#include <geode/mesh/io/triangulated_surface_input.hpp>
 
-#include <geode/geosciences_io/mesh/internal/grdecl_input.h>
-#include <geode/geosciences_io/mesh/internal/pl_input.h>
-#include <geode/geosciences_io/mesh/internal/pl_output.h>
-#include <geode/geosciences_io/mesh/internal/ts_input.h>
-#include <geode/geosciences_io/mesh/internal/ts_output.h>
-#include <geode/geosciences_io/mesh/internal/vo_input.h>
-#include <geode/geosciences_io/mesh/internal/well_dat_input.h>
-#include <geode/geosciences_io/mesh/internal/well_dev_input.h>
-#include <geode/geosciences_io/mesh/internal/well_txt_input.h>
-#include <geode/geosciences_io/mesh/internal/wl_input.h>
+#include <geode/geosciences_io/mesh/internal/grdecl_input.hpp>
+#include <geode/geosciences_io/mesh/internal/pl_input.hpp>
+#include <geode/geosciences_io/mesh/internal/pl_output.hpp>
+#include <geode/geosciences_io/mesh/internal/ts_input.hpp>
+#include <geode/geosciences_io/mesh/internal/ts_output.hpp>
+#include <geode/geosciences_io/mesh/internal/vo_input.hpp>
+#include <geode/geosciences_io/mesh/internal/well_dat_input.hpp>
+#include <geode/geosciences_io/mesh/internal/well_dev_input.hpp>
+#include <geode/geosciences_io/mesh/internal/well_txt_input.hpp>
+#include <geode/geosciences_io/mesh/internal/wl_input.hpp>
 
 namespace
 {

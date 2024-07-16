@@ -21,9 +21,9 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/internal/well_txt_input.h>
+#include <geode/geosciences_io/mesh/internal/well_txt_input.hpp>
 
-#include <geode/geosciences_io/mesh/internal/well_input.h>
+#include <geode/geosciences_io/mesh/internal/well_input.hpp>
 
 namespace geode
 {

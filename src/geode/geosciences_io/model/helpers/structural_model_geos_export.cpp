@@ -25,15 +25,15 @@
 
 #include <absl/container/flat_hash_map.h>
 
-#include <geode/geosciences_io/model/helpers/structural_model_geos_export.h>
+#include <geode/geosciences_io/model/helpers/structural_model_geos_export.hpp>
 
-#include <geode/geosciences_io/model/internal/geos_export.h>
+#include <geode/geosciences_io/model/internal/geos_export.hpp>
 
-#include <geode/geosciences/explicit/mixin/core/stratigraphic_units.h>
+#include <geode/geosciences/explicit/mixin/core/stratigraphic_units.hpp>
 
-#include <geode/geosciences/explicit/representation/core/structural_model.h>
+#include <geode/geosciences/explicit/representation/core/structural_model.hpp>
 
-#include <geode/basic/pimpl_impl.h>
+#include <geode/basic/pimpl_impl.hpp>
 
 namespace geode
 {
@@ -46,7 +46,7 @@ namespace geode
         Impl() = delete;
         Impl( const StructuralModel& model, std::string_view files_directory )
             : internal::GeosExporterImpl< StructuralModel >(
-                files_directory, model )
+                  files_directory, model )
         {
         }
         virtual ~Impl() = default;

@@ -21,17 +21,17 @@
  *
  */
 
-#include <geode/geosciences_io/model/internal/ml_output_structural_model.h>
+#include <geode/geosciences_io/model/internal/ml_output_structural_model.hpp>
 
 #include <string>
 #include <vector>
 
-#include <geode/mesh/core/surface_mesh.h>
+#include <geode/mesh/core/surface_mesh.hpp>
 
-#include <geode/geosciences/explicit/representation/builder/structural_model_builder.h>
-#include <geode/geosciences/explicit/representation/core/structural_model.h>
-#include <geode/geosciences_io/model/internal/gocad_common.h>
-#include <geode/geosciences_io/model/internal/ml_output_impl.h>
+#include <geode/geosciences/explicit/representation/builder/structural_model_builder.hpp>
+#include <geode/geosciences/explicit/representation/core/structural_model.hpp>
+#include <geode/geosciences_io/model/internal/gocad_common.hpp>
+#include <geode/geosciences_io/model/internal/ml_output_impl.hpp>
 
 namespace
 {
@@ -46,7 +46,7 @@ namespace
         MLOutputImplSM(
             std::string_view filename, const geode::StructuralModel& model )
             : geode::internal::MLOutputImpl< geode::StructuralModel >(
-                filename, model ),
+                  filename, model ),
               model_( model )
         {
         }

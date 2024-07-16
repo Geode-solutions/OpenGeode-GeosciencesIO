@@ -23,11 +23,11 @@
 
 #include <string_view>
 
-#include <geode/mesh/core/point_set.h>
+#include <geode/mesh/core/point_set.hpp>
 
-#include <geode/geosciences/explicit/representation/core/structural_model.h>
-#include <geode/geosciences_io/model/helpers/brep_geos_export.h>
-#include <geode/geosciences_io/model/helpers/structural_model_geos_export.h>
+#include <geode/geosciences/explicit/representation/core/structural_model.hpp>
+#include <geode/geosciences_io/model/helpers/brep_geos_export.hpp>
+#include <geode/geosciences_io/model/helpers/structural_model_geos_export.hpp>
 
 #include <pybind11/pybind11.h>
 

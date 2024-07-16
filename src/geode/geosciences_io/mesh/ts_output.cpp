@@ -21,20 +21,20 @@
  *
  */
 
-#include <geode/geosciences_io/mesh/internal/ts_output.h>
+#include <geode/geosciences_io/mesh/internal/ts_output.hpp>
 
 #include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include <geode/basic/attribute_manager.h>
-#include <geode/basic/types.h>
+#include <geode/basic/attribute_manager.hpp>
+#include <geode/basic/types.hpp>
 
-#include <geode/basic/filename.h>
-#include <geode/mesh/core/triangulated_surface.h>
+#include <geode/basic/filename.hpp>
+#include <geode/mesh/core/triangulated_surface.hpp>
 
-#include <geode/geosciences_io/mesh/internal/gocad_common.h>
+#include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
 
 namespace
 {

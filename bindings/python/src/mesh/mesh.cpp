@@ -23,7 +23,7 @@
 
 #include <pybind11/pybind11.h>
 
-#include <geode/geosciences_io/mesh/common.h>
+#include <geode/geosciences_io/mesh/common.hpp>
 
 PYBIND11_MODULE( opengeode_geosciencesio_py_mesh, module )
 {

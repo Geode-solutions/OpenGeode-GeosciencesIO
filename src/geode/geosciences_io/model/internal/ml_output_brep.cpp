@@ -21,17 +21,17 @@
  *
  */
 
-#include <geode/geosciences_io/model/internal/ml_output_brep.h>
+#include <geode/geosciences_io/model/internal/ml_output_brep.hpp>
 
 #include <string>
 #include <vector>
 
-#include <geode/mesh/core/surface_mesh.h>
+#include <geode/mesh/core/surface_mesh.hpp>
 
-#include <geode/model/representation/builder/brep_builder.h>
+#include <geode/model/representation/builder/brep_builder.hpp>
 
-#include <geode/geosciences_io/model/internal/gocad_common.h>
-#include <geode/geosciences_io/model/internal/ml_output_impl.h>
+#include <geode/geosciences_io/model/internal/gocad_common.hpp>
+#include <geode/geosciences_io/model/internal/ml_output_impl.hpp>
 
 namespace
 {

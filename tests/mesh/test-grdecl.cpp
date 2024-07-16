@@ -21,16 +21,16 @@
  *
  */
 
-#include <geode/tests_config.h>
+#include <geode/tests_config.hpp>
 
-#include <geode/basic/assert.h>
-#include <geode/basic/logger.h>
+#include <geode/basic/assert.hpp>
+#include <geode/basic/logger.hpp>
 
-#include <geode/geosciences_io/mesh/internal/grdecl_input.h>
-#include <geode/mesh/core/geode/geode_hybrid_solid.h>
-#include <geode/mesh/core/hybrid_solid.h>
-#include <geode/mesh/io/hybrid_solid_input.h>
-#include <geode/mesh/io/hybrid_solid_output.h>
+#include <geode/geosciences_io/mesh/internal/grdecl_input.hpp>
+#include <geode/mesh/core/geode/geode_hybrid_solid.hpp>
+#include <geode/mesh/core/hybrid_solid.hpp>
+#include <geode/mesh/io/hybrid_solid_input.hpp>
+#include <geode/mesh/io/hybrid_solid_output.hpp>
 
 void check_solid( const geode::HybridSolid3D& solid,
     geode::index_t nb_polyhedra,
