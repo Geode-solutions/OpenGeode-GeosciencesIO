@@ -52,7 +52,7 @@ namespace geode
         {
             std::array< std::string, 3 > axis_names{ { "X", "Y", "Z" } };
             std::array< std::string, 3 > axis_units{ { "m", "m", "m" } };
-            double z_sign{ 1. };
+            bool z_sign_positive{ true };
 
             // information read but not used in the OpenGeode DataModel
             std::string name{ "Default" };
