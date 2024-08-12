@@ -174,7 +174,8 @@ namespace
                 const auto value = geode::string_to_double( tokens[i + 2] );
                 point.set_value( i, value );
             }
-            point.set_value( 2, crs_.z_sign * point.value( 2 ) );
+            point.set_value(
+                2, point.value( 2 ) * ( crs_.z_sign_positive ? 1. : -1. ) );
             return point;
         }
 

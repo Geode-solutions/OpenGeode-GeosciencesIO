@@ -59,7 +59,8 @@ namespace
             geode::internal::HeaderData header;
             header.name = geode::to_string( surface_.name() );
             geode::internal::write_header( file_, header );
-            geode::internal::write_CRS( file_, {} );
+            geode::internal::CRSData crs_data;
+            geode::internal::write_CRS( file_, crs_data );
             write_prop_header();
             write_tface();
             file_ << "END" << EOL;

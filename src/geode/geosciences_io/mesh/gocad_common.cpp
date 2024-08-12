@@ -111,8 +111,8 @@ namespace
                 ecurve.points.emplace_back( std::array< double, 3 >{
                     geode::string_to_double( tokens[2] ),
                     geode::string_to_double( tokens[3] ),
-                    ecurve.crs.z_sign
-                        * geode::string_to_double( tokens[4] ) } );
+                    geode::string_to_double( tokens[4] )
+                        * ( ecurve.crs.z_sign_positive ? 1. : -1. ) } );
             }
             else if( keyword == "SEG" )
             {
@@ -145,7 +145,8 @@ namespace
                 tsurf.points.emplace_back( std::array< double, 3 >{
                     geode::string_to_double( tokens[2] ),
                     geode::string_to_double( tokens[3] ),
-                    tsurf.crs.z_sign * geode::string_to_double( tokens[4] ) } );
+                    geode::string_to_double( tokens[4] )
+                        * ( tsurf.crs.z_sign_positive ? 1. : -1. ) } );
                 geode::internal::read_properties(
                     tsurf.vertices_properties_header,
                     tsurf.vertices_attribute_values, tokens, 5 );
@@ -341,7 +342,7 @@ namespace geode
                 const auto tokens = split_string_considering_quotes( line );
                 if( tokens[0] == "ZPOSITIVE" )
                 {
-                    crs.z_sign = tokens[1] == "Elevation" ? 1 : -1;
+                    crs.z_sign_positive = ( tokens[1] == "Elevation" );
                 }
                 else if( tokens[0] == "PROJECTION" )
                 {
@@ -371,8 +372,8 @@ namespace geode
                  << data.axis_names[1] << SPACE << data.axis_names[2] << EOL;
             file << "AXIS_UNIT " << data.axis_units[0] << SPACE
                  << data.axis_units[1] << SPACE << data.axis_units[2] << EOL;
-            file << "ZPOSITIVE " << ( data.z_sign == 1 ? "Elevation" : "Depth" )
-                 << EOL;
+            file << "ZPOSITIVE "
+                 << ( data.z_sign_positive ? "Elevation" : "Depth" ) << EOL;
             file << "END_ORIGINAL_COORDINATE_SYSTEM" << EOL;
         }
 

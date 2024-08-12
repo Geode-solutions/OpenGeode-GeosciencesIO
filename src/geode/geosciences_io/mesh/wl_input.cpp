@@ -70,7 +70,8 @@ namespace
         {
             const auto line = geode::goto_keyword( file_, "WREF" );
             auto ref = read_coord( line, 1 );
-            ref.set_value( 2, crs_.z_sign * ref.value( 2 ) );
+            ref.set_value(
+                2, ref.value( 2 ) * ( crs_.z_sign_positive ? 1. : -1. ) );
             return ref;
         }
 
@@ -98,7 +99,8 @@ namespace
                 geode::Point3D point;
                 point.set_value( 0, translation.value( 1 ) + ref.value( 0 ) );
                 point.set_value( 1, translation.value( 2 ) + ref.value( 1 ) );
-                point.set_value( 2, crs_.z_sign * translation.value( 0 ) );
+                point.set_value( 2, translation.value( 0 )
+                                        * ( crs_.z_sign_positive ? 1. : -1. ) );
                 const auto id = builder_->create_point( point );
                 builder_->create_edge( id - 1, id );
             }
