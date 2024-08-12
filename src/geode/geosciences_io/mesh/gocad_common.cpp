@@ -341,7 +341,7 @@ namespace geode
                 const auto tokens = split_string_considering_quotes( line );
                 if( tokens[0] == "ZPOSITIVE" )
                 {
-                    crs.z_sign = tokens[1] == "Elevation" ? 1 : -1;
+                    crs.z_sign = tokens[1] == "Elevation" ? 1. : -1.;
                 }
                 else if( tokens[0] == "PROJECTION" )
                 {
@@ -371,7 +371,7 @@ namespace geode
                  << data.axis_names[1] << SPACE << data.axis_names[2] << EOL;
             file << "AXIS_UNIT " << data.axis_units[0] << SPACE
                  << data.axis_units[1] << SPACE << data.axis_units[2] << EOL;
-            file << "ZPOSITIVE " << ( data.z_sign == 1 ? "Elevation" : "Depth" )
+            file << "ZPOSITIVE " << ( data.z_sign > 0 ? "Elevation" : "Depth" )
                  << EOL;
             file << "END_ORIGINAL_COORDINATE_SYSTEM" << EOL;
         }
