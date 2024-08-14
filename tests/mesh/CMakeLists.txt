@@ -19,6 +19,13 @@
 # SOFTWARE.
 
 add_geode_test(
+    SOURCE "test-solid-fem-output.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
+        ${PROJECT_NAME}::mesh
+)
+add_geode_test(
     SOURCE "test-grdecl.cpp"
     DEPENDENCIES
         OpenGeode::basic

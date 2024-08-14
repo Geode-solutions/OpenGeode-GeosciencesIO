@@ -25,6 +25,7 @@ add_geode_library(
         "common.cpp"
         "helpers/brep_geos_export.cpp"
         "helpers/structural_model_geos_export.cpp"
+        "internal/brep_fem_output.cpp"
         "internal/geos_export.cpp"
         "internal/gocad_common.cpp"
         "internal/lso_input.cpp"
@@ -39,6 +40,7 @@ add_geode_library(
     INTERNAL_HEADERS
         "helpers/brep_geos_export.hpp"
         "helpers/structural_model_geos_export.hpp"
+        "internal/brep_fem_output.hpp"
         "internal/geos_export.hpp"
         "internal/gocad_common.hpp"
         "internal/lso_input.hpp"

@@ -23,6 +23,7 @@ add_geode_library(
     FOLDER "geode/geosciences_io/mesh"
     SOURCES
         "common.cpp"
+        "fem_output.cpp"
         "gocad_common.cpp"
         "grdecl_input.cpp"
         "pl_input.cpp"
@@ -37,6 +38,7 @@ add_geode_library(
     PUBLIC_HEADERS
         "common.hpp"
     INTERNAL_HEADERS
+        "internal/fem_output.hpp"
         "internal/gocad_common.hpp"
         "internal/grdecl_input.hpp"
         "internal/pl_input.hpp"
