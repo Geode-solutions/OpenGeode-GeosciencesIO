@@ -21,12 +21,11 @@
  *
  */
 #include <fstream>
-#include <geode/basic/attribute.hpp>
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/io.hpp>
 #include <geode/basic/types.hpp>
 #include <memory>
-#include <string_view>
+#include <string>
 
 #include <geode/basic/filename.hpp>
 
