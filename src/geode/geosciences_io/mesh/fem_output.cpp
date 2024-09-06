@@ -83,7 +83,7 @@ namespace
         void write_class()
         {
             file_ << "CLASS (v.7.202.18152)" << EOL;
-
+            std::string four_spaces = "    ";
             file_ << "   0    0    0    3    0    0    8    8    0    0" << EOL;
         }
 
@@ -135,11 +135,11 @@ namespace
                 create_att_dist( attribute );
             std::vector< double > values;
             values.reserve( att_dist.size() );
-            for( auto val = att_dist.begin(); val != att_dist.end(); ++val )
+            for( auto val : att_dist )
             {
-                values.push_back( val->first );
+                values.push_back( val.first );
             }
-            std::sort( values.begin(), values.end() );
+            absl::c_sort( values );
             for( const auto v : values )
             {
                 std::string line = "";
@@ -155,7 +155,7 @@ namespace
             geode::AttributeBase& attribute )
         {
             absl::flat_hash_map< double, std::vector< int > > att_dist;
-            for( const auto elem : geode::Range( solid_.nb_polyhedra() ) )
+            for( const auto elem : geode::Range{ solid_.nb_polyhedra() } )
             {
                 const auto value = attribute.generic_value( elem );
                 if( att_dist.contains( value ) )
@@ -241,29 +241,6 @@ namespace
             write_one_coord_component_dist( "Y", 1 );
             write_one_coord_component_dist( "Z", 2 );
         }
-        // void write_node_property( geode::AttributeBase& attribute )
-        // {
-        //     file_ << attribute.name() << EOL;
-        //     absl::flat_hash_map< double, std::vector< int > > att_dist =
-        //         create_att_dist( attribute );
-        //     // const auto value = attribute.generic_value( elem );
-        //     std::vector< double > values;
-        //     values.reserve( att_dist.size() );
-        //     for( auto val = att_dist.begin(); val != att_dist.end(); ++val )
-        //     {
-        //         values.push_back( val->first );
-        //     }
-        //     std::sort( values.begin(), values.end() );
-        //     for( const auto v : values )
-        //     {
-        //         std::string line = "";
-        //         for( const auto e : att_dist[v] )
-        //         {
-        //             line += std::to_string( e + 1 ) + SPACE;
-        //         }
-        //         file_ << "     " << v << "  " << line << EOL;
-        //     }
-        // }
 
         void write_ref_element_dist()
         {
@@ -291,37 +268,46 @@ namespace
 
         void write_nodal_sets()
         {
-            file_ << "NODALSETS" << EOL;
-            auto attribute_v =
-                solid_.vertex_attribute_manager()
-                    .find_attribute< std::string_view >( "Block_ID_vertex" );
-            const auto vertex_regions =
-                create_region_map( *attribute_v, false );
-            for( const auto vertex_region : vertex_regions )
+            if( solid_.vertex_attribute_manager().attribute_exists(
+                    "Block_ID_vertex" ) )
             {
-                std::string line = "";
-                for( const auto vertex : vertex_region.second )
+                auto attribute_v = solid_.vertex_attribute_manager()
+                                       .find_attribute< std::string_view >(
+                                           "Block_ID_vertex" );
+                file_ << "NODALSETS" << EOL;
+                const auto vertex_regions =
+                    create_region_map( *attribute_v, false );
+                for( const auto vertex_region : vertex_regions )
                 {
-                    line += std::to_string( vertex + 1 ) + SPACE;
+                    std::string line = "";
+                    for( const auto vertex : vertex_region.second )
+                    {
+                        line += std::to_string( vertex + 1 ) + SPACE;
+                    }
+                    file_ << "  " << vertex_region.first << "  " << line << EOL;
                 }
-                file_ << "  " << vertex_region.first << "  " << line << EOL;
             }
         }
         void write_element_sets()
         {
-            file_ << "ELEMENTALSETS" << EOL;
-            auto attribute_p = solid_.polyhedron_attribute_manager()
-                                   .find_attribute< std::string_view >(
-                                       "Block_ID_polyhedron" );
-            const auto elem_regions = create_region_map( *attribute_p, true );
-            for( const auto elem_region : elem_regions )
+            if( solid_.polyhedron_attribute_manager().attribute_exists(
+                    "Block_ID_polyhedron" ) )
             {
-                std::string line = "";
-                for( const auto elem : elem_region.second )
+                file_ << "ELEMENTALSETS" << EOL;
+                auto attribute_p = solid_.polyhedron_attribute_manager()
+                                       .find_attribute< std::string_view >(
+                                           "Block_ID_polyhedron" );
+                const auto elem_regions =
+                    create_region_map( *attribute_p, true );
+                for( const auto elem_region : elem_regions )
                 {
-                    line += std::to_string( elem + 1 ) + SPACE;
+                    std::string line = "";
+                    for( const auto elem : elem_region.second )
+                    {
+                        line += std::to_string( elem + 1 ) + SPACE;
+                    }
+                    file_ << "  " << elem_region.first << "  " << line << EOL;
                 }
-                file_ << "  " << elem_region.first << "  " << line << EOL;
             }
         }
 
@@ -334,7 +320,7 @@ namespace
                 region_map;
             int nb_obj = ( create_element_region ? solid_.nb_polyhedra()
                                                  : solid_.nb_vertices() );
-            for( const auto obj : geode::Range( nb_obj ) )
+            for( const auto obj : geode::Range{ nb_obj } )
             {
                 const auto value = attribute.value( obj );
                 if( region_map.contains( value ) )

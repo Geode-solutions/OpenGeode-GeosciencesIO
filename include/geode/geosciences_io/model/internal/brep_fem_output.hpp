@@ -56,7 +56,6 @@ namespace geode
             }
 
             std::vector< std::string > write( const BRep& brep ) const;
-            std::vector< std::string > write() const;
         };
     } // namespace internal
 } // namespace geode

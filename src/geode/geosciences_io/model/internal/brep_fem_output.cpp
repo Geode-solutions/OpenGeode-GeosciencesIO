@@ -1,12 +1,9 @@
 /*
  * Copyright (c) 2019 - 2024 Geode-solutions
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- copy
- * of this software and associated documentation files (the "Software"), to
- deal
- * in the Software without restriction, including without limitation the
- rights
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
@@ -16,13 +13,10 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
- THE
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- THE
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  *
  */
@@ -33,20 +27,18 @@
 
 #include <geode/basic/attribute.hpp>
 #include <geode/basic/attribute_manager.hpp>
+#include <geode/basic/filename.hpp>
 #include <geode/basic/io.hpp>
 #include <geode/basic/types.hpp>
 
-#include <geode/basic/filename.hpp>
+#include <geode/geometry/point.hpp>
 
 #include <geode/geosciences_io/mesh/internal/fem_output.hpp>
 #include <geode/geosciences_io/model/internal/brep_fem_output.hpp>
 
-#include <geode/geometry/point.hpp>
-
-#include <geode/model/mixin/core/block.hpp>
-
 #include <geode/model/helpers/convert_model_meshes.hpp>
 #include <geode/model/helpers/convert_to_mesh.hpp>
+#include <geode/model/mixin/core/block.hpp>
 
 namespace
 {
@@ -91,7 +83,7 @@ namespace
             for( const auto& block : brep_.blocks() )
             {
                 for( const auto polyhedron_id :
-                    geode::Range( block.mesh().nb_polyhedra() ) )
+                    geode::Range{ block.mesh().nb_polyhedra() } )
                 {
                     for( const auto polyhedron_out :
                         model_to_mesh_mapping.solid_polyhedra_mapping.in2out(
@@ -101,7 +93,7 @@ namespace
                     }
                 }
                 for( const auto vertex_id :
-                    geode::Range( block.mesh().nb_vertices() ) )
+                    geode::Range{ block.mesh().nb_vertices() } )
                 {
                     const auto vertex_out =
                         model_to_mesh_mapping.unique_vertices_mapping.in2out(
