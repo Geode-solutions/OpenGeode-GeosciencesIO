@@ -24,8 +24,6 @@
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/io.hpp>
 #include <geode/basic/types.hpp>
-#include <memory>
-#include <string>
 
 #include <geode/basic/filename.hpp>
 

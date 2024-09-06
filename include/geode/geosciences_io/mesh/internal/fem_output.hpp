@@ -55,8 +55,7 @@ namespace geode
             }
 
             std::vector< std::string > write(
-                const TetrahedralSolid3D& solid ) const;
-            std::vector< std::string > write() const;
+                const TetrahedralSolid3D& solid ) const override;
         };
     } // namespace internal
 } // namespace geode
