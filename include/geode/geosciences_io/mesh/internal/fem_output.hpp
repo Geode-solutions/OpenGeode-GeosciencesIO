@@ -34,12 +34,6 @@
 
 namespace geode
 {
-    FORWARD_DECLARATION_DIMENSION_CLASS( TetrahedralSolid );
-    ALIAS_3D( TetrahedralSolid );
-} // namespace geode
-
-namespace geode
-{
     namespace internal
     {
         class SolidFemOutput : public TetrahedralSolidOutput< 3 >
