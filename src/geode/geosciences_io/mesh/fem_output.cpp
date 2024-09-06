@@ -277,7 +277,7 @@ namespace
                 file_ << "NODALSETS" << EOL;
                 const auto vertex_regions =
                     create_region_map( *attribute_v, false );
-                for( const auto vertex_region : vertex_regions )
+                for( const auto& vertex_region : vertex_regions )
                 {
                     std::string line = "";
                     for( const auto vertex : vertex_region.second )
@@ -302,7 +302,7 @@ namespace
                 for( const auto elem_region : elem_regions )
                 {
                     std::string line = "";
-                    for( const auto elem : elem_region.second )
+                    for( const auto& elem : elem_region.second )
                     {
                         line += std::to_string( elem + 1 ) + SPACE;
                     }
