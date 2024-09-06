@@ -299,7 +299,7 @@ namespace
                                            "Block_ID_polyhedron" );
                 const auto elem_regions =
                     create_region_map( *attribute_p, true );
-                for( const auto elem_region : elem_regions )
+                for( const auto& elem_region : elem_regions )
                 {
                     std::string line = "";
                     for( const auto& elem : elem_region.second )
