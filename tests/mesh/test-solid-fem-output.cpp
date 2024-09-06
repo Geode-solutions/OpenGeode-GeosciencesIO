@@ -36,13 +36,13 @@ namespace
 {
     void test_solid_fem_output()
     {
-        // auto tet_solid = geode::TetrahedralSolid3D::create();
         auto tet_solid = geode::load_tetrahedral_solid< 3 >(
             absl::StrCat( geode::DATA_PATH, "bmsh_342.og_tso3d" ) );
         tet_solid->polyhedron_attribute_manager()
             .find_or_create_attribute< geode::VariableAttribute,
                 geode::index_t >( "geode_aspect_ratio", 10 );
         geode::internal::SolidFemOutput fem_output( "test.fem" );
+        fem_output.extension();
         fem_output.write( *tet_solid );
     }
 } // namespace
