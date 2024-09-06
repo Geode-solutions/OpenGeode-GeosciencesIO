@@ -26,7 +26,7 @@
  * SOFTWARE.
  *
  */
-#include <string>
+#include <string_view>
 
 #include <geode/model/representation/core/brep.hpp>
 

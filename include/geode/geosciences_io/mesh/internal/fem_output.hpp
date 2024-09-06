@@ -20,8 +20,7 @@
  * SOFTWARE.
  *
  */
-#include <string>
-#include <vector>
+#include <string_view>
 
 #include <geode/mesh/core/tetrahedral_solid.hpp>
 

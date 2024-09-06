@@ -21,14 +21,12 @@
  *
  */
 #include <fstream>
-#include <memory>
-#include <string>
-#include <vector>
-
 #include <geode/basic/attribute.hpp>
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/io.hpp>
 #include <geode/basic/types.hpp>
+#include <memory>
+#include <string_view>
 
 #include <geode/basic/filename.hpp>
 
@@ -212,7 +210,7 @@ namespace
         }
 
         void write_one_coord_component_dist(
-            const std::string dim_name, const int dim )
+            const std::string& dim_name, const int dim )
         {
             file_ << dim_name << EOL;
             absl::flat_hash_map< double, std::vector< int > > dist =
@@ -350,7 +348,6 @@ namespace
         std::ofstream file_;
         const geode::TetrahedralSolid3D& solid_;
         std::vector< std::shared_ptr< geode::AttributeBase > > generic_att_{};
-        std::string VRTX_KEYWORD{ "VRTX" };
     };
 } // namespace
 

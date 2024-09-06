@@ -22,8 +22,7 @@
  */
 #include <fstream>
 #include <memory>
-#include <string>
-#include <vector>
+#include <string_view>
 
 #include <geode/basic/attribute.hpp>
 #include <geode/basic/attribute_manager.hpp>
