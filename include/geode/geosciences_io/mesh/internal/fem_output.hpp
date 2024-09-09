@@ -20,17 +20,17 @@
  * SOFTWARE.
  *
  */
+
+#pragma once
+
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include <geode/mesh/core/tetrahedral_solid.hpp>
-
 #include <geode/mesh/io/tetrahedral_solid_output.hpp>
 
 #include <geode/geosciences_io/mesh/common.hpp>
-
-#pragma once
 
 namespace geode
 {

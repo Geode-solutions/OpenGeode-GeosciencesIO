@@ -20,6 +20,9 @@
  * SOFTWARE.
  *
  */
+
+#include <geode/geosciences_io/model/internal/brep_fem_output.hpp>
+
 #include <fstream>
 #include <string_view>
 
@@ -33,8 +36,6 @@
 
 #include <geode/mesh/core/tetrahedral_solid.hpp>
 #include <geode/mesh/io/tetrahedral_solid_output.hpp>
-
-#include <geode/geosciences_io/model/internal/brep_fem_output.hpp>
 
 #include <geode/model/helpers/convert_model_meshes.hpp>
 #include <geode/model/helpers/convert_to_mesh.hpp>
