@@ -33,6 +33,8 @@
 #include <geode/geosciences/explicit/representation/io/structural_model_output.hpp>
 #include <geode/geosciences/implicit/representation/io/horizons_stack_input.hpp>
 
+#include <geode/geosciences_io/mesh/common.hpp>
+
 #include <geode/geosciences_io/model/internal/brep_fem_output.hpp>
 #include <geode/geosciences_io/model/internal/horizons_stack_skua_input.hpp>
 #include <geode/geosciences_io/model/internal/lso_input.hpp>
@@ -78,10 +80,6 @@ namespace
         geode::BRepOutputFactory::register_creator<
             geode::internal::MLOutputBRep >(
             geode::internal::MLOutputBRep::extension().data() );
-    }
-
-    void register_brep_fem_output()
-    {
         geode::BRepOutputFactory::register_creator<
             geode::internal::BRepFemOutput >(
             geode::internal::BRepFemOutput::extension().data() );
@@ -104,11 +102,11 @@ namespace geode
     {
         GeosciencesExplicitLibrary::initialize();
         GeosciencesImplicitLibrary::initialize();
+        GeosciencesIOMeshLibrary::initialize();
         register_structural_model_input();
         register_structural_model_output();
         register_section_input();
         register_brep_output();
-        register_brep_fem_output();
         register_horizons_stack_input();
         GDALAllRegister();
     }
