@@ -34,7 +34,6 @@
 
 #include <geode/mesh/core/tetrahedral_solid.hpp>
 
-#include <geode/geosciences_io/mesh/internal/fem_output.hpp>
 #include <geode/geosciences_io/model/internal/brep_fem_output.hpp>
 
 #include <geode/mesh/io/tetrahedral_solid_input.hpp>

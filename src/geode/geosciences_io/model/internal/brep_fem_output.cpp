@@ -31,7 +31,9 @@
 
 #include <geode/geometry/point.hpp>
 
-#include <geode/geosciences_io/mesh/internal/fem_output.hpp>
+#include <geode/mesh/core/tetrahedral_solid.hpp>
+#include <geode/mesh/io/tetrahedral_solid_output.hpp>
+
 #include <geode/geosciences_io/model/internal/brep_fem_output.hpp>
 
 #include <geode/model/helpers/convert_model_meshes.hpp>
@@ -100,12 +102,7 @@ namespace
                     attribute_v->set_value( vertex_out, block.name() );
                 }
             }
-            geode::internal::SolidFemOutput tet_solid_fem_writer{
-                file_str_view_
-            };
-            tet_solid_fem_writer.write( tet_solid );
-
-            geode::Logger::info( "Done." );
+            geode::save_tetrahedral_solid( tet_solid, file_str_view_ );
         }
 
     private:
