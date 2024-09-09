@@ -41,9 +41,7 @@ namespace
         tet_solid->polyhedron_attribute_manager()
             .find_or_create_attribute< geode::VariableAttribute,
                 geode::index_t >( "geode_aspect_ratio", 10 );
-        geode::internal::SolidFemOutput fem_output( "test.fem" );
-        fem_output.extension();
-        fem_output.write( *tet_solid );
+        geode::save_tetrahedral_solid( *tet_solid, "test.fem" );
     }
 } // namespace
 
