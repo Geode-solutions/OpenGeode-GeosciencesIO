@@ -26,6 +26,7 @@
 #include <geode/mesh/io/regular_grid_input.hpp>
 #include <geode/mesh/io/triangulated_surface_input.hpp>
 
+#include <geode/geosciences_io/mesh/internal/fem_output.hpp>
 #include <geode/geosciences_io/mesh/internal/grdecl_input.hpp>
 #include <geode/geosciences_io/mesh/internal/pl_input.hpp>
 #include <geode/geosciences_io/mesh/internal/pl_output.hpp>
@@ -51,6 +52,13 @@ namespace
         geode::TriangulatedSurfaceOutputFactory3D::register_creator<
             geode::internal::TSOutput >(
             geode::internal::TSOutput::extension().data() );
+    }
+
+    void register_tetrahedral_solid_output()
+    {
+        geode::TetrahedralSolidOutputFactory3D::register_creator<
+            geode::internal::SolidFemOutput >(
+            geode::internal::SolidFemOutput::extension().data() );
     }
 
     void register_edged_curve_output()
@@ -102,6 +110,7 @@ namespace geode
         OpenGeodeMeshLibrary::initialize();
         register_triangulated_surface_input();
         register_triangulated_surface_output();
+        register_tetrahedral_solid_output();
         register_edged_curve_input();
         register_edged_curve_output();
         register_regular_grid_input();
