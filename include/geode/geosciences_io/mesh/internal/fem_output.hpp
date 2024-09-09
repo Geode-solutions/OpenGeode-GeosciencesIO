@@ -36,7 +36,7 @@ namespace geode
 {
     namespace internal
     {
-        class SolidFemOutput : public TetrahedralSolidOutput< 3 >
+        class SolidFemOutput final : public TetrahedralSolidOutput< 3 >
         {
         public:
             explicit SolidFemOutput( std::string_view filename )

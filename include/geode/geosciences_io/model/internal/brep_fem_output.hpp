@@ -41,7 +41,7 @@ namespace geode
     namespace internal
     {
 
-        class BRepFemOutput : public BRepOutput
+        class BRepFemOutput final : public BRepOutput
         {
         public:
             explicit BRepFemOutput( std::string_view filename )
@@ -55,7 +55,7 @@ namespace geode
                 return EXT;
             }
 
-            std::vector< std::string > write( const BRep& brep ) const;
+            std::vector< std::string > write( const BRep& brep ) const final;
         };
     } // namespace internal
 } // namespace geode
