@@ -40,6 +40,7 @@
 #include <geode/mesh/io/tetrahedral_solid_input.hpp>
 
 #include <geode/model/representation/io/brep_input.hpp>
+#include <geode/model/representation/io/brep_output.hpp>
 
 namespace
 {
@@ -48,8 +49,7 @@ namespace
     {
         auto brep = geode::load_brep(
             absl::StrCat( geode::DATA_PATH, "remeshed_yom-faults.og_brep" ) );
-        geode::internal::BRepFemOutput fem_output( "test_brep.fem" );
-        fem_output.write( brep );
+        geode::save_brep( brep, "test_brep.fem" );
     }
 } // namespace
 
