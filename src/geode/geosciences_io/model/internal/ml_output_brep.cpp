@@ -49,7 +49,7 @@ namespace
 
         void write_geological_tsurfs() override {}
 
-        std::vector< geode::uuid > unclassified_tsurfs() const
+        std::vector< geode::uuid > unclassified_tsurfs() const override
         {
             std::vector< geode::uuid > result;
             for( const auto& surface : model_.surfaces() )
