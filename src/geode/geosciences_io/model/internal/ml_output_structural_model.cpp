@@ -106,7 +106,7 @@ namespace
             }
         }
 
-        std::vector< geode::uuid > unclassified_tsurfs() const
+        std::vector< geode::uuid > unclassified_tsurfs() const override
         {
             std::vector< geode::uuid > result;
             for( const auto& surface : model_.surfaces() )

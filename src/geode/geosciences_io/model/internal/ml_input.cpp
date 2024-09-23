@@ -383,7 +383,7 @@ namespace
             std::vector< geode::Point3D > points( model_.nb_unique_vertices() );
             for( const auto v : geode::Range{ model_.nb_unique_vertices() } )
             {
-                bool done{ false };
+                [[maybe_unused]] bool done{ false };
                 for( const auto& cmv : model_.component_mesh_vertices( v ) )
                 {
                     if( cmv.component_id.type()
