@@ -116,7 +116,8 @@ namespace
                     }
                 }
             }
-            geode::detail::repair_horizon_stack_if_possible( horizons_stack );
+            geode::detail::repair_horizon_stack_if_possible(
+                horizons_stack, builder );
             return horizons_stack;
         }
 
