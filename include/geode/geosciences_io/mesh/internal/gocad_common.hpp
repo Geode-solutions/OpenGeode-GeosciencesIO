@@ -161,5 +161,17 @@ namespace geode
         };
         std::optional< ECurveData >
             opengeode_geosciencesio_mesh_api read_ecurve( std::ifstream& file );
+
+        struct VSetData
+        {
+            index_t OFFSET_START{ 1 };
+            HeaderData header;
+            CRSData crs;
+            PropHeaderData vertices_properties_header;
+            std::deque< Point3D > points;
+            std::vector< std::vector< double > > vertices_attribute_values;
+        };
+        std::optional< VSetData > opengeode_geosciencesio_mesh_api
+            read_vs_points( std::ifstream& file );
     } // namespace internal
 } // namespace geode

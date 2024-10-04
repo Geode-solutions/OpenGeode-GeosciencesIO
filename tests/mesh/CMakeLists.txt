@@ -55,6 +55,13 @@ add_geode_test(
         ${PROJECT_NAME}::mesh
 )
 add_geode_test(
+    SOURCE "test-vs.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
+        ${PROJECT_NAME}::mesh
+)
+add_geode_test(
     SOURCE "test-well-dat.cpp"
     DEPENDENCIES
         OpenGeode::basic

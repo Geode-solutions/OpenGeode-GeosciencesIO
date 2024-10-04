@@ -198,6 +198,41 @@ namespace
         };
     }
 
+    void read_VSet_vertices(
+        std::ifstream& file, geode::internal::VSetData& vertex_set )
+    {
+        auto line = geode::goto_keywords(
+            file, std::array< std::string_view, 2 >{ "VRTX", "PVRTX" } );
+        do
+        {
+            const auto tokens = geode::string_split( line );
+            const auto& keyword = tokens.front();
+            if( keyword == "END" )
+            {
+                return;
+            }
+            if( keyword != "VRTX" && keyword != "PVRTX" )
+            {
+                continue;
+            }
+            if( vertex_set.points.empty() )
+            {
+                vertex_set.OFFSET_START = geode::string_to_index( tokens[1] );
+            }
+            vertex_set.points.emplace_back(
+                std::array< double, 3 >{ geode::string_to_double( tokens[2] ),
+                    geode::string_to_double( tokens[3] ),
+                    geode::string_to_double( tokens[4] )
+                        * ( vertex_set.crs.z_sign_positive ? 1. : -1. ) } );
+            geode::internal::read_properties(
+                vertex_set.vertices_properties_header,
+                vertex_set.vertices_attribute_values, tokens, 5 );
+        } while( std::getline( file, line ) );
+        throw geode::OpenGeodeException{
+            "[read_tfaces] Cannot find the end of VSet section"
+        };
+    }
+
     void read_property_keyword_with_one_string( std::ifstream& file,
         std::string_view keyword,
         std::vector< std::string >& keyword_data,
@@ -607,6 +642,23 @@ namespace geode
             ecurve.crs = read_CRS( file );
             read_ilines( file, ecurve );
             return ecurve;
+        }
+
+        std::optional< VSetData > read_vs_points( std::ifstream& file )
+        {
+            if( !goto_keyword_if_it_exists( file, "GOCAD VSet" ) )
+            {
+                return std::nullopt;
+            }
+            VSetData vertex_set;
+            vertex_set.header = read_header( file );
+            vertex_set.crs = read_CRS( file );
+            vertex_set.vertices_properties_header =
+                geode::internal::read_prop_header( file, "" );
+            vertex_set.vertices_attribute_values.resize(
+                vertex_set.vertices_properties_header.names.size() );
+            read_VSet_vertices( file, vertex_set );
+            return vertex_set;
         }
     } // namespace internal
 } // namespace geode
