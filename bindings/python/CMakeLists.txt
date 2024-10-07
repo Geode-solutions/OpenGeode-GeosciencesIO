@@ -29,7 +29,7 @@ add_geode_python_wheel(
     DESCRIPTION 
         "Input/Output formats for OpenGeode-Geosciences"
     MODULES
-        "mesh.py"
-        "model.py"
+        "mesh_geosciencesio.py"
+        "model_geosciencesio.py"
     LICENSE "MIT"
 )

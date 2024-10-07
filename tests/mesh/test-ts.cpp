@@ -31,8 +31,6 @@
 #include <geode/mesh/io/triangulated_surface_input.hpp>
 #include <geode/mesh/io/triangulated_surface_output.hpp>
 
-#include <geode/model/mixin/core/surface.hpp>
-
 #include <geode/geosciences_io/mesh/internal/ts_input.hpp>
 
 void check_surface( const geode::SurfaceMesh3D& surface,

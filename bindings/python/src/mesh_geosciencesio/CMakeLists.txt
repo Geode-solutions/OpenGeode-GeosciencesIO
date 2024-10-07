@@ -19,10 +19,10 @@
 # SOFTWARE.
 
 add_geode_python_binding(
-    NAME "py_model"
+    NAME "py_mesh"
     SOURCES
-        "model.cpp"
+        "mesh_geosciencesio.cpp"
     DEPENDENCIES
-        OpenGeode-Geosciences::explicit
-        ${PROJECT_NAME}::model
+        OpenGeode::mesh
+        ${PROJECT_NAME}::mesh
 )

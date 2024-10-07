@@ -23,9 +23,6 @@
 
 #include <geode/geosciences_io/mesh/common.hpp>
 
-#include <geode/mesh/io/regular_grid_input.hpp>
-#include <geode/mesh/io/triangulated_surface_input.hpp>
-
 #include <geode/geosciences_io/mesh/internal/fem_output.hpp>
 #include <geode/geosciences_io/mesh/internal/grdecl_input.hpp>
 #include <geode/geosciences_io/mesh/internal/pl_input.hpp>
@@ -33,6 +30,8 @@
 #include <geode/geosciences_io/mesh/internal/ts_input.hpp>
 #include <geode/geosciences_io/mesh/internal/ts_output.hpp>
 #include <geode/geosciences_io/mesh/internal/vo_input.hpp>
+#include <geode/geosciences_io/mesh/internal/vs_input.hpp>
+#include <geode/geosciences_io/mesh/internal/vs_output.hpp>
 #include <geode/geosciences_io/mesh/internal/well_dat_input.hpp>
 #include <geode/geosciences_io/mesh/internal/well_dev_input.hpp>
 #include <geode/geosciences_io/mesh/internal/well_txt_input.hpp>
@@ -101,6 +100,19 @@ namespace
             geode::internal::GRDECLInput::extension().data() );
     }
 
+    void register_point_set_input()
+    {
+        geode::PointSetInputFactory3D::register_creator<
+            geode::internal::VSInput >(
+            geode::internal::VSInput::extension().data() );
+    }
+
+    void register_point_set_output()
+    {
+        geode::PointSetOutputFactory3D::register_creator<
+            geode::internal::VSOutput >(
+            geode::internal::VSOutput::extension().data() );
+    }
 } // namespace
 
 namespace geode
@@ -115,5 +127,7 @@ namespace geode
         register_edged_curve_output();
         register_regular_grid_input();
         register_hybrid_solid_input();
+        register_point_set_input();
+        register_point_set_output();
     }
 } // namespace geode
