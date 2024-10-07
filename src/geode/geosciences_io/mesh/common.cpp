@@ -23,11 +23,6 @@
 
 #include <geode/geosciences_io/mesh/common.hpp>
 
-// #include <geode/mesh/io/point_set_input.hpp>
-// #include <geode/mesh/io/point_set_output.hpp>
-// #include <geode/mesh/io/regular_grid_input.hpp>
-// #include <geode/mesh/io/triangulated_surface_input.hpp>
-
 #include <geode/geosciences_io/mesh/internal/fem_output.hpp>
 #include <geode/geosciences_io/mesh/internal/grdecl_input.hpp>
 #include <geode/geosciences_io/mesh/internal/pl_input.hpp>
