@@ -124,5 +124,18 @@ namespace geode
             impl.write_file();
             return { to_string( filename() ) };
         }
+
+        bool BRepFemOutput::is_saveable( const BRep& brep ) const
+        {
+            for( const auto unique_vertex : Range{ brep.nb_unique_vertices() } )
+            {
+                if( !brep.has_component_mesh_vertices(
+                        unique_vertex, Block3D::component_type_static() ) )
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
     } // namespace internal
 } // namespace geode
