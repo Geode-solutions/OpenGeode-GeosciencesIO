@@ -40,7 +40,7 @@ void check_solid( const geode::HybridSolid3D& solid,
         "Number of polyhedra in the GrdeclHybridSolid is not correct" );
     OPENGEODE_EXCEPTION( solid.nb_vertices() == nb_vertices,
         "Number of vertices in the GrdeclHybridSolid is not correct " );
-    for( auto polyhedra : geode::Range( solid.nb_polyhedra() ) )
+    for( const auto polyhedra : geode::Range{ solid.nb_polyhedra() } )
     {
         OPENGEODE_EXCEPTION( solid.polyhedron_volume( polyhedra ) > 0.,
             "Found negative volume of polyhedron is not correct" );
