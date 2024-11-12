@@ -88,10 +88,11 @@ namespace
                     }
                     const auto& top_horizon = horizons_stack.horizon(
                         name_map.at( top_horizon_name ) );
-                    builder.add_horizon_above( top_horizon, strati_unit );
+                    builder.set_horizon_above( top_horizon, strati_unit );
                     if( top_relation == "structural" )
                     {
-                        builder.add_erosion_above( top_horizon, strati_unit );
+                        builder.set_as_erosion_above(
+                            top_horizon, strati_unit );
                     }
                 }
                 for( const auto& unit_base : unit.children( "base" ) )
@@ -109,10 +110,11 @@ namespace
                     }
                     const auto& base_horizon = horizons_stack.horizon(
                         name_map.at( base_horizon_name ) );
-                    builder.add_horizon_under( base_horizon, strati_unit );
+                    builder.set_horizon_under( base_horizon, strati_unit );
                     if( base_relation == "structural" )
                     {
-                        builder.add_baselap_under( base_horizon, strati_unit );
+                        builder.set_as_baselap_under(
+                            base_horizon, strati_unit );
                     }
                 }
             }
