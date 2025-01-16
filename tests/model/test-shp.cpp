@@ -45,6 +45,15 @@ int main()
         OPENGEODE_EXCEPTION(
             section.nb_surfaces() == 12, "[Test] Wrong number of surfaces" );
 
+        const auto section2 =
+            geode::load_section( absl::StrCat( geode::DATA_PATH, "test.shp" ) );
+        OPENGEODE_EXCEPTION(
+            section2.nb_corners() == 0, "[Test] Wrong number of corners" );
+        OPENGEODE_EXCEPTION(
+            section2.nb_lines() == 0, "[Test] Wrong number of lines" );
+        OPENGEODE_EXCEPTION(
+            section2.nb_surfaces() == 1, "[Test] Wrong number of surfaces" );
+
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }
