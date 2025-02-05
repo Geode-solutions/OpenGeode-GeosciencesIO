@@ -24,6 +24,7 @@ add_geode_library(
     SOURCES
         "common.cpp"
         "fem_output.cpp"
+        "geotiff_input.cpp"
         "gocad_common.cpp"
         "grdecl_input.cpp"
         "pl_input.cpp"
@@ -41,6 +42,7 @@ add_geode_library(
         "common.hpp"
     INTERNAL_HEADERS
         "internal/fem_output.hpp"
+        "internal/geotiff_input.hpp"
         "internal/gocad_common.hpp"
         "internal/grdecl_input.hpp"
         "internal/pl_input.hpp"
@@ -60,4 +62,5 @@ add_geode_library(
     PRIVATE_DEPENDENCIES
         OpenGeode::geometry
         OpenGeode::mesh
+        OpenGeode-IO::image
 )
