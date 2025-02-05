@@ -50,6 +50,8 @@ namespace geode
 
             LightRegularGridInput2D::MissingFiles
                 check_missing_files() const final;
+
+            bool is_loadable() const final;
         };
     } // namespace internal
 } // namespace geode

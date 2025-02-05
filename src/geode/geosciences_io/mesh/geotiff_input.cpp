@@ -140,6 +140,21 @@ namespace geode
             }
             return missing;
         }
+        bool GEOTIFFInput::is_loadable() const
+        {
+            GDALDatasetUniquePtr gdal_data{ GDALDataset::Open(
+                geode::to_string( filename() ).c_str(), GDAL_OF_VECTOR ) };
+            if( !gdal_data )
+            {
+                return false;
+            }
+            double geoTransform[6];
+            if( gdal_data->GetGeoTransform( geoTransform ) == CE_Failure )
+            {
+                return false;
+            }
+            return false;
+        }
 
     } // namespace internal
 } // namespace geode
