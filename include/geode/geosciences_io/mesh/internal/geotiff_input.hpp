@@ -48,8 +48,29 @@ namespace geode
 
             LightRegularGrid< 2 > read() final;
 
-            LightRegularGridInput2D::MissingFiles
-                check_missing_files() const final;
+            // TODO: implement missing files
+            // A tiff can use completementary file to open... but actually I
+            // donnot use it:
+            //* Sidecar Metadata Files: TIFF files may be accompanied by XMP
+            //(.xmp) or other sidecar files containing metadata, especially in
+            // workflows that use Adobe software or other image management
+            // tools.
+            //* Associated Color Profiles: TIFF images may rely on ICC color
+            // profiles (.icc or .icm) to ensure color consistency across
+            // different devices.
+            //* Layered or Multi-Page TIFFs: Some TIFF files store multiple
+            // images (e.g., multi-page scans). In such cases, associated files
+            // might be used to store extracted or processed versions of
+            // individual pages.
+            //* Auxiliary Data Files: In geospatial imaging (GeoTIFF),
+            // additional files such as .tfw (world file) or .prj may provide
+            // spatial reference data.
+            //* Thumbnails or Proxy Files: Some workflows generate
+            // low-resolution preview images (.jpg or .png) for quick browsing
+            // without opening large TIFF files.
+            //
+            // LightRegularGridInput2D::MissingFiles check_missing_files() const
+            // final;
 
             bool is_loadable() const final;
         };

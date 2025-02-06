@@ -79,6 +79,7 @@ namespace
                 geode::Vector2D{ { geoTransform[4], geoTransform[5] } };
             return true;
         }
+
         bool get_projection_ref()
         {
             const auto* projection_ref = gdal_data_->GetProjectionRef();
@@ -127,19 +128,6 @@ namespace geode
             return grid;
         }
 
-        LightRegularGridInput2D::MissingFiles
-            GEOTIFFInput::check_missing_files() const
-        {
-            const auto file_path = filepath_without_extension( filename() );
-            // TO CHECK: WHAT IF THE EXTENSION IS tif instead of tiff
-            const auto tiff_file = absl::StrCat( file_path.string(), ".tiff" );
-            LightRegularGridInput2D::MissingFiles missing;
-            if( !file_exists( tiff_file ) )
-            {
-                missing.mandatory_files.push_back( tiff_file );
-            }
-            return missing;
-        }
         bool GEOTIFFInput::is_loadable() const
         {
             GDALDatasetUniquePtr gdal_data{ GDALDataset::Open(
@@ -153,7 +141,7 @@ namespace geode
             {
                 return false;
             }
-            return false;
+            return true;
         }
 
     } // namespace internal
