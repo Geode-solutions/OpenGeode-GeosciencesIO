@@ -48,7 +48,7 @@ namespace
     public:
         GEOTIFFInputImpl( std::string_view filename )
             : gdal_data_{ GDALDataset::Open(
-                geode::to_string( filename ).c_str(), GDAL_OF_READONLY ) }
+                  geode::to_string( filename ).c_str(), GDAL_OF_READONLY ) }
         {
             OPENGEODE_EXCEPTION(
                 gdal_data_, "[GEOTIFFInput] Failed to open file ", filename );
