@@ -63,4 +63,6 @@ add_geode_library(
         OpenGeode::geometry
         OpenGeode::mesh
         OpenGeode-IO::image
+        GDAL::GDAL
+
 )
