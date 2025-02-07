@@ -62,6 +62,7 @@ add_geode_library(
     PRIVATE_DEPENDENCIES
         OpenGeode::geometry
         OpenGeode::mesh
+        OpenGeode::image
         OpenGeode-IO::image
         GDAL::GDAL
 
