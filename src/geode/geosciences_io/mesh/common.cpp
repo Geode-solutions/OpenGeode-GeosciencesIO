@@ -22,8 +22,10 @@
  */
 
 #include <geode/geosciences_io/mesh/common.hpp>
+#include <geode/io/image/common.hpp>
 
 #include <geode/geosciences_io/mesh/internal/fem_output.hpp>
+#include <geode/geosciences_io/mesh/internal/geotiff_input.hpp>
 #include <geode/geosciences_io/mesh/internal/grdecl_input.hpp>
 #include <geode/geosciences_io/mesh/internal/pl_input.hpp>
 #include <geode/geosciences_io/mesh/internal/pl_output.hpp>
@@ -86,6 +88,15 @@ namespace
             geode::internal::PLInput::extension().data() );
     }
 
+    void register_light_regular_grid_input()
+    {
+        for( const auto& tif_ext : geode::internal::GEOTIFFInput::extensions() )
+        {
+            geode::LightRegularGridInputFactory2D::register_creator<
+                geode::internal::GEOTIFFInput >( tif_ext );
+        }
+    }
+
     void register_regular_grid_input()
     {
         geode::RegularGridInputFactory3D::register_creator<
@@ -120,11 +131,13 @@ namespace geode
     OPENGEODE_LIBRARY_IMPLEMENTATION( GeosciencesIOMesh )
     {
         OpenGeodeMeshLibrary::initialize();
+        IOImageLibrary::initialize();
         register_triangulated_surface_input();
         register_triangulated_surface_output();
         register_tetrahedral_solid_output();
         register_edged_curve_input();
         register_edged_curve_output();
+        register_light_regular_grid_input();
         register_regular_grid_input();
         register_hybrid_solid_input();
         register_point_set_input();
