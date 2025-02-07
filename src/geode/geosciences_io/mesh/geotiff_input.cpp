@@ -37,9 +37,7 @@
 
 #include <geode/image/core/raster_image.hpp>
 #include <geode/image/core/rgb_color.hpp>
-#include <geode/image/io/raster_image_output.hpp>
-
-#include <geode/io/image/internal/tiff_input.hpp>
+#include <geode/image/io/raster_image_input.hpp>
 
 namespace
 {
@@ -106,8 +104,9 @@ namespace geode
     {
         LightRegularGrid2D GEOTIFFInput::read()
         {
-            TIFFInput image_reader( filename() );
-            auto image = image_reader.read();
+            auto image = geode::load_raster_image< 2 >( filename() );
+            //TIFFInput image_reader( filename() );
+            //auto image = image_reader.read();
             std::array< index_t, 2 > cells_number{ image.nb_cells_in_direction(
                                                        0 ),
                 image.nb_cells_in_direction( 1 ) };
