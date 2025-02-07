@@ -105,8 +105,8 @@ namespace geode
         LightRegularGrid2D GEOTIFFInput::read()
         {
             auto image = geode::load_raster_image< 2 >( filename() );
-            //TIFFInput image_reader( filename() );
-            //auto image = image_reader.read();
+            // TIFFInput image_reader( filename() );
+            // auto image = image_reader.read();
             std::array< index_t, 2 > cells_number{ image.nb_cells_in_direction(
                                                        0 ),
                 image.nb_cells_in_direction( 1 ) };
