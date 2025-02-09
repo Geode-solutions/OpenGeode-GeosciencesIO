@@ -26,13 +26,12 @@
 #include <geode/basic/assert.hpp>
 #include <geode/basic/logger.hpp>
 
-#include <geode/geosciences_io/mesh/internal/geotiff_input.hpp>
-
 #include <geode/mesh/core/light_regular_grid.hpp>
 
 #include <geode/mesh/io/light_regular_grid_input.hpp>
 #include <geode/mesh/io/light_regular_grid_output.hpp>
 
+#include <geode/geosciences_io/mesh/common.hpp>
 #include <geode/io/mesh/common.hpp>
 
 int main()
