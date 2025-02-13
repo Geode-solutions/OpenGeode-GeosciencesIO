@@ -58,7 +58,10 @@ namespace
     private:
         void build_point_set( const geode::internal::VSetData& vertex_set )
         {
-            builder_->set_name( vertex_set.header.name );
+            if( vertex_set.header.name )
+            {
+                builder_->set_name( vertex_set.header.name.value() );
+            }
             for( const auto& point : vertex_set.points )
             {
                 builder_->create_point( point );

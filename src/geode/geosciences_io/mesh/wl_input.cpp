@@ -58,7 +58,10 @@ namespace
                 };
             }
             const auto header = geode::internal::read_header( file_ );
-            builder_->set_name( header.name );
+            if( header.name )
+            {
+                builder_->set_name( header.name.value() );
+            }
             crs_ = geode::internal::read_CRS( file_ );
             const auto ref = read_ref();
             builder_->create_point( ref );

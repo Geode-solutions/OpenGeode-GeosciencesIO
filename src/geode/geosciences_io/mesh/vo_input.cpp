@@ -82,7 +82,10 @@ namespace
                 };
             }
             const auto header = geode::internal::read_header( file_ );
-            builder_->set_name( header.name );
+            if( header.name )
+            {
+                builder_->set_name( header.name.value() );
+            }
             geode::internal::read_CRS( file_ );
             initialize_grid();
             read_data_file();

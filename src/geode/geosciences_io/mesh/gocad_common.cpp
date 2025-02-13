@@ -338,12 +338,13 @@ namespace geode
                 {
                     return header;
                 }
-                const auto tokens = geode::string_split( line );
-                if( tokens.front() == "name:" )
+                constexpr std::string_view NAME_PREFFIX = "name:";
+                const auto name_it = line.find( NAME_PREFFIX );
+                if( name_it != std::string::npos )
                 {
-                    absl::Span< const std::string_view > remaining_tokens(
-                        &tokens[1], tokens.size() - 1 );
-                    header.name = read_name( remaining_tokens );
+                    std::string_view name_line{ line };
+                    name_line.remove_prefix( name_it + NAME_PREFFIX.size() );
+                    header.name = read_name( geode::string_split( name_line ) );
                 }
             }
             throw geode::OpenGeodeException{
@@ -354,7 +355,10 @@ namespace geode
         void write_header( std::ofstream& file, const HeaderData& data )
         {
             file << "HEADER {" << EOL;
-            file << "name:" << data.name << EOL;
+            if( data.name )
+            {
+                file << "name:" << data.name.value() << EOL;
+            }
             file << "}" << EOL;
         }
 
@@ -420,9 +424,6 @@ namespace geode
                 file, absl::StrCat( prefix, "PROPERTIES" ) );
             if( !opt_line )
             {
-                geode::Logger::info( "Token ", prefix,
-                    "PROPERTIES could not be found in the file, the "
-                    "corresponding attributes will not be loaded." );
                 return header;
             }
             const auto split_line =

@@ -58,7 +58,10 @@ namespace
         void build_curve( const geode::internal::ECurveData& ecurve )
         {
             const auto offset = curve_.nb_vertices();
-            builder_->set_name( ecurve.header.name );
+            if( ecurve.header.name )
+            {
+                builder_->set_name( ecurve.header.name.value() );
+            }
             for( const auto& point : ecurve.points )
             {
                 builder_->create_point( point );
