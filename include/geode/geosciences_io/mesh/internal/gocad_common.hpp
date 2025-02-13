@@ -37,7 +37,7 @@ namespace geode
     {
         struct HeaderData
         {
-            std::string name{ "unknown" };
+            std::optional< std::string > name;
         };
         HeaderData opengeode_geosciencesio_mesh_api read_header(
             std::ifstream& file );

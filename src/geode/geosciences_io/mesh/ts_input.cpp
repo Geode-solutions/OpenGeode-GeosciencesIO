@@ -61,7 +61,10 @@ namespace
         void build_surface( const geode::internal::TSurfData& tsurf )
         {
             const auto offset = surface_.nb_vertices();
-            builder_->set_name( tsurf.header.name );
+            if( tsurf.header.name )
+            {
+                builder_->set_name( tsurf.header.name.value() );
+            }
             for( const auto& point : tsurf.points )
             {
                 builder_->create_point( point );

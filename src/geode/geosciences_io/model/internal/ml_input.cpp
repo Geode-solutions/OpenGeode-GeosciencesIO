@@ -99,7 +99,10 @@ namespace
                 };
             }
             const auto header = geode::internal::read_header( file_ );
-            builder_.set_name( header.name );
+            if( header.name )
+            {
+                builder_.set_name( header.name.value() );
+            }
             geode::internal::read_CRS( file_ );
             read_model_components();
             for( auto& tsurf : tsurfs_ )
@@ -483,7 +486,10 @@ namespace
                     builder_
                         .surface_mesh_builder< geode::TriangulatedSurface3D >(
                             tsurf.tfaces[triangle_id] );
-                builder->set_name( data.header.name );
+                if( data.header.name )
+                {
+                    builder->set_name( data.header.name.value() );
+                }
                 const auto current = data.tface_vertices_offset[triangle_id];
                 const auto next = data.tface_vertices_offset[triangle_id + 1];
                 for( const auto p : geode::Range{ current, next } )

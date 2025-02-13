@@ -99,7 +99,10 @@ namespace
                 };
             }
             const auto header = geode::internal::read_header( file_ );
-            builder_.set_name( header.name );
+            if( header.name )
+            {
+                builder_.set_name( header.name.value() );
+            }
             crs_ = geode::internal::read_CRS( file_ );
             vertices_prop_header_ =
                 geode::internal::read_prop_header( file_, "" );

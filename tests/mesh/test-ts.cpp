@@ -35,20 +35,25 @@
 
 void check_surface( const geode::SurfaceMesh3D& surface,
     geode::index_t nb_vertices,
-    geode::index_t nb_polygons )
+    geode::index_t nb_polygons,
+    std::string name )
 {
     OPENGEODE_EXCEPTION( surface.nb_vertices() == nb_vertices,
         "Number of vertices in the TSurf 3D is not correct" );
     OPENGEODE_EXCEPTION( surface.nb_polygons() == nb_polygons,
         "Number of polygons in the TSurf 3D is not correct" );
+    OPENGEODE_EXCEPTION( surface.name() == name, "Wrong name: ", surface.name(),
+        " should be ", name );
 }
 
-void check_file(
-    std::string file, geode::index_t nb_vertices, geode::index_t nb_polygons )
+void check_file( std::string file,
+    geode::index_t nb_vertices,
+    geode::index_t nb_polygons,
+    std::string name )
 {
     // Load file
     auto surface = geode::load_triangulated_surface< 3 >( file );
-    check_surface( *surface, nb_vertices, nb_polygons );
+    check_surface( *surface, nb_vertices, nb_polygons, name );
 
     // Save triangulated tsurf
     const auto output_file_native =
@@ -60,10 +65,10 @@ void check_file(
     // Load file
     auto reloaded_surface =
         geode::load_triangulated_surface< 3 >( output_file_native );
-    check_surface( *reloaded_surface, nb_vertices, nb_polygons );
+    check_surface( *reloaded_surface, nb_vertices, nb_polygons, name );
     auto reloaded_surface_ts =
         geode::load_triangulated_surface< 3 >( output_file_ts );
-    check_surface( *reloaded_surface_ts, nb_vertices, nb_polygons );
+    check_surface( *reloaded_surface_ts, nb_vertices, nb_polygons, name );
 }
 
 int main()
@@ -71,24 +76,25 @@ int main()
     try
     {
         geode::GeosciencesIOMeshLibrary::initialize();
+        geode::Logger::set_level( geode::Logger::LEVEL::trace );
         check_file( absl::StrCat( geode::DATA_PATH, "/surf2d_multi.",
                         geode::internal::TSInput::extension() ),
-            92, 92 );
+            92, 92, "section1" );
         check_file( absl::StrCat( geode::DATA_PATH, "/surf2d.",
                         geode::internal::TSInput::extension() ),
-            46, 46 );
+            46, 46, "section1" );
         check_file( absl::StrCat( geode::DATA_PATH, "/2triangles.",
                         geode::internal::TSInput::extension() ),
-            4, 2 );
+            4, 2, "2triangles.ts" );
         check_file( absl::StrCat( geode::DATA_PATH, "/sgrid_tsurf.",
                         geode::internal::TSInput::extension() ),
-            4, 2 );
+            4, 2, "FractureSet_N20_1fract_visualisation" );
         check_file( absl::StrCat( geode::DATA_PATH, "Fault_without_crs.",
                         geode::internal::TSInput::extension() ),
-            189, 324 );
+            189, 324, "Fault" );
         check_file( absl::StrCat( geode::DATA_PATH, "ts-2props.",
                         geode::internal::TSInput::extension() ),
-            4, 2 );
+            4, 2, "test" );
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
