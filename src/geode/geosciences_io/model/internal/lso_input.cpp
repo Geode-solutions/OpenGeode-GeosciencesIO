@@ -73,16 +73,12 @@ namespace
               solid_{ geode::TetrahedralSolid3D::create() },
               solid_builder_{ geode::TetrahedralSolidBuilder3D::create(
                   *solid_ ) },
-              vertex_id_{
-                  solid_->vertex_attribute_manager()
+              vertex_id_{ solid_->vertex_attribute_manager()
                       .find_or_create_attribute< geode::VariableAttribute,
-                          geode::index_t >( "vertex_id", geode::NO_ID )
-              },
-              block_name_attribute_{
-                  solid_->polyhedron_attribute_manager()
+                          geode::index_t >( "vertex_id", geode::NO_ID ) },
+              block_name_attribute_{ solid_->polyhedron_attribute_manager()
                       .find_or_create_attribute< geode::VariableAttribute,
-                          std::string >( BLOCK_NAME_ATTRIBUTE_NAME, "" )
-              }
+                          std::string >( BLOCK_NAME_ATTRIBUTE_NAME, "" ) }
         {
             solid_->enable_facets();
             OPENGEODE_EXCEPTION( file_.good(),

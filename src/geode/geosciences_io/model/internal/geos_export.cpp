@@ -181,9 +181,9 @@ namespace geode
                 region_attribute_->set_value( polyhedron_id,
                     region_map_id
                         .find( model2solid_.solid_polyhedra_mapping
-                                   .out2in( polyhedron_id )
-                                   .front()
-                                   .mesh_id )
+                                .out2in( polyhedron_id )
+                                .front()
+                                .mesh_id )
                         ->second );
             }
             return region_map_id.size();
@@ -236,12 +236,12 @@ namespace geode
                     "{", perf_box.min().value( 0 ) - SAFETY_OFFSET, ", ",
                     perf_box.min().value( 1 ) - SAFETY_OFFSET, ", ",
                     perf_box.min().value( 2 ) - SAFETY_OFFSET, "}" )
-                                                                   .c_str() );
+                        .c_str() );
                 box_node.append_attribute( "xMax" ).set_value( absl::StrCat(
                     "{", perf_box.max().value( 0 ) + SAFETY_OFFSET, ", ",
                     perf_box.max().value( 1 ) + SAFETY_OFFSET, ", ",
                     perf_box.max().value( 2 ) + SAFETY_OFFSET, "}" )
-                                                                   .c_str() );
+                        .c_str() );
             }
         }
 
@@ -309,8 +309,8 @@ namespace geode
             for( const auto& block : model_.blocks() )
             {
                 if( !block.mesh()
-                         .polyhedron_attribute_manager()
-                         .attribute_exists( property_name ) )
+                        .polyhedron_attribute_manager()
+                        .attribute_exists( property_name ) )
 
                 {
                     Logger::info( "The property ", property_name,

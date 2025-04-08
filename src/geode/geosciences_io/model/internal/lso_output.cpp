@@ -138,7 +138,7 @@ namespace
                 for( const auto& item_id : model_.items( component.id() ) )
                 {
                     if( !exported_surfaces_.emplace( item_id.id(), nb_tfaces )
-                             .second )
+                            .second )
                     {
                         continue;
                     }

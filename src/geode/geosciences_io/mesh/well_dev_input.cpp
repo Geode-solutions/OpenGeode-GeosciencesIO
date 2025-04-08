@@ -152,8 +152,7 @@ namespace
             attributes_.reserve( header_.attribute_names.size() );
             for( const auto& attr_name : header_.attribute_names )
             {
-                attributes_.push_back(
-                    curve_.vertex_attribute_manager()
+                attributes_.push_back( curve_.vertex_attribute_manager()
                         .template find_or_create_attribute<
                             geode::VariableAttribute, double >(
                             attr_name, 0 ) );
