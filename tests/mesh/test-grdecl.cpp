@@ -25,6 +25,7 @@
 
 #include <geode/basic/assert.hpp>
 #include <geode/basic/logger.hpp>
+#include <geode/basic/range.hpp>
 
 #include <geode/geosciences_io/mesh/internal/grdecl_input.hpp>
 #include <geode/mesh/core/geode/geode_hybrid_solid.hpp>

@@ -31,10 +31,10 @@
 
 #include <pugixml.hpp>
 
-#include <geode/basic/attribute.hpp>
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/filename.hpp>
 #include <geode/basic/logger.hpp>
+#include <geode/basic/variable_attribute.hpp>
 
 #include <geode/geometry/aabb.hpp>
 #include <geode/geometry/distance.hpp>

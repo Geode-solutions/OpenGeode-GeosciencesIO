@@ -29,6 +29,7 @@
 #include <geode/basic/file.hpp>
 #include <geode/basic/filename.hpp>
 #include <geode/basic/logger.hpp>
+#include <geode/basic/variable_attribute.hpp>
 
 #include <geode/mesh/core/light_regular_grid.hpp>
 

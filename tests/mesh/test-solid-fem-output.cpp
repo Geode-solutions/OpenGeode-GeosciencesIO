@@ -25,6 +25,7 @@
 #include <geode/basic/assert.hpp>
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/logger.hpp>
+#include <geode/basic/variable_attribute.hpp>
 
 #include <geode/mesh/core/tetrahedral_solid.hpp>
 
