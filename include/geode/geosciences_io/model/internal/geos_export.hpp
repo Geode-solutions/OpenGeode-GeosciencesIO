@@ -28,7 +28,7 @@
 #include <string_view>
 #include <vector>
 
-#include <geode/basic/attribute.hpp>
+#include <geode/basic/variable_attribute.hpp>
 
 #include <geode/model/helpers/convert_to_mesh.hpp>
 

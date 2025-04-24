@@ -30,6 +30,7 @@
 
 #include <geode/basic/file.hpp>
 #include <geode/basic/string.hpp>
+#include <geode/basic/variable_attribute.hpp>
 
 #include <geode/geometry/point.hpp>
 

@@ -33,6 +33,7 @@
 #include <geode/basic/file.hpp>
 #include <geode/basic/filename.hpp>
 #include <geode/basic/string.hpp>
+#include <geode/basic/variable_attribute.hpp>
 
 #include <geode/geometry/distance.hpp>
 #include <geode/geometry/vector.hpp>

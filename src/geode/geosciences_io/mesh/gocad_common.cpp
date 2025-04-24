@@ -34,6 +34,7 @@
 #include <geode/basic/file.hpp>
 #include <geode/basic/logger.hpp>
 #include <geode/basic/string.hpp>
+#include <geode/basic/variable_attribute.hpp>
 
 namespace
 {
