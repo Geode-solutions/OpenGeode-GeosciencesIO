@@ -130,34 +130,65 @@ namespace
             nz_ = geode::string_to_index( tokens[2] );
         }
 
-        absl::FixedArray< Pillar > read_pillars_from_file( std::ifstream& file )
+        absl::FixedArray< Pillar > read_pillars_from_file(
+            std::ifstream& file ) const
         {
             absl::FixedArray< Pillar > pillars( ( nx_ + 1 ) * ( ny_ + 1 ) );
             auto line = geode::goto_keyword( file, "COORD" );
             std::getline( file, line );
             geode::index_t pillar_number{ 0 };
-            while( line != "/" )
+            while( !geode::string_starts_with( line, "/" ) )
             {
-                const auto tokens = geode::string_split( line );
-                if( !tokens.empty() )
+                if( auto pillar = read_pillar( file, line ) )
                 {
-                    OPENGEODE_ASSERT( tokens.size() == 6,
-                        "[GRDECLInput::read_pillars] Wrong "
-                        "number of coordinates" );
-                    Pillar pillar;
-                    pillar.top =
-                        geode::Point3D{ { geode::string_to_double( tokens[0] ),
-                            geode::string_to_double( tokens[1] ),
-                            geode::string_to_double( tokens[2] ) } };
-                    pillar.bottom =
-                        geode::Point3D{ { geode::string_to_double( tokens[3] ),
-                            geode::string_to_double( tokens[4] ),
-                            geode::string_to_double( tokens[5] ) } };
-                    pillars[pillar_number++] = std::move( pillar );
+                    pillars[pillar_number++] = std::move( pillar.value() );
                 }
                 std::getline( file, line );
             }
             return pillars;
+        }
+
+        std::optional< Pillar > read_pillar(
+            std::ifstream& file, std::string_view line ) const
+        {
+            const auto tokens = geode::string_split( line );
+            if( tokens.empty() )
+            {
+                return std::nullopt;
+            }
+            std::optional< Pillar > pillar{ std::in_place };
+            if( tokens.size() == 6 )
+            {
+                for( const auto d : geode::LRange{ 3 } )
+                {
+                    pillar->top.set_value(
+                        d, geode::string_to_double( tokens[d] ) );
+                    pillar->bottom.set_value(
+                        d, geode::string_to_double( tokens[d + 3] ) );
+                }
+            }
+            else if( tokens.size() == 3 )
+            {
+                for( const auto d : geode::LRange{ 3 } )
+                {
+                    pillar->top.set_value(
+                        d, geode::string_to_double( tokens[d] ) );
+                }
+                std::string second_line;
+                std::getline( file, second_line );
+                const auto second_tokens = geode::string_split( second_line );
+                for( const auto d : geode::LRange{ 3 } )
+                {
+                    pillar->bottom.set_value(
+                        d, geode::string_to_double( second_tokens[d] ) );
+                }
+            }
+            else
+            {
+                OPENGEODE_EXCEPTION( "[GRDECLInput::read_pillars] Wrong "
+                                     "number of coordinates" );
+            }
+            return pillar;
         }
 
         absl::FixedArray< Pillar > read_pillars()
@@ -172,13 +203,14 @@ namespace
             return read_pillars_from_file( file );
         }
 
-        absl::FixedArray< double > read_depths_from_file( std::ifstream& file )
+        absl::FixedArray< double > read_depths_from_file(
+            std::ifstream& file ) const
         {
             absl::FixedArray< double > depths( 8 * nx_ * ny_ * nz_ );
             auto line = geode::goto_keyword( file, "ZCORN" );
             geode::index_t depths_number{ 0 };
             std::getline( file, line );
-            while( line != "/" )
+            while( !geode::string_starts_with( line, "/" ) )
             {
                 const auto tokens = geode::string_split( line );
                 for( const auto depths_id : geode::Indices{ tokens } )
