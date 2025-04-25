@@ -61,11 +61,15 @@ int main()
     try
     {
         geode::GeosciencesIOMeshLibrary::initialize();
-
+        geode::Logger::set_level( geode::Logger::LEVEL::trace );
         check_file( absl::StrCat( geode::DATA_PATH, "Simple20x20x5_Fault.",
                         geode::internal::GRDECLInput::extension() ),
 
             20 * 20 * 5, 21 * 6 * ( 21 + 1 ) );
+        check_file( absl::StrCat( geode::DATA_PATH, "EclipseGridTest.",
+                        geode::internal::GRDECLInput::extension() ),
+
+            24, 60 );
         geode::Logger::info( "[TEST SUCCESS]" );
 
         return 0;
