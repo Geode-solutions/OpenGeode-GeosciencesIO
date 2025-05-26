@@ -42,7 +42,7 @@ namespace
         std::string result;
         geode::index_t start = elements[0];
         geode::index_t prev = elements[0];
-        for( const auto element : geode::Range{ elements.size() } )
+        for( const auto element : geode::Range{ 1, elements.size() } )
         {
             if( elements[element] == prev + 1 )
             {
