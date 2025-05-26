@@ -97,7 +97,7 @@ namespace
             write_node_coordinates();
             write_ref_nodal_dist();
             write_ref_element_dist();
-            write_mass_transport_properties();
+            // write_mass_transport_properties();
             // write_flow_properties();
             // write_heat_transport_properties();
             write_nodal_sets();
