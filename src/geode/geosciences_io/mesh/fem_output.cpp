@@ -36,12 +36,12 @@ namespace
     std::string format_ranges( const std::vector< geode::index_t >& elements )
     {
         if( elements.empty() )
+        {
             return "";
-
+        }
         std::string result;
         geode::index_t start = elements[0];
         geode::index_t prev = elements[0];
-
         for( const auto element : geode::Range{ elements.size() } )
         {
             if( elements[element] == prev + 1 )
@@ -57,11 +57,14 @@ namespace
                 start = prev = elements[element];
             }
         }
-        // Append the final range
         if( start == prev )
+        {
             absl::StrAppendFormat( &result, "%d", start );
+        }
         else
+        {
             absl::StrAppendFormat( &result, "%d-%d", start, prev );
+        }
 
         return result;
     }
