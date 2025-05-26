@@ -427,8 +427,9 @@ namespace
             absl::flat_hash_map< std::string_view,
                 std::vector< geode::index_t > >
                 region_map;
-            int nb_obj = ( create_element_region ? solid_.nb_polyhedra()
-                                                 : solid_.nb_vertices() );
+            geode::index_t nb_obj =
+                ( create_element_region ? solid_.nb_polyhedra()
+                                        : solid_.nb_vertices() );
             for( const auto obj : geode::Range{ nb_obj } )
             {
                 const auto value = attribute.value( obj );
