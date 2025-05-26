@@ -33,7 +33,7 @@
 
 namespace
 {
-    std::string format_ranges( const std::vector< geode::index_t >& elements )
+    std::string format_ranges( absl::Span< const geode::index_t > elements )
     {
         if( elements.empty() )
         {
@@ -47,15 +47,17 @@ namespace
             if( elements[element] == prev + 1 )
             {
                 prev = elements[element];
+                continue;
+            }
+            if( start == prev )
+            {
+                absl::StrAppendFormat( &result, "%d ", start );
             }
             else
             {
-                if( start == prev )
-                    absl::StrAppendFormat( &result, "%d ", start );
-                else
-                    absl::StrAppendFormat( &result, "%d-%d ", start, prev );
-                start = prev = elements[element];
+                absl::StrAppendFormat( &result, "%d-%d ", start, prev );
             }
+            start = prev = elements[element];
         }
         if( start == prev )
         {
@@ -167,10 +169,11 @@ namespace
             file_ << attribute.name() << EOL;
 
             absl::flat_hash_map< double, std::vector< geode::index_t > >
-                att_dist = create_att_dist( attribute );
+                attribute_distribution =
+                    create_attribute_distribution( attribute );
             std::vector< double > values;
-            values.reserve( att_dist.size() );
-            for( auto val : att_dist )
+            values.reserve( attribute_distribution.size() );
+            for( auto val : attribute_distribution )
             {
                 values.push_back( val.first );
             }
@@ -178,14 +181,15 @@ namespace
             for( const auto value : values )
             {
                 std::string line = "";
-                const auto ranges = format_ranges( att_dist[value] );
+                const auto ranges =
+                    format_ranges( attribute_distribution[value] );
                 line += ranges + SPACE;
                 file_ << "  " << value << "  " << line << EOL;
             }
         }
 
         absl::flat_hash_map< double, std::vector< geode::index_t > >
-            create_att_dist( geode::AttributeBase& attribute )
+            create_attribute_distribution( geode::AttributeBase& attribute )
         {
             absl::flat_hash_map< double, std::vector< geode::index_t > >
                 att_dist;
