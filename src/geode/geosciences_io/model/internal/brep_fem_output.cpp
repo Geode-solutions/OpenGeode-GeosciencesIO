@@ -73,14 +73,17 @@ namespace
                 geode::convert_brep_into_solid( brep_ );
             auto& tet_solid =
                 static_cast< const geode::TetrahedralSolid3D& >( *solid );
+            copy_tetrahedra_attributes_in_solid(
+                tet_solid, model_to_mesh_mapping );
             auto attribute_p =
                 tet_solid.polyhedron_attribute_manager()
                     .find_or_create_attribute< geode::VariableAttribute,
-                        std::string_view >( "Block_ID_polyhedron", "No name" );
+                        std::string_view >( "Block_ID_polyhedron", "No_name" );
             auto attribute_v =
                 tet_solid.vertex_attribute_manager()
                     .find_or_create_attribute< geode::VariableAttribute,
-                        std::string_view >( "Block_ID_vertex", "No name" );
+                        std::vector< std::string_view > >(
+                        "Block_ID_vertex", {} );
             for( const auto& block : brep_.blocks() )
             {
                 for( const auto polyhedron_id :
@@ -96,14 +99,67 @@ namespace
                 for( const auto vertex_id :
                     geode::Range{ block.mesh().nb_vertices() } )
                 {
+                    const auto unique_vertex = brep_.unique_vertex(
+                        { block.component_id(), vertex_id } );
                     const auto vertex_out =
                         model_to_mesh_mapping.unique_vertices_mapping.in2out(
-                            vertex_id );
-
-                    attribute_v->set_value( vertex_out, block.name() );
+                            unique_vertex );
+                    auto vertex_blocks = attribute_v->value( vertex_out );
+                    vertex_blocks.push_back( block.name() );
+                    attribute_v->set_value( vertex_out, vertex_blocks );
                 }
             }
             geode::save_tetrahedral_solid( tet_solid, file_str_view_ );
+        }
+
+    private:
+        void copy_tetrahedra_attributes_in_solid(
+            const geode::TetrahedralSolid3D& solid,
+            const geode::ModelToMeshMappings& model_to_mesh_mapping ) const
+        {
+            for( const auto& block : brep_.blocks() )
+            {
+                const auto& mesh = block.mesh();
+                for( const auto& attribute_name :
+                    mesh.polyhedron_attribute_manager().attribute_names() )
+                {
+                    const auto& block_polyhedron_attribute =
+                        mesh.polyhedron_attribute_manager()
+                            .find_generic_attribute( attribute_name );
+                    if( !block_polyhedron_attribute )
+                    {
+                        continue;
+                    }
+                    if( !block_polyhedron_attribute->properties().transferable )
+                    {
+                        continue;
+                    }
+                    if( block_polyhedron_attribute->type()
+                            != typeid( double ).name()
+                        && block_polyhedron_attribute->type()
+                               != typeid( float ).name() )
+                    {
+                        continue;
+                    }
+                    auto solid_polyhedron_attribute =
+                        solid.polyhedron_attribute_manager()
+                            .find_or_create_attribute< geode::VariableAttribute,
+                                double >( attribute_name,
+                                block_polyhedron_attribute->generic_value(
+                                    0 ) );
+                    for( const auto polyhedron :
+                        geode::Range{ mesh.nb_polyhedra() } )
+                    {
+                        const auto polyhedron_out =
+                            model_to_mesh_mapping.solid_polyhedra_mapping
+                                .in2out( { block.id(), polyhedron } );
+                        solid_polyhedron_attribute->set_value(
+                            polyhedron_out.front(),
+                            block_polyhedron_attribute->generic_value(
+                                polyhedron ) );
+                    }
+                }
+            }
         }
 
     private:
