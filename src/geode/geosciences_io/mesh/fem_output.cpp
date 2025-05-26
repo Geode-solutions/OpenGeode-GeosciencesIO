@@ -33,6 +33,39 @@
 
 namespace
 {
+    std::string format_ranges( const std::vector< geode::index_t >& elements )
+    {
+        if( elements.empty() )
+            return "";
+
+        std::string result;
+        geode::index_t start = elements[0];
+        geode::index_t prev = elements[0];
+
+        for( size_t i = 1; i < elements.size(); ++i )
+        {
+            if( elements[i] == prev + 1 )
+            {
+                prev = elements[i];
+            }
+            else
+            {
+                if( start == prev )
+                    absl::StrAppendFormat( &result, "%d ", start );
+                else
+                    absl::StrAppendFormat( &result, "%d-%d ", start, prev );
+                start = prev = elements[i];
+            }
+        }
+        // Append the final range
+        if( start == prev )
+            absl::StrAppendFormat( &result, "%d", start );
+        else
+            absl::StrAppendFormat( &result, "%d-%d", start, prev );
+
+        return result;
+    }
+
     class SolidFemOutputImpl
     {
     public:
@@ -64,6 +97,9 @@ namespace
             write_node_coordinates();
             write_ref_nodal_dist();
             write_ref_element_dist();
+            write_mass_transport_properties();
+            // write_flow_properties();
+            // write_heat_transport_properties();
             write_nodal_sets();
             write_element_sets();
             write_gravity();
@@ -114,11 +150,11 @@ namespace
         void write_node_coordinates()
         {
             file_ << "XYZCOOR" << EOL;
-            for( const auto v : geode::LRange{ solid_.nb_vertices() } )
+            for( const auto vertex : geode::Range{ solid_.nb_vertices() } )
             {
-                file_ << SPACE << solid_.point( v ).value( 0 ) << ", "
-                      << solid_.point( v ).value( 1 ) << ", "
-                      << solid_.point( v ).value( 2 ) << EOL;
+                file_ << SPACE << solid_.point( vertex ).value( 0 ) << ", "
+                      << solid_.point( vertex ).value( 1 ) << ", "
+                      << solid_.point( vertex ).value( 2 ) << EOL;
             }
         }
 
@@ -126,8 +162,8 @@ namespace
         {
             file_ << attribute.name() << EOL;
 
-            absl::flat_hash_map< double, std::vector< int > > att_dist =
-                create_att_dist( attribute );
+            absl::flat_hash_map< double, std::vector< geode::index_t > >
+                att_dist = create_att_dist( attribute );
             std::vector< double > values;
             values.reserve( att_dist.size() );
             for( auto val : att_dist )
@@ -135,21 +171,20 @@ namespace
                 values.push_back( val.first );
             }
             absl::c_sort( values );
-            for( const auto v : values )
+            for( const auto value : values )
             {
                 std::string line = "";
-                for( const auto e : att_dist[v] )
-                {
-                    line += std::to_string( e + 1 ) + SPACE;
-                }
-                file_ << "     " << v << "  " << line << EOL;
+                const auto ranges = format_ranges( att_dist[value] );
+                line += ranges + SPACE;
+                file_ << "  " << value << "  " << line << EOL;
             }
         }
 
-        absl::flat_hash_map< double, std::vector< int > > create_att_dist(
-            geode::AttributeBase& attribute )
+        absl::flat_hash_map< double, std::vector< geode::index_t > >
+            create_att_dist( geode::AttributeBase& attribute )
         {
-            absl::flat_hash_map< double, std::vector< int > > att_dist;
+            absl::flat_hash_map< double, std::vector< geode::index_t > >
+                att_dist;
             for( const auto elem : geode::Range{ solid_.nb_polyhedra() } )
             {
                 const auto value = attribute.generic_value( elem );
@@ -159,7 +194,7 @@ namespace
                 }
                 else
                 {
-                    att_dist[value] = { static_cast< int >( elem ) };
+                    att_dist[value] = { elem };
                 }
             }
             return att_dist;
@@ -167,12 +202,10 @@ namespace
 
         void write_ref_nodal_dist()
         {
-            int nb_vtx_att =
-                solid_.vertex_attribute_manager().attribute_names().size();
-            file_ << "REF_DIS_I" << EOL;
-            file_ << SPACE << nb_vtx_att << SPACE << solid_.nb_vertices()
-                  << " 0" << EOL;
-            write_xyz_dist();
+            geode::index_t nb_vtx_att{ 3 };
+            std::vector< std::shared_ptr< geode::AttributeBase > > attributes;
+            attributes.reserve(
+                solid_.vertex_attribute_manager().attribute_names().size() );
             for( const auto name :
                 solid_.vertex_attribute_manager().attribute_names() )
             {
@@ -184,15 +217,89 @@ namespace
                 {
                     continue;
                 }
+                attributes.push_back( attribute );
+                nb_vtx_att++;
+            }
+            file_ << "REF_DIS_I" << EOL;
+            file_ << SPACE << nb_vtx_att << "," << SPACE << solid_.nb_vertices()
+                  << ","
+                  << " 0" << EOL;
+            write_xyz_dist();
+            for( const auto& attribute : attributes )
+            {
                 write_property( *attribute );
             }
         }
 
-        absl::flat_hash_map< double, std::vector< int > > create_coord_dist(
-            int dim )
+        absl::flat_hash_map< double, std::vector< geode::index_t > >
+            create_porosity_region_map(
+                const geode::ReadOnlyAttribute< double >& porosity_attribute )
         {
-            absl::flat_hash_map< double, std::vector< int > > coord_dist;
-            for( const auto v : geode::LRange{ solid_.nb_vertices() } )
+            absl::flat_hash_map< double, std::vector< geode::index_t > >
+                porosity_region_map;
+            for( const auto polyhedron : geode::Range{ solid_.nb_polyhedra() } )
+            {
+                const auto value = porosity_attribute.value( polyhedron );
+                if( !porosity_region_map.contains( value ) )
+                {
+                    porosity_region_map[value] = { polyhedron };
+                    continue;
+                }
+                porosity_region_map[value].push_back( polyhedron );
+            }
+            return porosity_region_map;
+        }
+
+        void write_porosity()
+        {
+            if( !solid_.polyhedron_attribute_manager().attribute_exists(
+                    "Porosity" ) )
+            {
+                return;
+            }
+            const auto& porosity_attribute =
+                solid_.polyhedron_attribute_manager().find_attribute< double >(
+                    "Porosity" );
+            if( !porosity_attribute )
+            {
+                return;
+            }
+            file_ << "MAT_I_TRAN" << EOL;
+            file_ << "201 0.30 \"Porosity\"" << EOL;
+            const auto porosity_map =
+                create_porosity_region_map( *porosity_attribute );
+            for( const auto& [porosity_value, tetrahedra] : porosity_map )
+            {
+                std::string line = "";
+                const auto ranges = format_ranges( tetrahedra );
+                line += ranges + SPACE;
+                file_ << "  " << porosity_value << "  " << line << EOL;
+            }
+        }
+
+        void write_properties() {}
+
+        void write_mass_transport_properties()
+        {
+            write_porosity();
+            // TODO: which other properties to add?
+        }
+
+        void write_flow_properties()
+        {
+            // TODO: which properties to add?
+        }
+
+        void write_heat_transport_properties()
+        { // TODO: which properties to add?
+        }
+
+        absl::flat_hash_map< double, std::vector< geode::index_t > >
+            create_coord_dist( int dim )
+        {
+            absl::flat_hash_map< double, std::vector< geode::index_t > >
+                coord_dist;
+            for( const auto v : geode::Range{ solid_.nb_vertices() } )
             {
                 if( coord_dist.contains( solid_.point( v ).value( dim ) ) )
                 {
@@ -207,10 +314,10 @@ namespace
         }
 
         void write_one_coord_component_dist(
-            const std::string& dim_name, const int dim )
+            const std::string& dim_name, const geode::index_t dim )
         {
             file_ << dim_name << EOL;
-            absl::flat_hash_map< double, std::vector< int > > dist =
+            absl::flat_hash_map< double, std::vector< geode::index_t > > dist =
                 create_coord_dist( dim );
             std::vector< double > values;
             values.reserve( dist.size() );
@@ -243,7 +350,8 @@ namespace
             int nb_elem_att =
                 solid_.polyhedron_attribute_manager().attribute_names().size()
                 - 3;
-            file_ << SPACE << nb_elem_att << SPACE << solid_.nb_polyhedra()
+            file_ << SPACE << nb_elem_att << "," << SPACE
+                  << solid_.nb_polyhedra() << ","
                   << " 0" << EOL;
             for( const auto name :
                 solid_.polyhedron_attribute_manager().attribute_names() )
@@ -266,23 +374,23 @@ namespace
             if( solid_.vertex_attribute_manager().attribute_exists(
                     "Block_ID_vertex" ) )
             {
-                auto attribute_v = solid_.vertex_attribute_manager()
-                                       .find_attribute< std::string_view >(
-                                           "Block_ID_vertex" );
+                auto attribute_v =
+                    solid_.vertex_attribute_manager()
+                        .find_attribute< std::vector< std::string_view > >(
+                            "Block_ID_vertex" );
                 file_ << "NODALSETS" << EOL;
                 const auto vertex_regions =
                     create_region_map( *attribute_v, false );
                 for( const auto& vertex_region : vertex_regions )
                 {
                     std::string line = "";
-                    for( const auto vertex : vertex_region.second )
-                    {
-                        line += std::to_string( vertex + 1 ) + SPACE;
-                    }
+                    const auto ranges = format_ranges( vertex_region.second );
+                    line += ranges + SPACE;
                     file_ << "  " << vertex_region.first << "  " << line << EOL;
                 }
             }
         }
+
         void write_element_sets()
         {
             if( solid_.polyhedron_attribute_manager().attribute_exists(
@@ -297,21 +405,20 @@ namespace
                 for( const auto& elem_region : elem_regions )
                 {
                     std::string line = "";
-                    for( const auto& elem : elem_region.second )
-                    {
-                        line += std::to_string( elem + 1 ) + SPACE;
-                    }
+                    const auto ranges = format_ranges( elem_region.second );
+                    line += ranges + SPACE;
                     file_ << "  " << elem_region.first << "  " << line << EOL;
                 }
             }
         }
 
-        absl::flat_hash_map< std::string_view, std::vector< int > >
+        absl::flat_hash_map< std::string_view, std::vector< geode::index_t > >
             create_region_map(
                 geode::ReadOnlyAttribute< std::string_view >& attribute,
                 bool create_element_region )
         {
-            absl::flat_hash_map< std::string_view, std::vector< int > >
+            absl::flat_hash_map< std::string_view,
+                std::vector< geode::index_t > >
                 region_map;
             int nb_obj = ( create_element_region ? solid_.nb_polyhedra()
                                                  : solid_.nb_vertices() );
@@ -320,11 +427,44 @@ namespace
                 const auto value = attribute.value( obj );
                 if( region_map.contains( value ) )
                 {
-                    region_map[value].push_back( obj );
+                    region_map[value].push_back( obj + 1 );
                 }
                 else
                 {
-                    region_map[value] = { static_cast< int >( obj ) };
+                    region_map[value] = { obj + 1 };
+                }
+            }
+            return region_map;
+        }
+
+        absl::flat_hash_map< std::string_view, std::vector< geode::index_t > >
+            create_region_map(
+                geode::ReadOnlyAttribute< std::vector< std::string_view > >&
+                    attribute,
+                bool create_element_region )
+        {
+            absl::flat_hash_map< std::string_view,
+                std::vector< geode::index_t > >
+                region_map;
+            int nb_obj = ( create_element_region ? solid_.nb_polyhedra()
+                                                 : solid_.nb_vertices() );
+            for( const auto obj : geode::Range{ nb_obj } )
+            {
+                const auto& values = attribute.value( obj );
+                if( values.empty() )
+                {
+                    continue;
+                }
+                for( const auto& value : values )
+                {
+                    if( region_map.contains( value ) )
+                    {
+                        region_map[value].push_back( obj + 1 );
+                    }
+                    else
+                    {
+                        region_map[value] = { obj + 1 };
+                    }
                 }
             }
             return region_map;
