@@ -42,11 +42,11 @@ namespace
         geode::index_t start = elements[0];
         geode::index_t prev = elements[0];
 
-        for( size_t i = 1; i < elements.size(); ++i )
+        for( const auto element : geode::Range{ elements.size() } )
         {
-            if( elements[i] == prev + 1 )
+            if( elements[element] == prev + 1 )
             {
-                prev = elements[i];
+                prev = elements[element];
             }
             else
             {
@@ -54,7 +54,7 @@ namespace
                     absl::StrAppendFormat( &result, "%d ", start );
                 else
                     absl::StrAppendFormat( &result, "%d-%d ", start, prev );
-                start = prev = elements[i];
+                start = prev = elements[element];
             }
         }
         // Append the final range
