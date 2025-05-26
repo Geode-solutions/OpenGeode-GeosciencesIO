@@ -139,12 +139,13 @@ namespace
             file_ << "VARNODE" << EOL;
 
             file_ << SPACE << solid_.nb_polyhedra() << " 4 4" << EOL;
-            for( const auto p : geode::Range{ solid_.nb_polyhedra() } )
+            for( const auto polyhedron : geode::Range{ solid_.nb_polyhedra() } )
             {
                 std::string poly_line = " 6 ";
-                for( const auto v : solid_.polyhedron_vertices( p ) )
+                for( const auto vertex :
+                    solid_.polyhedron_vertices( polyhedron ) )
                 {
-                    poly_line += std::to_string( v + 1 ) + SPACE;
+                    poly_line += std::to_string( vertex + 1 ) + SPACE;
                 }
                 file_ << poly_line << EOL;
             }
@@ -302,15 +303,18 @@ namespace
         {
             absl::flat_hash_map< double, std::vector< geode::index_t > >
                 coord_dist;
-            for( const auto v : geode::Range{ solid_.nb_vertices() } )
+            for( const auto vertex : geode::Range{ solid_.nb_vertices() } )
             {
-                if( coord_dist.contains( solid_.point( v ).value( dim ) ) )
+                if( coord_dist.contains( solid_.point( vertex ).value( dim ) ) )
                 {
-                    coord_dist[solid_.point( v ).value( dim )].push_back( v );
+                    coord_dist[solid_.point( vertex ).value( dim )].push_back(
+                        vertex );
                 }
                 else
                 {
-                    coord_dist[solid_.point( v ).value( dim )] = { v };
+                    coord_dist[solid_.point( vertex ).value( dim )] = {
+                        vertex
+                    };
                 }
             }
             return coord_dist;
@@ -329,14 +333,14 @@ namespace
                 values.push_back( val->first );
             }
             std::sort( values.begin(), values.end() );
-            for( const auto v : values )
+            for( const auto value : values )
             {
                 std::string line = "";
-                for( const auto vtx : dist[v] )
+                for( const auto vtx : dist[value] )
                 {
                     line += std::to_string( vtx + 1 ) + SPACE;
                 }
-                file_ << "     " << v << "  " << line << EOL;
+                file_ << "     " << value << "  " << line << EOL;
             }
         }
 
