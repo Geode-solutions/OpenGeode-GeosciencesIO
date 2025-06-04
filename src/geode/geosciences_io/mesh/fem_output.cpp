@@ -33,6 +33,9 @@
 
 namespace
 {
+    static constexpr char EOL{ '\n' };
+    static constexpr char SPACE{ ' ' };
+
     std::string format_ranges( absl::Span< const geode::index_t > elements )
     {
         if( elements.empty() )
@@ -71,12 +74,20 @@ namespace
         return result;
     }
 
+    std::string add_spaces( geode::index_t n )
+    {
+        std::string result;
+        for( geode::index_t i = 0; i < n; ++i )
+        {
+            result += SPACE;
+        }
+        return result;
+    }
+
     class SolidFemOutputImpl
     {
     public:
         static constexpr geode::index_t OFFSET_START{ 1 };
-        static constexpr char EOL{ '\n' };
-        static constexpr char SPACE{ ' ' };
         SolidFemOutputImpl(
             std::string_view filename, const geode::TetrahedralSolid3D& solid )
             : file_{ geode::to_string( filename ) }, solid_( solid )
@@ -108,6 +119,7 @@ namespace
             write_nodal_sets();
             write_element_sets();
             write_gravity();
+            write_discrete_features();
             write_end();
         }
 
@@ -486,6 +498,275 @@ namespace
         {
             file_ << "GRAVITY" << EOL;
             file_ << " 0 0 -1" << EOL;
+        }
+
+        struct DiscreteFeature1D
+        {
+            // std::string name;
+            std::vector< geode::index_t > nodes;
+            geode::index_t feature_id{ 1 };
+        };
+
+        struct DiscreteFeature2D
+        {
+            // std::string name;
+            std::vector< geode::index_t > nodes;
+            geode::index_t feature_id{ 1 };
+        };
+
+        template < typename Feature >
+        struct FeatureGroup
+        {
+            std::string name;
+            std::vector< Feature > features;
+            std::vector< geode::index_t > feature_ids;
+
+            FeatureGroup( std::string group_name ) : name( group_name ) {}
+
+            geode::index_t nb_features() const
+            {
+                return features.size();
+            }
+        };
+
+        struct DiscreteFeatures
+        {
+            std::vector< FeatureGroup< DiscreteFeature1D > > features1D_groups;
+            std::vector< FeatureGroup< DiscreteFeature2D > > features2D_groups;
+
+            geode::index_t nb_features() const
+            {
+                geode::index_t nb_features = 0;
+                for( const auto& feature1D_group : features1D_groups )
+                {
+                    nb_features += feature1D_group.nb_features();
+                }
+                for( const auto& feature2D_group : features2D_groups )
+                {
+                    nb_features += feature2D_group.nb_features();
+                }
+                return nb_features;
+            }
+
+            geode::index_t nb_groups() const
+            {
+                return features1D_groups.size() + features2D_groups.size();
+            }
+
+            void build_feature_ids()
+            {
+                geode::index_t feature_id = 1;
+                for( auto& feature_group : features2D_groups )
+                {
+                    for( auto& feature : feature_group.features )
+                    {
+                        feature.feature_id = feature_id;
+                        feature_group.feature_ids.push_back( feature_id );
+                        feature_id++;
+                    }
+                }
+                for( auto& feature_group : features1D_groups )
+                {
+                    for( auto& feature : feature_group.features )
+                    {
+                        feature.feature_id = feature_id;
+                        feature_group.feature_ids.push_back( feature_id );
+                        feature_id++;
+                    }
+                }
+            }
+        };
+
+        DiscreteFeatures build_discrete_features()
+        {
+            DiscreteFeature1D feature1D;
+            feature1D.nodes = { 1, 2 };
+            DiscreteFeature1D feature1D_b;
+            feature1D_b.nodes = { 3, 4 };
+            DiscreteFeature1D feature1D_c;
+            feature1D_c.nodes = { 5, 6 };
+            DiscreteFeature2D feature2D;
+            feature2D.nodes = { 10, 11, 12 };
+            DiscreteFeature2D feature2D_b;
+            feature2D_b.nodes = { 13, 14, 15 };
+            FeatureGroup< DiscreteFeature1D > feature1D_group_1{ "well_1" };
+            feature1D_group_1.features = { feature1D, feature1D_b };
+            FeatureGroup< DiscreteFeature1D > feature1D_group_2{ "well_2" };
+            feature1D_group_2.features = { feature1D_c };
+            FeatureGroup< DiscreteFeature2D > feature2D_group_1{ "surface_1" };
+            feature2D_group_1.features = { feature2D, feature2D_b };
+            DiscreteFeatures features;
+            features.features1D_groups = { feature1D_group_1,
+                feature1D_group_2 };
+            features.features2D_groups = { feature2D_group_1 };
+
+            return features;
+        }
+
+        void write_discrete_feature_header()
+        {
+            file_ << "DFE" << EOL;
+            file_ << add_spaces( 1 )
+                  << "<?xml version=\"1.0\" encoding=\"utf-8\" "
+                     "standalone=\"no\" ?>"
+                  << EOL;
+            file_ << add_spaces( 1 ) << "<fractures>" << EOL;
+        }
+
+        void write_2d_feature_signature(
+            const std::vector< DiscreteFeature2D >& features )
+        {
+            for( const auto& feature : features )
+            {
+                std::string line =
+                    "  " + std::to_string( feature.nodes.size() );
+                for( const auto node : feature.nodes )
+                {
+                    line += " " + std::to_string( node );
+                }
+                file_ << line << EOL;
+            }
+        }
+
+        void write_feature_signature(
+            geode::index_t nb_features, std::string signature )
+        {
+            geode::index_t iterator = 0;
+            while( iterator < nb_features )
+            {
+                file_ << add_spaces( 2 ) << signature << EOL;
+                iterator++;
+            }
+        }
+
+        void write_discrete_feature_signatures(
+            const DiscreteFeatures& features )
+        {
+            const auto nb_features = features.nb_features();
+            file_ << add_spaces( 2 )
+                  << "<fep count=\"" + std::to_string( nb_features ) + "\">"
+                  << EOL;
+            file_ << add_spaces( 3 ) << "<![CDATA[" << EOL;
+            for( const auto& feature2D_group : features.features2D_groups )
+            {
+                write_feature_signature(
+                    feature2D_group.nb_features(), "c2d3,darcy" );
+            }
+            for( const auto& feature1D_group : features.features1D_groups )
+            {
+                write_feature_signature(
+                    feature1D_group.nb_features(), "c1d2,darcy" );
+            }
+            file_ << add_spaces( 3 ) << "]]>" << EOL;
+            file_ << add_spaces( 2 ) << "</fep>" << EOL;
+        }
+
+        template < typename Feature >
+        void write_feature_nodal_incidence_matrix(
+            const std::vector< Feature >& features )
+        {
+            for( const auto& feature : features )
+            {
+                std::string line =
+                    "  " + std::to_string( feature.nodes.size() );
+                for( const auto node : feature.nodes )
+                {
+                    line += " " + std::to_string( node );
+                }
+                file_ << line << EOL;
+            }
+        }
+
+        void write_discrete_feature_nodal_incidence_matrix(
+            const DiscreteFeatures& features )
+        {
+            const auto nb_features = features.nb_features();
+            file_ << add_spaces( 2 )
+                  << "<nop count=\"" + std::to_string( nb_features ) + "\">"
+                  << EOL;
+            file_ << add_spaces( 3 ) << "<![CDATA[" << EOL;
+            for( const auto& feature2D_group : features.features2D_groups )
+            {
+                write_feature_nodal_incidence_matrix< DiscreteFeature2D >(
+                    feature2D_group.features );
+            }
+            for( const auto& feature1D_group : features.features1D_groups )
+            {
+                write_feature_nodal_incidence_matrix< DiscreteFeature1D >(
+                    feature1D_group.features );
+            }
+            file_ << add_spaces( 3 ) << "]]>" << EOL;
+            file_ << add_spaces( 2 ) << "</nop>" << EOL;
+        }
+
+        template < typename Feature >
+        void write_discrete_feature_group(
+            std::vector< FeatureGroup< Feature > >& feature_groups )
+        {
+            for( const auto& feature_group : feature_groups )
+            {
+                file_ << add_spaces( 3 ) << "<group name=\""
+                      << feature_group.name
+                      << "\" law=\"darcy\" mode=\"unstructured\">" << EOL;
+                file_ << add_spaces( 4 ) << "<elements count=\""
+                      << std::to_string( feature_group.nb_features() ) << "\">"
+                      << EOL;
+                file_ << add_spaces( 5 ) << "<![CDATA[";
+                file_ << format_ranges( feature_group.feature_ids );
+                file_ << "]]>" << EOL;
+                file_ << add_spaces( 3 ) << "</group>" << EOL;
+            }
+        }
+
+        void write_discrete_feature_groups( DiscreteFeatures& features )
+        {
+            features.build_feature_ids();
+            file_ << add_spaces( 2 ) << "<groups count=\""
+                  << features.nb_groups() << "\">" << EOL;
+            write_discrete_feature_group< DiscreteFeature2D >(
+                features.features2D_groups );
+            write_discrete_feature_group< DiscreteFeature1D >(
+                features.features1D_groups );
+            file_ << add_spaces( 2 ) << "</groups>" << EOL;
+        }
+
+        void write_discrete_feature_properties_header()
+        {
+            file_ << add_spaces( 2 ) << "<properties>" << EOL;
+            file_ << add_spaces( 3 ) << "<flow>" << EOL;
+            file_ << add_spaces( 4 ) << "<materials>" << EOL;
+        }
+
+        void write_discrete_feature_properties_tail()
+        {
+            file_ << add_spaces( 4 ) << "</materials>" << EOL;
+            file_ << add_spaces( 3 ) << "</flow>" << EOL;
+            file_ << add_spaces( 2 ) << "</properties>" << EOL;
+        }
+
+        void write_discrete_feature_properties(
+            const DiscreteFeatures& features )
+        {
+            geode_unused( features );
+            write_discrete_feature_properties_header();
+            // todo
+            write_discrete_feature_properties_tail();
+        }
+
+        void write_discrete_feature_tail()
+        {
+            file_ << " </fractures>" << EOL;
+        }
+
+        void write_discrete_features()
+        {
+            auto features = build_discrete_features();
+            write_discrete_feature_header();
+            write_discrete_feature_signatures( features );
+            write_discrete_feature_nodal_incidence_matrix( features );
+            write_discrete_feature_groups( features );
+            write_discrete_feature_properties( features );
+            write_discrete_feature_tail();
         }
 
         void write_end()

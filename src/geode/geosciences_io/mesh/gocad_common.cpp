@@ -38,9 +38,6 @@
 
 namespace
 {
-    static constexpr char EOL{ '\n' };
-    static constexpr char SPACE{ ' ' };
-
     std::string get_string_between_quote(
         const std::vector< std::string_view > tokens,
         geode::index_t& from_to_id )
