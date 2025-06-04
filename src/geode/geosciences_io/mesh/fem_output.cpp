@@ -198,11 +198,11 @@ namespace
                 const auto value = attribute.generic_value( elem );
                 if( att_dist.contains( value ) )
                 {
-                    att_dist[value].push_back( elem );
+                    att_dist[value].push_back( elem + 1 );
                 }
                 else
                 {
-                    att_dist[value] = { elem };
+                    att_dist[value] = { elem + 1 };
                 }
             }
             return att_dist;
