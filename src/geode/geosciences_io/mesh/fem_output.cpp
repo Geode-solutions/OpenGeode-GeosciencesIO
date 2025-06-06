@@ -22,10 +22,15 @@
  */
 #include <fstream>
 #include <geode/basic/attribute_manager.hpp>
+#include <geode/basic/filename.hpp>
 #include <geode/basic/io.hpp>
 #include <geode/basic/types.hpp>
+#include <geode/basic/variable_attribute.hpp>
 
-#include <geode/basic/filename.hpp>
+#include <geode/mesh/core/edged_curve.hpp>
+#include <geode/mesh/core/solid_edges.hpp>
+#include <geode/mesh/core/solid_facets.hpp>
+#include <geode/mesh/core/surface_mesh.hpp>
 
 #include <geode/geosciences_io/mesh/internal/fem_output.hpp>
 
@@ -86,6 +91,20 @@ namespace
 
     class SolidFemOutputImpl
     {
+        static constexpr const char CDATA_TAG_START[]{ "<![CDATA[" };
+        static constexpr const char CDATA_TAG_END[]{ "]]>" };
+        static constexpr const char APERTURE_ATTRIBUTE_NAME[]{
+            "diagres_discontinuity_aperture"
+        };
+        static constexpr const char CONDUIT_AREA_ATTRIBUTE_NAME[]{
+            "diagres_conduit_area"
+        };
+        static constexpr const char CONDUCTIVITY_ATTRIBUTE_NAME[]{
+            "diagres_conductivity"
+        };
+        static constexpr const char SURFACE_NAME_ATTRIBUTE[]{ "surface_name" };
+        static constexpr const char LINE_NAME_ATTRIBUTE[]{ "line_name" };
+
     public:
         static constexpr geode::index_t OFFSET_START{ 1 };
         SolidFemOutputImpl(
@@ -159,7 +178,9 @@ namespace
                 for( const auto vertex :
                     solid_.polyhedron_vertices( polyhedron ) )
                 {
-                    poly_line += std::to_string( vertex + 1 ) + SPACE;
+                    const auto vertex_id = vertex + 1;
+                    poly_line =
+                        absl::StrCat( poly_line, vertex_id, add_spaces( 1 ) );
                 }
                 file_ << poly_line << EOL;
             }
@@ -195,7 +216,7 @@ namespace
                 std::string line = "";
                 const auto ranges =
                     format_ranges( attribute_distribution[value] );
-                line += ranges + SPACE;
+                line = absl::StrCat( line, ranges, add_spaces( 1 ) );
                 file_ << "  " << value << "  " << line << EOL;
             }
         }
@@ -292,7 +313,7 @@ namespace
             {
                 std::string line = "";
                 const auto ranges = format_ranges( tetrahedra );
-                line += ranges + SPACE;
+                line = absl::StrCat( line, ranges, add_spaces( 1 ) );
                 file_ << "  " << porosity_value << "  " << line << EOL;
             }
         }
@@ -354,7 +375,8 @@ namespace
                 std::string line = "";
                 for( const auto vtx : dist[value] )
                 {
-                    line += std::to_string( vtx + 1 ) + SPACE;
+                    const auto vertex_id = vtx + 1;
+                    line = absl::StrCat( line, vertex_id, add_spaces( 1 ) );
                 }
                 file_ << "     " << value << "  " << line << EOL;
             }
@@ -408,7 +430,7 @@ namespace
                 {
                     std::string line = "";
                     const auto ranges = format_ranges( vertex_region.second );
-                    line += ranges + SPACE;
+                    line = absl::StrCat( line, ranges, add_spaces( 1 ) );
                     file_ << "  " << vertex_region.first << "  " << line << EOL;
                 }
             }
@@ -429,7 +451,7 @@ namespace
                 {
                     std::string line = "";
                     const auto ranges = format_ranges( elem_region.second );
-                    line += ranges + SPACE;
+                    line = absl::StrCat( line, ranges, add_spaces( 1 ) );
                     file_ << "  " << elem_region.first << "  " << line << EOL;
                 }
             }
@@ -500,16 +522,36 @@ namespace
             file_ << " 0 0 -1" << EOL;
         }
 
+        struct PropertyValue
+        {
+            std::string name;
+            double value;
+            bool operator==( const PropertyValue& other ) const
+            {
+                return name == other.name && value == other.value;
+            }
+        };
+
+        struct Property
+        {
+            std::string name;
+            absl::flat_hash_map< double, std::vector< geode::index_t > >
+                values_to_features;
+        };
+
+        struct Properties
+        {
+            std::vector< Property > properties;
+        };
+
         struct DiscreteFeature1D
         {
-            // std::string name;
             std::vector< geode::index_t > nodes;
             geode::index_t feature_id{ 1 };
         };
 
         struct DiscreteFeature2D
         {
-            // std::string name;
             std::vector< geode::index_t > nodes;
             geode::index_t feature_id{ 1 };
         };
@@ -520,6 +562,7 @@ namespace
             std::string name;
             std::vector< Feature > features;
             std::vector< geode::index_t > feature_ids;
+            std::vector< Property > properties;
 
             FeatureGroup( std::string group_name ) : name( group_name ) {}
 
@@ -527,12 +570,29 @@ namespace
             {
                 return features.size();
             }
+
+            std::optional< geode::index_t > get_property(
+                const std::string& other_property_name )
+            {
+                geode::index_t property_index = 0;
+                for( auto& property : properties )
+                {
+                    if( property.name == other_property_name )
+                    {
+                        return property_index;
+                    }
+                    property_index++;
+                }
+                return std::nullopt;
+            }
         };
 
         struct DiscreteFeatures
         {
             std::vector< FeatureGroup< DiscreteFeature1D > > features1D_groups;
             std::vector< FeatureGroup< DiscreteFeature2D > > features2D_groups;
+
+            Properties properties;
 
             geode::index_t nb_features() const
             {
@@ -552,80 +612,205 @@ namespace
             {
                 return features1D_groups.size() + features2D_groups.size();
             }
-
-            void build_feature_ids()
-            {
-                geode::index_t feature_id = 1;
-                for( auto& feature_group : features2D_groups )
-                {
-                    for( auto& feature : feature_group.features )
-                    {
-                        feature.feature_id = feature_id;
-                        feature_group.feature_ids.push_back( feature_id );
-                        feature_id++;
-                    }
-                }
-                for( auto& feature_group : features1D_groups )
-                {
-                    for( auto& feature : feature_group.features )
-                    {
-                        feature.feature_id = feature_id;
-                        feature_group.feature_ids.push_back( feature_id );
-                        feature_id++;
-                    }
-                }
-            }
         };
 
         DiscreteFeatures build_discrete_features()
         {
-            DiscreteFeature1D feature1D;
-            feature1D.nodes = { 1, 2 };
-            DiscreteFeature1D feature1D_b;
-            feature1D_b.nodes = { 3, 4 };
-            DiscreteFeature1D feature1D_c;
-            feature1D_c.nodes = { 5, 6 };
-            DiscreteFeature2D feature2D;
-            feature2D.nodes = { 10, 11, 12 };
-            DiscreteFeature2D feature2D_b;
-            feature2D_b.nodes = { 13, 14, 15 };
-            FeatureGroup< DiscreteFeature1D > feature1D_group_1{ "well_1" };
-            feature1D_group_1.features = { feature1D, feature1D_b };
-            FeatureGroup< DiscreteFeature1D > feature1D_group_2{ "well_2" };
-            feature1D_group_2.features = { feature1D_c };
-            FeatureGroup< DiscreteFeature2D > feature2D_group_1{ "surface_1" };
-            feature2D_group_1.features = { feature2D, feature2D_b };
             DiscreteFeatures features;
-            features.features1D_groups = { feature1D_group_1,
-                feature1D_group_2 };
-            features.features2D_groups = { feature2D_group_1 };
+            auto& feature1D_group =
+                features.features1D_groups.emplace_back( "Edge_Feature_LDS" );
+            auto& feature2D_group = features.features2D_groups.emplace_back(
+                "Surface_Feature_LDS" );
+            geode::index_t feature_id{ 1 };
+            if( solid_.facets().facet_attribute_manager().attribute_exists(
+                    APERTURE_ATTRIBUTE_NAME ) )
+            {
+                const auto aperture_attribute =
+                    solid_.facets()
+                        .facet_attribute_manager()
+                        .find_attribute< double >( APERTURE_ATTRIBUTE_NAME );
+                const auto conductivity_attribute =
+                    solid_.facets()
+                        .facet_attribute_manager()
+                        .find_or_create_attribute< geode::VariableAttribute,
+                            double >( CONDUCTIVITY_ATTRIBUTE_NAME, -1.0 );
+                for( const auto facet :
+                    geode::Range{ solid_.facets().nb_facets() } )
+                {
+                    const auto aperture_value =
+                        aperture_attribute->value( facet );
+                    if( aperture_value < 0.0 )
+                    {
+                        continue;
+                    }
+                    std::vector< geode::index_t > facet_vertices;
+                    for( const auto& vertex :
+                        solid_.facets().facet_vertices( facet ) )
+                    {
+                        facet_vertices.push_back( vertex + 1 );
+                    }
+                    auto& feature2D = feature2D_group.features.emplace_back();
+                    feature2D.nodes = facet_vertices;
+                    feature2D.feature_id = feature_id;
+                    feature2D_group.feature_ids.push_back( feature_id );
+                    auto aperture_property =
+                        feature2D_group.get_property( APERTURE_ATTRIBUTE_NAME );
+                    if( !aperture_property )
+                    {
+                        Property new_property;
+                        new_property.name = APERTURE_ATTRIBUTE_NAME;
+                        absl::flat_hash_map< double,
+                            std::vector< geode::index_t > >
+                            property_map;
+                        property_map[aperture_value] = { feature_id };
+                        new_property.values_to_features = property_map;
+                        feature2D_group.properties.push_back( new_property );
+                    }
+                    else
+                    {
+                        feature2D_group.properties[aperture_property.value()]
+                            .values_to_features[aperture_value]
+                            .push_back( feature_id );
+                    }
+                    const auto conductivity_value =
+                        conductivity_attribute->value( facet );
+                    if( conductivity_value > 0.0 )
+                    {
+                        auto conductivity_property =
+                            feature2D_group.get_property(
+                                CONDUCTIVITY_ATTRIBUTE_NAME );
+                        if( !conductivity_property )
+                        {
+                            Property new_property;
+                            new_property.name = CONDUCTIVITY_ATTRIBUTE_NAME;
+                            absl::flat_hash_map< double,
+                                std::vector< geode::index_t > >
+                                property_map;
+                            property_map[conductivity_value] = { feature_id };
+                            new_property.values_to_features = property_map;
+                            feature2D_group.properties.push_back(
+                                new_property );
+                        }
+                        else
+                        {
+                            feature2D_group
+                                .properties[conductivity_property.value()]
+                                .values_to_features[conductivity_value]
+                                .push_back( feature_id );
+                        }
+                    }
+                    feature_id++;
+                }
+            }
 
+            if( solid_.edges().edge_attribute_manager().attribute_exists(
+                    CONDUIT_AREA_ATTRIBUTE_NAME ) )
+            {
+                const auto conduit_area_attribute =
+                    solid_.edges()
+                        .edge_attribute_manager()
+                        .find_attribute< double >(
+                            CONDUIT_AREA_ATTRIBUTE_NAME );
+                const auto conductivity_attribute =
+                    solid_.edges()
+                        .edge_attribute_manager()
+                        .find_or_create_attribute< geode::VariableAttribute,
+                            double >( CONDUCTIVITY_ATTRIBUTE_NAME, -1.0 );
+                for( const auto edge :
+                    geode::Range{ solid_.edges().nb_edges() } )
+                {
+                    const auto conduit_area_value =
+                        conduit_area_attribute->value( edge );
+                    if( conduit_area_value < 0.0 )
+                    {
+                        continue;
+                    }
+                    std::vector< geode::index_t > edge_vertices;
+                    for( const auto& vertex :
+                        solid_.edges().edge_vertices( edge ) )
+                    {
+                        edge_vertices.push_back( vertex + 1 );
+                    }
+                    auto& feature1D = feature1D_group.features.emplace_back();
+                    feature1D.nodes = edge_vertices;
+                    feature1D.feature_id = feature_id;
+                    feature1D_group.feature_ids.push_back( feature_id );
+                    auto conduit_area_property = feature2D_group.get_property(
+                        CONDUIT_AREA_ATTRIBUTE_NAME );
+                    if( !conduit_area_property )
+                    {
+                        Property new_property;
+                        new_property.name = CONDUIT_AREA_ATTRIBUTE_NAME;
+                        absl::flat_hash_map< double,
+                            std::vector< geode::index_t > >
+                            property_map;
+                        property_map[conduit_area_value] = { feature_id };
+                        new_property.values_to_features = property_map;
+                        feature1D_group.properties.push_back( new_property );
+                    }
+                    else
+                    {
+                        feature1D_group
+                            .properties[conduit_area_property.value()]
+                            .values_to_features[conduit_area_value]
+                            .push_back( feature_id );
+                    }
+                    const auto conductivity_value =
+                        conductivity_attribute->value( edge );
+                    if( conductivity_value > 0.0 )
+                    {
+                        auto conductivity_property =
+                            feature1D_group.get_property(
+                                CONDUCTIVITY_ATTRIBUTE_NAME );
+                        if( !conductivity_property )
+                        {
+                            Property new_property;
+                            new_property.name = CONDUCTIVITY_ATTRIBUTE_NAME;
+                            absl::flat_hash_map< double,
+                                std::vector< geode::index_t > >
+                                property_map;
+                            property_map[conductivity_value] = { feature_id };
+                            new_property.values_to_features = property_map;
+                            feature1D_group.properties.push_back(
+                                new_property );
+                        }
+                        else
+                        {
+                            feature1D_group
+                                .properties[conductivity_property.value()]
+                                .values_to_features[conductivity_value]
+                                .push_back( feature_id );
+                        }
+                    }
+                    feature_id++;
+                }
+            }
             return features;
+        }
+
+        std::string xml_start_tag( std::string tag )
+        {
+            return absl::StrCat( "<", tag, ">" );
+        }
+
+        std::string xml_start_tag( std::string tag, std::string value )
+        {
+            return absl::StrCat( "<", tag, "=", value, ">" );
+        }
+
+        std::string xml_end_tag( std::string tag )
+        {
+            return absl::StrCat( "</", tag, ">" );
         }
 
         void write_discrete_feature_header()
         {
             file_ << "DFE" << EOL;
-            file_ << add_spaces( 1 )
+            file_ << add_spaces( 2 )
                   << "<?xml version=\"1.0\" encoding=\"utf-8\" "
                      "standalone=\"no\" ?>"
                   << EOL;
-            file_ << add_spaces( 1 ) << "<fractures>" << EOL;
-        }
-
-        void write_2d_feature_signature(
-            const std::vector< DiscreteFeature2D >& features )
-        {
-            for( const auto& feature : features )
-            {
-                std::string line =
-                    "  " + std::to_string( feature.nodes.size() );
-                for( const auto node : feature.nodes )
-                {
-                    line += " " + std::to_string( node );
-                }
-                file_ << line << EOL;
-            }
+            file_ << add_spaces( 2 ) << xml_start_tag( "fractures" ) << EOL;
         }
 
         void write_feature_signature(
@@ -634,7 +819,11 @@ namespace
             geode::index_t iterator = 0;
             while( iterator < nb_features )
             {
-                file_ << add_spaces( 2 ) << signature << EOL;
+                file_ << add_spaces( 1 ) << signature;
+                if( iterator < nb_features - 1 )
+                {
+                    file_ << EOL;
+                }
                 iterator++;
             }
         }
@@ -643,37 +832,45 @@ namespace
             const DiscreteFeatures& features )
         {
             const auto nb_features = features.nb_features();
-            file_ << add_spaces( 2 )
-                  << "<fep count=\"" + std::to_string( nb_features ) + "\">"
-                  << EOL;
-            file_ << add_spaces( 3 ) << "<![CDATA[" << EOL;
+            const auto fep_count_value_str =
+                absl::StrCat( "\"", nb_features, "\"" );
+            file_ << add_spaces( 4 )
+                  << xml_start_tag( "fep count", fep_count_value_str ) << EOL;
+            file_ << add_spaces( 6 ) << CDATA_TAG_START << EOL;
             for( const auto& feature2D_group : features.features2D_groups )
             {
                 write_feature_signature(
                     feature2D_group.nb_features(), "c2d3,darcy" );
             }
+            file_ << EOL;
             for( const auto& feature1D_group : features.features1D_groups )
             {
                 write_feature_signature(
                     feature1D_group.nb_features(), "c1d2,darcy" );
             }
-            file_ << add_spaces( 3 ) << "]]>" << EOL;
-            file_ << add_spaces( 2 ) << "</fep>" << EOL;
+            file_ << CDATA_TAG_END << EOL;
+            file_ << add_spaces( 4 ) << xml_end_tag( "fep" ) << EOL;
         }
 
         template < typename Feature >
         void write_feature_nodal_incidence_matrix(
             const std::vector< Feature >& features )
         {
+            geode::index_t iterator = 0;
             for( const auto& feature : features )
             {
                 std::string line =
-                    "  " + std::to_string( feature.nodes.size() );
+                    absl::StrCat( add_spaces( 5 ), feature.nodes.size() );
                 for( const auto node : feature.nodes )
                 {
-                    line += " " + std::to_string( node );
+                    line = absl::StrCat( line, ",", add_spaces( 1 ), node );
                 }
-                file_ << line << EOL;
+                file_ << line;
+                if( iterator < features.size() - 1 )
+                {
+                    file_ << EOL;
+                }
+                iterator++;
             }
         }
 
@@ -681,22 +878,24 @@ namespace
             const DiscreteFeatures& features )
         {
             const auto nb_features = features.nb_features();
-            file_ << add_spaces( 2 )
-                  << "<nop count=\"" + std::to_string( nb_features ) + "\">"
-                  << EOL;
-            file_ << add_spaces( 3 ) << "<![CDATA[" << EOL;
+            const auto nop_count_value_str =
+                absl::StrCat( "\"", nb_features, "\"" );
+            file_ << add_spaces( 4 )
+                  << xml_start_tag( "nop count", nop_count_value_str ) << EOL;
+            file_ << add_spaces( 6 ) << CDATA_TAG_START << EOL;
             for( const auto& feature2D_group : features.features2D_groups )
             {
                 write_feature_nodal_incidence_matrix< DiscreteFeature2D >(
                     feature2D_group.features );
             }
+            file_ << EOL;
             for( const auto& feature1D_group : features.features1D_groups )
             {
                 write_feature_nodal_incidence_matrix< DiscreteFeature1D >(
                     feature1D_group.features );
             }
-            file_ << add_spaces( 3 ) << "]]>" << EOL;
-            file_ << add_spaces( 2 ) << "</nop>" << EOL;
+            file_ << CDATA_TAG_END << EOL;
+            file_ << add_spaces( 4 ) << xml_end_tag( "nop" ) << EOL;
         }
 
         template < typename Feature >
@@ -705,57 +904,146 @@ namespace
         {
             for( const auto& feature_group : feature_groups )
             {
-                file_ << add_spaces( 3 ) << "<group name=\""
-                      << feature_group.name
-                      << "\" law=\"darcy\" mode=\"unstructured\">" << EOL;
-                file_ << add_spaces( 4 ) << "<elements count=\""
+                geode::Logger::info( "herreeeeeee" );
+                geode::Logger::info( feature_group.feature_ids.size() );
+                const auto group_name_value_str =
+                    absl::StrCat( "\"", feature_group.name, "\"",
+                        " law=\"darcy\" mode=\"unstructured\"" );
+                file_ << add_spaces( 6 )
+                      << xml_start_tag( "group name", group_name_value_str )
+                      << EOL;
+                file_ << add_spaces( 8 ) << "<elements count=\""
                       << std::to_string( feature_group.nb_features() ) << "\">"
                       << EOL;
-                file_ << add_spaces( 5 ) << "<![CDATA[";
+                file_ << add_spaces( 10 ) << CDATA_TAG_START;
                 file_ << format_ranges( feature_group.feature_ids );
-                file_ << "]]>" << EOL;
-                file_ << add_spaces( 3 ) << "</group>" << EOL;
+                file_ << CDATA_TAG_END << EOL;
+                file_ << add_spaces( 8 ) << xml_end_tag( "elements" ) << EOL;
+                file_ << add_spaces( 6 ) << xml_end_tag( "group" ) << EOL;
             }
         }
 
         void write_discrete_feature_groups( DiscreteFeatures& features )
         {
-            features.build_feature_ids();
-            file_ << add_spaces( 2 ) << "<groups count=\""
-                  << features.nb_groups() << "\">" << EOL;
+            const auto groups_count_value_str =
+                absl::StrCat( "\"", features.nb_groups(), "\"" );
+            file_ << add_spaces( 4 )
+                  << xml_start_tag( "groups count", groups_count_value_str )
+                  << EOL;
             write_discrete_feature_group< DiscreteFeature2D >(
                 features.features2D_groups );
             write_discrete_feature_group< DiscreteFeature1D >(
                 features.features1D_groups );
-            file_ << add_spaces( 2 ) << "</groups>" << EOL;
+            file_ << add_spaces( 4 ) << xml_end_tag( "groups" ) << EOL;
         }
 
         void write_discrete_feature_properties_header()
         {
-            file_ << add_spaces( 2 ) << "<properties>" << EOL;
-            file_ << add_spaces( 3 ) << "<flow>" << EOL;
-            file_ << add_spaces( 4 ) << "<materials>" << EOL;
+            file_ << add_spaces( 4 ) << xml_start_tag( "properties" ) << EOL;
+            file_ << add_spaces( 6 ) << xml_start_tag( "flow" ) << EOL;
+            file_ << add_spaces( 8 ) << xml_start_tag( "materials" ) << EOL;
         }
 
         void write_discrete_feature_properties_tail()
         {
-            file_ << add_spaces( 4 ) << "</materials>" << EOL;
-            file_ << add_spaces( 3 ) << "</flow>" << EOL;
-            file_ << add_spaces( 2 ) << "</properties>" << EOL;
+            file_ << add_spaces( 8 ) << xml_end_tag( "materials" ) << EOL;
+            file_ << add_spaces( 6 ) << xml_end_tag( "flow" ) << EOL;
+            file_ << add_spaces( 4 ) << xml_end_tag( "properties" ) << EOL;
         }
 
-        void write_discrete_feature_properties(
-            const DiscreteFeatures& features )
+        void write_material_property( std::string material_id,
+            absl::flat_hash_map< double, std::vector< geode::index_t > >&
+                property_values_to_features )
         {
-            geode_unused( features );
+            file_ << add_spaces( 10 )
+                  << xml_start_tag( "material id", material_id ) << EOL;
+            file_ << add_spaces( 12 ) << CDATA_TAG_START << EOL;
+            geode::index_t iterator = 0;
+            for( const auto& [value, feature_ids] :
+                property_values_to_features )
+            {
+                file_ << add_spaces( 14 ) << value << add_spaces( 1 )
+                      << format_ranges( feature_ids );
+                if( iterator < property_values_to_features.size() - 1 )
+                {
+                    file_ << EOL;
+                }
+                iterator++;
+            }
+            file_ << add_spaces( 1 ) << CDATA_TAG_END << EOL;
+            file_ << add_spaces( 10 ) << xml_end_tag( "material" ) << EOL;
+        }
+
+        void combine_maps(
+            absl::flat_hash_map< double, std::vector< geode::index_t > >& map1,
+            const absl::flat_hash_map< double, std::vector< geode::index_t > >&
+                map2 )
+        {
+            for( const auto& [value, feature_ids] : map2 )
+            {
+                if( map1.find( value ) == map1.end() )
+                {
+                    map1[value] = feature_ids;
+                    continue;
+                }
+                map1[value].insert(
+                    map1[value].end(), feature_ids.begin(), feature_ids.end() );
+            }
+        }
+
+        void write_discrete_feature_properties( DiscreteFeatures& features )
+        {
             write_discrete_feature_properties_header();
-            // todo
+            const auto aperture_property_index =
+                features.features2D_groups[0].get_property(
+                    APERTURE_ATTRIBUTE_NAME );
+            const auto area_property_index =
+                features.features1D_groups[0].get_property(
+                    CONDUIT_AREA_ATTRIBUTE_NAME );
+            if( aperture_property_index )
+            {
+                const auto& property2D =
+                    features.features2D_groups[0]
+                        .properties[aperture_property_index.value()];
+                auto values_to_features = property2D.values_to_features;
+                if( area_property_index )
+                {
+                    const auto& property1D =
+                        features.features1D_groups[0]
+                            .properties[aperture_property_index.value()];
+                    combine_maps(
+                        values_to_features, property1D.values_to_features );
+                }
+                write_material_property( "\"AREA\"", values_to_features );
+            }
+            const auto conductivity_property_index =
+                features.features2D_groups[0].get_property(
+                    CONDUCTIVITY_ATTRIBUTE_NAME );
+            const auto conductivity_1D_property_index =
+                features.features1D_groups[0].get_property(
+                    CONDUCTIVITY_ATTRIBUTE_NAME );
+            if( conductivity_property_index )
+            {
+                const auto& property =
+                    features.features2D_groups[0]
+                        .properties[conductivity_property_index.value()];
+                auto values_to_features = property.values_to_features;
+                if( conductivity_1D_property_index )
+                {
+                    const auto& property1D =
+                        features.features1D_groups[0]
+                            .properties[conductivity_1D_property_index.value()];
+                    combine_maps(
+                        values_to_features, property1D.values_to_features );
+                }
+                write_material_property( "\"COND\"", values_to_features );
+            }
             write_discrete_feature_properties_tail();
         }
 
         void write_discrete_feature_tail()
         {
-            file_ << " </fractures>" << EOL;
+            file_ << add_spaces( 1 ) << xml_end_tag( "fractures" ) << EOL;
         }
 
         void write_discrete_features()
