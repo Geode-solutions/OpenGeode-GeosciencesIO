@@ -81,7 +81,7 @@ namespace
 
     std::string add_spaces( geode::index_t n )
     {
-        return std::string( n, ' ' );
+        return std::string( n, SPACE );
     }
 
     class SolidFemOutputImpl
@@ -237,7 +237,7 @@ namespace
 
         void write_ref_nodal_dist()
         {
-            geode::index_t nb_vtx_att{ 3 };
+            geode::index_t nb_vertex_att{ 3 };
             std::vector< std::shared_ptr< geode::AttributeBase > > attributes;
             attributes.reserve(
                 solid_.vertex_attribute_manager().attribute_names().size() );
@@ -253,11 +253,11 @@ namespace
                     continue;
                 }
                 attributes.push_back( attribute );
-                nb_vtx_att++;
+                nb_vertex_att++;
             }
             file_ << "REF_DIS_I" << EOL;
-            file_ << SPACE << nb_vtx_att << "," << SPACE << solid_.nb_vertices()
-                  << ","
+            file_ << SPACE << nb_vertex_att << "," << SPACE
+                  << solid_.nb_vertices() << ","
                   << " 0" << EOL;
             write_xyz_dist();
             for( const auto& attribute : attributes )
@@ -367,9 +367,9 @@ namespace
             for( const auto value : values )
             {
                 std::string line = "";
-                for( const auto vtx : dist[value] )
+                for( const auto vertex : dist[value] )
                 {
-                    const auto vertex_id = vtx + 1;
+                    const auto vertex_id = vertex + 1;
                     absl::StrAppend( &line, vertex_id, add_spaces( 1 ) );
                 }
                 file_ << "     " << value << "  " << line << EOL;
