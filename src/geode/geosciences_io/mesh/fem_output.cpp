@@ -81,12 +81,7 @@ namespace
 
     std::string add_spaces( geode::index_t n )
     {
-        std::string result;
-        for( geode::index_t i = 0; i < n; ++i )
-        {
-            result += SPACE;
-        }
-        return result;
+        return std::string( n, ' ' );
     }
 
     class SolidFemOutputImpl
@@ -179,8 +174,7 @@ namespace
                     solid_.polyhedron_vertices( polyhedron ) )
                 {
                     const auto vertex_id = vertex + 1;
-                    poly_line =
-                        absl::StrCat( poly_line, vertex_id, add_spaces( 1 ) );
+                    absl::StrAppend( &poly_line, vertex_id, add_spaces( 1 ) );
                 }
                 file_ << poly_line << EOL;
             }
@@ -216,7 +210,7 @@ namespace
                 std::string line = "";
                 const auto ranges =
                     format_ranges( attribute_distribution[value] );
-                line = absl::StrCat( line, ranges, add_spaces( 1 ) );
+                absl::StrAppend( &line, ranges, add_spaces( 1 ) );
                 file_ << "  " << value << "  " << line << EOL;
             }
         }
@@ -313,7 +307,7 @@ namespace
             {
                 std::string line = "";
                 const auto ranges = format_ranges( tetrahedra );
-                line = absl::StrCat( line, ranges, add_spaces( 1 ) );
+                absl::StrAppend( &line, ranges, add_spaces( 1 ) );
                 file_ << "  " << porosity_value << "  " << line << EOL;
             }
         }
@@ -376,7 +370,7 @@ namespace
                 for( const auto vtx : dist[value] )
                 {
                     const auto vertex_id = vtx + 1;
-                    line = absl::StrCat( line, vertex_id, add_spaces( 1 ) );
+                    absl::StrAppend( &line, vertex_id, add_spaces( 1 ) );
                 }
                 file_ << "     " << value << "  " << line << EOL;
             }
@@ -430,7 +424,7 @@ namespace
                 {
                     std::string line = "";
                     const auto ranges = format_ranges( vertex_region.second );
-                    line = absl::StrCat( line, ranges, add_spaces( 1 ) );
+                    absl::StrAppend( &line, ranges, add_spaces( 1 ) );
                     file_ << "  " << vertex_region.first << "  " << line << EOL;
                 }
             }
@@ -451,7 +445,7 @@ namespace
                 {
                     std::string line = "";
                     const auto ranges = format_ranges( elem_region.second );
-                    line = absl::StrCat( line, ranges, add_spaces( 1 ) );
+                    absl::StrAppend( &line, ranges, add_spaces( 1 ) );
                     file_ << "  " << elem_region.first << "  " << line << EOL;
                 }
             }
@@ -863,7 +857,7 @@ namespace
                     absl::StrCat( add_spaces( 5 ), feature.nodes.size() );
                 for( const auto node : feature.nodes )
                 {
-                    line = absl::StrCat( line, ",", add_spaces( 1 ), node );
+                    absl::StrAppend( &line, ",", add_spaces( 1 ), node );
                 }
                 file_ << line;
                 if( iterator < features.size() - 1 )
