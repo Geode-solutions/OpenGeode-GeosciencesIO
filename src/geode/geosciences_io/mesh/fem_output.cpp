@@ -516,16 +516,6 @@ namespace
             file_ << " 0 0 -1" << EOL;
         }
 
-        struct PropertyValue
-        {
-            std::string name;
-            double value;
-            bool operator==( const PropertyValue& other ) const
-            {
-                return name == other.name && value == other.value;
-            }
-        };
-
         struct Property
         {
             std::string name;
