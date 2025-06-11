@@ -620,6 +620,7 @@ namespace
                 auto& feature2D_group =
                     features_.features2D_groups.emplace_back(
                         FEATURE2D_GROUP_NAME );
+                solid_.enable_facets();
                 if( solid_.facets().facet_attribute_manager().attribute_exists(
                         APERTURE_ATTRIBUTE_NAME ) )
                 {
@@ -706,6 +707,7 @@ namespace
                         feature_id_++;
                     }
                 }
+                solid_.disable_facets();
             }
 
             void build_1d_feature_groups()
@@ -713,6 +715,7 @@ namespace
                 auto& feature1D_group =
                     features_.features1D_groups.emplace_back(
                         FEATURE1D_GROUP_NAME );
+                solid_.enable_edges();
                 if( solid_.edges().edge_attribute_manager().attribute_exists(
                         CONDUIT_AREA_ATTRIBUTE_NAME ) )
                 {
@@ -800,6 +803,7 @@ namespace
                         feature_id_++;
                     }
                 }
+                solid_.disable_edges();
             }
 
         private:
@@ -924,8 +928,6 @@ namespace
         {
             for( const auto& feature_group : feature_groups )
             {
-                geode::Logger::info( "herreeeeeee" );
-                geode::Logger::info( feature_group.feature_ids.size() );
                 const auto group_name_value_str =
                     absl::StrCat( "\"", feature_group.name, "\"",
                         " law=\"darcy\" mode=\"unstructured\"" );
