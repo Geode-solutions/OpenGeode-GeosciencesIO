@@ -1027,50 +1027,96 @@ namespace
 
         void write_discrete_feature_properties( DiscreteFeatures& features )
         {
+            if( features.features2D_groups.empty()
+                && features.features1D_groups.empty() )
+            {
+                return;
+            }
             write_discrete_feature_properties_header();
-            const auto aperture_property_index =
-                features.features2D_groups[0].get_property(
-                    APERTURE_ATTRIBUTE_NAME );
-            const auto area_property_index =
-                features.features1D_groups[0].get_property(
-                    CONDUIT_AREA_ATTRIBUTE_NAME );
+            std::optional< geode::index_t > aperture_property_index =
+                std::nullopt;
+            if( !features.features2D_groups.empty() )
+            {
+                aperture_property_index =
+                    features.features2D_groups.front().get_property(
+                        APERTURE_ATTRIBUTE_NAME );
+            }
+            std::optional< geode::index_t > area_property_index = std::nullopt;
+            if( !features.features1D_groups.empty() )
+            {
+                area_property_index =
+                    features.features1D_groups.front().get_property(
+                        CONDUIT_AREA_ATTRIBUTE_NAME );
+            }
             if( aperture_property_index )
             {
                 const auto& property2D =
-                    features.features2D_groups[0]
+                    features.features2D_groups.front()
                         .properties[aperture_property_index.value()];
                 auto values_to_features = property2D.values_to_features;
                 if( area_property_index )
                 {
                     const auto& property1D =
-                        features.features1D_groups[0]
+                        features.features1D_groups.front()
                             .properties[aperture_property_index.value()];
                     combine_maps(
                         values_to_features, property1D.values_to_features );
                 }
                 write_material_property( "\"AREA\"", values_to_features );
             }
-            const auto conductivity_property_index =
-                features.features2D_groups[0].get_property(
-                    CONDUCTIVITY_ATTRIBUTE_NAME );
-            const auto conductivity_1D_property_index =
-                features.features1D_groups[0].get_property(
-                    CONDUCTIVITY_ATTRIBUTE_NAME );
+            else
+            {
+                if( area_property_index )
+                {
+                    const auto& property1D =
+                        features.features1D_groups.front()
+                            .properties[area_property_index.value()];
+                    auto values_to_features = property1D.values_to_features;
+                    write_material_property( "\"AREA\"", values_to_features );
+                }
+            }
+            std::optional< geode::index_t > conductivity_property_index =
+                std::nullopt;
+            if( !features.features2D_groups.empty() )
+            {
+                conductivity_property_index =
+                    features.features2D_groups.front().get_property(
+                        CONDUCTIVITY_ATTRIBUTE_NAME );
+            }
+            std::optional< geode::index_t > conductivity_1D_property_index =
+                std::nullopt;
+            if( !features.features1D_groups.empty() )
+            {
+                conductivity_1D_property_index =
+                    features.features1D_groups.front().get_property(
+                        CONDUCTIVITY_ATTRIBUTE_NAME );
+            }
             if( conductivity_property_index )
             {
                 const auto& property =
-                    features.features2D_groups[0]
+                    features.features2D_groups.front()
                         .properties[conductivity_property_index.value()];
                 auto values_to_features = property.values_to_features;
                 if( conductivity_1D_property_index )
                 {
                     const auto& property1D =
-                        features.features1D_groups[0]
+                        features.features1D_groups.front()
                             .properties[conductivity_1D_property_index.value()];
                     combine_maps(
                         values_to_features, property1D.values_to_features );
                 }
                 write_material_property( "\"COND\"", values_to_features );
+            }
+            else
+            {
+                if( conductivity_1D_property_index )
+                {
+                    const auto& property1D =
+                        features.features1D_groups.front()
+                            .properties[conductivity_1D_property_index.value()];
+                    auto values_to_features = property1D.values_to_features;
+                    write_material_property( "\"COND\"", values_to_features );
+                }
             }
             write_discrete_feature_properties_tail();
         }
@@ -1085,6 +1131,10 @@ namespace
             DiscreteFeatures features{};
             DiscreteFeatureBuilder builder{ features, solid_ };
             builder.build_discrete_features();
+            if( features.nb_groups() == 0 )
+            {
+                return;
+            }
             write_discrete_feature_header();
             write_discrete_feature_signatures( features );
             write_discrete_feature_nodal_incidence_matrix( features );
