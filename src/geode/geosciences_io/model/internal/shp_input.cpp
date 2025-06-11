@@ -29,6 +29,7 @@
 #include <geode/basic/filename.hpp>
 #include <geode/basic/logger.hpp>
 
+#include <geode/geometry/basic_objects/polygon.hpp>
 #include <geode/geometry/point.hpp>
 
 #include <geode/mesh/builder/edged_curve_builder.hpp>
@@ -224,18 +225,39 @@ namespace
         }
 
         void read_polygon(
-            const OGRPolygon& polygon, const geode::Surface2D& surface )
+            const OGRPolygon& polygon_string, const geode::Surface2D& surface )
         {
+            const auto& mesh = surface.mesh();
             auto surface_builder =
                 builder_.surface_mesh_builder( surface.id() );
-            for( const auto* line_string : polygon )
+            for( const auto* line_string : polygon_string )
             {
                 const auto start =
                     read_points( *line_string, surface, *surface_builder );
-                absl::FixedArray< geode::index_t > vertices(
-                    line_string->getNumPoints() - 1 );
-                absl::c_iota( vertices, start );
-                surface_builder->create_polygon( vertices );
+                const auto nb_vertices = line_string->getNumPoints() - 1;
+                if( nb_vertices < geode::NO_LID )
+                {
+                    absl::FixedArray< geode::index_t > vertices( nb_vertices );
+                    absl::c_iota( vertices, start );
+                    surface_builder->create_polygon( vertices );
+                    continue;
+                }
+                std::vector< std::reference_wrapper< const geode::Point2D > >
+                    points;
+                points.reserve( nb_vertices );
+                for( const auto p : geode::Range{ nb_vertices } )
+                {
+                    points.emplace_back( mesh.point( start + p ) );
+                }
+                geode::Polygon2D polygon{ std::move( points ) };
+                for( auto& triangle : polygon.triangulate() )
+                {
+                    for( const auto v : geode::LRange{ 3 } )
+                    {
+                        triangle[v] = start + triangle[v];
+                    }
+                    surface_builder->create_polygon( triangle );
+                }
             }
         }
 
