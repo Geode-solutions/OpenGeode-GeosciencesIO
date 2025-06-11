@@ -610,59 +610,99 @@ namespace
 
             void build_discrete_features()
             {
-                build_2d_feature_groups();
-                build_1d_feature_groups();
+                if( must_build_2d_feature_groups() )
+                {
+                    build_2d_feature_groups();
+                }
+                if( must_build_1d_feature_groups() )
+                {
+                    build_1d_feature_groups();
+                }
             }
 
         private:
+            bool must_build_2d_feature_groups() const
+            {
+                if( !solid_.are_facets_enabled() )
+                {
+                    return false;
+                }
+                if( !solid_.facets().facet_attribute_manager().attribute_exists(
+                        APERTURE_ATTRIBUTE_NAME ) )
+                {
+                    return false;
+                }
+                return true;
+            }
+
             void build_2d_feature_groups()
             {
                 auto& feature2D_group =
                     features_.features2D_groups.emplace_back(
                         FEATURE2D_GROUP_NAME );
-                if( solid_.facets().facet_attribute_manager().attribute_exists(
-                        APERTURE_ATTRIBUTE_NAME ) )
+
+                const auto aperture_attribute =
+                    solid_.facets()
+                        .facet_attribute_manager()
+                        .find_attribute< double >( APERTURE_ATTRIBUTE_NAME );
+                const auto conductivity_attribute =
+                    solid_.facets()
+                        .facet_attribute_manager()
+                        .find_or_create_attribute< geode::VariableAttribute,
+                            double >( CONDUCTIVITY_ATTRIBUTE_NAME, -1.0 );
+                for( const auto facet :
+                    geode::Range{ solid_.facets().nb_facets() } )
                 {
-                    const auto aperture_attribute =
-                        solid_.facets()
-                            .facet_attribute_manager()
-                            .find_attribute< double >(
-                                APERTURE_ATTRIBUTE_NAME );
-                    const auto conductivity_attribute =
-                        solid_.facets()
-                            .facet_attribute_manager()
-                            .find_or_create_attribute< geode::VariableAttribute,
-                                double >( CONDUCTIVITY_ATTRIBUTE_NAME, -1.0 );
-                    for( const auto facet :
-                        geode::Range{ solid_.facets().nb_facets() } )
+                    const auto aperture_value =
+                        aperture_attribute->value( facet );
+                    if( aperture_value < 0.0 )
                     {
-                        const auto aperture_value =
-                            aperture_attribute->value( facet );
-                        if( aperture_value < 0.0 )
-                        {
-                            continue;
-                        }
-                        std::vector< geode::index_t > facet_vertices;
-                        for( const auto& vertex :
-                            solid_.facets().facet_vertices( facet ) )
-                        {
-                            facet_vertices.push_back( vertex + 1 );
-                        }
-                        auto& feature2D =
-                            feature2D_group.features.emplace_back();
-                        feature2D.nodes = facet_vertices;
-                        feature2D.feature_id = feature_id_;
-                        feature2D_group.feature_ids.push_back( feature_id_ );
-                        auto aperture_property = feature2D_group.get_property(
-                            APERTURE_ATTRIBUTE_NAME );
-                        if( !aperture_property )
+                        continue;
+                    }
+                    std::vector< geode::index_t > facet_vertices;
+                    for( const auto& vertex :
+                        solid_.facets().facet_vertices( facet ) )
+                    {
+                        facet_vertices.push_back( vertex + 1 );
+                    }
+                    auto& feature2D = feature2D_group.features.emplace_back();
+                    feature2D.nodes = facet_vertices;
+                    feature2D.feature_id = feature_id_;
+                    feature2D_group.feature_ids.push_back( feature_id_ );
+                    auto aperture_property =
+                        feature2D_group.get_property( APERTURE_ATTRIBUTE_NAME );
+                    if( !aperture_property )
+                    {
+                        Property new_property;
+                        new_property.name = APERTURE_ATTRIBUTE_NAME;
+                        absl::flat_hash_map< double,
+                            std::vector< geode::index_t > >
+                            property_map;
+                        property_map[aperture_value] = { feature_id_ };
+                        new_property.values_to_features = property_map;
+                        feature2D_group.properties.push_back( new_property );
+                    }
+                    else
+                    {
+                        feature2D_group.properties[aperture_property.value()]
+                            .values_to_features[aperture_value]
+                            .push_back( feature_id_ );
+                    }
+                    const auto conductivity_value =
+                        conductivity_attribute->value( facet );
+                    if( conductivity_value > 0.0 )
+                    {
+                        auto conductivity_property =
+                            feature2D_group.get_property(
+                                CONDUCTIVITY_ATTRIBUTE_NAME );
+                        if( !conductivity_property )
                         {
                             Property new_property;
-                            new_property.name = APERTURE_ATTRIBUTE_NAME;
+                            new_property.name = CONDUCTIVITY_ATTRIBUTE_NAME;
                             absl::flat_hash_map< double,
                                 std::vector< geode::index_t > >
                                 property_map;
-                            property_map[aperture_value] = { feature_id_ };
+                            property_map[conductivity_value] = { feature_id_ };
                             new_property.values_to_features = property_map;
                             feature2D_group.properties.push_back(
                                 new_property );
@@ -670,42 +710,27 @@ namespace
                         else
                         {
                             feature2D_group
-                                .properties[aperture_property.value()]
-                                .values_to_features[aperture_value]
+                                .properties[conductivity_property.value()]
+                                .values_to_features[conductivity_value]
                                 .push_back( feature_id_ );
                         }
-                        const auto conductivity_value =
-                            conductivity_attribute->value( facet );
-                        if( conductivity_value > 0.0 )
-                        {
-                            auto conductivity_property =
-                                feature2D_group.get_property(
-                                    CONDUCTIVITY_ATTRIBUTE_NAME );
-                            if( !conductivity_property )
-                            {
-                                Property new_property;
-                                new_property.name = CONDUCTIVITY_ATTRIBUTE_NAME;
-                                absl::flat_hash_map< double,
-                                    std::vector< geode::index_t > >
-                                    property_map;
-                                property_map[conductivity_value] = {
-                                    feature_id_
-                                };
-                                new_property.values_to_features = property_map;
-                                feature2D_group.properties.push_back(
-                                    new_property );
-                            }
-                            else
-                            {
-                                feature2D_group
-                                    .properties[conductivity_property.value()]
-                                    .values_to_features[conductivity_value]
-                                    .push_back( feature_id_ );
-                            }
-                        }
-                        feature_id_++;
                     }
+                    feature_id_++;
                 }
+            }
+
+            bool must_build_1d_feature_groups() const
+            {
+                if( !solid_.are_edges_enabled() )
+                {
+                    return false;
+                }
+                if( !solid_.edges().edge_attribute_manager().attribute_exists(
+                        CONDUIT_AREA_ATTRIBUTE_NAME ) )
+                {
+                    return false;
+                }
+                return true;
             }
 
             void build_1d_feature_groups()
@@ -713,50 +738,70 @@ namespace
                 auto& feature1D_group =
                     features_.features1D_groups.emplace_back(
                         FEATURE1D_GROUP_NAME );
-                if( solid_.edges().edge_attribute_manager().attribute_exists(
-                        CONDUIT_AREA_ATTRIBUTE_NAME ) )
+                const auto conduit_area_attribute =
+                    solid_.edges()
+                        .edge_attribute_manager()
+                        .find_attribute< double >(
+                            CONDUIT_AREA_ATTRIBUTE_NAME );
+                const auto conductivity_attribute =
+                    solid_.edges()
+                        .edge_attribute_manager()
+                        .find_or_create_attribute< geode::VariableAttribute,
+                            double >( CONDUCTIVITY_ATTRIBUTE_NAME, -1.0 );
+                for( const auto edge :
+                    geode::Range{ solid_.edges().nb_edges() } )
                 {
-                    const auto conduit_area_attribute =
-                        solid_.edges()
-                            .edge_attribute_manager()
-                            .find_attribute< double >(
-                                CONDUIT_AREA_ATTRIBUTE_NAME );
-                    const auto conductivity_attribute =
-                        solid_.edges()
-                            .edge_attribute_manager()
-                            .find_or_create_attribute< geode::VariableAttribute,
-                                double >( CONDUCTIVITY_ATTRIBUTE_NAME, -1.0 );
-                    for( const auto edge :
-                        geode::Range{ solid_.edges().nb_edges() } )
+                    const auto conduit_area_value =
+                        conduit_area_attribute->value( edge );
+                    if( conduit_area_value < 0.0 )
                     {
-                        const auto conduit_area_value =
-                            conduit_area_attribute->value( edge );
-                        if( conduit_area_value < 0.0 )
-                        {
-                            continue;
-                        }
-                        std::vector< geode::index_t > edge_vertices;
-                        for( const auto& vertex :
-                            solid_.edges().edge_vertices( edge ) )
-                        {
-                            edge_vertices.push_back( vertex + 1 );
-                        }
-                        auto& feature1D =
-                            feature1D_group.features.emplace_back();
-                        feature1D.nodes = edge_vertices;
-                        feature1D.feature_id = feature_id_;
-                        feature1D_group.feature_ids.push_back( feature_id_ );
-                        auto conduit_area_property =
+                        continue;
+                    }
+                    std::vector< geode::index_t > edge_vertices;
+                    for( const auto& vertex :
+                        solid_.edges().edge_vertices( edge ) )
+                    {
+                        edge_vertices.push_back( vertex + 1 );
+                    }
+                    auto& feature1D = feature1D_group.features.emplace_back();
+                    feature1D.nodes = edge_vertices;
+                    feature1D.feature_id = feature_id_;
+                    feature1D_group.feature_ids.push_back( feature_id_ );
+                    auto conduit_area_property = feature1D_group.get_property(
+                        CONDUIT_AREA_ATTRIBUTE_NAME );
+                    if( !conduit_area_property )
+                    {
+                        Property new_property;
+                        new_property.name = CONDUIT_AREA_ATTRIBUTE_NAME;
+                        absl::flat_hash_map< double,
+                            std::vector< geode::index_t > >
+                            property_map;
+                        property_map[conduit_area_value] = { feature_id_ };
+                        new_property.values_to_features = property_map;
+                        feature1D_group.properties.push_back( new_property );
+                    }
+                    else
+                    {
+                        feature1D_group
+                            .properties[conduit_area_property.value()]
+                            .values_to_features[conduit_area_value]
+                            .push_back( feature_id_ );
+                    }
+                    const auto conductivity_value =
+                        conductivity_attribute->value( edge );
+                    if( conductivity_value > 0.0 )
+                    {
+                        auto conductivity_property =
                             feature1D_group.get_property(
-                                CONDUIT_AREA_ATTRIBUTE_NAME );
-                        if( !conduit_area_property )
+                                CONDUCTIVITY_ATTRIBUTE_NAME );
+                        if( !conductivity_property )
                         {
                             Property new_property;
-                            new_property.name = CONDUIT_AREA_ATTRIBUTE_NAME;
+                            new_property.name = CONDUCTIVITY_ATTRIBUTE_NAME;
                             absl::flat_hash_map< double,
                                 std::vector< geode::index_t > >
                                 property_map;
-                            property_map[conduit_area_value] = { feature_id_ };
+                            property_map[conductivity_value] = { feature_id_ };
                             new_property.values_to_features = property_map;
                             feature1D_group.properties.push_back(
                                 new_property );
@@ -764,41 +809,12 @@ namespace
                         else
                         {
                             feature1D_group
-                                .properties[conduit_area_property.value()]
-                                .values_to_features[conduit_area_value]
+                                .properties[conductivity_property.value()]
+                                .values_to_features[conductivity_value]
                                 .push_back( feature_id_ );
                         }
-                        const auto conductivity_value =
-                            conductivity_attribute->value( edge );
-                        if( conductivity_value > 0.0 )
-                        {
-                            auto conductivity_property =
-                                feature1D_group.get_property(
-                                    CONDUCTIVITY_ATTRIBUTE_NAME );
-                            if( !conductivity_property )
-                            {
-                                Property new_property;
-                                new_property.name = CONDUCTIVITY_ATTRIBUTE_NAME;
-                                absl::flat_hash_map< double,
-                                    std::vector< geode::index_t > >
-                                    property_map;
-                                property_map[conductivity_value] = {
-                                    feature_id_
-                                };
-                                new_property.values_to_features = property_map;
-                                feature1D_group.properties.push_back(
-                                    new_property );
-                            }
-                            else
-                            {
-                                feature1D_group
-                                    .properties[conductivity_property.value()]
-                                    .values_to_features[conductivity_value]
-                                    .push_back( feature_id_ );
-                            }
-                        }
-                        feature_id_++;
                     }
+                    feature_id_++;
                 }
             }
 
@@ -924,8 +940,6 @@ namespace
         {
             for( const auto& feature_group : feature_groups )
             {
-                geode::Logger::info( "herreeeeeee" );
-                geode::Logger::info( feature_group.feature_ids.size() );
                 const auto group_name_value_str =
                     absl::StrCat( "\"", feature_group.name, "\"",
                         " law=\"darcy\" mode=\"unstructured\"" );
@@ -1013,50 +1027,96 @@ namespace
 
         void write_discrete_feature_properties( DiscreteFeatures& features )
         {
+            if( features.features2D_groups.empty()
+                && features.features1D_groups.empty() )
+            {
+                return;
+            }
             write_discrete_feature_properties_header();
-            const auto aperture_property_index =
-                features.features2D_groups[0].get_property(
-                    APERTURE_ATTRIBUTE_NAME );
-            const auto area_property_index =
-                features.features1D_groups[0].get_property(
-                    CONDUIT_AREA_ATTRIBUTE_NAME );
+            std::optional< geode::index_t > aperture_property_index =
+                std::nullopt;
+            if( !features.features2D_groups.empty() )
+            {
+                aperture_property_index =
+                    features.features2D_groups.front().get_property(
+                        APERTURE_ATTRIBUTE_NAME );
+            }
+            std::optional< geode::index_t > area_property_index = std::nullopt;
+            if( !features.features1D_groups.empty() )
+            {
+                area_property_index =
+                    features.features1D_groups.front().get_property(
+                        CONDUIT_AREA_ATTRIBUTE_NAME );
+            }
             if( aperture_property_index )
             {
                 const auto& property2D =
-                    features.features2D_groups[0]
+                    features.features2D_groups.front()
                         .properties[aperture_property_index.value()];
                 auto values_to_features = property2D.values_to_features;
                 if( area_property_index )
                 {
                     const auto& property1D =
-                        features.features1D_groups[0]
+                        features.features1D_groups.front()
                             .properties[aperture_property_index.value()];
                     combine_maps(
                         values_to_features, property1D.values_to_features );
                 }
                 write_material_property( "\"AREA\"", values_to_features );
             }
-            const auto conductivity_property_index =
-                features.features2D_groups[0].get_property(
-                    CONDUCTIVITY_ATTRIBUTE_NAME );
-            const auto conductivity_1D_property_index =
-                features.features1D_groups[0].get_property(
-                    CONDUCTIVITY_ATTRIBUTE_NAME );
+            else
+            {
+                if( area_property_index )
+                {
+                    const auto& property1D =
+                        features.features1D_groups.front()
+                            .properties[area_property_index.value()];
+                    auto values_to_features = property1D.values_to_features;
+                    write_material_property( "\"AREA\"", values_to_features );
+                }
+            }
+            std::optional< geode::index_t > conductivity_property_index =
+                std::nullopt;
+            if( !features.features2D_groups.empty() )
+            {
+                conductivity_property_index =
+                    features.features2D_groups.front().get_property(
+                        CONDUCTIVITY_ATTRIBUTE_NAME );
+            }
+            std::optional< geode::index_t > conductivity_1D_property_index =
+                std::nullopt;
+            if( !features.features1D_groups.empty() )
+            {
+                conductivity_1D_property_index =
+                    features.features1D_groups.front().get_property(
+                        CONDUCTIVITY_ATTRIBUTE_NAME );
+            }
             if( conductivity_property_index )
             {
                 const auto& property =
-                    features.features2D_groups[0]
+                    features.features2D_groups.front()
                         .properties[conductivity_property_index.value()];
                 auto values_to_features = property.values_to_features;
                 if( conductivity_1D_property_index )
                 {
                     const auto& property1D =
-                        features.features1D_groups[0]
+                        features.features1D_groups.front()
                             .properties[conductivity_1D_property_index.value()];
                     combine_maps(
                         values_to_features, property1D.values_to_features );
                 }
                 write_material_property( "\"COND\"", values_to_features );
+            }
+            else
+            {
+                if( conductivity_1D_property_index )
+                {
+                    const auto& property1D =
+                        features.features1D_groups.front()
+                            .properties[conductivity_1D_property_index.value()];
+                    auto values_to_features = property1D.values_to_features;
+                    write_material_property( "\"COND\"", values_to_features );
+                }
             }
             write_discrete_feature_properties_tail();
         }
@@ -1071,6 +1131,10 @@ namespace
             DiscreteFeatures features{};
             DiscreteFeatureBuilder builder{ features, solid_ };
             builder.build_discrete_features();
+            if( features.nb_groups() == 0 )
+            {
+                return;
+            }
             write_discrete_feature_header();
             write_discrete_feature_signatures( features );
             write_discrete_feature_nodal_incidence_matrix( features );
