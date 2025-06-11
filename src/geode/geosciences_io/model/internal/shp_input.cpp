@@ -37,6 +37,7 @@
 #include <geode/mesh/core/edged_curve.hpp>
 #include <geode/mesh/core/surface_mesh.hpp>
 
+#include <geode/model/mixin/core/corner.hpp>
 #include <geode/model/mixin/core/line.hpp>
 #include <geode/model/mixin/core/surface.hpp>
 #include <geode/model/representation/builder/section_builder.hpp>
@@ -61,25 +62,24 @@ namespace
         {
             for( auto* layer : gdal_data_->GetLayers() )
             {
-                switch( layer->GetGeomType() )
+                if( layer->GetGeomType() == OGRwkbGeometryType::wkbPoint )
                 {
-                    case OGRwkbGeometryType::wkbPoint: {
-                        create_corner( *layer );
-                        break;
-                    }
-                    case OGRwkbGeometryType::wkbLineString: {
-                        create_line( *layer );
-                        break;
-                    }
-                    case OGRwkbGeometryType::wkbPolygon: {
-                        create_surface( *layer );
-                        break;
-                    }
-                    default: {
-                        geode::Logger::warn( "[SHPInput] Unknown Layer type: ",
-                            layer->GetGeomType() );
-                        break;
-                    }
+                    create_corner( *layer );
+                }
+                else if( layer->GetGeomType()
+                         == OGRwkbGeometryType::wkbLineString )
+                {
+                    create_line( *layer );
+                }
+                else if( layer->GetGeomType()
+                         == OGRwkbGeometryType::wkbPolygon )
+                {
+                    create_surface( *layer );
+                }
+                else
+                {
+                    geode::Logger::warn( "[SHPInput] Unknown Layer type: ",
+                        layer->GetGeomType() );
                 }
             }
         }
@@ -89,6 +89,7 @@ namespace
         {
             const auto& id = builder_.add_corner();
             builder_.set_corner_name( id, layer.GetName() );
+            const auto& corner = section_.corner( id );
             auto corner_builder = builder_.corner_mesh_builder( id );
             for( const auto& feature : layer )
             {
@@ -96,20 +97,20 @@ namespace
                 OPENGEODE_EXCEPTION( geometry,
                     "[SHPInput::create_corner] Failed to retrieve geometry "
                     "data" );
-                switch( geometry->getGeometryType() )
+                if( geometry->getGeometryType()
+                    == OGRwkbGeometryType::wkbPoint )
                 {
-                    case OGRwkbGeometryType::wkbPoint: {
-                        const auto* point = geometry->toPoint();
-                        corner_builder->create_point( geode::Point2D{
-                            { point->getX(), point->getY() } } );
-                        break;
-                    }
-                    default: {
-                        geode::Logger::warn(
-                            "[SHPInput::create_corner] Unknown geometry type: ",
-                            geometry->getGeometryType() );
-                        break;
-                    }
+                    const auto* point = geometry->toPoint();
+                    corner_builder->create_point(
+                        geode::Point2D{ { point->getX(), point->getY() } } );
+                    builder_.set_unique_vertex( { corner.component_id(), 0 },
+                        builder_.create_unique_vertex() );
+                }
+                else
+                {
+                    geode::Logger::warn(
+                        "[SHPInput::create_corner] Unknown geometry type: ",
+                        geometry->getGeometryType() );
                 }
             }
         }
@@ -118,66 +119,73 @@ namespace
         {
             const auto& id = builder_.add_line();
             builder_.set_line_name( id, layer.GetName() );
-            auto curve_builder = builder_.line_mesh_builder( id );
-            const auto& curve = section_.line( id ).mesh();
+            const auto& line = section_.line( id );
             for( const auto& feature : layer )
             {
                 const auto* geometry = feature->GetGeometryRef();
                 OPENGEODE_EXCEPTION( geometry,
                     "[SHPInput::create_line] Failed to retrieve geometry "
                     "data" );
-                switch( geometry->getGeometryType() )
+                if( geometry->getGeometryType()
+                    == OGRwkbGeometryType::wkbLineString )
                 {
-                    case OGRwkbGeometryType::wkbLineString: {
-                        read_line(
-                            *geometry->toLineString(), curve, *curve_builder );
-                        break;
+                    read_line( *geometry->toLineString(), line );
+                }
+                else if( geometry->getGeometryType()
+                         == OGRwkbGeometryType::wkbMultiLineString )
+                {
+                    for( const auto* line_string :
+                        *geometry->toMultiLineString() )
+                    {
+                        read_line( *line_string, line );
                     }
-                    case OGRwkbGeometryType::wkbMultiLineString: {
-                        for( const auto* line : *geometry->toMultiLineString() )
-                        {
-                            read_line( *line, curve, *curve_builder );
-                        }
-                        break;
-                    }
-                    default: {
-                        geode::Logger::warn( "[SHPInput::create_line] "
-                                             "Unknown geometry type: ",
-                            geometry->getGeometryType() );
-                        break;
-                    }
+                }
+                else
+                {
+                    geode::Logger::warn( "[SHPInput::create_line] "
+                                         "Unknown geometry type: ",
+                        geometry->getGeometryType() );
                 }
             }
         }
 
-        void read_line( const OGRLineString& line,
-            const geode::EdgedCurve2D& curve,
-            geode::EdgedCurveBuilder2D& curve_builder )
+        void read_line(
+            const OGRLineString& line_string, const geode::Line2D& line )
         {
-            const auto start = read_points( line, curve_builder );
+            const auto& curve = line.mesh();
+            auto curve_builder = builder_.line_mesh_builder( line.id() );
+            const auto start = read_points( line_string, line, *curve_builder );
             for( const auto p : geode::Range{ start, curve.nb_vertices() - 1 } )
             {
-                curve_builder.create_edge( p, p + 1 );
+                curve_builder->create_edge( p, p + 1 );
             }
-            if( line.get_IsClosed() )
+            if( line_string.get_IsClosed() )
             {
-                curve_builder.create_edge( start, curve.nb_vertices() - 1 );
+                curve_builder->create_edge( start, curve.nb_vertices() - 1 );
             }
         }
 
         template < typename Builder >
-        geode::index_t read_points(
-            const OGRLineString& line, Builder& mesh_builder )
+        geode::index_t read_points( const OGRLineString& line_string,
+            const geode::Component2D& component,
+            Builder& mesh_builder )
         {
-            const auto nb_points = line.get_IsClosed() ? line.getNumPoints() - 1
-                                                       : line.getNumPoints();
+            const auto nb_points = line_string.get_IsClosed()
+                                       ? line_string.getNumPoints() - 1
+                                       : line_string.getNumPoints();
             const auto start = mesh_builder.create_vertices( nb_points );
+            const auto unique_start =
+                builder_.create_unique_vertices( nb_points );
             for( const auto p : geode::Range{ nb_points } )
             {
                 OGRPoint point;
-                line.getPoint( p, &point );
-                mesh_builder.set_point( start + p,
-                    geode::Point2D{ { point.getX(), point.getY() } } );
+                line_string.getPoint( p, &point );
+                const auto vertex = start + p;
+                mesh_builder.set_point(
+                    vertex, geode::Point2D{ { point.getX(), point.getY() } } );
+                const auto unique_vertex = unique_start + p;
+                builder_.set_unique_vertex(
+                    { component.component_id(), vertex }, unique_vertex );
             }
             return start;
         }
@@ -186,47 +194,48 @@ namespace
         {
             const auto& id = builder_.add_surface();
             builder_.set_surface_name( id, layer.GetName() );
-            auto surface_builder = builder_.surface_mesh_builder( id );
+            const auto& surface = section_.surface( id );
             for( const auto& feature : layer )
             {
                 const auto* geometry = feature->GetGeometryRef();
                 OPENGEODE_EXCEPTION( geometry,
                     "[SHPInput::create_surface] Failed to retrieve geometry "
                     "data" );
-                switch( geometry->getGeometryType() )
+                if( geometry->getGeometryType()
+                    == OGRwkbGeometryType::wkbPolygon )
                 {
-                    case OGRwkbGeometryType::wkbPolygon: {
-                        read_polygon(
-                            *geometry->toPolygon(), *surface_builder );
-                        break;
+                    read_polygon( *geometry->toPolygon(), surface );
+                }
+                else if( geometry->getGeometryType()
+                         == OGRwkbGeometryType::wkbMultiPolygon )
+                {
+                    for( const auto* polygon : *geometry->toMultiPolygon() )
+                    {
+                        read_polygon( *polygon, surface );
                     }
-                    case OGRwkbGeometryType::wkbMultiPolygon: {
-                        for( const auto* polygon : *geometry->toMultiPolygon() )
-                        {
-                            read_polygon( *polygon, *surface_builder );
-                        }
-                        break;
-                    }
-                    default: {
-                        geode::Logger::warn( "[SHPInput::create_surface] "
-                                             "Unknown geometry type: ",
-                            geometry->getGeometryType() );
-                        break;
-                    }
+                }
+                else
+                {
+                    geode::Logger::warn( "[SHPInput::create_surface] "
+                                         "Unknown geometry type: ",
+                        geometry->getGeometryType() );
                 }
             }
         }
 
-        void read_polygon( const OGRPolygon& polygon,
-            geode::SurfaceMeshBuilder2D& surface_builder )
+        void read_polygon(
+            const OGRPolygon& polygon, const geode::Surface2D& surface )
         {
-            for( const auto* line : polygon )
+            auto surface_builder =
+                builder_.surface_mesh_builder( surface.id() );
+            for( const auto* line_string : polygon )
             {
-                const auto start = read_points( *line, surface_builder );
+                const auto start =
+                    read_points( *line_string, surface, *surface_builder );
                 absl::FixedArray< geode::index_t > vertices(
-                    line->getNumPoints() - 1 );
+                    line_string->getNumPoints() - 1 );
                 absl::c_iota( vertices, start );
-                surface_builder.create_polygon( vertices );
+                surface_builder->create_polygon( vertices );
             }
         }
 
