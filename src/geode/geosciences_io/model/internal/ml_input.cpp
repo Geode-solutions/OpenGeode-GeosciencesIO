@@ -1020,14 +1020,14 @@ namespace
             fault_map_ = { { "fault", geode::Fault3D::FAULT_TYPE::no_type },
                 { "reverse_fault", geode::Fault3D::FAULT_TYPE::reverse },
                 { "normal_fault", geode::Fault3D::FAULT_TYPE::normal } };
-        const absl::flat_hash_map< std::string, geode::Horizon3D::HORIZON_TYPE >
+        const absl::flat_hash_map< std::string, geode::Horizon3D::CONTACT_TYPE >
             horizon_map_ = { { "top",
-                                 geode::Horizon3D::HORIZON_TYPE::conformal },
-                { "none", geode::Horizon3D::HORIZON_TYPE::no_type },
-                { "topographic", geode::Horizon3D::HORIZON_TYPE::topography },
-                { "intrusive", geode::Horizon3D::HORIZON_TYPE::intrusion },
+                                 geode::Horizon3D::CONTACT_TYPE::conformal },
+                { "none", geode::Horizon3D::CONTACT_TYPE::conformal },
+                { "topographic", geode::Horizon3D::CONTACT_TYPE::topography },
+                { "intrusive", geode::Horizon3D::CONTACT_TYPE::intrusion },
                 { "unconformity",
-                    geode::Horizon3D::HORIZON_TYPE::non_conformal } };
+                    geode::Horizon3D::CONTACT_TYPE::discontinuity } };
     };
 } // namespace
 

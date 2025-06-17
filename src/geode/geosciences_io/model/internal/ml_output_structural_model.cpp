@@ -86,7 +86,7 @@ namespace
                         continue;
                     }
                     file() << "TFACE " << component_id() << SPACE
-                           << horizon_map_.at( horizon.type() ) << SPACE
+                           << horizon_map_.at( horizon.contact_type() ) << SPACE
                            << horizon.name() << EOL;
                     write_key_triangle( item );
                     components().emplace( item.id(), component_id()++ );
@@ -193,7 +193,7 @@ namespace
                 geode::internal::write_CRS( file(), {} );
                 file() << "GEOLOGICAL_FEATURE " << horizon.name() << EOL;
                 file() << "GEOLOGICAL_TYPE "
-                       << horizon_map_.at( horizon.type() ) << EOL;
+                       << horizon_map_.at( horizon.contact_type() ) << EOL;
                 geode::index_t current_offset{ OFFSET_START };
                 for( const auto& item : model_.horizon_items( horizon ) )
                 {
@@ -219,13 +219,12 @@ namespace
                 { geode::Fault3D::FAULT_TYPE::strike_slip, "fault" },
                 { geode::Fault3D::FAULT_TYPE::listric, "fault" },
                 { geode::Fault3D::FAULT_TYPE::decollement, "fault" } };
-        const absl::flat_hash_map< geode::Horizon3D::HORIZON_TYPE, std::string >
-            horizon_map_ = { { geode::Horizon3D::HORIZON_TYPE::no_type,
-                                 "none" },
-                { geode::Horizon3D::HORIZON_TYPE::conformal, "top" },
-                { geode::Horizon3D::HORIZON_TYPE::topography, "topographic" },
-                { geode::Horizon3D::HORIZON_TYPE::intrusion, "intrusive" },
-                { geode::Horizon3D::HORIZON_TYPE::non_conformal,
+        const absl::flat_hash_map< geode::Horizon3D::CONTACT_TYPE, std::string >
+            horizon_map_ = { { geode::Horizon3D::CONTACT_TYPE::conformal,
+                                 "top" },
+                { geode::Horizon3D::CONTACT_TYPE::topography, "topographic" },
+                { geode::Horizon3D::CONTACT_TYPE::intrusion, "intrusive" },
+                { geode::Horizon3D::CONTACT_TYPE::discontinuity,
                     "unconformity" } };
     };
 } // namespace

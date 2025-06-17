@@ -91,8 +91,20 @@ namespace
                     builder.set_horizon_above( top_horizon, strati_unit );
                     if( top_relation == "structural" )
                     {
-                        builder.set_as_erosion_above(
-                            top_horizon, strati_unit );
+                        if( top_horizon.contact_type()
+                            == geode::Horizon<
+                                dimension >::CONTACT_TYPE::conformal )
+                        {
+                            builder.set_horizon_contact_type( top_horizon.id(),
+                                geode::Horizon<
+                                    dimension >::CONTACT_TYPE::erosion );
+                        }
+                        else
+                        {
+                            builder.set_horizon_contact_type( top_horizon.id(),
+                                geode::Horizon<
+                                    dimension >::CONTACT_TYPE::discontinuity );
+                        }
                     }
                 }
                 for( const auto& unit_base : unit.children( "base" ) )
@@ -113,8 +125,20 @@ namespace
                     builder.set_horizon_under( base_horizon, strati_unit );
                     if( base_relation == "structural" )
                     {
-                        builder.set_as_baselap_under(
-                            base_horizon, strati_unit );
+                        if( base_horizon.contact_type()
+                            == geode::Horizon<
+                                dimension >::CONTACT_TYPE::conformal )
+                        {
+                            builder.set_horizon_contact_type( base_horizon.id(),
+                                geode::Horizon<
+                                    dimension >::CONTACT_TYPE::baselap );
+                        }
+                        else
+                        {
+                            builder.set_horizon_contact_type( base_horizon.id(),
+                                geode::Horizon<
+                                    dimension >::CONTACT_TYPE::discontinuity );
+                        }
                     }
                 }
             }
