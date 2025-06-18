@@ -44,6 +44,8 @@ namespace
     template < geode::index_t dimension >
     class HorizonStackSKUAInputImpl
     {
+        using CONTACT_TYPE = typename geode::Horizon< dimension >::CONTACT_TYPE;
+
     public:
         HorizonStackSKUAInputImpl( std::string_view filename )
             : filename_( filename )
@@ -89,10 +91,19 @@ namespace
                     const auto& top_horizon = horizons_stack.horizon(
                         name_map.at( top_horizon_name ) );
                     builder.set_horizon_above( top_horizon, strati_unit );
-                    if( top_relation == "structural" )
+                    if( top_relation != "structural" )
                     {
-                        builder.set_as_erosion_above(
-                            top_horizon, strati_unit );
+                        continue;
+                    }
+                    if( top_horizon.contact_type() == CONTACT_TYPE::conformal )
+                    {
+                        builder.set_horizon_contact_type(
+                            top_horizon.id(), CONTACT_TYPE::erosion );
+                    }
+                    else
+                    {
+                        builder.set_horizon_contact_type(
+                            top_horizon.id(), CONTACT_TYPE::discontinuity );
                     }
                 }
                 for( const auto& unit_base : unit.children( "base" ) )
@@ -111,10 +122,19 @@ namespace
                     const auto& base_horizon = horizons_stack.horizon(
                         name_map.at( base_horizon_name ) );
                     builder.set_horizon_under( base_horizon, strati_unit );
-                    if( base_relation == "structural" )
+                    if( base_relation != "structural" )
                     {
-                        builder.set_as_baselap_under(
-                            base_horizon, strati_unit );
+                        continue;
+                    }
+                    if( base_horizon.contact_type() == CONTACT_TYPE::conformal )
+                    {
+                        builder.set_horizon_contact_type(
+                            base_horizon.id(), CONTACT_TYPE::baselap );
+                    }
+                    else
+                    {
+                        builder.set_horizon_contact_type(
+                            base_horizon.id(), CONTACT_TYPE::discontinuity );
                     }
                 }
             }
