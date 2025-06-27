@@ -26,6 +26,14 @@ add_geode_test(
         ${PROJECT_NAME}::mesh
 )
 add_geode_test(
+    SOURCE "test-dem.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
+        OpenGeode-IO::mesh
+        ${PROJECT_NAME}::mesh
+)
+add_geode_test(
     SOURCE "test-geotiff.cpp"
     DEPENDENCIES
         OpenGeode::basic
