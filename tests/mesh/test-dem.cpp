@@ -37,8 +37,8 @@ int main()
 {
     try
     {
-        geode::GeosciencesIOMeshLibrary::initialize();
         geode::Logger::set_level( geode::Logger::LEVEL::trace );
+        geode::GeosciencesIOMeshLibrary::initialize();
         const auto surface = geode::load_polygonal_surface< 3 >(
             absl::StrCat( geode::DATA_PATH, "bathy_IrishSea_DEM.dem" ) );
         OPENGEODE_EXCEPTION( surface->nb_vertices() == 456427,

@@ -52,17 +52,14 @@ namespace
 
     class BRepFemOutputImpl
     {
-        static constexpr const char APERTURE_ATTRIBUTE_NAME[]{
-            "diagres_discontinuity_aperture"
-        };
-        static constexpr const char CONDUIT_AREA_ATTRIBUTE_NAME[]{
-            "diagres_conduit_area"
-        };
-        static constexpr const char CONDUCTIVITY_ATTRIBUTE_NAME[]{
-            "diagres_conductivity"
-        };
-        static constexpr const char SURFACE_NAME_ATTRIBUTE[]{ "surface_name" };
-        static constexpr const char LINE_NAME_ATTRIBUTE[]{ "line_name" };
+        static constexpr auto APERTURE_ATTRIBUTE_NAME =
+            "diagres_discontinuity_aperture";
+        static constexpr auto CONDUIT_AREA_ATTRIBUTE_NAME =
+            "diagres_conduit_area";
+        static constexpr auto CONDUCTIVITY_ATTRIBUTE_NAME =
+            "diagres_conductivity";
+        static constexpr auto SURFACE_NAME_ATTRIBUTE = "surface_name";
+        static constexpr auto LINE_NAME_ATTRIBUTE = "line_name";
 
     public:
         static constexpr geode::index_t OFFSET_START{ 1 };
