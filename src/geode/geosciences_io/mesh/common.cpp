@@ -23,6 +23,8 @@
 
 #include <geode/geosciences_io/mesh/common.hpp>
 
+#include <gdal.h>
+
 #include <geode/io/image/common.hpp>
 
 #include <geode/geosciences_io/mesh/internal/dem_input.hpp>
@@ -152,5 +154,6 @@ namespace geode
         register_hybrid_solid_input();
         register_point_set_input();
         register_point_set_output();
+        GDALAllRegister();
     }
 } // namespace geode
