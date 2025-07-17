@@ -31,26 +31,14 @@
 #include <geode/mesh/io/polygonal_surface_input.hpp>
 #include <geode/mesh/io/polygonal_surface_output.hpp>
 
-#include <gdal.h>
-#include <gdal_priv.h>
-#include <gdal_utils.h>
 #include <geode/geosciences_io/mesh/common.hpp>
+
 int main()
 {
     try
     {
         geode::Logger::set_level( geode::Logger::LEVEL::trace );
         geode::GeosciencesIOMeshLibrary::initialize();
-        int driverCount = GDALGetDriverCount();
-        DEBUG( driverCount );
-        for( int i = 0; i < driverCount; i++ )
-        {
-            GDALDriverH hDriver = GDALGetDriver( i );
-            const char *driverName = GDALGetDriverLongName( hDriver );
-            const char *extensions =
-                GDALGetMetadataItem( hDriver, GDAL_DMD_EXTENSION, NULL );
-            printf( "%s: %s\n", driverName, extensions );
-        }
         const auto surface = geode::load_polygonal_surface< 3 >(
             absl::StrCat( geode::DATA_PATH, "bathy_IrishSea_DEM.dem" ) );
         OPENGEODE_EXCEPTION( surface->nb_vertices() == 456427,
