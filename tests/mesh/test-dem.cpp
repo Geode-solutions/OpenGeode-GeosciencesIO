@@ -42,6 +42,7 @@ int main()
         geode::Logger::set_level( geode::Logger::LEVEL::trace );
         geode::GeosciencesIOMeshLibrary::initialize();
         int driverCount = GDALGetDriverCount();
+        DEBUG( driverCount );
         for( int i = 0; i < driverCount; i++ )
         {
             GDALDriverH hDriver = GDALGetDriver( i );
