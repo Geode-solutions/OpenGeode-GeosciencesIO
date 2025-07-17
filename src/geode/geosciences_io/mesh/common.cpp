@@ -22,8 +22,12 @@
  */
 
 #include <geode/geosciences_io/mesh/common.hpp>
+
+#include <gdal.h>
+
 #include <geode/io/image/common.hpp>
 
+#include <geode/geosciences_io/mesh/internal/dem_input.hpp>
 #include <geode/geosciences_io/mesh/internal/fem_output.hpp>
 #include <geode/geosciences_io/mesh/internal/geotiff_input.hpp>
 #include <geode/geosciences_io/mesh/internal/grdecl_input.hpp>
@@ -53,6 +57,13 @@ namespace
         geode::TriangulatedSurfaceOutputFactory3D::register_creator<
             geode::internal::TSOutput >(
             geode::internal::TSOutput::extension().data() );
+    }
+
+    void register_polygonal_surface_input()
+    {
+        geode::PolygonalSurfaceInputFactory3D::register_creator<
+            geode::internal::DEMInput >(
+            geode::internal::DEMInput::extension().data() );
     }
 
     void register_tetrahedral_solid_output()
@@ -134,6 +145,7 @@ namespace geode
         IOImageLibrary::initialize();
         register_triangulated_surface_input();
         register_triangulated_surface_output();
+        register_polygonal_surface_input();
         register_tetrahedral_solid_output();
         register_edged_curve_input();
         register_edged_curve_output();
@@ -142,5 +154,6 @@ namespace geode
         register_hybrid_solid_input();
         register_point_set_input();
         register_point_set_output();
+        GDALAllRegister();
     }
 } // namespace geode

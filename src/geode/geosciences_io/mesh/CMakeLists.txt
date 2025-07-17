@@ -23,6 +23,7 @@ add_geode_library(
     FOLDER "geode/geosciences_io/mesh"
     SOURCES
         "common.cpp"
+        "dem_input.cpp"
         "fem_output.cpp"
         "geotiff_input.cpp"
         "gocad_common.cpp"
@@ -41,6 +42,7 @@ add_geode_library(
     PUBLIC_HEADERS
         "common.hpp"
     INTERNAL_HEADERS
+        "internal/dem_input.hpp"
         "internal/fem_output.hpp"
         "internal/geotiff_input.hpp"
         "internal/gocad_common.hpp"
