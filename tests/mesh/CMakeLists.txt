@@ -31,6 +31,7 @@ add_geode_test(
         OpenGeode::basic
         OpenGeode::mesh
         OpenGeode-IO::mesh
+        GDAL::GDAL
         ${PROJECT_NAME}::mesh
 )
 add_geode_test(
