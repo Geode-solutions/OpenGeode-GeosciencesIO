@@ -18,6 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+find_package(GDAL REQUIRED CONFIG)
 add_geode_test(
     SOURCE "test-solid-fem-output.cpp"
     DEPENDENCIES
