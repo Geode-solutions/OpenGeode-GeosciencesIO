@@ -33,6 +33,7 @@
 #include <geode/geosciences_io/mesh/internal/grdecl_input.hpp>
 #include <geode/geosciences_io/mesh/internal/pl_input.hpp>
 #include <geode/geosciences_io/mesh/internal/pl_output.hpp>
+#include <geode/geosciences_io/mesh/internal/polytiff_input.hpp>
 #include <geode/geosciences_io/mesh/internal/ts_input.hpp>
 #include <geode/geosciences_io/mesh/internal/ts_output.hpp>
 #include <geode/geosciences_io/mesh/internal/vo_input.hpp>
@@ -64,6 +65,12 @@ namespace
         geode::PolygonalSurfaceInputFactory3D::register_creator<
             geode::internal::DEMInput >(
             geode::internal::DEMInput::extension().data() );
+        for( const auto& tif_ext :
+            geode::internal::PolyTIFFInput::extensions() )
+        {
+            geode::PolygonalSurfaceInputFactory3D::register_creator<
+                geode::internal::PolyTIFFInput >( tif_ext );
+        }
     }
 
     void register_tetrahedral_solid_output()

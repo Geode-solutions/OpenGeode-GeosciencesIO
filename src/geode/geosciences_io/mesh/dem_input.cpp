@@ -27,11 +27,14 @@
 #include <gdal_priv.h>
 #include <gdal_utils.h>
 
+#include <geode/geometry/coordinate_system.hpp>
 #include <geode/geometry/point.hpp>
 #include <geode/geometry/vector.hpp>
 
 #include <geode/mesh/builder/polygonal_surface_builder.hpp>
 #include <geode/mesh/core/polygonal_surface.hpp>
+
+#include <geode/geosciences_io/mesh/internal/gdal_utils.hpp>
 
 namespace
 {
@@ -103,7 +106,8 @@ namespace
                 status == CE_None, "[DEMInput] Failed to read elevation" );
             for( const auto i : geode::Range{ height_ } )
             {
-                const auto i_contribution = y_direction_ * i;
+                const auto i_contribution =
+                    coordinate_system_.direction( 1 ) * i;
                 for( const auto j : geode::Range{ width_ } )
                 {
                     const auto vertex = i * width_ + j;
@@ -112,9 +116,10 @@ namespace
                     {
                         continue;
                     }
-                    const auto j_contribution = x_direction_ * j;
-                    const auto point =
-                        origin_ + i_contribution + j_contribution;
+                    const auto j_contribution =
+                        coordinate_system_.direction( 0 ) * j;
+                    const auto point = coordinate_system_.origin()
+                                       + i_contribution + j_contribution;
                     vertices[vertex] = builder_->create_point(
                         geode::Point3D{ { point.value( 0 ), point.value( 1 ),
                             current_elevation } } );
@@ -125,17 +130,8 @@ namespace
 
         void read_metadata()
         {
-            std::array< double, 6 > geo_transform;
-            const auto status =
-                gdal_data_->GetGeoTransform( geo_transform.data() );
-            OPENGEODE_EXCEPTION(
-                status == CE_None, "[DEMInput] Failed to read geotransform" );
-            for( const auto axis : geode::LRange{ 2 } )
-            {
-                origin_.set_value( axis, geo_transform[3 * axis] );
-                x_direction_.set_value( axis, geo_transform[3 * axis + 1] );
-                y_direction_.set_value( axis, geo_transform[3 * axis + 2] );
-            }
+            coordinate_system_ =
+                geode::internal::read_coordinate_system( *gdal_data_ );
             width_ = gdal_data_->GetRasterXSize();
             height_ = gdal_data_->GetRasterYSize();
         }
@@ -144,9 +140,7 @@ namespace
         const geode::PolygonalSurface3D& surface_;
         std::unique_ptr< geode::PolygonalSurfaceBuilder3D > builder_;
         GDALDatasetUniquePtr gdal_data_;
-        geode::Point2D origin_{ { 0., 0. } };
-        geode::Vector2D x_direction_{ { 1., 0. } };
-        geode::Vector2D y_direction_{ { 0., 1. } };
+        geode::CoordinateSystem2D coordinate_system_;
         geode::index_t width_{ 0 };
         geode::index_t height_{ 0 };
     };
