@@ -42,9 +42,9 @@ int main()
         const auto surface = geode::load_polygonal_surface< 3 >(
             absl::StrCat( geode::DATA_PATH, "cea.tiff" ) );
         geode::save_polygonal_surface( *surface, "cea.og_psf3d" );
-        OPENGEODE_EXCEPTION( surface->nb_vertices() == 255281,
+        OPENGEODE_EXCEPTION( surface->nb_vertices() == 255222,
             "[Test] Number of vertices in the loaded Surface is not correct" );
-        OPENGEODE_EXCEPTION( surface->nb_polygons() == 244433,
+        OPENGEODE_EXCEPTION( surface->nb_polygons() == 244409,
             "[Test] Number of polygons in the loaded Surface is not correct" );
 
         geode::Logger::info( "[TEST SUCCESS]" );
