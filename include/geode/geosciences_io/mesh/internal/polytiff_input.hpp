@@ -21,37 +21,39 @@
  *
  */
 
-#include <geode/tests_config.hpp>
-
-#include <geode/basic/assert.hpp>
-#include <geode/basic/logger.hpp>
-
-#include <geode/mesh/core/light_regular_grid.hpp>
-
-#include <geode/mesh/io/light_regular_grid_input.hpp>
-#include <geode/mesh/io/light_regular_grid_output.hpp>
+#pragma once
 
 #include <geode/geosciences_io/mesh/common.hpp>
-#include <geode/io/mesh/common.hpp>
 
-int main()
+#include <geode/mesh/io/polygonal_surface_input.hpp>
+
+namespace geode
 {
-    try
+    FORWARD_DECLARATION_DIMENSION_CLASS( PolygonalSurface );
+    ALIAS_3D( PolygonalSurface );
+} // namespace geode
+
+namespace geode
+{
+    namespace internal
     {
-        geode::GeosciencesIOMeshLibrary::initialize();
-        geode::IOMeshLibrary::initialize();
-        geode::Logger::set_level( geode::Logger::LEVEL::trace );
+        class PolyTIFFInput final : public PolygonalSurfaceInput3D
+        {
+        public:
+            explicit PolyTIFFInput( std::string_view filename )
+                : PolygonalSurfaceInput3D( filename )
+            {
+            }
 
-        auto grid = geode::load_light_regular_grid< 2 >(
-            absl::StrCat( geode::DATA_PATH, "cea.tiff" ) );
-        geode::save_light_regular_grid( grid, "cea.vti" );
+            static std::vector< std::string > extensions()
+            {
+                static const std::vector< std::string > extensions{ "tiff",
+                    "tif" };
+                return extensions;
+            }
 
-        geode::Logger::info( "[TEST SUCCESS]" );
-
-        return 0;
-    }
-    catch( ... )
-    {
-        return geode::geode_lippincott();
-    }
-}
+            std::unique_ptr< PolygonalSurface3D > read(
+                const MeshImpl& impl ) final;
+        };
+    } // namespace internal
+} // namespace geode

@@ -21,37 +21,32 @@
  *
  */
 
-#include <geode/tests_config.hpp>
+#include <geode/geosciences_io/mesh/internal/gdal_utils.hpp>
 
-#include <geode/basic/assert.hpp>
-#include <geode/basic/logger.hpp>
+#include <gdal_priv.h>
 
-#include <geode/mesh/core/light_regular_grid.hpp>
+#include <geode/geometry/coordinate_system.hpp>
 
-#include <geode/mesh/io/light_regular_grid_input.hpp>
-#include <geode/mesh/io/light_regular_grid_output.hpp>
-
-#include <geode/geosciences_io/mesh/common.hpp>
-#include <geode/io/mesh/common.hpp>
-
-int main()
+namespace geode
 {
-    try
+    namespace internal
     {
-        geode::GeosciencesIOMeshLibrary::initialize();
-        geode::IOMeshLibrary::initialize();
-        geode::Logger::set_level( geode::Logger::LEVEL::trace );
-
-        auto grid = geode::load_light_regular_grid< 2 >(
-            absl::StrCat( geode::DATA_PATH, "cea.tiff" ) );
-        geode::save_light_regular_grid( grid, "cea.vti" );
-
-        geode::Logger::info( "[TEST SUCCESS]" );
-
-        return 0;
-    }
-    catch( ... )
-    {
-        return geode::geode_lippincott();
-    }
-}
+        CoordinateSystem2D read_coordinate_system( GDALDataset& dataset )
+        {
+            std::array< double, 6 > geo_transform;
+            const auto status = dataset.GetGeoTransform( geo_transform.data() );
+            OPENGEODE_EXCEPTION( status == CE_None,
+                "Failed to read geotransform from GDALDataset" );
+            Point2D origin;
+            Vector2D x_direction;
+            Vector2D y_direction;
+            for( const auto axis : geode::LRange{ 2 } )
+            {
+                origin.set_value( axis, geo_transform[3 * axis] );
+                x_direction.set_value( axis, geo_transform[3 * axis + 1] );
+                y_direction.set_value( axis, geo_transform[3 * axis + 2] );
+            }
+            return { origin, { x_direction, y_direction } };
+        }
+    } // namespace internal
+} // namespace geode

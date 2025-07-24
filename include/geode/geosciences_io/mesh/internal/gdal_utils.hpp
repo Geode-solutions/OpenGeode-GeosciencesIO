@@ -21,37 +21,23 @@
  *
  */
 
-#include <geode/tests_config.hpp>
-
-#include <geode/basic/assert.hpp>
-#include <geode/basic/logger.hpp>
-
-#include <geode/mesh/core/light_regular_grid.hpp>
-
-#include <geode/mesh/io/light_regular_grid_input.hpp>
-#include <geode/mesh/io/light_regular_grid_output.hpp>
+#pragma once
 
 #include <geode/geosciences_io/mesh/common.hpp>
-#include <geode/io/mesh/common.hpp>
 
-int main()
+class GDALDataset;
+
+namespace geode
 {
-    try
+    FORWARD_DECLARATION_DIMENSION_CLASS( CoordinateSystem );
+    ALIAS_2D( CoordinateSystem );
+} // namespace geode
+
+namespace geode
+{
+    namespace internal
     {
-        geode::GeosciencesIOMeshLibrary::initialize();
-        geode::IOMeshLibrary::initialize();
-        geode::Logger::set_level( geode::Logger::LEVEL::trace );
-
-        auto grid = geode::load_light_regular_grid< 2 >(
-            absl::StrCat( geode::DATA_PATH, "cea.tiff" ) );
-        geode::save_light_regular_grid( grid, "cea.vti" );
-
-        geode::Logger::info( "[TEST SUCCESS]" );
-
-        return 0;
-    }
-    catch( ... )
-    {
-        return geode::geode_lippincott();
-    }
-}
+        CoordinateSystem2D opengeode_geosciencesio_mesh_api
+            read_coordinate_system( GDALDataset& dataset );
+    } // namespace internal
+} // namespace geode
