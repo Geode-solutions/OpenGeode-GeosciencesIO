@@ -73,31 +73,17 @@ namespace
                 *surface2d, 2, no_data_value );
             auto builder =
                 geode::PolygonalSurfaceBuilder3D::create( *surface3d );
-            std::vector< geode::index_t > vertices_to_delete;
             for( const auto vertex : geode::Range{ surface3d->nb_vertices() } )
             {
                 const auto current_elevation = elevation[vertex];
                 if( current_elevation == no_data_value )
                 {
-                    vertices_to_delete.push_back( vertex );
                     continue;
                 }
                 auto point = surface3d->point( vertex );
                 point.set_value( 2, current_elevation );
                 builder->set_point( vertex, point );
             }
-            std::vector< bool > polygon_to_delete(
-                surface3d->nb_polygons(), false );
-            for( const auto vertex : vertices_to_delete )
-            {
-                for( const auto [polygon, _] :
-                    surface3d->polygons_around_vertex( vertex ) )
-                {
-                    polygon_to_delete[polygon] = true;
-                }
-            }
-            builder->delete_polygons( polygon_to_delete );
-            builder->delete_isolated_vertices();
             return surface3d;
         }
 
