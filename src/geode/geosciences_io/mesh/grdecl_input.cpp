@@ -70,7 +70,7 @@ namespace
                   geode::filepath_without_filename( filename ).string()
               },
               solid_( solid ),
-              builder_{ geode::HybridSolidBuilder< 3 >::create( solid ) }
+              builder_{ geode::HybridSolidBuilder< 3 >::create( solid_ ) }
         {
         }
 
@@ -185,8 +185,9 @@ namespace
             }
             else
             {
-                OPENGEODE_EXCEPTION( "[GRDECLInput::read_pillars] Wrong "
-                                     "number of coordinates" );
+                throw geode::OpenGeodeException{
+                    "[GRDECLInput::read_pillars] Wrong number of coordinates"
+                };
             }
             return pillar;
         }
