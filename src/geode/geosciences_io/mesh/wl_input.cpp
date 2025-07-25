@@ -42,7 +42,6 @@ namespace
     public:
         WLInputImpl( std::string_view filename, geode::EdgedCurve3D& curve )
             : file_{ geode::to_string( filename ) },
-              curve_( curve ),
               builder_( geode::EdgedCurveBuilder3D::create( curve ) )
         {
             OPENGEODE_EXCEPTION(
@@ -111,7 +110,6 @@ namespace
 
     private:
         std::ifstream file_;
-        geode::EdgedCurve3D& curve_;
         std::unique_ptr< geode::EdgedCurveBuilder3D > builder_;
         geode::internal::CRSData crs_;
     };

@@ -43,8 +43,7 @@ namespace
     public:
         DEMInputImpl(
             geode::PolygonalSurface3D& surface, std::string_view filename )
-            : surface_{ surface },
-              builder_{ geode::PolygonalSurfaceBuilder3D::create( surface ) },
+            : builder_{ geode::PolygonalSurfaceBuilder3D::create( surface ) },
               gdal_data_{ GDALDataset::Open(
                   geode::to_string( filename ).c_str(), GDAL_OF_READONLY ) }
         {
@@ -137,7 +136,6 @@ namespace
         }
 
     private:
-        const geode::PolygonalSurface3D& surface_;
         std::unique_ptr< geode::PolygonalSurfaceBuilder3D > builder_;
         GDALDatasetUniquePtr gdal_data_;
         geode::CoordinateSystem2D coordinate_system_;
