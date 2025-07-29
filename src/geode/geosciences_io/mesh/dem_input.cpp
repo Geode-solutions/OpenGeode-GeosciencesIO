@@ -34,21 +34,18 @@
 #include <geode/mesh/builder/polygonal_surface_builder.hpp>
 #include <geode/mesh/core/polygonal_surface.hpp>
 
-#include <geode/geosciences_io/mesh/internal/gdal_utils.hpp>
+#include <geode/io/image/detail/gdal_file.hpp>
 
 namespace
 {
-    class DEMInputImpl
+    class DEMInputImpl : public geode::detail::GDALFile
     {
     public:
         DEMInputImpl(
             geode::PolygonalSurface3D& surface, std::string_view filename )
-            : builder_{ geode::PolygonalSurfaceBuilder3D::create( surface ) },
-              gdal_data_{ GDALDataset::Open(
-                  geode::to_string( filename ).c_str(), GDAL_OF_READONLY ) }
+            : geode::detail::GDALFile{ filename },
+              builder_{ geode::PolygonalSurfaceBuilder3D::create( surface ) }
         {
-            OPENGEODE_EXCEPTION(
-                gdal_data_, "[DEMInput] Failed to open file ", filename );
         }
 
         void read_file()
@@ -92,12 +89,12 @@ namespace
         absl::FixedArray< geode::index_t > read_vertices()
         {
             const auto nb_vertices = width_ * height_;
-            const auto nb_bands = gdal_data_->GetRasterCount();
+            const auto nb_bands = dataset().GetRasterCount();
             OPENGEODE_EXCEPTION( nb_bands > 0, "[DEMInput] No bands found" );
             absl::FixedArray< float > elevation( nb_vertices );
             absl::FixedArray< geode::index_t > vertices(
                 nb_vertices, geode::NO_ID );
-            const auto band = gdal_data_->GetRasterBand( 1 );
+            const auto band = dataset().GetRasterBand( 1 );
             const auto status = band->RasterIO( GF_Read, 0, 0, width_, height_,
                 elevation.data(), width_, height_, GDT_Float32, 0, 0 );
             const auto no_data_value = band->GetNoDataValue();
@@ -129,15 +126,13 @@ namespace
 
         void read_metadata()
         {
-            coordinate_system_ =
-                geode::internal::read_coordinate_system( *gdal_data_ );
-            width_ = gdal_data_->GetRasterXSize();
-            height_ = gdal_data_->GetRasterYSize();
+            coordinate_system_ = read_coordinate_system();
+            width_ = dataset().GetRasterXSize();
+            height_ = dataset().GetRasterYSize();
         }
 
     private:
         std::unique_ptr< geode::PolygonalSurfaceBuilder3D > builder_;
-        GDALDatasetUniquePtr gdal_data_;
         geode::CoordinateSystem2D coordinate_system_;
         geode::index_t width_{ 0 };
         geode::index_t height_{ 0 };
@@ -155,6 +150,12 @@ namespace geode
             DEMInputImpl reader{ *surface, this->filename() };
             reader.read_file();
             return surface;
+        }
+
+        auto DEMInput::additional_files() const -> AdditionalFiles
+        {
+            detail::GDALFile reader{ this->filename() };
+            return reader.additional_files< AdditionalFiles >();
         }
     } // namespace internal
 } // namespace geode

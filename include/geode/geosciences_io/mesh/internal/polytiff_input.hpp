@@ -54,6 +54,8 @@ namespace geode
 
             std::unique_ptr< PolygonalSurface3D > read(
                 const MeshImpl& impl ) final;
+
+            AdditionalFiles additional_files() const final;
         };
     } // namespace internal
 } // namespace geode

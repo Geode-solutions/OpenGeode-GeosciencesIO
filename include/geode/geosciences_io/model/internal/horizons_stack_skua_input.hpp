@@ -48,6 +48,12 @@ namespace geode
             }
 
             HorizonsStack< dimension > read() final;
+
+            typename HorizonsStackInput< dimension >::AdditionalFiles
+                additional_files() const final
+            {
+                return {};
+            }
         };
         ALIAS_2D_AND_3D( HorizonStackSKUAInput );
     } // namespace internal
