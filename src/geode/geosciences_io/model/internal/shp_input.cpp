@@ -44,24 +44,23 @@
 #include <geode/model/representation/builder/section_builder.hpp>
 #include <geode/model/representation/core/section.hpp>
 
+#include <geode/io/image/detail/gdal_file.hpp>
+
 namespace
 {
-    class SHPInputImpl
+    class SHPInputImpl : public geode::detail::GDALFile
     {
     public:
         SHPInputImpl( geode::Section& section, std::string_view filename )
-            : section_( section ),
-              builder_{ section },
-              gdal_data_{ GDALDataset::Open(
-                  geode::to_string( filename ).c_str(), GDAL_OF_VECTOR ) }
+            : geode::detail::GDALFile{ filename },
+              section_( section ),
+              builder_{ section }
         {
-            OPENGEODE_EXCEPTION(
-                gdal_data_, "[SHPInput] Failed to open file ", filename );
         }
 
         void read_file()
         {
-            for( auto* layer : gdal_data_->GetLayers() )
+            for( auto* layer : dataset().GetLayers() )
             {
                 if( layer->GetGeomType() == OGRwkbGeometryType::wkbPoint )
                 {
@@ -264,7 +263,6 @@ namespace
     private:
         geode::Section& section_;
         geode::SectionBuilder builder_;
-        GDALDatasetUniquePtr gdal_data_;
     };
 } // namespace
 
@@ -280,17 +278,14 @@ namespace geode
             return section;
         }
 
-        SectionInput::MissingFiles SHPInput::check_missing_files() const
+        auto SHPInput::additional_files() const -> AdditionalFiles
         {
             const auto file_path = filepath_without_extension( filename() );
             const auto shx_file = absl::StrCat( file_path.string(), ".shx" );
-            SectionInput::MissingFiles missing;
-            if( !file_exists( shx_file ) )
-            {
-                missing.mandatory_files.push_back( shx_file );
-            }
+            AdditionalFiles missing;
+            missing.mandatory_files.emplace_back(
+                shx_file, file_exists( shx_file ) );
             return missing;
         }
-
     } // namespace internal
 } // namespace geode

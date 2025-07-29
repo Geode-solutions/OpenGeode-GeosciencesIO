@@ -39,20 +39,16 @@
 #include <geode/mesh/core/light_regular_grid.hpp>
 #include <geode/mesh/helpers/convert_grid.hpp>
 
-#include <geode/geosciences_io/mesh/internal/gdal_utils.hpp>
+#include <geode/io/image/detail/gdal_file.hpp>
 
 namespace
 {
-    class GEOTIFFInputImpl
+    class GEOTIFFInputImpl : public geode::detail::GDALFile
     {
     public:
         GEOTIFFInputImpl( std::string_view filename )
-            : filename_{ filename },
-              gdal_data_{ GDALDataset::Open(
-                  geode::to_string( filename ).c_str(), GDAL_OF_READONLY ) }
+            : geode::detail::GDALFile{ filename }, filename_{ filename }
         {
-            OPENGEODE_EXCEPTION(
-                gdal_data_, "[GEOTIFFInput] Failed to open file ", filename );
         }
 
         geode::LightRegularGrid2D read_file()
@@ -61,15 +57,13 @@ namespace
             geode::Logger::set_level( geode::Logger::LEVEL::critical );
             const auto raster = geode::load_raster_image< 2 >( filename_ );
             geode::Logger::set_level( level );
-            const auto cooridinate_system =
-                geode::internal::read_coordinate_system( *gdal_data_ );
+            const auto cooridinate_system = read_coordinate_system();
             return geode::convert_raster_image_into_grid(
                 raster, cooridinate_system );
         }
 
     private:
         std::string_view filename_;
-        GDALDatasetUniquePtr gdal_data_;
     };
 } // namespace
 
@@ -99,5 +93,10 @@ namespace geode
             return true;
         }
 
+        auto GEOTIFFInput::additional_files() const -> AdditionalFiles
+        {
+            detail::GDALFile reader{ this->filename() };
+            return reader.additional_files< AdditionalFiles >();
+        }
     } // namespace internal
 } // namespace geode

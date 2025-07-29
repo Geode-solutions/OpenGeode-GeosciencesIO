@@ -69,10 +69,12 @@ namespace geode
             // low-resolution preview images (.jpg or .png) for quick browsing
             // without opening large TIFF files.
             //
-            // LightRegularGridInput2D::MissingFiles check_missing_files() const
-            // final;
+            // LightRegularGridInput2D::AdditionalFiles additional_files()
+            // const final;
 
             bool is_loadable() const final;
+
+            AdditionalFiles additional_files() const final;
         };
     } // namespace internal
 } // namespace geode

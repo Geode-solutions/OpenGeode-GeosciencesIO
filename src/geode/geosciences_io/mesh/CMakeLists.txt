@@ -25,7 +25,6 @@ add_geode_library(
         "common.cpp"
         "dem_input.cpp"
         "fem_output.cpp"
-        "gdal_utils.cpp"
         "geotiff_input.cpp"
         "gocad_common.cpp"
         "grdecl_input.cpp"
@@ -46,7 +45,6 @@ add_geode_library(
     INTERNAL_HEADERS
         "internal/dem_input.hpp"
         "internal/fem_output.hpp"
-        "internal/gdal_utils.hpp"
         "internal/geotiff_input.hpp"
         "internal/gocad_common.hpp"
         "internal/grdecl_input.hpp"

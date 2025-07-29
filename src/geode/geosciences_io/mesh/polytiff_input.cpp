@@ -36,18 +36,16 @@
 #include <geode/mesh/helpers/convert_surface_mesh.hpp>
 #include <geode/mesh/io/light_regular_grid_input.hpp>
 
+#include <geode/io/image/detail/gdal_file.hpp>
+
 namespace
 {
-    class PolyTIFFInputImpl
+    class PolyTIFFInputImpl : public geode::detail::GDALFile
     {
     public:
         PolyTIFFInputImpl( std::string_view filename )
-            : filename_{ filename },
-              gdal_data_{ GDALDataset::Open(
-                  geode::to_string( filename ).c_str(), GDAL_OF_READONLY ) }
+            : geode::detail::GDALFile{ filename }, filename_{ filename }
         {
-            OPENGEODE_EXCEPTION( gdal_data_,
-                "[PolyTIFFInputImpl] Failed to open file ", filename );
         }
 
         std::unique_ptr< geode::PolygonalSurface3D > read_file()
@@ -57,13 +55,13 @@ namespace
             const auto grid = geode::load_light_regular_grid< 2 >( filename_ );
             geode::Logger::set_level( level );
             auto surface2d = geode::convert_grid_into_polygonal_surface( grid );
-            const auto nb_bands = gdal_data_->GetRasterCount();
+            const auto nb_bands = dataset().GetRasterCount();
             OPENGEODE_EXCEPTION(
                 nb_bands > 0, "[PolyTIFFInput] No bands found" );
             absl::FixedArray< float > elevation( surface2d->nb_vertices() );
-            const auto band = gdal_data_->GetRasterBand( 1 );
-            const auto width = gdal_data_->GetRasterXSize();
-            const auto height = gdal_data_->GetRasterYSize();
+            const auto band = dataset().GetRasterBand( 1 );
+            const auto width = dataset().GetRasterXSize();
+            const auto height = dataset().GetRasterYSize();
             const auto status = band->RasterIO( GF_Read, 0, 0, width, height,
                 elevation.data(), width, height, GDT_Float32, 0, 0 );
             OPENGEODE_EXCEPTION(
@@ -89,7 +87,6 @@ namespace
 
     private:
         std::string_view filename_;
-        GDALDatasetUniquePtr gdal_data_;
     };
 } // namespace
 
@@ -102,6 +99,12 @@ namespace geode
         {
             PolyTIFFInputImpl geo_reader( filename() );
             return geo_reader.read_file();
+        }
+
+        auto PolyTIFFInput::additional_files() const -> AdditionalFiles
+        {
+            detail::GDALFile reader{ this->filename() };
+            return reader.additional_files< AdditionalFiles >();
         }
     } // namespace internal
 } // namespace geode

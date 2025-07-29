@@ -217,7 +217,7 @@ namespace geode
             return voxet;
         }
 
-        RegularGridInput< 3 >::MissingFiles VOInput::check_missing_files() const
+        auto VOInput::additional_files() const -> AdditionalFiles
         {
             std::ifstream file{ geode::to_string( filename() ) };
             const auto data_file = get_data_file( file );
@@ -226,11 +226,9 @@ namespace geode
             {
                 return {};
             }
-            RegularGridInput< 3 >::MissingFiles missing;
-            if( !file_exists( data_file.value() ) )
-            {
-                missing.mandatory_files.push_back( data_file.value() );
-            }
+            AdditionalFiles missing;
+            missing.mandatory_files.emplace_back(
+                data_file.value(), file_exists( data_file.value() ) );
             return missing;
         }
     } // namespace internal
