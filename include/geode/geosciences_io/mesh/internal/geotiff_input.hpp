@@ -75,6 +75,11 @@ namespace geode
             bool is_loadable() const final;
 
             AdditionalFiles additional_files() const final;
+
+            index_t object_priority() const final
+            {
+                return 1;
+            }
         };
     } // namespace internal
 } // namespace geode
