@@ -49,6 +49,11 @@ namespace geode
             Section read() final;
 
             AdditionalFiles additional_files() const final;
+
+            index_t object_priority() const final
+            {
+                return 0;
+            }
         };
     } // namespace internal
 } // namespace geode

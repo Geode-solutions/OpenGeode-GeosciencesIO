@@ -56,6 +56,11 @@ namespace geode
             std::unique_ptr< RegularGrid3D > read( const MeshImpl& impl ) final;
 
             AdditionalFiles additional_files() const final;
+
+            index_t object_priority() const final
+            {
+                return 0;
+            }
         };
     } // namespace internal
 } // namespace geode
