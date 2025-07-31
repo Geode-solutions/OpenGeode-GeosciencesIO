@@ -382,5 +382,14 @@ namespace geode
             return solid;
         }
 
+        Percentage GRDECLInput::is_loadable() const
+        {
+            std::ifstream file{ to_string( this->filename() ) };
+            if( goto_keyword_if_it_exists( file, "SPECGRID" ) )
+            {
+                return Percentage{ 1 };
+            }
+            return Percentage{ 0 };
+        }
     } // namespace internal
 } // namespace geode

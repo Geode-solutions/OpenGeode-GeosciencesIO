@@ -157,5 +157,19 @@ namespace geode
             detail::GDALFile reader{ this->filename() };
             return reader.additional_files< AdditionalFiles >();
         }
+
+        Percentage DEMInput::is_loadable() const
+        {
+            detail::GDALFile reader{ this->filename() };
+            if( !reader.is_coordinate_system_loadable() )
+            {
+                return Percentage{ 0 };
+            }
+            if( reader.dataset().GetRasterCount() == 0 )
+            {
+                return Percentage{ 0 };
+            }
+            return Percentage{ 1 };
+        }
     } // namespace internal
 } // namespace geode

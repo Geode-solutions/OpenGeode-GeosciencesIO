@@ -25,6 +25,8 @@
 
 #include <fstream>
 
+#include <geode/basic/file.hpp>
+
 #include <geode/geometry/point.hpp>
 
 #include <geode/mesh/builder/edged_curve_builder.hpp>
@@ -93,6 +95,16 @@ namespace geode
             PLInputImpl reader{ this->filename(), *curve };
             reader.read_file();
             return curve;
+        }
+
+        Percentage PLInput::is_loadable() const
+        {
+            std::ifstream file{ to_string( this->filename() ) };
+            if( goto_keyword_if_it_exists( file, "GOCAD PLine" ) )
+            {
+                return Percentage{ 1 };
+            }
+            return Percentage{ 0 };
         }
     } // namespace internal
 } // namespace geode

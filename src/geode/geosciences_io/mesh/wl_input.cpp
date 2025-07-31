@@ -126,5 +126,15 @@ namespace geode
             reader.read_file();
             return well;
         }
+
+        Percentage WLInput::is_loadable() const
+        {
+            std::ifstream file{ to_string( this->filename() ) };
+            if( goto_keyword_if_it_exists( file, "GOCAD Well" ) )
+            {
+                return Percentage{ 1 };
+            }
+            return Percentage{ 0 };
+        }
     } // namespace internal
 } // namespace geode

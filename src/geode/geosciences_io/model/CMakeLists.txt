@@ -28,13 +28,14 @@ add_geode_library(
         "internal/brep_fem_output.cpp"
         "internal/geos_export.cpp"
         "internal/gocad_common.cpp"
+        "internal/horizons_stack_skua_input.cpp"
         "internal/lso_input.cpp"
         "internal/lso_output.cpp"
         "internal/ml_input.cpp"
         "internal/ml_output_brep.cpp"
         "internal/ml_output_structural_model.cpp"
         "internal/shp_input.cpp"
-        "internal/horizons_stack_skua_input.cpp"
+        "internal/strati_lso_input.cpp"
     PUBLIC_HEADERS
         "common.hpp"
     INTERNAL_HEADERS
@@ -43,6 +44,7 @@ add_geode_library(
         "internal/brep_fem_output.hpp"
         "internal/geos_export.hpp"
         "internal/gocad_common.hpp"
+        "internal/horizons_stack_skua_input.hpp"
         "internal/lso_input.hpp"
         "internal/lso_output.hpp"
         "internal/ml_input.hpp"
@@ -50,7 +52,7 @@ add_geode_library(
         "internal/ml_output_impl.hpp"
         "internal/ml_output_structural_model.hpp"
         "internal/shp_input.hpp"
-        "internal/horizons_stack_skua_input.hpp"
+        "internal/strati_lso_input.hpp"
     PUBLIC_DEPENDENCIES
         OpenGeode::basic
     PRIVATE_DEPENDENCIES

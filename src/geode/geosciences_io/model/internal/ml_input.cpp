@@ -1042,5 +1042,15 @@ namespace geode
             impl.read_file();
             return structural_model;
         }
+
+        Percentage MLInput::is_loadable() const
+        {
+            std::ifstream file{ to_string( this->filename() ) };
+            if( goto_keyword_if_it_exists( file, "GOCAD Model3d" ) )
+            {
+                return Percentage{ 1 };
+            }
+            return Percentage{ 0 };
+        }
     } // namespace internal
 } // namespace geode

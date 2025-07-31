@@ -287,5 +287,15 @@ namespace geode
                 shx_file, file_exists( shx_file ) );
             return missing;
         }
+
+        Percentage SHPInput::is_loadable() const
+        {
+            detail::GDALFile reader{ filename() };
+            if( reader.dataset().GetLayerCount() == 0 )
+            {
+                return Percentage{ 0 };
+            }
+            return Percentage{ 1 };
+        }
     } // namespace internal
 } // namespace geode

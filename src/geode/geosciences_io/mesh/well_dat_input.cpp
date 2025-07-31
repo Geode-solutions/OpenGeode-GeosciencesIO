@@ -37,5 +37,10 @@ namespace geode
             reader.read_file();
             return well;
         }
+
+        Percentage WellDatInput::is_loadable() const
+        {
+            return Percentage{ 1 };
+        }
     } // namespace internal
 } // namespace geode
