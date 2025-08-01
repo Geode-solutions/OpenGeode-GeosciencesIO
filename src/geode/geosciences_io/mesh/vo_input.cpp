@@ -231,5 +231,15 @@ namespace geode
                 data_file.value(), file_exists( data_file.value() ) );
             return missing;
         }
+
+        Percentage VOInput::is_loadable() const
+        {
+            std::ifstream file{ to_string( this->filename() ) };
+            if( goto_keyword_if_it_exists( file, "GOCAD Voxet" ) )
+            {
+                return Percentage{ 1 };
+            }
+            return Percentage{ 0 };
+        }
     } // namespace internal
 } // namespace geode

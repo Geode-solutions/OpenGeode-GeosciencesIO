@@ -25,6 +25,8 @@
 
 #include <fstream>
 
+#include <geode/basic/file.hpp>
+
 #include <geode/geometry/point.hpp>
 
 #include <geode/mesh/builder/triangulated_surface_builder.hpp>
@@ -115,6 +117,16 @@ namespace geode
             TSInputImpl reader{ this->filename(), *surface };
             reader.read_file();
             return surface;
+        }
+
+        Percentage TSInput::is_loadable() const
+        {
+            std::ifstream file{ to_string( this->filename() ) };
+            if( goto_keyword_if_it_exists( file, "GOCAD TSurf" ) )
+            {
+                return Percentage{ 1 };
+            }
+            return Percentage{ 0 };
         }
     } // namespace internal
 } // namespace geode

@@ -77,20 +77,20 @@ namespace geode
             return geo_reader.read_file();
         }
 
-        bool GEOTIFFInput::is_loadable() const
+        Percentage GEOTIFFInput::is_loadable() const
         {
-            GDALDatasetUniquePtr gdal_data{ GDALDataset::Open(
-                geode::to_string( filename() ).c_str(), GDAL_OF_VECTOR ) };
-            if( !gdal_data )
+            const auto raster_percent =
+                is_raster_image_loadable< 2 >( filename() );
+            if( raster_percent.value() != 1 )
             {
-                return false;
+                return raster_percent;
             }
-            double geoTransform[6];
-            if( gdal_data->GetGeoTransform( geoTransform ) == CE_Failure )
+            detail::GDALFile reader{ this->filename() };
+            if( !reader.is_coordinate_system_loadable() )
             {
-                return false;
+                return Percentage{ 0 };
             }
-            return true;
+            return Percentage{ 1 };
         }
 
         auto GEOTIFFInput::additional_files() const -> AdditionalFiles

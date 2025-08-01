@@ -103,8 +103,24 @@ namespace geode
 
         auto PolyTIFFInput::additional_files() const -> AdditionalFiles
         {
-            detail::GDALFile reader{ this->filename() };
+            detail::GDALFile reader{ filename() };
             return reader.additional_files< AdditionalFiles >();
+        }
+
+        Percentage PolyTIFFInput::is_loadable() const
+        {
+            const auto grid_percent =
+                is_light_regular_grid_loadable< 2 >( filename() );
+            if( grid_percent.value() != 1 )
+            {
+                return grid_percent;
+            }
+            detail::GDALFile reader{ this->filename() };
+            if( reader.dataset().GetRasterCount() == 0 )
+            {
+                return Percentage{ 0 };
+            }
+            return Percentage{ 1 };
         }
     } // namespace internal
 } // namespace geode

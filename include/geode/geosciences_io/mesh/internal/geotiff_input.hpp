@@ -72,7 +72,7 @@ namespace geode
             // LightRegularGridInput2D::AdditionalFiles additional_files()
             // const final;
 
-            bool is_loadable() const final;
+            Percentage is_loadable() const final;
 
             AdditionalFiles additional_files() const final;
 

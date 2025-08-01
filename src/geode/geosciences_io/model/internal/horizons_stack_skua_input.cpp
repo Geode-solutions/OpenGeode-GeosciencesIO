@@ -30,6 +30,7 @@
 #include <absl/strings/str_split.h>
 
 #include <geode/basic/attribute_manager.hpp>
+#include <geode/basic/file.hpp>
 
 #include <geode/geosciences/explicit/mixin/core/horizon.hpp>
 #include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.hpp>
@@ -174,6 +175,18 @@ namespace geode
         {
             HorizonStackSKUAInputImpl< dimension > impl{ this->filename() };
             return impl.read_file();
+        }
+
+        template < index_t dimension >
+        Percentage HorizonStackSKUAInput< dimension >::is_loadable() const
+        {
+            std::ifstream file{ geode::to_string( this->filename() ) };
+            if( goto_keyword_if_it_exists(
+                    file, " <LocalStratigraphicColumn" ) )
+            {
+                return Percentage{ 1 };
+            }
+            return Percentage{ 0 };
         }
 
         template class HorizonStackSKUAInput< 2 >;

@@ -59,6 +59,8 @@ namespace geode
             {
                 return 0;
             }
+
+            Percentage is_loadable() const final;
         };
         ALIAS_2D_AND_3D( HorizonStackSKUAInput );
     } // namespace internal
