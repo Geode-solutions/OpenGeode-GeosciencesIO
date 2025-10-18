@@ -29,12 +29,8 @@ include(${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@_model_target.cmake)
 
 get_target_property(library_type @PROJECT_NAME@::mesh TYPE)
 if(library_type STREQUAL "STATIC_LIBRARY")
+    find_dependency(OpenGeode-IO CONFIG)
     find_dependency(OpenGeode-Geosciences CONFIG)
     find_dependency(GDAL CONFIG)
-endif()
-
-get_target_property(library_type @PROJECT_NAME@::model TYPE)
-if(library_type STREQUAL "STATIC_LIBRARY")
-    find_dependency(OpenGeode-Geosciences CONFIG)
     find_dependency(pugixml CONFIG)
 endif()
