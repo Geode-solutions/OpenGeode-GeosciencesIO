@@ -49,7 +49,7 @@ namespace
     public:
         WellDevInputImpl(
             std::string_view filename, geode::EdgedCurve3D& curve )
-            : file_{ geode::to_string( filename ) },
+            : file_{ geode::to_string( filename ),std::ios::binary },
               curve_( curve ),
               builder_( geode::EdgedCurveBuilder3D::create( curve ) )
         {

@@ -40,7 +40,7 @@ namespace
     {
     public:
         VSInputImpl( std::string_view filename, geode::PointSet3D& point_set )
-            : file_{ geode::to_string( filename ) },
+            : file_{ geode::to_string( filename ),std::ios::binary },
               point_set_( point_set ),
               builder_( geode::PointSetBuilder< 3 >::create( point_set ) )
         {

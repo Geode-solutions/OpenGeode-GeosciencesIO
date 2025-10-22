@@ -41,7 +41,7 @@ namespace
     public:
         TSInputImpl(
             std::string_view filename, geode::TriangulatedSurface3D& surface )
-            : file_{ geode::to_string( filename ) },
+            : file_{ geode::to_string( filename ),std::ios::binary },
               surface_( surface ),
               builder_(
                   geode::TriangulatedSurfaceBuilder< 3 >::create( surface ) )
