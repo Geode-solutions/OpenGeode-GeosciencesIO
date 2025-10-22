@@ -40,7 +40,7 @@ namespace
     {
     public:
         PLInputImpl( std::string_view filename, geode::EdgedCurve3D& curve )
-            : file_{ geode::to_string( filename ),std::ios::binary },
+            : file_{ geode::to_string( filename ), std::ios::binary },
               curve_( curve ),
               builder_( geode::EdgedCurveBuilder< 3 >::create( curve ) )
         {

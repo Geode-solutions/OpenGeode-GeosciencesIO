@@ -64,7 +64,7 @@ namespace
     {
     public:
         VOInputImpl( std::string_view filename, geode::RegularGrid3D& grid )
-            : file_{ geode::to_string( filename ),std::ios::binary },
+            : file_{ geode::to_string( filename ), std::ios::binary },
               file_folder_{
                   geode::filepath_without_filename( filename ).string()
               },
@@ -157,10 +157,9 @@ namespace
         {
             const auto data_file_name = get_data_file( file_ );
             OPENGEODE_EXCEPTION(
-                data_file_name.has_value(), "[VOInput] No data file record" ); 
-            const auto data_file_path = absl::StrCat(
-                file_folder_, absl::StripSuffix(
-                data_file_name.value(), "\r" ) );
+                data_file_name.has_value(), "[VOInput] No data file record" );
+            const auto data_file_path = absl::StrCat( file_folder_,
+                absl::StripSuffix( data_file_name.value(), "\r" ) );
             std::ifstream data_file{ data_file_path, std::ios::binary };
             OPENGEODE_EXCEPTION( data_file.good(),
                 "[VOInput] Cannot open data file: ", data_file_path );
@@ -222,7 +221,8 @@ namespace geode
 
         auto VOInput::additional_files() const -> AdditionalFiles
         {
-            std::ifstream file{ geode::to_string( filename() ),std::ios::binary };
+            std::ifstream file{ geode::to_string( filename() ),
+                std::ios::binary };
             const auto data_file = get_data_file( file );
             file.close();
             if( !data_file.has_value() )
@@ -237,7 +237,8 @@ namespace geode
 
         Percentage VOInput::is_loadable() const
         {
-            std::ifstream file{ to_string( this->filename() ),std::ios::binary };
+            std::ifstream file{ to_string( this->filename() ),
+                std::ios::binary };
             if( goto_keyword_if_it_exists( file, "GOCAD Voxet" ) )
             {
                 return Percentage{ 1 };

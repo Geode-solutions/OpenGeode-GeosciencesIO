@@ -70,7 +70,7 @@ int main()
     try
     {
         geode::GeosciencesIOMeshLibrary::initialize();
-        geode::Logger::set_level(geode::Logger::LEVEL::debug);
+        geode::Logger::set_level( geode::Logger::LEVEL::debug );
         test_grid_input();
 
         geode::Logger::info( "TEST SUCCESS" );
