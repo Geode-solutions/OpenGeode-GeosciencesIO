@@ -82,7 +82,7 @@ namespace
         static constexpr char EOL{ '\n' };
 
         MLInputImpl( std::string_view filename, geode::StructuralModel& model )
-            : file_{ geode::to_string( filename ) },
+            : file_{ geode::to_string( filename ), std::ios::binary },
               model_( model ),
               builder_( model )
         {
