@@ -49,8 +49,7 @@ namespace geode
 
             HorizonsStack< dimension > read() final;
 
-            typename HorizonsStackInput< dimension >::AdditionalFiles
-                additional_files() const final
+            AdditionalFiles additional_files() const final
             {
                 return {};
             }

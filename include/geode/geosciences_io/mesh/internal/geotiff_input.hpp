@@ -68,9 +68,6 @@ namespace geode
             //* Thumbnails or Proxy Files: Some workflows generate
             // low-resolution preview images (.jpg or .png) for quick browsing
             // without opening large TIFF files.
-            //
-            // LightRegularGridInput2D::AdditionalFiles additional_files()
-            // const final;
 
             Percentage is_loadable() const final;
 
