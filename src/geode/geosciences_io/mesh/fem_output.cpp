@@ -40,43 +40,58 @@ namespace
 {
     static constexpr char EOL{ '\n' };
     static constexpr char SPACE{ ' ' };
+    static constexpr geode::index_t CHUNK_SIZE{ 1500 };
 
-    std::string format_ranges( absl::Span< const geode::index_t > elements )
+    std::vector< std::string > format_range_chunks(
+        absl::Span< const geode::index_t > elements,
+        geode::index_t max_chunk_size )
     {
+        std::vector< std::string > results;
         if( elements.empty() )
         {
-            return "";
+            return results;
         }
-        std::string result;
+        std::string current;
         geode::index_t start = elements[0];
         geode::index_t prev = elements[0];
-        for( const auto element : geode::Range{ 1, elements.size() } )
-        {
-            if( elements[element] == prev + 1 )
+        auto append_value = [&]( geode::index_t s, geode::index_t p ) {
+            std::string tmp;
+            if( s == p )
             {
-                prev = elements[element];
-                continue;
-            }
-            if( start == prev )
-            {
-                absl::StrAppendFormat( &result, "%d ", start );
+                absl::StrAppendFormat( &tmp, "%d", s );
             }
             else
             {
-                absl::StrAppendFormat( &result, "%d-%d ", start, prev );
+                absl::StrAppendFormat( &tmp, "%d-%d", s, p );
             }
-            start = prev = elements[element];
-        }
-        if( start == prev )
-        {
-            absl::StrAppendFormat( &result, "%d", start );
-        }
-        else
-        {
-            absl::StrAppendFormat( &result, "%d-%d", start, prev );
-        }
+            if( current.size() + tmp.size() + 1 > max_chunk_size )
+            {
+                results.push_back( current );
+                current.clear();
+            }
 
-        return result;
+            if( !current.empty() )
+            {
+                current += " ";
+            }
+            current += tmp;
+        };
+        for( geode::index_t i = 1; i < elements.size(); ++i )
+        {
+            if( elements[i] == prev + 1 )
+            {
+                prev = elements[i];
+                continue;
+            }
+            append_value( start, prev );
+            start = prev = elements[i];
+        }
+        append_value( start, prev );
+        if( !current.empty() )
+        {
+            results.push_back( std::move( current ) );
+        }
+        return results;
     }
 
     std::string add_spaces( geode::index_t n )
@@ -191,7 +206,6 @@ namespace
         void write_property( geode::AttributeBase& attribute )
         {
             file_ << attribute.name() << EOL;
-
             absl::flat_hash_map< double, std::vector< geode::index_t > >
                 attribute_distribution =
                     create_attribute_distribution( attribute );
@@ -204,11 +218,13 @@ namespace
             absl::c_sort( values );
             for( const auto value : values )
             {
-                std::string line = "";
-                const auto ranges =
-                    format_ranges( attribute_distribution[value] );
-                absl::StrAppend( &line, ranges, add_spaces( 1 ) );
-                file_ << "  " << value << "  " << line << EOL;
+                for( const auto& range_chunk : format_range_chunks(
+                         attribute_distribution[value], CHUNK_SIZE ) )
+                {
+                    std::string line = "";
+                    absl::StrAppend( &line, range_chunk, add_spaces( 1 ) );
+                    file_ << "  " << value << "  " << line << EOL;
+                }
             }
         }
 
@@ -302,10 +318,13 @@ namespace
                 create_porosity_region_map( *porosity_attribute );
             for( const auto& [porosity_value, tetrahedra] : porosity_map )
             {
-                std::string line = "";
-                const auto ranges = format_ranges( tetrahedra );
-                absl::StrAppend( &line, ranges, add_spaces( 1 ) );
-                file_ << "  " << porosity_value << "  " << line << EOL;
+                for( const auto& range_chunk :
+                    format_range_chunks( tetrahedra, CHUNK_SIZE ) )
+                {
+                    std::string line = "";
+                    absl::StrAppend( &line, range_chunk, add_spaces( 1 ) );
+                    file_ << "  " << porosity_value << "  " << line << EOL;
+                }
             }
         }
 
@@ -419,10 +438,14 @@ namespace
                     create_region_map( *attribute_v, false );
                 for( const auto& vertex_region : vertex_regions )
                 {
-                    std::string line = "";
-                    const auto ranges = format_ranges( vertex_region.second );
-                    absl::StrAppend( &line, ranges, add_spaces( 1 ) );
-                    file_ << "  " << vertex_region.first << "  " << line << EOL;
+                    for( const auto& range_chunk : format_range_chunks(
+                             vertex_region.second, CHUNK_SIZE ) )
+                    {
+                        std::string line = "";
+                        absl::StrAppend( &line, range_chunk, add_spaces( 1 ) );
+                        file_ << "  " << vertex_region.first << "  " << line
+                              << EOL;
+                    }
                 }
             }
         }
@@ -440,10 +463,14 @@ namespace
                     create_region_map( *attribute_p, true );
                 for( const auto& elem_region : elem_regions )
                 {
-                    std::string line = "";
-                    const auto ranges = format_ranges( elem_region.second );
-                    absl::StrAppend( &line, ranges, add_spaces( 1 ) );
-                    file_ << "  " << elem_region.first << "  " << line << EOL;
+                    for( const auto& range_chunk :
+                        format_range_chunks( elem_region.second, CHUNK_SIZE ) )
+                    {
+                        std::string line = "";
+                        absl::StrAppend( &line, range_chunk, add_spaces( 1 ) );
+                        file_ << "  " << elem_region.first << "  " << line
+                              << EOL;
+                    }
                 }
             }
         }
@@ -993,11 +1020,31 @@ namespace
             for( const auto& [value, feature_ids] :
                 property_values_to_features )
             {
-                file_ << add_spaces( 14 ) << value << add_spaces( 1 )
-                      << format_ranges( feature_ids );
-                if( iterator < property_values_to_features.size() - 1 )
+                const auto range_chunks =
+                    format_range_chunks( feature_ids, CHUNK_SIZE );
+                if( range_chunks.size() == 1 )
                 {
-                    file_ << EOL;
+                    file_ << add_spaces( 14 ) << value << add_spaces( 1 )
+                          << range_chunks[0];
+                    if( iterator < property_values_to_features.size() - 1 )
+                    {
+                        file_ << EOL;
+                    }
+                }
+                else
+                {
+                    for( const auto chunk :
+                        geode::Range{ range_chunks.size() } )
+                    {
+                        const auto& range_chunk = range_chunks[chunk];
+                        file_ << add_spaces( 14 ) << value << add_spaces( 1 )
+                              << range_chunk;
+                        if( iterator < property_values_to_features.size() - 1
+                            && chunk < range_chunks.size() - 1 )
+                        {
+                            file_ << EOL;
+                        }
+                    }
                 }
                 iterator++;
             }
