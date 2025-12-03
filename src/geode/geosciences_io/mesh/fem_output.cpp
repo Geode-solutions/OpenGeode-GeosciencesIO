@@ -974,7 +974,17 @@ namespace
                       << std::to_string( feature_group.nb_features() ) << "\">"
                       << EOL;
                 file_ << add_spaces( 10 ) << CDATA_TAG_START;
-                file_ << format_ranges( feature_group.feature_ids );
+                const auto chunks = format_range_chunks(
+                    feature_group.feature_ids, CHUNK_SIZE );
+                for( const auto chunk_id : geode::Range{ chunks.size() } )
+                {
+                    const auto& chunk = chunks[chunk_id];
+                    file_ << chunk;
+                    if( chunk_id < chunks.size() - 1 )
+                    {
+                        file_ << EOL;
+                    }
+                }
                 file_ << CDATA_TAG_END << EOL;
                 file_ << add_spaces( 8 ) << xml_end_tag( "elements" ) << EOL;
                 file_ << add_spaces( 6 ) << xml_end_tag( "group" ) << EOL;
@@ -1022,6 +1032,7 @@ namespace
             {
                 const auto range_chunks =
                     format_range_chunks( feature_ids, CHUNK_SIZE );
+                DEBUG( range_chunks.size() );
                 if( range_chunks.size() == 1 )
                 {
                     file_ << add_spaces( 14 ) << value << add_spaces( 1 )
