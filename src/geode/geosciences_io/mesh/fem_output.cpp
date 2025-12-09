@@ -674,6 +674,7 @@ namespace
                         .facet_attribute_manager()
                         .find_or_create_attribute< geode::VariableAttribute,
                             double >( CONDUCTIVITY_ATTRIBUTE_NAME, -1.0 );
+                bool some_features_built{ false };
                 for( const auto facet :
                     geode::Range{ solid_.facets().nb_facets() } )
                 {
@@ -739,8 +740,12 @@ namespace
                                 .push_back( feature_id_ );
                         }
                     }
+                    some_features_built = true;
                     feature_id_++;
                 }
+                OPENGEODE_EXCEPTION( some_features_built,
+                    "No 2D features built. Please verify that your model "
+                    "contains diagres_discontinuity_aperture property." );
             }
 
             bool must_build_1d_feature_groups() const
@@ -772,6 +777,7 @@ namespace
                         .edge_attribute_manager()
                         .find_or_create_attribute< geode::VariableAttribute,
                             double >( CONDUCTIVITY_ATTRIBUTE_NAME, -1.0 );
+                bool some_features_built{ false };
                 for( const auto edge :
                     geode::Range{ solid_.edges().nb_edges() } )
                 {
@@ -838,8 +844,12 @@ namespace
                                 .push_back( feature_id_ );
                         }
                     }
+                    some_features_built = true;
                     feature_id_++;
                 }
+                OPENGEODE_EXCEPTION( some_features_built,
+                    "No 1D features built. Please verify that your model "
+                    "contains diagres_conduit_area property." );
             }
 
         private:
