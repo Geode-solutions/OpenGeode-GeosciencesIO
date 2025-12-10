@@ -78,7 +78,7 @@ namespace
             }
             current += tmp;
         };
-        for( geode::index_t i = 1; i < elements.size(); ++i )
+        for( geode::index_t i : geode::Range{ 1, elements.size() } )
         {
             if( elements[i] == prev + 1 )
             {
@@ -205,6 +205,27 @@ namespace
             }
         }
 
+        void write_chunks( absl::Span< const geode::index_t > elements,
+            std::string attribute_value,
+            geode::index_t max_chunk_size )
+        {
+            for( const auto& range_chunk :
+                format_range_chunks( elements, max_chunk_size ) )
+            {
+                std::string line = "";
+                absl::StrAppend( &line, range_chunk, add_spaces( 1 ) );
+                file_ << "  " << attribute_value << "  " << line << EOL;
+            }
+        }
+
+        void write_chunks( absl::Span< const geode::index_t > elements,
+            double attribute_value,
+            geode::index_t max_chunk_size )
+        {
+            write_chunks(
+                elements, std::to_string( attribute_value ), max_chunk_size );
+        }
+
         void write_property( geode::AttributeBase& attribute )
         {
             file_ << attribute.name() << EOL;
@@ -220,13 +241,8 @@ namespace
             absl::c_sort( values );
             for( const auto value : values )
             {
-                for( const auto& range_chunk : format_range_chunks(
-                         attribute_distribution[value], CHUNK_SIZE ) )
-                {
-                    std::string line = "";
-                    absl::StrAppend( &line, range_chunk, add_spaces( 1 ) );
-                    file_ << "  " << value << "  " << line << EOL;
-                }
+                write_chunks(
+                    attribute_distribution[value], value, CHUNK_SIZE );
             }
         }
 
@@ -320,13 +336,7 @@ namespace
                 create_porosity_region_map( *porosity_attribute );
             for( const auto& [porosity_value, tetrahedra] : porosity_map )
             {
-                for( const auto& range_chunk :
-                    format_range_chunks( tetrahedra, CHUNK_SIZE ) )
-                {
-                    std::string line = "";
-                    absl::StrAppend( &line, range_chunk, add_spaces( 1 ) );
-                    file_ << "  " << porosity_value << "  " << line << EOL;
-                }
+                write_chunks( tetrahedra, porosity_value, CHUNK_SIZE );
             }
         }
 
@@ -440,14 +450,8 @@ namespace
                     create_region_map( *attribute_v, false );
                 for( const auto& vertex_region : vertex_regions )
                 {
-                    for( const auto& range_chunk : format_range_chunks(
-                             vertex_region.second, CHUNK_SIZE ) )
-                    {
-                        std::string line = "";
-                        absl::StrAppend( &line, range_chunk, add_spaces( 1 ) );
-                        file_ << "  " << vertex_region.first << "  " << line
-                              << EOL;
-                    }
+                    write_chunks( vertex_region.second,
+                        std::string{ vertex_region.first }, CHUNK_SIZE );
                 }
             }
         }
@@ -465,14 +469,8 @@ namespace
                     create_region_map( *attribute_p, true );
                 for( const auto& elem_region : elem_regions )
                 {
-                    for( const auto& range_chunk :
-                        format_range_chunks( elem_region.second, CHUNK_SIZE ) )
-                    {
-                        std::string line = "";
-                        absl::StrAppend( &line, range_chunk, add_spaces( 1 ) );
-                        file_ << "  " << elem_region.first << "  " << line
-                              << EOL;
-                    }
+                    write_chunks( elem_region.second,
+                        std::string{ elem_region.first }, CHUNK_SIZE );
                 }
             }
         }
