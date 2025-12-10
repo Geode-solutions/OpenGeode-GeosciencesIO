@@ -36,6 +36,8 @@
 
 #include <geode/geometry/point.hpp>
 
+#include <geode/basic/detail/disable_debug_logger.hpp>
+
 namespace
 {
     static constexpr char EOL{ '\n' };
@@ -664,7 +666,6 @@ namespace
                 auto& feature2D_group =
                     features_.features2D_groups.emplace_back(
                         FEATURE2D_GROUP_NAME );
-
                 const auto aperture_attribute =
                     solid_.facets()
                         .facet_attribute_manager()
@@ -744,7 +745,7 @@ namespace
                     feature_id_++;
                 }
                 OPENGEODE_EXCEPTION( some_features_built,
-                    "No 2D features built. Please verify that your model "
+                    "No 2D feature built. Please verify that your model "
                     "contains diagres_discontinuity_aperture property." );
             }
 
@@ -848,7 +849,7 @@ namespace
                     feature_id_++;
                 }
                 OPENGEODE_EXCEPTION( some_features_built,
-                    "No 1D features built. Please verify that your model "
+                    "No 1D feature built. Please verify that your model "
                     "contains diagres_conduit_area property." );
             }
 
@@ -1233,3 +1234,5 @@ namespace geode
         }
     } // namespace internal
 } // namespace geode
+
+#include <geode/basic/detail/enable_debug_logger.hpp>
