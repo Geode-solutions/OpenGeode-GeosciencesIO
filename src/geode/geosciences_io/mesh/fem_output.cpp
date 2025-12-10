@@ -36,47 +36,64 @@
 
 #include <geode/geometry/point.hpp>
 
+#include <geode/basic/detail/disable_debug_logger.hpp>
+
 namespace
 {
     static constexpr char EOL{ '\n' };
     static constexpr char SPACE{ ' ' };
+    static constexpr geode::index_t CHUNK_SIZE{ 1500 };
 
-    std::string format_ranges( absl::Span< const geode::index_t > elements )
+    std::vector< std::string > format_range_chunks(
+        absl::Span< const geode::index_t > elements,
+        geode::index_t max_chunk_size )
     {
+        std::vector< std::string > results;
         if( elements.empty() )
         {
-            return "";
+            return results;
         }
-        std::string result;
+        std::string current;
         geode::index_t start = elements[0];
         geode::index_t prev = elements[0];
-        for( const auto element : geode::Range{ 1, elements.size() } )
-        {
-            if( elements[element] == prev + 1 )
+        auto append_value = [&]( geode::index_t s, geode::index_t p ) {
+            std::string tmp;
+            if( s == p )
             {
-                prev = elements[element];
-                continue;
-            }
-            if( start == prev )
-            {
-                absl::StrAppendFormat( &result, "%d ", start );
+                absl::StrAppendFormat( &tmp, "%d", s );
             }
             else
             {
-                absl::StrAppendFormat( &result, "%d-%d ", start, prev );
+                absl::StrAppendFormat( &tmp, "%d-%d", s, p );
             }
-            start = prev = elements[element];
-        }
-        if( start == prev )
-        {
-            absl::StrAppendFormat( &result, "%d", start );
-        }
-        else
-        {
-            absl::StrAppendFormat( &result, "%d-%d", start, prev );
-        }
+            if( current.size() + tmp.size() + 1 > max_chunk_size )
+            {
+                results.push_back( current );
+                current.clear();
+            }
 
-        return result;
+            if( !current.empty() )
+            {
+                current += " ";
+            }
+            current += tmp;
+        };
+        for( const auto i : geode::Range{ 1, elements.size() } )
+        {
+            if( elements[i] == prev + 1 )
+            {
+                prev = elements[i];
+                continue;
+            }
+            append_value( start, prev );
+            start = prev = elements[i];
+        }
+        append_value( start, prev );
+        if( !current.empty() )
+        {
+            results.push_back( std::move( current ) );
+        }
+        return results;
     }
 
     std::string add_spaces( geode::index_t n )
@@ -188,10 +205,30 @@ namespace
             }
         }
 
+        void write_chunks( absl::Span< const geode::index_t > elements,
+            std::string attribute_value,
+            geode::index_t max_chunk_size )
+        {
+            for( const auto& range_chunk :
+                format_range_chunks( elements, max_chunk_size ) )
+            {
+                std::string line = "";
+                absl::StrAppend( &line, range_chunk, add_spaces( 1 ) );
+                file_ << "  " << attribute_value << "  " << line << EOL;
+            }
+        }
+
+        void write_chunks( absl::Span< const geode::index_t > elements,
+            double attribute_value,
+            geode::index_t max_chunk_size )
+        {
+            write_chunks(
+                elements, std::to_string( attribute_value ), max_chunk_size );
+        }
+
         void write_property( geode::AttributeBase& attribute )
         {
             file_ << attribute.name() << EOL;
-
             absl::flat_hash_map< double, std::vector< geode::index_t > >
                 attribute_distribution =
                     create_attribute_distribution( attribute );
@@ -204,11 +241,8 @@ namespace
             absl::c_sort( values );
             for( const auto value : values )
             {
-                std::string line = "";
-                const auto ranges =
-                    format_ranges( attribute_distribution[value] );
-                absl::StrAppend( &line, ranges, add_spaces( 1 ) );
-                file_ << "  " << value << "  " << line << EOL;
+                write_chunks(
+                    attribute_distribution[value], value, CHUNK_SIZE );
             }
         }
 
@@ -302,10 +336,7 @@ namespace
                 create_porosity_region_map( *porosity_attribute );
             for( const auto& [porosity_value, tetrahedra] : porosity_map )
             {
-                std::string line = "";
-                const auto ranges = format_ranges( tetrahedra );
-                absl::StrAppend( &line, ranges, add_spaces( 1 ) );
-                file_ << "  " << porosity_value << "  " << line << EOL;
+                write_chunks( tetrahedra, porosity_value, CHUNK_SIZE );
             }
         }
 
@@ -419,10 +450,8 @@ namespace
                     create_region_map( *attribute_v, false );
                 for( const auto& vertex_region : vertex_regions )
                 {
-                    std::string line = "";
-                    const auto ranges = format_ranges( vertex_region.second );
-                    absl::StrAppend( &line, ranges, add_spaces( 1 ) );
-                    file_ << "  " << vertex_region.first << "  " << line << EOL;
+                    write_chunks( vertex_region.second,
+                        std::string{ vertex_region.first }, CHUNK_SIZE );
                 }
             }
         }
@@ -440,10 +469,8 @@ namespace
                     create_region_map( *attribute_p, true );
                 for( const auto& elem_region : elem_regions )
                 {
-                    std::string line = "";
-                    const auto ranges = format_ranges( elem_region.second );
-                    absl::StrAppend( &line, ranges, add_spaces( 1 ) );
-                    file_ << "  " << elem_region.first << "  " << line << EOL;
+                    write_chunks( elem_region.second,
+                        std::string{ elem_region.first }, CHUNK_SIZE );
                 }
             }
         }
@@ -637,7 +664,6 @@ namespace
                 auto& feature2D_group =
                     features_.features2D_groups.emplace_back(
                         FEATURE2D_GROUP_NAME );
-
                 const auto aperture_attribute =
                     solid_.facets()
                         .facet_attribute_manager()
@@ -647,6 +673,7 @@ namespace
                         .facet_attribute_manager()
                         .find_or_create_attribute< geode::VariableAttribute,
                             double >( CONDUCTIVITY_ATTRIBUTE_NAME, -1.0 );
+                bool some_features_built{ false };
                 for( const auto facet :
                     geode::Range{ solid_.facets().nb_facets() } )
                 {
@@ -712,8 +739,12 @@ namespace
                                 .push_back( feature_id_ );
                         }
                     }
+                    some_features_built = true;
                     feature_id_++;
                 }
+                OPENGEODE_EXCEPTION( some_features_built,
+                    "No 2D feature built. Please verify that your model "
+                    "contains diagres_discontinuity_aperture property." );
             }
 
             bool must_build_1d_feature_groups() const
@@ -745,6 +776,7 @@ namespace
                         .edge_attribute_manager()
                         .find_or_create_attribute< geode::VariableAttribute,
                             double >( CONDUCTIVITY_ATTRIBUTE_NAME, -1.0 );
+                bool some_features_built{ false };
                 for( const auto edge :
                     geode::Range{ solid_.edges().nb_edges() } )
                 {
@@ -811,8 +843,12 @@ namespace
                                 .push_back( feature_id_ );
                         }
                     }
+                    some_features_built = true;
                     feature_id_++;
                 }
+                OPENGEODE_EXCEPTION( some_features_built,
+                    "No 1D feature built. Please verify that your model "
+                    "contains diagres_conduit_area property." );
             }
 
         private:
@@ -947,7 +983,17 @@ namespace
                       << std::to_string( feature_group.nb_features() ) << "\">"
                       << EOL;
                 file_ << add_spaces( 10 ) << CDATA_TAG_START;
-                file_ << format_ranges( feature_group.feature_ids );
+                const auto chunks = format_range_chunks(
+                    feature_group.feature_ids, CHUNK_SIZE );
+                for( const auto chunk_id : geode::Range{ chunks.size() } )
+                {
+                    const auto& chunk = chunks[chunk_id];
+                    file_ << chunk;
+                    if( chunk_id < chunks.size() - 1 )
+                    {
+                        file_ << EOL;
+                    }
+                }
                 file_ << CDATA_TAG_END << EOL;
                 file_ << add_spaces( 8 ) << xml_end_tag( "elements" ) << EOL;
                 file_ << add_spaces( 6 ) << xml_end_tag( "group" ) << EOL;
@@ -993,11 +1039,32 @@ namespace
             for( const auto& [value, feature_ids] :
                 property_values_to_features )
             {
-                file_ << add_spaces( 14 ) << value << add_spaces( 1 )
-                      << format_ranges( feature_ids );
-                if( iterator < property_values_to_features.size() - 1 )
+                const auto range_chunks =
+                    format_range_chunks( feature_ids, CHUNK_SIZE );
+                DEBUG( range_chunks.size() );
+                if( range_chunks.size() == 1 )
                 {
-                    file_ << EOL;
+                    file_ << add_spaces( 14 ) << value << add_spaces( 1 )
+                          << range_chunks[0];
+                    if( iterator < property_values_to_features.size() - 1 )
+                    {
+                        file_ << EOL;
+                    }
+                }
+                else
+                {
+                    for( const auto chunk :
+                        geode::Range{ range_chunks.size() } )
+                    {
+                        const auto& range_chunk = range_chunks[chunk];
+                        file_ << add_spaces( 14 ) << value << add_spaces( 1 )
+                              << range_chunk;
+                        if( iterator < property_values_to_features.size() - 1
+                            && chunk < range_chunks.size() - 1 )
+                        {
+                            file_ << EOL;
+                        }
+                    }
                 }
                 iterator++;
             }
@@ -1165,3 +1232,5 @@ namespace geode
         }
     } // namespace internal
 } // namespace geode
+
+#include <geode/basic/detail/enable_debug_logger.hpp>

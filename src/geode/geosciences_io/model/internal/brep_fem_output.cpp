@@ -148,8 +148,17 @@ namespace
         void paint_surface_infos( const geode::TetrahedralSolid3D& tet_solid,
             const geode::ModelToMeshMappings& model_to_mesh_mapping ) const
         {
-            paint_facets_attribute( tet_solid, model_to_mesh_mapping,
-                APERTURE_ATTRIBUTE_NAME, -1.0 );
+            for( const auto& surface : brep_.surfaces() )
+            {
+                const auto& mesh = surface.mesh();
+                if( mesh.polygon_attribute_manager().attribute_exists(
+                        APERTURE_ATTRIBUTE_NAME ) )
+                {
+                    paint_facets_attribute( tet_solid, model_to_mesh_mapping,
+                        APERTURE_ATTRIBUTE_NAME, -1.0 );
+                }
+                break;
+            }
             paint_facets_attribute( tet_solid, model_to_mesh_mapping,
                 CONDUCTIVITY_ATTRIBUTE_NAME, -1.0 );
         }
@@ -202,8 +211,17 @@ namespace
         void paint_line_infos( const geode::TetrahedralSolid3D& tet_solid,
             const geode::ModelToMeshMappings& model_to_mesh_mapping ) const
         {
-            paint_line_attribute( tet_solid, model_to_mesh_mapping,
-                CONDUIT_AREA_ATTRIBUTE_NAME, -1.0 );
+            for( const auto& line : brep_.lines() )
+            {
+                const auto& mesh = line.mesh();
+                if( mesh.edge_attribute_manager().attribute_exists(
+                        CONDUIT_AREA_ATTRIBUTE_NAME ) )
+                {
+                    paint_line_attribute( tet_solid, model_to_mesh_mapping,
+                        CONDUIT_AREA_ATTRIBUTE_NAME, -1.0 );
+                }
+                break;
+            }
             paint_line_attribute( tet_solid, model_to_mesh_mapping,
                 CONDUCTIVITY_ATTRIBUTE_NAME, -1.0 );
         }
