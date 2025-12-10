@@ -78,7 +78,7 @@ namespace
             }
             current += tmp;
         };
-        for( geode::index_t i : geode::Range{ 1, elements.size() } )
+        for( const auto i : geode::Range{ 1, elements.size() } )
         {
             if( elements[i] == prev + 1 )
             {
