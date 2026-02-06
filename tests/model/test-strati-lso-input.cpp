@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 - 2025 Geode-solutions. All rights reserved.
+ * Copyright (c) 2019 - 2026 Geode-solutions. All rights reserved.
  */
 
 #include <geode/tests_config.hpp>
