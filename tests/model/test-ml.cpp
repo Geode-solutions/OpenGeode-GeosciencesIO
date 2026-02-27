@@ -80,7 +80,7 @@ void test_modelA4()
         const auto nb_internals = model.nb_internals( block.id() );
         if( nb_internals )
         {
-            auto token = block.name().substr( block.name().size() - 3 );
+            auto token = block.name()->substr( block.name()->size() - 3 );
             OPENGEODE_EXCEPTION(
                 token == "b_2", "[Test] Block name should end by b_2" );
         }

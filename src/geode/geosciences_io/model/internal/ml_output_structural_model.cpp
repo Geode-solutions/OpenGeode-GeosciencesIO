@@ -61,14 +61,14 @@ namespace
                     if( components().find( item.id() ) != components().end() )
                     {
                         geode::Logger::warn( "[MLOutput] A Surface from ",
-                            fault.name(),
+                            fault.name().value(),
                             " belongs to several collections. It has been "
                             "exported only once" );
                         continue;
                     }
                     file() << "TFACE " << component_id() << SPACE
                            << fault_map_.at( fault.type() ) << SPACE
-                           << fault.name() << EOL;
+                           << fault.name().value() << EOL;
                     write_key_triangle( item );
                     components().emplace( item.id(), component_id()++ );
                 }
@@ -80,14 +80,14 @@ namespace
                     if( components().find( item.id() ) != components().end() )
                     {
                         geode::Logger::warn( "[MLOutput] A Surface from ",
-                            horizon.name(),
+                            horizon.name().value(),
                             " belongs to several collections. It has been "
                             "exported only once" );
                         continue;
                     }
                     file() << "TFACE " << component_id() << SPACE
                            << horizon_map_.at( horizon.contact_type() ) << SPACE
-                           << horizon.name() << EOL;
+                           << horizon.name().value() << EOL;
                     write_key_triangle( item );
                     components().emplace( item.id(), component_id()++ );
                 }
@@ -98,11 +98,11 @@ namespace
         {
             for( const auto& fault : model_.faults() )
             {
-                file() << "TSURF " << fault.name() << EOL;
+                file() << "TSURF " << fault.name().value() << EOL;
             }
             for( const auto& horizon : model_.horizons() )
             {
-                file() << "TSURF " << horizon.name() << EOL;
+                file() << "TSURF " << horizon.name().value() << EOL;
             }
         }
 
@@ -123,8 +123,8 @@ namespace
         {
             for( const auto& stratigraphic_unit : model_.stratigraphic_units() )
             {
-                file() << "LAYER " << stratigraphic_unit.name() << EOL << SPACE
-                       << SPACE;
+                file() << "LAYER " << stratigraphic_unit.name().value() << EOL
+                       << SPACE << SPACE;
                 geode::index_t counter{ 0 };
                 for( const auto& item :
                     model_.stratigraphic_unit_items( stratigraphic_unit ) )
@@ -141,8 +141,8 @@ namespace
 
             for( const auto& fault_block : model_.fault_blocks() )
             {
-                file() << "FAULT_BLOCK " << fault_block.name() << EOL << SPACE
-                       << SPACE;
+                file() << "FAULT_BLOCK " << fault_block.name().value() << EOL
+                       << SPACE << SPACE;
                 geode::index_t counter{ 0 };
                 for( const auto& item :
                     model_.fault_block_items( fault_block ) )
@@ -164,10 +164,10 @@ namespace
             {
                 file() << "GOCAD TSurf 1" << EOL;
                 geode::internal::HeaderData header;
-                header.name = geode::to_string( fault.name() );
+                header.name = fault.name().value();
                 geode::internal::write_header( file(), header );
                 geode::internal::write_CRS( file(), {} );
-                file() << "GEOLOGICAL_FEATURE " << fault.name() << EOL;
+                file() << "GEOLOGICAL_FEATURE " << fault.name().value() << EOL;
                 file() << "GEOLOGICAL_TYPE " << fault_map_.at( fault.type() )
                        << EOL;
                 geode::index_t current_offset{ OFFSET_START };
@@ -188,10 +188,11 @@ namespace
             {
                 file() << "GOCAD TSurf 1" << EOL;
                 geode::internal::HeaderData header;
-                header.name = geode::to_string( horizon.name() );
+                header.name = horizon.name().value();
                 geode::internal::write_header( file(), header );
                 geode::internal::write_CRS( file(), {} );
-                file() << "GEOLOGICAL_FEATURE " << horizon.name() << EOL;
+                file() << "GEOLOGICAL_FEATURE " << horizon.name().value()
+                       << EOL;
                 file() << "GEOLOGICAL_TYPE "
                        << horizon_map_.at( horizon.contact_type() ) << EOL;
                 geode::index_t current_offset{ OFFSET_START };

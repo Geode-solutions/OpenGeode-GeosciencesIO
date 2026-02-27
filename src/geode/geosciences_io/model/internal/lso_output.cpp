@@ -77,7 +77,10 @@ namespace
         {
             file_ << "GOCAD LightTSolid 1" << EOL;
             geode::internal::HeaderData header;
-            header.name = geode::to_string( model_.name() );
+            if( const auto name = model_.name() )
+            {
+                header.name = name.value();
+            }
             geode::internal::write_header( file_, header );
             geode::internal::write_CRS( file_, {} );
             write_vertices();
@@ -100,7 +103,8 @@ namespace
         {
             for( const auto& block : model_.blocks() )
             {
-                file_ << "MODEL_REGION " << block.name() << " ";
+                file_ << "MODEL_REGION "
+                      << block.name().value_or( block.id().string() ) << " ";
                 const auto& surface = *model_.boundaries( block ).begin();
                 if( sides_.regions_surface_sides.at(
                         { block.id(), surface.id() } ) )
@@ -134,7 +138,9 @@ namespace
                 {
                     continue;
                 }
-                file_ << "SURFACE " << component.name() << EOL;
+                file_ << "SURFACE "
+                      << component.name().value_or( component.id().string() )
+                      << EOL;
                 for( const auto& item_id : model_.items( component.id() ) )
                 {
                     if( !exported_surfaces_.emplace( item_id.id(), nb_tfaces )
@@ -175,7 +181,7 @@ namespace
         {
             for( const auto& block : model_.blocks() )
             {
-                const auto name = block.name();
+                const auto name = block.name().value_or( block.id().string() );
                 const auto& id = block.component_id();
                 const auto& mesh = block.mesh();
                 for( const auto p : geode::Range{ mesh.nb_polyhedra() } )

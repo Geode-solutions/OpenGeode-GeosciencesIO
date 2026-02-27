@@ -950,8 +950,8 @@ namespace
                             {
                                 geode::Logger::warn(
                                     "[MLInput] Stated in LAYER ",
-                                    stratigraphic_unit.name(), ", Block id ",
-                                    b + blocks_offset,
+                                    stratigraphic_unit.name().value(),
+                                    ", Block id ", b + blocks_offset,
                                     " does not match an existing REGION" );
                             }
                         }
@@ -992,7 +992,7 @@ namespace
                             {
                                 geode::Logger::warn(
                                     "[MLInput] Stated in FAULT_BLOCK ",
-                                    fault_block.name(), ", Block id ",
+                                    fault_block.name().value(), ", Block id ",
                                     b + blocks_offset,
                                     " does not match an existing REGION" );
                             }

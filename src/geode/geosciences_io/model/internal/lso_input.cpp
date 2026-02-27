@@ -259,7 +259,7 @@ namespace
                         geode::TriangulatedSurface3D::type_name_static() ) );
                 const auto& surface = model_.surface( id );
                 builder_.add_surface_in_horizon( surface, horizon );
-                builder_.set_surface_name( id, horizon.name() );
+                builder_.set_surface_name( id, horizon.name().value() );
                 std::getline( file_, line_ );
                 read_triangles( id );
             }
@@ -468,8 +468,9 @@ namespace
                 else
                 {
                     inspect_required_ = true;
-                    geode::Logger::warn( "[LSOInput] Block ", block.name(),
-                        " is not conformal to surface ", surface.name(), "." );
+                    geode::Logger::warn( "[LSOInput] Block ",
+                        block.name().value(), " is not conformal to surface ",
+                        surface.name().value(), "." );
                 }
             }
         }
@@ -737,7 +738,8 @@ namespace
                     {
                         continue;
                     }
-                    geode::Logger::warn( "Surface ", surface.name(),
+                    geode::Logger::warn( "Surface ",
+                        surface.name().value_or( surface.id().string() ),
                         " was not split by one of its internal lines, adding "
                         "the relation and splitting the surface to ensure "
                         "model validity." );
