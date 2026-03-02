@@ -137,9 +137,11 @@ namespace
                     {
                         solid_attribute->set_value(
                             facet_in_solid, surface_attribute_value );
-                        std::string surface_name{ surface.name() };
-                        solid_surface_name_attribute->set_value(
-                            facet_in_solid, surface_name );
+                        if( const auto name = surface.name() )
+                        {
+                            solid_surface_name_attribute->set_value(
+                                facet_in_solid, name.value() );
+                        }
                     }
                 }
             }
@@ -200,9 +202,11 @@ namespace
                     {
                         solid_attribute->set_value(
                             edge_in_solid, line_attribute_value );
-                        std::string line_name{ line.name() };
-                        solid_line_name_attribute->set_value(
-                            edge_in_solid, line_name );
+                        if( const auto name = line.name() )
+                        {
+                            solid_line_name_attribute->set_value(
+                                edge_in_solid, name.value() );
+                        }
                     }
                 }
             }
@@ -233,7 +237,7 @@ namespace
             auto attribute_p =
                 tet_solid.polyhedron_attribute_manager()
                     .find_or_create_attribute< geode::VariableAttribute,
-                        std::string_view >( "Block_ID_polyhedron", "No_name" );
+                        std::string >( "Block_ID_polyhedron", "No_name" );
             for( const auto& block : brep_.blocks() )
             {
                 for( const auto polyhedron_id :
@@ -243,7 +247,11 @@ namespace
                         model_to_mesh_mapping.solid_polyhedra_mapping.in2out(
                             { block.id(), polyhedron_id } ) )
                     {
-                        attribute_p->set_value( polyhedron_out, block.name() );
+                        if( const auto name = block.name() )
+                        {
+                            attribute_p->set_value(
+                                polyhedron_out, name.value() );
+                        }
                     }
                 }
             }
@@ -256,8 +264,7 @@ namespace
             auto attribute_v =
                 tet_solid.vertex_attribute_manager()
                     .find_or_create_attribute< geode::VariableAttribute,
-                        std::vector< std::string_view > >(
-                        "Block_ID_vertex", {} );
+                        std::vector< std::string > >( "Block_ID_vertex", {} );
             for( const auto& block : brep_.blocks() )
             {
                 for( const auto vertex_id :
@@ -269,7 +276,8 @@ namespace
                         model_to_mesh_mapping.unique_vertices_mapping.in2out(
                             unique_vertex );
                     auto vertex_blocks = attribute_v->value( vertex_out );
-                    vertex_blocks.push_back( block.name() );
+                    vertex_blocks.push_back(
+                        block.name().value_or( block.id().string() ) );
                     attribute_v->set_value( vertex_out, vertex_blocks );
                 }
             }

@@ -105,7 +105,10 @@ namespace geode
             {
                 file_ << "GOCAD Model3d 1" << EOL;
                 internal::HeaderData header;
-                header.name = to_string( model_.name() );
+                if( const auto name = model_.name() )
+                {
+                    header.name = name.value();
+                }
                 internal::write_header( file_, header );
                 internal::write_CRS( file_, {} );
                 write_model_components();
@@ -476,7 +479,8 @@ namespace geode
             std::string component_name( const Component& component ) const
             {
                 return absl::StrReplaceAll(
-                    component.name(), { { " ", "_" } } );
+                    component.name().value_or( component.id().string() ),
+                    { { " ", "_" } } );
             }
 
         private:

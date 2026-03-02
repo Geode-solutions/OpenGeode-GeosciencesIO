@@ -42,8 +42,8 @@ void check_surface( const geode::SurfaceMesh3D& surface,
         "Number of vertices in the TSurf 3D is not correct" );
     OPENGEODE_EXCEPTION( surface.nb_polygons() == nb_polygons,
         "Number of polygons in the TSurf 3D is not correct" );
-    OPENGEODE_EXCEPTION( surface.name() == name, "Wrong name: ", surface.name(),
-        " should be ", name );
+    OPENGEODE_EXCEPTION( surface.name() == name,
+        "Wrong name: ", surface.name().value(), " should be ", name );
 }
 
 void check_file( std::string file,

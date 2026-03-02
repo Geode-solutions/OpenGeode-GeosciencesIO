@@ -57,7 +57,10 @@ namespace
             geode::Logger::info( "[TSOutput::write] Writing ts file." );
             file_ << "GOCAD TSurf 1" << EOL;
             geode::internal::HeaderData header;
-            header.name = geode::to_string( surface_.name() );
+            if( const auto name = surface_.name() )
+            {
+                header.name = name.value();
+            }
             geode::internal::write_header( file_, header );
             geode::internal::CRSData crs_data;
             geode::internal::write_CRS( file_, crs_data );

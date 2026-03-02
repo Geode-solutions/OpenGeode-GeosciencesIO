@@ -443,7 +443,7 @@ namespace
             {
                 auto attribute_v =
                     solid_.vertex_attribute_manager()
-                        .find_attribute< std::vector< std::string_view > >(
+                        .find_attribute< std::vector< std::string > >(
                             "Block_ID_vertex" );
                 file_ << "NODALSETS" << EOL;
                 const auto vertex_regions =
@@ -462,9 +462,9 @@ namespace
                     "Block_ID_polyhedron" ) )
             {
                 file_ << "ELEMENTALSETS" << EOL;
-                auto attribute_p = solid_.polyhedron_attribute_manager()
-                                       .find_attribute< std::string_view >(
-                                           "Block_ID_polyhedron" );
+                auto attribute_p =
+                    solid_.polyhedron_attribute_manager()
+                        .find_attribute< std::string >( "Block_ID_polyhedron" );
                 const auto elem_regions =
                     create_region_map( *attribute_p, true );
                 for( const auto& elem_region : elem_regions )
@@ -477,7 +477,7 @@ namespace
 
         absl::flat_hash_map< std::string_view, std::vector< geode::index_t > >
             create_region_map(
-                geode::ReadOnlyAttribute< std::string_view >& attribute,
+                geode::ReadOnlyAttribute< std::string >& attribute,
                 bool create_element_region )
         {
             absl::flat_hash_map< std::string_view,
@@ -503,7 +503,7 @@ namespace
 
         absl::flat_hash_map< std::string_view, std::vector< geode::index_t > >
             create_region_map(
-                geode::ReadOnlyAttribute< std::vector< std::string_view > >&
+                geode::ReadOnlyAttribute< std::vector< std::string > >&
                     attribute,
                 bool create_element_region )
         {

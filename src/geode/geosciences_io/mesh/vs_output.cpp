@@ -57,7 +57,10 @@ namespace
             geode::Logger::info( "[VSOutput::write] Writing vs file." );
             file_ << "GOCAD VSet 1" << EOL;
             geode::internal::HeaderData header;
-            header.name = geode::to_string( pointset_.name() );
+            if( const auto name = pointset_.name() )
+            {
+                header.name = name.value();
+            }
             geode::internal::write_header( file_, header );
             geode::internal::CRSData crs_data;
             geode::internal::write_CRS( file_, crs_data );
