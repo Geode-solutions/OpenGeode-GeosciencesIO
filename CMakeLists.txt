@@ -36,6 +36,12 @@ find_package(OpenGeode-IO REQUIRED CONFIG)
 find_package(pugixml REQUIRED CONFIG)
 find_package(OpenGeode-Geosciences REQUIRED CONFIG)
 
+install(
+    FILES include/geode/geosciences_io/project.hpp
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/geode/geosciences_io
+    COMPONENT public
+)
+
 #------------------------------------------------------------------------------------------------
 # Configure the OpenGeode-GeosciencesIO libraries
 add_subdirectory(src/geode)

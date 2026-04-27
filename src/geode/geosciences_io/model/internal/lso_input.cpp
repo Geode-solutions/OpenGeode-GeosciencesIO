@@ -82,7 +82,8 @@ namespace
                           std::string >( BLOCK_NAME_ATTRIBUTE_NAME, "" ) }
         {
             solid_->enable_facets();
-            OPENGEODE_EXCEPTION( file_.good(),
+            geode::OpenGeodeGeosciencesIOModelException::check( file_.good(),
+                nullptr, geode::OpenGeodeException::TYPE::data,
                 "[LSOInput] Error while opening file: ", filename );
         }
 
@@ -91,9 +92,9 @@ namespace
             if( !geode::goto_keyword_if_it_exists(
                     file_, "GOCAD LightTSolid" ) )
             {
-                throw geode::OpenGeodeException{
-                    "[LSOInput] Cannot find LightTSolid in the file"
-                };
+                throw geode::OpenGeodeGeosciencesIOModelException{ nullptr,
+                    geode::OpenGeodeException::TYPE::data,
+                    "[LSOInput] Cannot find LightTSolid in the file" };
             }
             const auto header = geode::internal::read_header( file_ );
             if( header.name )
@@ -157,11 +158,8 @@ namespace
         std::tuple< geode::Point3D, geode::index_t > read_shared_point() const
         {
             const auto tokens = get_tokens();
-            geode::index_t value;
-            auto ok = absl::SimpleAtoi( tokens[2], &value );
-            OPENGEODE_EXCEPTION( ok, "[LSOInput] Error while "
-                                     "reading shared point index" );
-            const auto unique_id = value - OFFSET_START;
+            const auto unique_id =
+                geode::string_to_index( tokens[2] ) - OFFSET_START;
             return std::make_tuple( solid_->point( unique_id ), unique_id );
         }
 
@@ -197,10 +195,8 @@ namespace
                 std::array< geode::index_t, 4 > vertices;
                 for( const auto i : geode::LRange{ 4 } )
                 {
-                    auto ok = absl::SimpleAtoi( tokens[i + 1], &vertices[i] );
-                    OPENGEODE_EXCEPTION(
-                        ok, "[LSOInput] Error while reading tetra" );
-                    vertices[i] -= OFFSET_START;
+                    vertices[i] =
+                        geode::string_to_index( tokens[i + 1] ) - OFFSET_START;
                 }
                 const auto tetra_id =
                     solid_builder_->create_tetrahedron( vertices );
@@ -282,11 +278,8 @@ namespace
                 std::array< geode::index_t, 3 > vertices;
                 for( const auto i : geode::LRange{ 3 } )
                 {
-                    geode::index_t value;
-                    auto ok = absl::SimpleAtoi( tokens[i + 1], &value );
-                    OPENGEODE_EXCEPTION(
-                        ok, "[LSOInput] Error while reading triangles" );
-                    value -= OFFSET_START;
+                    const auto value =
+                        geode::string_to_index( tokens[i + 1] ) - OFFSET_START;
                     facet_vertices[i] = value;
                     const auto it = vertex_mapping.find( value );
                     if( it != vertex_mapping.end() )
@@ -639,7 +632,9 @@ namespace
                 }
                 else
                 {
-                    OPENGEODE_ASSERT( relation.second == 2,
+                    geode::OpenGeodeGeosciencesIOModelException::check(
+                        relation.second == 2, nullptr,
+                        geode::OpenGeodeException::TYPE::data,
                         "[LSOInput] Error in Line/Surface relations" );
                     builder_.add_line_surface_internal_relationship(
                         line, surface );

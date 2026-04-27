@@ -21,33 +21,15 @@
  *
  */
 
-#include <geode/tests_config.hpp>
+#pragma once
 
 #include <geode/basic/assert.hpp>
-#include <geode/basic/logger.hpp>
 
-#include <geode/mesh/core/edged_curve.hpp>
-#include <geode/mesh/io/edged_curve_input.hpp>
-
-#include <geode/geosciences_io/mesh/common.hpp>
-
-int main()
+namespace geode
 {
-    try
+    class OpenGeodeGeosciencesIOException : public OpenGeodeException
     {
-        geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
-        auto curve = geode::load_edged_curve< 3 >(
-            absl::StrCat( geode::DATA_PATH, "test_well.dat" ) );
-        geode::OpenGeodeGeosciencesIOMeshException::test(
-            curve->nb_vertices() == 11, "Wrong number of vertices" );
-        geode::OpenGeodeGeosciencesIOMeshException::test(
-            curve->nb_edges() == 10, "Wrong number of edges" );
-
-        geode::Logger::info( "TEST SUCCESS" );
-        return 0;
-    }
-    catch( ... )
-    {
-        return geode::geode_lippincott();
-    }
-}
+    protected:
+        using OpenGeodeException::OpenGeodeException;
+    };
+} // namespace geode

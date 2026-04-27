@@ -27,8 +27,10 @@
 #include <geode/basic/library.hpp>
 
 #include <geode/geosciences_io/mesh/opengeode_geosciencesio_mesh_export.hpp>
+#include <geode/geosciences_io/project.hpp>
 
 namespace geode
 {
-    OPENGEODE_LIBRARY( opengeode_geosciencesio_mesh_api, GeosciencesIOMesh );
+    OPENGEODE_LIBRARY(
+        opengeode_geosciencesio_mesh_api, OpenGeodeGeosciencesIO, Mesh );
 } // namespace geode

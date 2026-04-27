@@ -71,17 +71,18 @@ namespace
               grid_( grid ),
               builder_{ geode::RegularGridBuilder3D::create( grid ) }
         {
-            OPENGEODE_EXCEPTION(
-                file_.good(), "Error while opening file: ", filename );
+            geode::OpenGeodeGeosciencesIOMeshException::check( file_.good(),
+                nullptr, geode::OpenGeodeException::TYPE::data,
+                "Error while opening file: ", filename );
         }
 
         void read_file()
         {
             if( !geode::goto_keyword_if_it_exists( file_, "GOCAD Voxet" ) )
             {
-                throw geode::OpenGeodeException{
-                    "[VOInput] Cannot find Voxet in the file"
-                };
+                throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
+                    geode::OpenGeodeException::TYPE::data,
+                    "[VOInput] Cannot find Voxet in the file" };
             }
             const auto header = geode::internal::read_header( file_ );
             if( header.name )
@@ -146,7 +147,9 @@ namespace
             std::string_view line, geode::index_t offset ) const
         {
             const auto tokens = geode::string_split( line );
-            OPENGEODE_ASSERT( tokens.size() == 3 + offset,
+            geode::OpenGeodeGeosciencesIOMeshException::check(
+                tokens.size() == 3 + offset, nullptr,
+                geode::OpenGeodeException::TYPE::data,
                 "[VOInput::read_coord] Wrong number of tokens" );
             return geode::Point3D{ { geode::string_to_double( tokens[offset] ),
                 geode::string_to_double( tokens[1 + offset] ),
@@ -156,12 +159,15 @@ namespace
         void read_data_file()
         {
             const auto data_file_name = get_data_file( file_ );
-            OPENGEODE_EXCEPTION(
-                data_file_name.has_value(), "[VOInput] No data file record" );
+            geode::OpenGeodeGeosciencesIOMeshException::check(
+                data_file_name.has_value(), nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[VOInput] No data file record" );
             const auto data_file_path = absl::StrCat( file_folder_,
                 absl::StripSuffix( data_file_name.value(), "\r" ) );
             std::ifstream data_file{ data_file_path, std::ios::binary };
-            OPENGEODE_EXCEPTION( data_file.good(),
+            geode::OpenGeodeGeosciencesIOMeshException::check( data_file.good(),
+                nullptr, geode::OpenGeodeException::TYPE::data,
                 "[VOInput] Cannot open data file: ", data_file_path );
             std::string line;
             std::getline( data_file, line );
@@ -181,7 +187,9 @@ namespace
             while( std::getline( data_file, line ) )
             {
                 tokens = geode::string_split( line );
-                OPENGEODE_ASSERT( tokens.size() == data_attributes.size() + 3,
+                geode::OpenGeodeGeosciencesIOMeshException::check(
+                    tokens.size() == data_attributes.size() + 3, nullptr,
+                    geode::OpenGeodeException::TYPE::data,
                     "[VOInput::read_data_file] Wrong number of tokens in line, "
                     "got",
                     tokens.size(), ", should have ",

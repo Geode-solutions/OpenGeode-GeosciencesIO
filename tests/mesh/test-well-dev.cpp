@@ -35,13 +35,13 @@ int main()
 {
     try
     {
-        geode::GeosciencesIOMeshLibrary::initialize();
+        geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
         auto curve = geode::load_edged_curve< 3 >(
             absl::StrCat( geode::DATA_PATH, "test_well.dev" ) );
-        OPENGEODE_EXCEPTION(
-            curve->nb_vertices() == 104, "[Test] Wrong number of vertices" );
-        OPENGEODE_EXCEPTION(
-            curve->nb_edges() == 103, "[Test] Wrong number of edges" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curve->nb_vertices() == 104, "Wrong number of vertices" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curve->nb_edges() == 103, "Wrong number of edges" );
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

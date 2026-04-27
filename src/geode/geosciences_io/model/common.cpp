@@ -98,11 +98,11 @@ namespace
 
 namespace geode
 {
-    OPENGEODE_LIBRARY_IMPLEMENTATION( GeosciencesIOModel )
+    OPENGEODE_LIBRARY_IMPLEMENTATION( OpenGeodeGeosciencesIO, Model )
     {
-        GeosciencesExplicitLibrary::initialize();
-        GeosciencesImplicitLibrary::initialize();
-        GeosciencesIOMeshLibrary::initialize();
+        OpenGeodeGeosciencesExplicitLibrary::initialize();
+        OpenGeodeGeosciencesImplicitLibrary::initialize();
+        OpenGeodeGeosciencesIOMeshLibrary::initialize();
         register_structural_model_input();
         register_structural_model_output();
         register_section_input();

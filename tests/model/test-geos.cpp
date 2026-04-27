@@ -65,9 +65,9 @@ int main()
 {
     try
     {
-        geode::GeosciencesIOModelLibrary::initialize();
-        geode::IOMeshLibrary::initialize();
-        geode::IOModelLibrary::initialize();
+        geode::OpenGeodeGeosciencesIOModelLibrary::initialize();
+        geode::OpenGeodeIOMeshLibrary::initialize();
+        geode::OpenGeodeIOModelLibrary::initialize();
 
         test_picasso();
         toy_model();

@@ -53,8 +53,9 @@ namespace
               curve_( curve ),
               builder_( geode::EdgedCurveBuilder3D::create( curve ) )
         {
-            OPENGEODE_EXCEPTION(
-                file_.good(), "Error while opening file: ", filename );
+            geode::OpenGeodeGeosciencesIOMeshException::check( file_.good(),
+                nullptr, geode::OpenGeodeException::TYPE::data,
+                "Error while opening file: ", filename );
         }
 
         void read_file()
@@ -66,8 +67,9 @@ namespace
             while( std::getline( file_, line ) )
             {
                 const auto split_line = geode::string_split( line );
-                OPENGEODE_ASSERT(
+                geode::OpenGeodeGeosciencesIOMeshException::check(
                     split_line.size() == header_.attribute_names.size() + 3,
+                    nullptr, geode::OpenGeodeException::TYPE::data,
                     "[WellDevInput::read_coord_and_attributes] Wrong number of "
                     "split_line: ",
                     split_line.size(), " - ", header_.attribute_names.size() );
@@ -108,7 +110,9 @@ namespace
                 else if( !first_pass )
                 {
                     const auto split_line = geode::string_split( line );
-                    OPENGEODE_EXCEPTION( split_line.size() >= 3,
+                    geode::OpenGeodeGeosciencesIOMeshException::check(
+                        split_line.size() >= 3, nullptr,
+                        geode::OpenGeodeException::TYPE::data,
                         "[WellDevInut::read_header] There are less than 3 "
                         "attributes given for the well" );
                     header_.attribute_names.reserve( split_line.size() - 3 );
@@ -132,20 +136,21 @@ namespace
                         header_.attribute_names.push_back(
                             geode::to_string( split_line[i] ) );
                     }
-                    OPENGEODE_EXCEPTION(
+                    geode::OpenGeodeGeosciencesIOMeshException::check(
                         header_.xyz_attributes_position[0]
                                 != header_.xyz_attributes_position[1]
                             && header_.xyz_attributes_position[0]
                                    != header_.xyz_attributes_position[2]
                             && header_.xyz_attributes_position[1]
                                    != header_.xyz_attributes_position[2],
+                        nullptr, geode::OpenGeodeException::TYPE::data,
                         "[WellDevInput::header] Cannot find the X, Y and Z "
                         "point position attributes in the header." );
                 }
             }
-            throw geode::OpenGeodeException{
-                "[read_header] Cannot find the end of \"HEADER\" section"
-            };
+            throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[read_header] Cannot find the end of \"HEADER\" section" };
         }
 
         void create_attributes()

@@ -64,7 +64,8 @@ namespace
             bool use_base_names;
             const auto ok = absl::SimpleAtob(
                 units.attribute( "use_base_names" ).value(), &use_base_names );
-            OPENGEODE_EXCEPTION( ok,
+            geode::OpenGeodeGeosciencesIOModelException::check( ok, nullptr,
+                geode::OpenGeodeException::TYPE::data,
                 "[HorizonStackSKUAInput::read_units] Failed to "
                 "read use_base_names attribute." );
             absl::flat_hash_map< std::string, geode::uuid > name_map;
@@ -148,13 +149,16 @@ namespace
         void load_file()
         {
             std::ifstream file{ geode::to_string( filename_ ) };
-            OPENGEODE_EXCEPTION( file.good(),
+            geode::OpenGeodeGeosciencesIOModelException::check( file.good(),
+                nullptr, geode::OpenGeodeException::TYPE::data,
                 "[HorizonStackSKUAInput] Error while opening file: ",
                 filename_ );
             const auto status =
                 document_.load_file( geode::to_string( filename_ ).c_str() );
-            OPENGEODE_EXCEPTION( status, "[HorizonStackSKUAInput] Error ",
-                status.description(), " while parsing file: ", filename_ );
+            geode::OpenGeodeGeosciencesIOModelException::check( status, nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[HorizonStackSKUAInput] Error ", status.description(),
+                " while parsing file: ", filename_ );
             root_ = document_.child( "UserObjects" )
                         .child( "LocalStratigraphicColumn" );
         }

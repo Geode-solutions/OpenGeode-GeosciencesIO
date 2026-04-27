@@ -27,6 +27,8 @@
 
 #include <geode/basic/uuid.hpp>
 
+#include <geode/geosciences_io/model/common.hpp>
+
 namespace geode
 {
     class BRep;

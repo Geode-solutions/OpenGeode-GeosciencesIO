@@ -52,7 +52,7 @@ int main()
 {
     try
     {
-        geode::GeosciencesIOMeshLibrary::initialize();
+        geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
         test_solid_fem_output();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

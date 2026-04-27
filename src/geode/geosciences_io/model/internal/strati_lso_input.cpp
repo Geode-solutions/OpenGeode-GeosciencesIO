@@ -51,17 +51,19 @@ namespace
             for( const auto& block : model.blocks() )
             {
                 auto& manager = block.mesh().vertex_attribute_manager();
-                OPENGEODE_DATA_EXCEPTION(
+                geode::OpenGeodeGeosciencesIOModelException::check(
                     manager.attribute_exists( STRATI_ATTRIBUTE_NAME )
                         && manager.attribute_exists( GEOL_ATTRIBUTE_NAME ),
+                    nullptr, geode::OpenGeodeException::TYPE::data,
                     "[ImplicitLSOInput] Could not find the properties "
                     "associated to StratigraphicModeling in the file, "
                     "named '",
                     GEOL_ATTRIBUTE_NAME, "' and '", STRATI_ATTRIBUTE_NAME,
                     "'." );
-                OPENGEODE_DATA_EXCEPTION(
+                geode::OpenGeodeGeosciencesIOModelException::check(
                     ( block.mesh().type_name()
                         == geode::TetrahedralSolid3D::type_name_static() ),
+                    nullptr, geode::OpenGeodeException::TYPE::data,
                     "[ImplicitLSOInput] Blocks must be meshed as "
                     "TetrahedralSolids, which is not the case for block with "
                     "uuid '",

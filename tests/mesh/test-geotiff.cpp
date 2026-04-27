@@ -38,8 +38,8 @@ int main()
 {
     try
     {
-        geode::GeosciencesIOMeshLibrary::initialize();
-        geode::IOMeshLibrary::initialize();
+        geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
+        geode::OpenGeodeIOMeshLibrary::initialize();
         geode::Logger::set_level( geode::Logger::LEVEL::trace );
 
         auto grid = geode::load_light_regular_grid< 2 >(

@@ -35,7 +35,8 @@
 void check_pointset(
     const geode::PointSet3D& pointset, geode::index_t nb_vertices )
 {
-    OPENGEODE_EXCEPTION( pointset.nb_vertices() == nb_vertices,
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        pointset.nb_vertices() == nb_vertices,
         "Number of vertices in the VSet 3D is not correct" );
 }
 
@@ -63,7 +64,7 @@ int main()
 {
     try
     {
-        geode::GeosciencesIOMeshLibrary::initialize();
+        geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
         check_file( absl::StrCat( geode::DATA_PATH, "points.",
                         geode::internal::VSInput::extension() ),
             6 );

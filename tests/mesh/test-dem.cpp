@@ -38,13 +38,15 @@ int main()
     try
     {
         geode::Logger::set_level( geode::Logger::LEVEL::trace );
-        geode::GeosciencesIOMeshLibrary::initialize();
+        geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
         const auto surface = geode::load_polygonal_surface< 3 >(
             absl::StrCat( geode::DATA_PATH, "bathy_IrishSea_DEM.dem" ) );
-        OPENGEODE_EXCEPTION( surface->nb_vertices() == 456427,
-            "[Test] Number of vertices in the loaded Surface is not correct" );
-        OPENGEODE_EXCEPTION( surface->nb_polygons() == 453226,
-            "[Test] Number of polygons in the loaded Surface is not correct" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surface->nb_vertices() == 456427,
+            "Number of vertices in the loaded Surface is not correct" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surface->nb_polygons() == 453226,
+            "Number of polygons in the loaded Surface is not correct" );
         geode::save_polygonal_surface(
             *surface, "bathy_IrishSea_DEM.og_psf3d" );
 

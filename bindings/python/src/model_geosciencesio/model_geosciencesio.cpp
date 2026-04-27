@@ -34,9 +34,10 @@
 PYBIND11_MODULE( opengeode_geosciencesio_py_model, module )
 {
     module.doc() = "OpenGeode-GeosciencesIO Python binding for model";
-    pybind11::class_< geode::GeosciencesIOModelLibrary >(
-        module, "GeosciencesIOModelLibrary" )
-        .def( "initialize", &geode::GeosciencesIOModelLibrary::initialize );
+    pybind11::class_< geode::OpenGeodeGeosciencesIOModelLibrary >(
+        module, "OpenGeodeGeosciencesIOModelLibrary" )
+        .def( "initialize",
+            &geode::OpenGeodeGeosciencesIOModelLibrary::initialize );
 
     pybind11::class_< geode::BRepGeosExporter >( module, "BRepGeosExporter" )
         .def( pybind11::init< const geode::BRep&, std::string_view >() )
