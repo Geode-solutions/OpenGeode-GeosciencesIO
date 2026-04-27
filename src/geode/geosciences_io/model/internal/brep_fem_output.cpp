@@ -70,8 +70,9 @@ namespace
               file_str_view_{ filename },
               brep_( brep )
         {
-            OPENGEODE_EXCEPTION(
-                file_.good(), "Error while opening file: ", filename );
+            geode::OpenGeodeGeosciencesIOModelException::check( file_.good(),
+                nullptr, geode::OpenGeodeException::TYPE::data,
+                "Error while opening file: ", filename );
         }
 
         void write_file()

@@ -237,7 +237,9 @@ namespace geode
         std::vector< std::string > MLOutputStructuralModel::write(
             const StructuralModel& structural_model ) const
         {
-            OPENGEODE_EXCEPTION( check_brep_polygons( structural_model ),
+            OpenGeodeGeosciencesIOModelException::check(
+                check_brep_polygons( structural_model ), nullptr,
+                OpenGeodeException::TYPE::data,
                 "[MLOutput::write] Can not export into .ml a "
                 "StructuralModel with non triangular surface polygons." );
             if( structural_model.nb_model_boundaries() > 0 )

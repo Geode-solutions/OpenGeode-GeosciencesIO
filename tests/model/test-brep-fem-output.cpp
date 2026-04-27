@@ -51,7 +51,7 @@ int main()
 {
     try
     {
-        geode::GeosciencesIOModelLibrary::initialize();
+        geode::OpenGeodeGeosciencesIOModelLibrary::initialize();
         test_brep_fem_output();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

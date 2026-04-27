@@ -50,10 +50,10 @@ namespace
         }
         if( from_to_id == tokens.size() )
         {
-            throw geode::OpenGeodeException{
+            throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
+                geode::OpenGeodeException::TYPE::data,
                 "[Reading Inputs From Skua-Gocad] missing a closing "
-                "quote character."
-            };
+                "quote character." };
         }
         absl::StrAppend( &string_between_quote, tokens[from_to_id] );
         string_between_quote.erase( string_between_quote.size() - 1, 1 );
@@ -191,9 +191,9 @@ namespace
                 return;
             }
         }
-        throw geode::OpenGeodeException{
-            "[read_tfaces] Cannot find the end of TSurf section"
-        };
+        throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
+            geode::OpenGeodeException::TYPE::data,
+            "[read_tfaces] Cannot find the end of TSurf section" };
     }
 
     void read_VSet_vertices(
@@ -226,9 +226,9 @@ namespace
                 vertex_set.vertices_properties_header,
                 vertex_set.vertices_attribute_values, tokens, 5 );
         } while( std::getline( file, line ) );
-        throw geode::OpenGeodeException{
-            "[read_tfaces] Cannot find the end of VSet section"
-        };
+        throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
+            geode::OpenGeodeException::TYPE::data,
+            "[read_tfaces] Cannot find the end of VSet section" };
     }
 
     void read_property_keyword_with_one_string( std::ifstream& file,
@@ -345,9 +345,9 @@ namespace geode
                     header.name = read_name( geode::string_split( name_line ) );
                 }
             }
-            throw geode::OpenGeodeException{
-                "[read_header] Cannot find the end of \"HEADER\" section"
-            };
+            throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[read_header] Cannot find the end of \"HEADER\" section" };
         }
 
         void write_header( std::ofstream& file, const HeaderData& data )
@@ -394,9 +394,9 @@ namespace geode
                     crs.name = tokens[1];
                 }
             }
-            throw geode::OpenGeodeException{
-                "Cannot find the end of CRS section"
-            };
+            throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "Cannot find the end of CRS section" };
         }
 
         void write_CRS( std::ofstream& file, const CRSData& data )
@@ -472,7 +472,9 @@ namespace geode
                     geode::LRange{ properties_header.esizes[attr_id] } )
                 {
                     geode_unused( item );
-                    OPENGEODE_ASSERT( line_properties_position < tokens.size(),
+                    OpenGeodeGeosciencesIOMeshException::check(
+                        line_properties_position < tokens.size(), nullptr,
+                        geode::OpenGeodeException::TYPE::data,
                         "[GocadInput::read_point_properties] Cannot read "
                         "properties: number of property items is higher than "
                         "number of tokens." );

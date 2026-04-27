@@ -22,8 +22,9 @@
 import os
 import sys
 import platform
+
 if sys.version_info >= (3, 8, 0) and platform.system() == "Windows":
-    for path in [x.strip() for x in os.environ['PATH'].split(';') if x]:
+    for path in [x.strip() for x in os.environ["PATH"].split(";") if x]:
         os.add_dll_directory(path)
 
 import opengeode
@@ -31,18 +32,13 @@ import opengeode_io
 import opengeode_geosciences as geosciences
 import opengeode_geosciencesio_py_model as geosciences_io
 
-if __name__ == '__main__':
-    geosciences_io.GeosciencesIOModelLibrary.initialize()
+if __name__ == "__main__":
+    geosciences_io.OpenGeodeGeosciencesIOModelLibrary.initialize()
     test_dir = os.path.dirname(__file__)
-    data_dir = os.path.abspath(os.path.join(
-        test_dir, "../../../../tests/data"))
+    data_dir = os.path.abspath(os.path.join(test_dir, "../../../../tests/data"))
 
-    model = geosciences.load_structural_model(
-        os.path.join(data_dir, "test.lso"))
-    exporter = geosciences_io.BRepGeosExporter(model,"brep_to_geos")
-    #exporter.run()
-    exporter = geosciences_io.StructuralModelGeosExporter(model,"SM_to_geos")
-    #exporter.run()
-
-
-
+    model = geosciences.load_structural_model(os.path.join(data_dir, "test.lso"))
+    exporter = geosciences_io.BRepGeosExporter(model, "brep_to_geos")
+    # exporter.run()
+    exporter = geosciences_io.StructuralModelGeosExporter(model, "SM_to_geos")
+    # exporter.run()

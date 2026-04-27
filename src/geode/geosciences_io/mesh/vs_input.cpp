@@ -44,8 +44,9 @@ namespace
               point_set_( point_set ),
               builder_( geode::PointSetBuilder< 3 >::create( point_set ) )
         {
-            OPENGEODE_EXCEPTION(
-                file_.good(), "Error while opening file: ", filename );
+            geode::OpenGeodeGeosciencesIOMeshException::check( file_.good(),
+                nullptr, geode::OpenGeodeException::TYPE::data,
+                "Error while opening file: ", filename );
         }
 
         void read_file()

@@ -43,9 +43,11 @@ namespace
         geode::index_t nb_vertices,
         geode::index_t nb_edges )
     {
-        OPENGEODE_EXCEPTION( curve.nb_vertices() == nb_vertices,
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curve.nb_vertices() == nb_vertices,
             "Number of vertices in the ECurve 3D is not correct" );
-        OPENGEODE_EXCEPTION( curve.nb_edges() == nb_edges,
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curve.nb_edges() == nb_edges,
             "Number of edges in the ECurve 3D is not correct" );
     }
 
@@ -80,7 +82,7 @@ int main()
 {
     try
     {
-        geode::GeosciencesIOMeshLibrary::initialize();
+        geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
         // NOLINTBEGIN(*-magic-numbers)
         check_file( absl::StrCat( geode::DATA_PATH, "/normal_lines.",
                         geode::internal::PLInput::extension() ),

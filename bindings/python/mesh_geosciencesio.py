@@ -22,4 +22,5 @@ import opengeode
 import opengeode_io
 
 from opengeode_geosciencesio_py_mesh import *
-GeosciencesIOMeshLibrary.initialize()
+
+OpenGeodeGeosciencesIOMeshLibrary.initialize()

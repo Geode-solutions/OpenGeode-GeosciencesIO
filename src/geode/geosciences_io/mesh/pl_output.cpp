@@ -50,8 +50,9 @@ namespace
               edged_curve_( edged_curve ),
               edge_done_( edged_curve.nb_edges(), false )
         {
-            OPENGEODE_EXCEPTION(
-                file_.good(), "Error while opening file: ", filename );
+            geode::OpenGeodeGeosciencesIOMeshException::check( file_.good(),
+                nullptr, geode::OpenGeodeException::TYPE::data,
+                "Error while opening file: ", filename );
         }
 
         void write_prop_header()

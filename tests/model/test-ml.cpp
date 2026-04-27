@@ -44,26 +44,28 @@ void check_model( const geode::StructuralModel& model,
     geode::index_t nb_horizons,
     geode::index_t nb_model_boundaries )
 {
-    OPENGEODE_EXCEPTION( model.nb_corners() == nb_corners,
-        "[Test] Number of Corners in the loaded "
-        "StructuralModel is not correct" );
-    OPENGEODE_EXCEPTION( model.nb_lines() == nb_lines,
-        "[Test] Number of Lines in the loaded "
-        "StructuralModel is not correct" );
-    OPENGEODE_EXCEPTION( model.nb_surfaces() == nb_surfaces,
-        "[Test] Number of Surfaces in the loaded StructuralModel is not "
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        model.nb_corners() == nb_corners, "Number of Corners in the loaded "
+                                          "StructuralModel is not correct" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        model.nb_lines() == nb_lines, "Number of Lines in the loaded "
+                                      "StructuralModel is not correct" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        model.nb_surfaces() == nb_surfaces,
+        "Number of Surfaces in the loaded StructuralModel is not "
         "correct" );
-    OPENGEODE_EXCEPTION( model.nb_blocks() == nb_blocks,
-        "[Test] Number of Blocks in the loaded "
-        "StructuralModel is not correct" );
-    OPENGEODE_EXCEPTION( model.nb_faults() == nb_faults,
-        "[Test] Number of Faults in the loaded "
-        "StructuralModel is not correct" );
-    OPENGEODE_EXCEPTION( model.nb_horizons() == nb_horizons,
-        "[Test] Number of Horizons in the loaded "
-        "StructuralModel is not correct" );
-    OPENGEODE_EXCEPTION( model.nb_model_boundaries() == nb_model_boundaries,
-        "[Test] Number of ModelBoundary in the loaded StructuralModel is "
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        model.nb_blocks() == nb_blocks, "Number of Blocks in the loaded "
+                                        "StructuralModel is not correct" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        model.nb_faults() == nb_faults, "Number of Faults in the loaded "
+                                        "StructuralModel is not correct" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        model.nb_horizons() == nb_horizons, "Number of Horizons in the loaded "
+                                            "StructuralModel is not correct" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        model.nb_model_boundaries() == nb_model_boundaries,
+        "Number of ModelBoundary in the loaded StructuralModel is "
         "not correct" );
 }
 
@@ -81,13 +83,13 @@ void test_modelA4()
         if( nb_internals )
         {
             auto token = block.name()->substr( block.name()->size() - 3 );
-            OPENGEODE_EXCEPTION(
-                token == "b_2", "[Test] Block name should end by b_2" );
+            geode::OpenGeodeGeosciencesIOModelException::test(
+                token == "b_2", "Block name should end by b_2" );
         }
         nb_block_internals += nb_internals;
     }
-    OPENGEODE_EXCEPTION( nb_block_internals == 4,
-        "[Test] Number of Block internals in the "
+    geode::OpenGeodeGeosciencesIOModelException::test( nb_block_internals == 4,
+        "Number of Block internals in the "
         "loaded StructuralModel is not correct" );
 
     geode::index_t nb_surface_internals{ 0 };
@@ -100,15 +102,16 @@ void test_modelA4()
             {
                 const auto& name =
                     model.model_boundary( collection.id() ).name();
-                OPENGEODE_EXCEPTION(
+                geode::OpenGeodeGeosciencesIOModelException::test(
                     name == "voi_top_boundary" || name == "voi_bottom_boundary",
-                    "[Test] ModelBoundary name is not correct" );
+                    "ModelBoundary name is not correct" );
             }
         }
         nb_surface_internals += model.nb_internals( surface.id() );
     }
-    OPENGEODE_EXCEPTION( nb_surface_internals == 2,
-        "[Test] Number of Surface internals in the loaded StructuralModel "
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        nb_surface_internals == 2,
+        "Number of Surface internals in the loaded StructuralModel "
         "is not correct" );
 
     // Save structural model
@@ -129,7 +132,7 @@ int main()
 {
     try
     {
-        geode::GeosciencesIOModelLibrary::initialize();
+        geode::OpenGeodeGeosciencesIOModelLibrary::initialize();
         test_modelA4();
 
         geode::Logger::info( "TEST SUCCESS" );

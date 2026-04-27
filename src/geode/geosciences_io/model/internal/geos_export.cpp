@@ -427,9 +427,10 @@ namespace geode
             }
             else
             {
-                throw OpenGeodeException(
+                throw OpenGeodeGeosciencesIOModelException{ nullptr,
+                    OpenGeodeException::TYPE::data,
                     "[Blocks::save_geos] Cannot find the explicit "
-                    "SolidMesh type" );
+                    "SolidMesh type" };
             }
             return filename;
         }

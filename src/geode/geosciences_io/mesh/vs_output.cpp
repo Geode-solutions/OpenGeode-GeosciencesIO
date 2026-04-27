@@ -48,8 +48,9 @@ namespace
             std::string_view filename, const geode::PointSet3D& pointset )
             : file_{ geode::to_string( filename ) }, pointset_( pointset )
         {
-            OPENGEODE_EXCEPTION(
-                file_.good(), "Error while opening file: ", filename );
+            geode::OpenGeodeGeosciencesIOMeshException::check( file_.good(),
+                nullptr, geode::OpenGeodeException::TYPE::data,
+                "Error while opening file: ", filename );
         }
 
         void write_file()

@@ -87,7 +87,9 @@ namespace geode
     {
         std::vector< std::string > MLOutputBRep::write( const BRep& brep ) const
         {
-            OPENGEODE_EXCEPTION( check_brep_polygons( brep ),
+            OpenGeodeGeosciencesIOModelException::check(
+                check_brep_polygons( brep ), nullptr,
+                OpenGeodeException::TYPE::data,
                 "[MLOutput::write] Can not export into .ml a "
                 "BRep with non triangular surface polygons." );
             if( brep.nb_model_boundaries() > 0 )

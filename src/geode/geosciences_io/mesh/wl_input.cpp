@@ -44,17 +44,18 @@ namespace
             : file_{ geode::to_string( filename ), std::ios::binary },
               builder_( geode::EdgedCurveBuilder3D::create( curve ) )
         {
-            OPENGEODE_EXCEPTION(
-                file_.good(), "Error while opening file: ", filename );
+            geode::OpenGeodeGeosciencesIOMeshException::check( file_.good(),
+                nullptr, geode::OpenGeodeException::TYPE::data,
+                "Error while opening file: ", filename );
         }
 
         void read_file()
         {
             if( !geode::goto_keyword_if_it_exists( file_, "GOCAD Well" ) )
             {
-                throw geode::OpenGeodeException{
-                    "[WLInput] Cannot find Well in the file"
-                };
+                throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
+                    geode::OpenGeodeException::TYPE::data,
+                    "[WLInput] Cannot find Well in the file" };
             }
             const auto header = geode::internal::read_header( file_ );
             if( header.name )
@@ -81,7 +82,9 @@ namespace
             std::string_view line, geode::index_t offset ) const
         {
             const auto tokens = geode::string_split( line );
-            OPENGEODE_ASSERT( tokens.size() == 3 + offset,
+            geode::OpenGeodeGeosciencesIOMeshException::check(
+                tokens.size() == 3 + offset, nullptr,
+                geode::OpenGeodeException::TYPE::data,
                 "[WLInput::read_coord] Wrong number of tokens" );
             return geode::Point3D{ { geode::string_to_double( tokens[offset] ),
                 geode::string_to_double( tokens[1 + offset] ),

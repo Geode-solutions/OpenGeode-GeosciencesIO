@@ -38,13 +38,16 @@ void test_file()
     const auto horizons_stack = geode::load_horizons_stack< 3 >(
         absl::StrCat( geode::DATA_PATH, "test_skua_horizons_stack.xml" ) );
 
-    OPENGEODE_EXCEPTION( horizons_stack.name() == "skua_model",
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        horizons_stack.name() == "skua_model",
         "[TEST] HorizonsStack should be named 'skua_model'" );
 
-    OPENGEODE_EXCEPTION( horizons_stack.nb_horizons() == 4,
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        horizons_stack.nb_horizons() == 4,
         "[TEST] Wrong number of horizons in the "
         "loaded HorizonsStack." );
-    OPENGEODE_EXCEPTION( horizons_stack.nb_stratigraphic_units() == 5,
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        horizons_stack.nb_stratigraphic_units() == 5,
         "[TEST] Wrong number of units in the loaded HorizonsStack." );
     geode::uuid erosion_horizon_uuid;
     geode::uuid h1_horizon_uuid;
@@ -67,14 +70,14 @@ void test_file()
             eroded_unit_uuid = unit.id();
         }
     }
-    OPENGEODE_EXCEPTION(
+    geode::OpenGeodeGeosciencesIOModelException::test(
         horizons_stack.is_above( erosion_horizon_uuid, eroded_unit_uuid ),
         "[TEST] Horizon 'model_erosion' should be above unit 'eroded_unit'" );
-    OPENGEODE_EXCEPTION(
+    geode::OpenGeodeGeosciencesIOModelException::test(
         horizons_stack.is_above( eroded_unit_uuid, h1_horizon_uuid ),
         "[TEST] Unit 'eroded_unit' should be above horizon "
         "'model_horizon_h1'" );
-    OPENGEODE_EXCEPTION(
+    geode::OpenGeodeGeosciencesIOModelException::test(
         horizons_stack.horizon( erosion_horizon_uuid ).contact_type()
             == geode::Horizon3D::CONTACT_TYPE::erosion,
         "[TEST] Horizon 'model_erosion' should erode unit 'eroded_unit'" );
@@ -87,7 +90,7 @@ int main()
 {
     try
     {
-        geode::GeosciencesIOModelLibrary::initialize();
+        geode::OpenGeodeGeosciencesIOModelLibrary::initialize();
 
         geode::Logger::info( "Reading stratigraphic column file." );
         test_file();

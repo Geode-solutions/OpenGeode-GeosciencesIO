@@ -62,13 +62,15 @@ namespace
               sides_(
                   geode::internal::determine_surface_to_regions_sides( model ) )
         {
-            OPENGEODE_EXCEPTION(
-                file_.good(), "[LSOOutput] Error while opening file: ", file );
+            geode::OpenGeodeGeosciencesIOModelException::check( file_.good(),
+                nullptr, geode::OpenGeodeException::TYPE::data,
+                "[LSOOutput] Error while opening file: ", file );
             for( const auto& block : model_.blocks() )
             {
-                OPENGEODE_EXCEPTION(
+                geode::OpenGeodeGeosciencesIOModelException::check(
                     block.mesh().type_name()
                         == geode::TetrahedralSolid3D::type_name_static(),
+                    nullptr, geode::OpenGeodeException::TYPE::data,
                     "[LSOOutput] Only support TetrahedralSolid3D" );
             }
         }

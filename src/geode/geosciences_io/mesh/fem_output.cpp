@@ -120,8 +120,9 @@ namespace
             std::string_view filename, const geode::TetrahedralSolid3D& solid )
             : file_{ geode::to_string( filename ) }, solid_( solid )
         {
-            OPENGEODE_EXCEPTION(
-                file_.good(), "Error while opening file: ", filename );
+            geode::OpenGeodeGeosciencesIOMeshException::check( file_.good(),
+                nullptr, geode::OpenGeodeException::TYPE::data,
+                "Error while opening file: ", filename );
         }
 
         void write_file()
@@ -742,7 +743,9 @@ namespace
                     some_features_built = true;
                     feature_id_++;
                 }
-                OPENGEODE_EXCEPTION( some_features_built,
+                geode::OpenGeodeGeosciencesIOMeshException::check(
+                    some_features_built, nullptr,
+                    geode::OpenGeodeException::TYPE::data,
                     "No 2D feature built. Please verify that your model "
                     "contains diagres_discontinuity_aperture property." );
             }
@@ -846,7 +849,9 @@ namespace
                     some_features_built = true;
                     feature_id_++;
                 }
-                OPENGEODE_EXCEPTION( some_features_built,
+                geode::OpenGeodeGeosciencesIOMeshException::check(
+                    some_features_built, nullptr,
+                    geode::OpenGeodeException::TYPE::data,
                     "No 1D feature built. Please verify that your model "
                     "contains diagres_conduit_area property." );
             }
