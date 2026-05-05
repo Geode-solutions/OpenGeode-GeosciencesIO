@@ -88,8 +88,8 @@ namespace
               model_( model ),
               builder_( model )
         {
-            geode::OpenGeodeGeosciencesIOModelException::check( file_.good(),
-                nullptr, geode::OpenGeodeException::TYPE::data,
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "[MLInput] Error while opening file: ", filename );
         }
 
@@ -330,18 +330,20 @@ namespace
                     }
                     else
                     {
-                        geode::OpenGeodeGeosciencesIOModelException::check(
-                            result.size() == 1, nullptr,
-                            geode::OpenGeodeException::TYPE::data,
-                            "[MLInput] Several unique vertices found for the "
-                            "same point" );
+                        geode::OpenGeodeGeosciencesIOModelException::
+                            check_exception( result.size() == 1, nullptr,
+                                geode::OpenGeodeException::TYPE::data,
+                                "[MLInput] Several unique vertices found for "
+                                "the "
+                                "same point" );
                         const auto vertex = result.front();
                         builder_.set_unique_vertex( cmv, vertex );
-                        geode::OpenGeodeGeosciencesIOModelException::check(
-                            result.size() == 1, nullptr,
-                            geode::OpenGeodeException::TYPE::data,
-                            "[MLInput] Several unique vertices found for the "
-                            "same point" );
+                        geode::OpenGeodeGeosciencesIOModelException::
+                            check_exception( result.size() == 1, nullptr,
+                                geode::OpenGeodeException::TYPE::data,
+                                "[MLInput] Several unique vertices found for "
+                                "the "
+                                "same point" );
                         for( const auto& line_cmv :
                             model_.component_mesh_vertices( vertex ) )
                         {
@@ -406,8 +408,8 @@ namespace
                     done = true;
                     break;
                 }
-                geode::OpenGeodeGeosciencesIOModelException::check( done,
-                    nullptr, geode::OpenGeodeException::TYPE::data,
+                geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                    done, nullptr, geode::OpenGeodeException::TYPE::data,
                     "[MLInput] All current unique vertices should be "
                     "associated to at least one Line" );
             }

@@ -87,7 +87,7 @@ namespace geode
     {
         std::vector< std::string > MLOutputBRep::write( const BRep& brep ) const
         {
-            OpenGeodeGeosciencesIOModelException::check(
+            OpenGeodeGeosciencesIOModelException::check_exception(
                 check_brep_polygons( brep ), nullptr,
                 OpenGeodeException::TYPE::data,
                 "[MLOutput::write] Can not export into .ml a "

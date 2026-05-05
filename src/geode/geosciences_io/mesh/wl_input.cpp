@@ -44,8 +44,8 @@ namespace
             : file_{ geode::to_string( filename ), std::ios::binary },
               builder_( geode::EdgedCurveBuilder3D::create( curve ) )
         {
-            geode::OpenGeodeGeosciencesIOMeshException::check( file_.good(),
-                nullptr, geode::OpenGeodeException::TYPE::data,
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "Error while opening file: ", filename );
         }
 
@@ -82,7 +82,7 @@ namespace
             std::string_view line, geode::index_t offset ) const
         {
             const auto tokens = geode::string_split( line );
-            geode::OpenGeodeGeosciencesIOMeshException::check(
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                 tokens.size() == 3 + offset, nullptr,
                 geode::OpenGeodeException::TYPE::data,
                 "[WLInput::read_coord] Wrong number of tokens" );

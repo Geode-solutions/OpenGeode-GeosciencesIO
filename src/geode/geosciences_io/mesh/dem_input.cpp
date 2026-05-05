@@ -90,8 +90,8 @@ namespace
         {
             const auto nb_vertices = width_ * height_;
             const auto nb_bands = dataset().GetRasterCount();
-            geode::OpenGeodeGeosciencesIOMeshException::check( nb_bands > 0,
-                nullptr, geode::OpenGeodeException::TYPE::data,
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                nb_bands > 0, nullptr, geode::OpenGeodeException::TYPE::data,
                 "[DEMInput] No bands found" );
             absl::FixedArray< float > elevation( nb_vertices );
             absl::FixedArray< geode::index_t > vertices(
@@ -100,7 +100,7 @@ namespace
             const auto status = band->RasterIO( GF_Read, 0, 0, width_, height_,
                 elevation.data(), width_, height_, GDT_Float32, 0, 0 );
             const auto no_data_value = band->GetNoDataValue();
-            geode::OpenGeodeGeosciencesIOMeshException::check(
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                 status == CE_None, nullptr,
                 geode::OpenGeodeException::TYPE::internal,
                 "[DEMInput] Failed to read elevation" );

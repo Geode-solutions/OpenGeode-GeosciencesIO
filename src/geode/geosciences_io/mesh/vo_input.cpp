@@ -71,8 +71,8 @@ namespace
               grid_( grid ),
               builder_{ geode::RegularGridBuilder3D::create( grid ) }
         {
-            geode::OpenGeodeGeosciencesIOMeshException::check( file_.good(),
-                nullptr, geode::OpenGeodeException::TYPE::data,
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "Error while opening file: ", filename );
         }
 
@@ -147,7 +147,7 @@ namespace
             std::string_view line, geode::index_t offset ) const
         {
             const auto tokens = geode::string_split( line );
-            geode::OpenGeodeGeosciencesIOMeshException::check(
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                 tokens.size() == 3 + offset, nullptr,
                 geode::OpenGeodeException::TYPE::data,
                 "[VOInput::read_coord] Wrong number of tokens" );
@@ -159,15 +159,16 @@ namespace
         void read_data_file()
         {
             const auto data_file_name = get_data_file( file_ );
-            geode::OpenGeodeGeosciencesIOMeshException::check(
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                 data_file_name.has_value(), nullptr,
                 geode::OpenGeodeException::TYPE::data,
                 "[VOInput] No data file record" );
             const auto data_file_path = absl::StrCat( file_folder_,
                 absl::StripSuffix( data_file_name.value(), "\r" ) );
             std::ifstream data_file{ data_file_path, std::ios::binary };
-            geode::OpenGeodeGeosciencesIOMeshException::check( data_file.good(),
-                nullptr, geode::OpenGeodeException::TYPE::data,
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                data_file.good(), nullptr,
+                geode::OpenGeodeException::TYPE::data,
                 "[VOInput] Cannot open data file: ", data_file_path );
             std::string line;
             std::getline( data_file, line );
@@ -187,7 +188,7 @@ namespace
             while( std::getline( data_file, line ) )
             {
                 tokens = geode::string_split( line );
-                geode::OpenGeodeGeosciencesIOMeshException::check(
+                geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                     tokens.size() == data_attributes.size() + 3, nullptr,
                     geode::OpenGeodeException::TYPE::data,
                     "[VOInput::read_data_file] Wrong number of tokens in line, "

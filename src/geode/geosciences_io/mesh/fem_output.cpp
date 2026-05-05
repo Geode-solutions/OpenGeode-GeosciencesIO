@@ -120,8 +120,8 @@ namespace
             std::string_view filename, const geode::TetrahedralSolid3D& solid )
             : file_{ geode::to_string( filename ) }, solid_( solid )
         {
-            geode::OpenGeodeGeosciencesIOMeshException::check( file_.good(),
-                nullptr, geode::OpenGeodeException::TYPE::data,
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "Error while opening file: ", filename );
         }
 
@@ -743,7 +743,7 @@ namespace
                     some_features_built = true;
                     feature_id_++;
                 }
-                geode::OpenGeodeGeosciencesIOMeshException::check(
+                geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                     some_features_built, nullptr,
                     geode::OpenGeodeException::TYPE::data,
                     "No 2D feature built. Please verify that your model "
@@ -849,7 +849,7 @@ namespace
                     some_features_built = true;
                     feature_id_++;
                 }
-                geode::OpenGeodeGeosciencesIOMeshException::check(
+                geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                     some_features_built, nullptr,
                     geode::OpenGeodeException::TYPE::data,
                     "No 1D feature built. Please verify that your model "

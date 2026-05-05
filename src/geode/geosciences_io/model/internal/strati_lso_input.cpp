@@ -51,7 +51,7 @@ namespace
             for( const auto& block : model.blocks() )
             {
                 auto& manager = block.mesh().vertex_attribute_manager();
-                geode::OpenGeodeGeosciencesIOModelException::check(
+                geode::OpenGeodeGeosciencesIOModelException::check_exception(
                     manager.attribute_exists( STRATI_ATTRIBUTE_NAME )
                         && manager.attribute_exists( GEOL_ATTRIBUTE_NAME ),
                     nullptr, geode::OpenGeodeException::TYPE::data,
@@ -60,7 +60,7 @@ namespace
                     "named '",
                     GEOL_ATTRIBUTE_NAME, "' and '", STRATI_ATTRIBUTE_NAME,
                     "'." );
-                geode::OpenGeodeGeosciencesIOModelException::check(
+                geode::OpenGeodeGeosciencesIOModelException::check_exception(
                     ( block.mesh().type_name()
                         == geode::TetrahedralSolid3D::type_name_static() ),
                     nullptr, geode::OpenGeodeException::TYPE::data,

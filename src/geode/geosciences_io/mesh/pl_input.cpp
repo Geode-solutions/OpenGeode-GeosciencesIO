@@ -44,8 +44,8 @@ namespace
               curve_( curve ),
               builder_( geode::EdgedCurveBuilder< 3 >::create( curve ) )
         {
-            geode::OpenGeodeGeosciencesIOMeshException::check( file_.good(),
-                nullptr, geode::OpenGeodeException::TYPE::data,
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "Error while opening file: ", filename );
         }
 

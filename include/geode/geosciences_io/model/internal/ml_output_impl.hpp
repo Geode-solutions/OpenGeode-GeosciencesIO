@@ -121,8 +121,8 @@ namespace geode
                   model_( model ),
                   sides_( determine_surface_to_regions_sides( model ) )
             {
-                OpenGeodeGeosciencesIOModelException::check( file_.good(),
-                    nullptr, OpenGeodeException::TYPE::data,
+                OpenGeodeGeosciencesIOModelException::check_exception(
+                    file_.good(), nullptr, OpenGeodeException::TYPE::data,
                     "[MLOutput] Error while opening file: ", filename );
             }
 

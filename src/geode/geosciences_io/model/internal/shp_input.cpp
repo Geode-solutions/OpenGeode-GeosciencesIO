@@ -94,8 +94,8 @@ namespace
             for( const auto& feature : layer )
             {
                 const auto* geometry = feature->GetGeometryRef();
-                geode::OpenGeodeGeosciencesIOModelException::check( geometry,
-                    nullptr, geode::OpenGeodeException::TYPE::data,
+                geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                    geometry, nullptr, geode::OpenGeodeException::TYPE::data,
                     "[SHPInput::create_corner] Failed to retrieve geometry "
                     "data" );
                 if( geometry->getGeometryType()
@@ -124,8 +124,8 @@ namespace
             for( const auto& feature : layer )
             {
                 const auto* geometry = feature->GetGeometryRef();
-                geode::OpenGeodeGeosciencesIOModelException::check( geometry,
-                    nullptr, geode::OpenGeodeException::TYPE::data,
+                geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                    geometry, nullptr, geode::OpenGeodeException::TYPE::data,
                     "[SHPInput::create_line] Failed to retrieve geometry "
                     "data" );
                 if( geometry->getGeometryType()
@@ -200,8 +200,8 @@ namespace
             for( const auto& feature : layer )
             {
                 const auto* geometry = feature->GetGeometryRef();
-                geode::OpenGeodeGeosciencesIOModelException::check( geometry,
-                    nullptr, geode::OpenGeodeException::TYPE::data,
+                geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                    geometry, nullptr, geode::OpenGeodeException::TYPE::data,
                     "[SHPInput::create_surface] Failed to retrieve geometry "
                     "data" );
                 if( geometry->getGeometryType()

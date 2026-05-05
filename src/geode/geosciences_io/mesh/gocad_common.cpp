@@ -472,7 +472,7 @@ namespace geode
                     geode::LRange{ properties_header.esizes[attr_id] } )
                 {
                     geode_unused( item );
-                    OpenGeodeGeosciencesIOMeshException::check(
+                    OpenGeodeGeosciencesIOMeshException::check_exception(
                         line_properties_position < tokens.size(), nullptr,
                         geode::OpenGeodeException::TYPE::data,
                         "[GocadInput::read_point_properties] Cannot read "

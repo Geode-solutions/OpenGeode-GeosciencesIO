@@ -53,8 +53,8 @@ namespace
               curve_( curve ),
               builder_( geode::EdgedCurveBuilder3D::create( curve ) )
         {
-            geode::OpenGeodeGeosciencesIOMeshException::check( file_.good(),
-                nullptr, geode::OpenGeodeException::TYPE::data,
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "Error while opening file: ", filename );
         }
 
@@ -67,7 +67,7 @@ namespace
             while( std::getline( file_, line ) )
             {
                 const auto split_line = geode::string_split( line );
-                geode::OpenGeodeGeosciencesIOMeshException::check(
+                geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                     split_line.size() == header_.attribute_names.size() + 3,
                     nullptr, geode::OpenGeodeException::TYPE::data,
                     "[WellDevInput::read_coord_and_attributes] Wrong number of "
@@ -110,7 +110,7 @@ namespace
                 else if( !first_pass )
                 {
                     const auto split_line = geode::string_split( line );
-                    geode::OpenGeodeGeosciencesIOMeshException::check(
+                    geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                         split_line.size() >= 3, nullptr,
                         geode::OpenGeodeException::TYPE::data,
                         "[WellDevInut::read_header] There are less than 3 "
@@ -136,7 +136,7 @@ namespace
                         header_.attribute_names.push_back(
                             geode::to_string( split_line[i] ) );
                     }
-                    geode::OpenGeodeGeosciencesIOMeshException::check(
+                    geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                         header_.xyz_attributes_position[0]
                                 != header_.xyz_attributes_position[1]
                             && header_.xyz_attributes_position[0]

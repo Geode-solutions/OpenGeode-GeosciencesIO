@@ -45,8 +45,8 @@ namespace geode
                   curve_( curve ),
                   builder_( EdgedCurveBuilder3D::create( curve ) )
             {
-                OpenGeodeGeosciencesIOMeshException::check( file_.good(),
-                    nullptr, OpenGeodeException::TYPE::data,
+                OpenGeodeGeosciencesIOMeshException::check_exception(
+                    file_.good(), nullptr, OpenGeodeException::TYPE::data,
                     "Error while opening file: ", filename );
                 builder_->set_name(
                     filename_without_extension( filename ).string() );
@@ -69,8 +69,8 @@ namespace geode
             geode::Point3D read_coord( std::string_view line ) const
             {
                 const auto tokens = string_split( line );
-                OpenGeodeGeosciencesIOMeshException::check( tokens.size() == 3,
-                    nullptr, OpenGeodeException::TYPE::data,
+                OpenGeodeGeosciencesIOMeshException::check_exception(
+                    tokens.size() == 3, nullptr, OpenGeodeException::TYPE::data,
                     "[WellInput::read_coord] Wrong number of tokens" );
                 return Point3D{ { string_to_double( tokens[0] ),
                     string_to_double( tokens[1] ),

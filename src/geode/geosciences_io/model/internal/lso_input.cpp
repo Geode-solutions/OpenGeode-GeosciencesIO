@@ -82,8 +82,8 @@ namespace
                           std::string >( BLOCK_NAME_ATTRIBUTE_NAME, "" ) }
         {
             solid_->enable_facets();
-            geode::OpenGeodeGeosciencesIOModelException::check( file_.good(),
-                nullptr, geode::OpenGeodeException::TYPE::data,
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "[LSOInput] Error while opening file: ", filename );
         }
 
@@ -632,10 +632,10 @@ namespace
                 }
                 else
                 {
-                    geode::OpenGeodeGeosciencesIOModelException::check(
-                        relation.second == 2, nullptr,
-                        geode::OpenGeodeException::TYPE::data,
-                        "[LSOInput] Error in Line/Surface relations" );
+                    geode::OpenGeodeGeosciencesIOModelException::
+                        check_exception( relation.second == 2, nullptr,
+                            geode::OpenGeodeException::TYPE::data,
+                            "[LSOInput] Error in Line/Surface relations" );
                     builder_.add_line_surface_internal_relationship(
                         line, surface );
                 }

@@ -56,8 +56,8 @@ namespace
             geode::Logger::set_level( level );
             auto surface2d = geode::convert_grid_into_polygonal_surface( grid );
             const auto nb_bands = dataset().GetRasterCount();
-            geode::OpenGeodeGeosciencesIOMeshException::check( nb_bands > 0,
-                nullptr, geode::OpenGeodeException::TYPE::data,
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                nb_bands > 0, nullptr, geode::OpenGeodeException::TYPE::data,
                 "[PolyTIFFInput] No bands found" );
             absl::FixedArray< float > elevation( surface2d->nb_vertices() );
             const auto band = dataset().GetRasterBand( 1 );
@@ -65,7 +65,7 @@ namespace
             const auto height = dataset().GetRasterYSize();
             const auto status = band->RasterIO( GF_Read, 0, 0, width, height,
                 elevation.data(), width, height, GDT_Float32, 0, 0 );
-            geode::OpenGeodeGeosciencesIOMeshException::check(
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                 status == CE_None, nullptr,
                 geode::OpenGeodeException::TYPE::internal,
                 "[PolyTIFFInput] Failed to read elevation" );

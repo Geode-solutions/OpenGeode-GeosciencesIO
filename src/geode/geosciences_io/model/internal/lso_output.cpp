@@ -62,12 +62,12 @@ namespace
               sides_(
                   geode::internal::determine_surface_to_regions_sides( model ) )
         {
-            geode::OpenGeodeGeosciencesIOModelException::check( file_.good(),
-                nullptr, geode::OpenGeodeException::TYPE::data,
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "[LSOOutput] Error while opening file: ", file );
             for( const auto& block : model_.blocks() )
             {
-                geode::OpenGeodeGeosciencesIOModelException::check(
+                geode::OpenGeodeGeosciencesIOModelException::check_exception(
                     block.mesh().type_name()
                         == geode::TetrahedralSolid3D::type_name_static(),
                     nullptr, geode::OpenGeodeException::TYPE::data,

@@ -155,7 +155,7 @@ namespace
                 to_process.push( s );
             }
         }
-        geode::OpenGeodeGeosciencesIOModelException::check(
+        geode::OpenGeodeGeosciencesIOModelException::check_exception(
             absl::c_count( determined, false ) == 0, nullptr,
             geode::OpenGeodeException::TYPE::internal,
             "All signs should have been found" );
@@ -193,7 +193,7 @@ namespace
                         center } );
             }
         }
-        geode::OpenGeodeGeosciencesIOModelException::check(
+        geode::OpenGeodeGeosciencesIOModelException::check_exception(
             std::fabs( signed_volume ) > 0, nullptr,
             geode::OpenGeodeException::TYPE::data,
             "Null volume block is not valid" );
@@ -261,7 +261,7 @@ namespace geode
     {
         RegionSurfaceSide determine_surface_to_regions_sides( const BRep& brep )
         {
-            OpenGeodeGeosciencesIOModelException::check(
+            OpenGeodeGeosciencesIOModelException::check_exception(
                 brep.nb_model_boundaries() > 0, nullptr,
                 geode::OpenGeodeException::TYPE::data,
                 "[determine_surface_to_regions_sides] Requires ModelBoundaries "

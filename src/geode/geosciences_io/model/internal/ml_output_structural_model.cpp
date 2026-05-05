@@ -237,7 +237,7 @@ namespace geode
         std::vector< std::string > MLOutputStructuralModel::write(
             const StructuralModel& structural_model ) const
         {
-            OpenGeodeGeosciencesIOModelException::check(
+            OpenGeodeGeosciencesIOModelException::check_exception(
                 check_brep_polygons( structural_model ), nullptr,
                 OpenGeodeException::TYPE::data,
                 "[MLOutput::write] Can not export into .ml a "

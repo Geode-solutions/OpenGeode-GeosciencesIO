@@ -48,8 +48,8 @@ namespace
             const geode::TriangulatedSurface3D& surface )
             : file_{ geode::to_string( filename ) }, surface_( surface )
         {
-            geode::OpenGeodeGeosciencesIOMeshException::check( file_.good(),
-                nullptr, geode::OpenGeodeException::TYPE::data,
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "Error while opening file: ", filename );
         }
 
