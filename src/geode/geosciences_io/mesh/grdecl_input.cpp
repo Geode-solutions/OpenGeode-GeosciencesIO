@@ -185,9 +185,9 @@ namespace
             }
             else
             {
-                throw geode::OpenGeodeException{
-                    "[GRDECLInput::read_pillars] Wrong number of coordinates"
-                };
+                throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
+                    geode::OpenGeodeException::TYPE::data,
+                    "[GRDECLInput::read_pillars] Wrong number of coordinates" };
             }
             return pillar;
         }

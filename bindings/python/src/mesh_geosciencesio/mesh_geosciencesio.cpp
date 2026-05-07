@@ -28,7 +28,8 @@
 PYBIND11_MODULE( opengeode_geosciencesio_py_mesh, module )
 {
     module.doc() = "OpenGeode-GeosciencesIO Python binding for mesh";
-    pybind11::class_< geode::GeosciencesIOMeshLibrary >(
-        module, "GeosciencesIOMeshLibrary" )
-        .def( "initialize", &geode::GeosciencesIOMeshLibrary::initialize );
+    pybind11::class_< geode::OpenGeodeGeosciencesIOMeshLibrary >(
+        module, "OpenGeodeGeosciencesIOMeshLibrary" )
+        .def( "initialize",
+            &geode::OpenGeodeGeosciencesIOMeshLibrary::initialize );
 }

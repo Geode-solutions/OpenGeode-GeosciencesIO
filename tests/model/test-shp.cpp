@@ -35,24 +35,24 @@ int main()
 {
     try
     {
-        geode::GeosciencesIOModelLibrary::initialize();
+        geode::OpenGeodeGeosciencesIOModelLibrary::initialize();
         const auto section = geode::load_section(
             absl::StrCat( geode::DATA_PATH, "toulouse.shz" ) );
-        OPENGEODE_EXCEPTION(
-            section.nb_corners() == 7, "[Test] Wrong number of corners" );
-        OPENGEODE_EXCEPTION(
-            section.nb_lines() == 10, "[Test] Wrong number of lines" );
-        OPENGEODE_EXCEPTION(
-            section.nb_surfaces() == 12, "[Test] Wrong number of surfaces" );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            section.nb_corners() == 7, "Wrong number of corners" );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            section.nb_lines() == 10, "Wrong number of lines" );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            section.nb_surfaces() == 12, "Wrong number of surfaces" );
 
         const auto section2 =
             geode::load_section( absl::StrCat( geode::DATA_PATH, "test.shp" ) );
-        OPENGEODE_EXCEPTION(
-            section2.nb_corners() == 0, "[Test] Wrong number of corners" );
-        OPENGEODE_EXCEPTION(
-            section2.nb_lines() == 0, "[Test] Wrong number of lines" );
-        OPENGEODE_EXCEPTION(
-            section2.nb_surfaces() == 1, "[Test] Wrong number of surfaces" );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            section2.nb_corners() == 0, "Wrong number of corners" );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            section2.nb_lines() == 0, "Wrong number of lines" );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            section2.nb_surfaces() == 1, "Wrong number of surfaces" );
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

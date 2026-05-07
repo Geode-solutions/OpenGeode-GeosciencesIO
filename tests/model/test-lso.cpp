@@ -52,38 +52,40 @@ void check_model( const geode::StructuralModel& model,
     geode::index_t nb_block_internals,
     geode::index_t nb_vertices_attributes )
 {
-    OPENGEODE_EXCEPTION( model.nb_corners() == nb_corners,
-        "[Test] Number of Corners in the loaded "
-        "StructuralModel is not correct" );
-    OPENGEODE_EXCEPTION( model.nb_lines() == nb_lines,
-        "[Test] Number of Lines in the loaded "
-        "StructuralModel is not correct" );
-    OPENGEODE_EXCEPTION( model.nb_surfaces() == nb_surfaces,
-        "[Test] Number of Surfaces in the loaded StructuralModel is not "
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        model.nb_corners() == nb_corners, "Number of Corners in the loaded "
+                                          "StructuralModel is not correct" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        model.nb_lines() == nb_lines, "Number of Lines in the loaded "
+                                      "StructuralModel is not correct" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        model.nb_surfaces() == nb_surfaces,
+        "Number of Surfaces in the loaded StructuralModel is not "
         "correct" );
-    OPENGEODE_EXCEPTION( model.nb_blocks() == nb_blocks,
-        "[Test] Number of Blocks in the loaded "
-        "StructuralModel is not correct" );
-    OPENGEODE_EXCEPTION( model.nb_horizons() == nb_horizons,
-        "[Test] Number of Horizons in the loaded "
-        "StructuralModel is not correct" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        model.nb_blocks() == nb_blocks, "Number of Blocks in the loaded "
+                                        "StructuralModel is not correct" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        model.nb_horizons() == nb_horizons, "Number of Horizons in the loaded "
+                                            "StructuralModel is not correct" );
 
     geode::index_t count_block_internals{ 0 };
     for( const auto& block : model.blocks() )
     {
         count_block_internals += model.nb_internals( block.id() );
     }
-    OPENGEODE_EXCEPTION( count_block_internals == nb_block_internals,
-        "[Test] Number of Block internals in the "
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        count_block_internals == nb_block_internals,
+        "Number of Block internals in the "
         "loaded StructuralModel is not correct" );
     for( const auto& block : model.blocks() )
     {
         const auto block_attribute_names =
             block.mesh().vertex_attribute_manager().attribute_names();
-        OPENGEODE_EXCEPTION(
+        geode::OpenGeodeGeosciencesIOModelException::test(
             block_attribute_names.size()
                 == nb_vertices_attributes + nb_mandatory_attributes,
-            "[Test] Number of Block attributes in the loaded "
+            "Number of Block attributes in the loaded "
             "StructuralModel is not correct: expected ",
             nb_vertices_attributes + nb_mandatory_attributes,
             " attributes, got ", block_attribute_names.size(), " attributes." );
@@ -116,15 +118,15 @@ void test_file( std::string file,
         for( const auto name :
             block_mesh.vertex_attribute_manager().attribute_names() )
         {
-            OPENGEODE_EXCEPTION(
+            geode::OpenGeodeGeosciencesIOModelException::test(
                 reload_block_mesh->vertex_attribute_manager().attribute_exists(
                     name ) );
-            OPENGEODE_EXCEPTION(
+            geode::OpenGeodeGeosciencesIOModelException::test(
                 reload_block_mesh->vertex_attribute_manager().attribute_type(
                     name )
                     == block_mesh.vertex_attribute_manager().attribute_type(
                         name ),
-                "[Test] Wrong attribute type for reloaded mesh" );
+                "Wrong attribute type for reloaded mesh" );
         }
 
         counter++;
@@ -140,7 +142,7 @@ int main()
 {
     try
     {
-        geode::GeosciencesIOModelLibrary::initialize();
+        geode::OpenGeodeGeosciencesIOModelLibrary::initialize();
 
         geode::Logger::info( "Reading the test.lso file" );
         test_file( absl::StrCat( geode::DATA_PATH, "test.",

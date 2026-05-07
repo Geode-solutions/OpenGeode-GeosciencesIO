@@ -23,4 +23,5 @@ import opengeode_io
 import opengeode_geosciences
 
 from opengeode_geosciencesio_py_model import *
-GeosciencesIOModelLibrary.initialize()
+
+OpenGeodeGeosciencesIOModelLibrary.initialize()

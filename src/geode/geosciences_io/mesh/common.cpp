@@ -146,10 +146,10 @@ namespace
 
 namespace geode
 {
-    OPENGEODE_LIBRARY_IMPLEMENTATION( GeosciencesIOMesh )
+    OPENGEODE_LIBRARY_IMPLEMENTATION( OpenGeodeGeosciencesIO, Mesh )
     {
         OpenGeodeMeshLibrary::initialize();
-        IOImageLibrary::initialize();
+        OpenGeodeIOImageLibrary::initialize();
         register_triangulated_surface_input();
         register_triangulated_surface_output();
         register_polygonal_surface_input();

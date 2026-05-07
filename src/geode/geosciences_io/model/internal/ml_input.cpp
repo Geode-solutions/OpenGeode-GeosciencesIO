@@ -68,7 +68,9 @@ namespace
         {
             return std::make_tuple( edge.value(), false );
         }
-        throw geode::OpenGeodeException{
+        throw geode::OpenGeodeGeosciencesIOModelException{
+            mesh.edge_barycenter( std::array{ v0, v1 } ),
+            geode::OpenGeodeException::TYPE::data,
             "[MLInput] Starting edge Line from Corner not found. ",
             "Looking for edge: ", mesh.point( v0 ).string(), " - ",
             mesh.point( v1 ).string()
@@ -86,7 +88,8 @@ namespace
               model_( model ),
               builder_( model )
         {
-            OPENGEODE_EXCEPTION( file_.good(),
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "[MLInput] Error while opening file: ", filename );
         }
 
@@ -94,9 +97,9 @@ namespace
         {
             if( !geode::goto_keyword_if_it_exists( file_, "GOCAD Model3d" ) )
             {
-                throw geode::OpenGeodeException{
-                    "[MLInput] Cannot find Model3d in the file"
-                };
+                throw geode::OpenGeodeGeosciencesIOModelException{ nullptr,
+                    geode::OpenGeodeException::TYPE::data,
+                    "[MLInput] Cannot find Model3d in the file" };
             }
             const auto header = geode::internal::read_header( file_ );
             if( header.name )
@@ -327,14 +330,20 @@ namespace
                     }
                     else
                     {
-                        OPENGEODE_ASSERT( result.size() == 1,
-                            "[MLInput] Several unique vertices found for the "
-                            "same point" );
+                        geode::OpenGeodeGeosciencesIOModelException::
+                            check_exception( result.size() == 1, nullptr,
+                                geode::OpenGeodeException::TYPE::data,
+                                "[MLInput] Several unique vertices found for "
+                                "the "
+                                "same point" );
                         const auto vertex = result.front();
                         builder_.set_unique_vertex( cmv, vertex );
-                        OPENGEODE_ASSERT( result.size() == 1,
-                            "[MLInput] Several unique vertices found for the "
-                            "same point" );
+                        geode::OpenGeodeGeosciencesIOModelException::
+                            check_exception( result.size() == 1, nullptr,
+                                geode::OpenGeodeException::TYPE::data,
+                                "[MLInput] Several unique vertices found for "
+                                "the "
+                                "same point" );
                         for( const auto& line_cmv :
                             model_.component_mesh_vertices( vertex ) )
                         {
@@ -399,7 +408,8 @@ namespace
                     done = true;
                     break;
                 }
-                OPENGEODE_ASSERT( done,
+                geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                    done, nullptr, geode::OpenGeodeException::TYPE::data,
                     "[MLInput] All current unique vertices should be "
                     "associated to at least one Line" );
             }
@@ -705,9 +715,9 @@ namespace
                     process_FAULT_BLOCK_keyword( remaining_tokens );
                 }
             }
-            throw geode::OpenGeodeException{
-                "[MLInput] Cannot find the end of component section"
-            };
+            throw geode::OpenGeodeGeosciencesIOModelException{ nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[MLInput] Cannot find the end of component section" };
         }
 
         void create_tsurfs()

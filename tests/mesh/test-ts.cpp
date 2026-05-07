@@ -38,11 +38,13 @@ void check_surface( const geode::SurfaceMesh3D& surface,
     geode::index_t nb_polygons,
     std::string name )
 {
-    OPENGEODE_EXCEPTION( surface.nb_vertices() == nb_vertices,
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        surface.nb_vertices() == nb_vertices,
         "Number of vertices in the TSurf 3D is not correct" );
-    OPENGEODE_EXCEPTION( surface.nb_polygons() == nb_polygons,
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        surface.nb_polygons() == nb_polygons,
         "Number of polygons in the TSurf 3D is not correct" );
-    OPENGEODE_EXCEPTION( surface.name() == name,
+    geode::OpenGeodeGeosciencesIOMeshException::test( surface.name() == name,
         "Wrong name: ", surface.name().value(), " should be ", name );
 }
 
@@ -75,7 +77,7 @@ int main()
 {
     try
     {
-        geode::GeosciencesIOMeshLibrary::initialize();
+        geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
         geode::Logger::set_level( geode::Logger::LEVEL::trace );
         check_file( absl::StrCat( geode::DATA_PATH, "/surf2d_multi.",
                         geode::internal::TSInput::extension() ),

@@ -45,21 +45,21 @@ void test_grid_input()
 
     const auto first_value =
         attribute_to_test->value( grid->cell_index( { 0, 0, 0 } ) );
-    OPENGEODE_EXCEPTION( first_value == 6.48414,
+    geode::OpenGeodeGeosciencesIOMeshException::test( first_value == 6.48414,
         "[TEST] Error in grid attributes, value for attribute 'random' at "
         "cell [0,0,0] is ",
         first_value, " where it should be 6.48414" );
 
     const auto second_value =
         attribute_to_test->value( grid->cell_index( { 5, 0, 9 } ) );
-    OPENGEODE_EXCEPTION( second_value == 8.95907,
+    geode::OpenGeodeGeosciencesIOMeshException::test( second_value == 8.95907,
         "[TEST] Error in grid attributes, value for attribute 'random' at "
         "cell [5,0,9] is ",
         second_value, " where it should be 8.95907" );
 
     const auto third_value =
         attribute_to_test->value( grid->cell_index( { 9, 9, 9 } ) );
-    OPENGEODE_EXCEPTION( third_value == 7.21909,
+    geode::OpenGeodeGeosciencesIOMeshException::test( third_value == 7.21909,
         "[TEST] Error in grid attributes, value for attribute 'random' at "
         "cell [9,9,9] is ",
         third_value, " where it should be 7.21909" );
@@ -69,7 +69,7 @@ int main()
 {
     try
     {
-        geode::GeosciencesIOMeshLibrary::initialize();
+        geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
         geode::Logger::set_level( geode::Logger::LEVEL::debug );
         test_grid_input();
 

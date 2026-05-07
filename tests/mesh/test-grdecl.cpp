@@ -37,13 +37,16 @@ void check_solid( const geode::HybridSolid3D& solid,
     geode::index_t nb_polyhedra,
     geode::index_t nb_vertices )
 {
-    OPENGEODE_EXCEPTION( solid.nb_polyhedra() == nb_polyhedra,
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        solid.nb_polyhedra() == nb_polyhedra,
         "Number of polyhedra in the GrdeclHybridSolid is not correct" );
-    OPENGEODE_EXCEPTION( solid.nb_vertices() == nb_vertices,
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        solid.nb_vertices() == nb_vertices,
         "Number of vertices in the GrdeclHybridSolid is not correct " );
     for( const auto polyhedra : geode::Range{ solid.nb_polyhedra() } )
     {
-        OPENGEODE_EXCEPTION( solid.polyhedron_volume( polyhedra ) > 0.,
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            solid.polyhedron_volume( polyhedra ) > 0.,
             "Found negative volume of polyhedron is not correct" );
     }
 }
@@ -60,7 +63,7 @@ int main()
 {
     try
     {
-        geode::GeosciencesIOMeshLibrary::initialize();
+        geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
         geode::Logger::set_level( geode::Logger::LEVEL::trace );
         check_file( absl::StrCat( geode::DATA_PATH, "Simple20x20x5_Fault.",
                         geode::internal::GRDECLInput::extension() ),

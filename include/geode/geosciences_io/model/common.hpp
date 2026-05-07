@@ -27,8 +27,10 @@
 #include <geode/basic/library.hpp>
 
 #include <geode/geosciences_io/model/opengeode_geosciencesio_model_export.hpp>
+#include <geode/geosciences_io/project.hpp>
 
 namespace geode
 {
-    OPENGEODE_LIBRARY( opengeode_geosciencesio_model_api, GeosciencesIOModel );
+    OPENGEODE_LIBRARY(
+        opengeode_geosciencesio_model_api, OpenGeodeGeosciencesIO, Model );
 } // namespace geode

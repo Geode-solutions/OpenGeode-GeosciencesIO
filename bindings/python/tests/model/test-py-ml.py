@@ -22,44 +22,50 @@
 import os
 import sys
 import platform
+
 if sys.version_info >= (3, 8, 0) and platform.system() == "Windows":
-    for path in [x.strip() for x in os.environ['PATH'].split(';') if x]:
+    for path in [x.strip() for x in os.environ["PATH"].split(";") if x]:
         os.add_dll_directory(path)
 
 import opengeode
 import opengeode_geosciences as geosciences
 import opengeode_geosciencesio_py_model as geosciences_io
 
-if __name__ == '__main__':
-    geosciences_io.GeosciencesIOModelLibrary.initialize()
+if __name__ == "__main__":
+    geosciences_io.OpenGeodeGeosciencesIOModelLibrary.initialize()
     test_dir = os.path.dirname(__file__)
-    data_dir = os.path.abspath(os.path.join(
-        test_dir, "../../../../tests/data"))
+    data_dir = os.path.abspath(os.path.join(test_dir, "../../../../tests/data"))
 
-    model = geosciences.load_structural_model(
-        os.path.join(data_dir, "modelA4.ml"))
+    model = geosciences.load_structural_model(os.path.join(data_dir, "modelA4.ml"))
 
     if model.nb_corners() != 52:
         raise ValueError(
-            "[Test] Number of Corners in the loaded StructuralModel is not correct")
+            "[Test] Number of Corners in the loaded StructuralModel is not correct"
+        )
     if model.nb_lines() != 98:
         raise ValueError(
-            "[Test] Number of Lines in the loaded StructuralModel is not correct")
+            "[Test] Number of Lines in the loaded StructuralModel is not correct"
+        )
     if model.nb_surfaces() != 55:
         raise ValueError(
-            "[Test] Number of Surfaces in the loaded StructuralModel is not correct")
+            "[Test] Number of Surfaces in the loaded StructuralModel is not correct"
+        )
     if model.nb_blocks() != 8:
         raise ValueError(
-            "[Test] Number of Blocks in the loaded StructuralModel is not correct")
+            "[Test] Number of Blocks in the loaded StructuralModel is not correct"
+        )
     if model.nb_faults() != 2:
         raise ValueError(
-            "[Test] Number of Faults in the loaded StructuralModel is not correct")
+            "[Test] Number of Faults in the loaded StructuralModel is not correct"
+        )
     if model.nb_horizons() != 3:
         raise ValueError(
-            "[Test] Number of Horizons in the loaded StructuralModel is not correct")
+            "[Test] Number of Horizons in the loaded StructuralModel is not correct"
+        )
     if model.nb_model_boundaries() != 6:
         raise ValueError(
-            "[Test] Number of ModelBoundary in the loaded StructuralModel is not correct")
+            "[Test] Number of ModelBoundary in the loaded StructuralModel is not correct"
+        )
 
     geosciences.save_structural_model(model, "modelA4.og_strm")
     geosciences.save_structural_model(model, "modelA4_saved.ml")
@@ -67,22 +73,29 @@ if __name__ == '__main__':
 
     if reload.nb_corners() != 52:
         raise ValueError(
-            "[Test] Number of Corners in the reloaded StructuralModel is not correct")
+            "[Test] Number of Corners in the reloaded StructuralModel is not correct"
+        )
     if reload.nb_lines() != 98:
         raise ValueError(
-            "[Test] Number of Lines in the reloaded StructuralModel is not correct")
+            "[Test] Number of Lines in the reloaded StructuralModel is not correct"
+        )
     if reload.nb_surfaces() != 55:
         raise ValueError(
-            "[Test] Number of Surfaces in the reloaded StructuralModel is not correct")
+            "[Test] Number of Surfaces in the reloaded StructuralModel is not correct"
+        )
     if reload.nb_blocks() != 8:
         raise ValueError(
-            "[Test] Number of Blocks in the reloaded StructuralModel is not correct")
+            "[Test] Number of Blocks in the reloaded StructuralModel is not correct"
+        )
     if reload.nb_faults() != 2:
         raise ValueError(
-            "[Test] Number of Faults in the reloaded StructuralModel is not correct")
+            "[Test] Number of Faults in the reloaded StructuralModel is not correct"
+        )
     if reload.nb_horizons() != 3:
         raise ValueError(
-            "[Test] Number of Horizons in the reloaded StructuralModel is not correct")
+            "[Test] Number of Horizons in the reloaded StructuralModel is not correct"
+        )
     if reload.nb_model_boundaries() != 6:
         raise ValueError(
-            "[Test] Number of ModelBoundary in the reloaded StructuralModel is not correct")
+            "[Test] Number of ModelBoundary in the reloaded StructuralModel is not correct"
+        )

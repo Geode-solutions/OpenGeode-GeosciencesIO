@@ -103,8 +103,8 @@ namespace geode
 
             std::shared_ptr< VariableAttribute< index_t > > region_attribute_{};
 
-            DEBUG_CONST std::string files_directory_;
-            DEBUG_CONST std::string prefix_;
+            std::string files_directory_;
+            std::string prefix_;
 
             std::vector< std::string > cell_1Dproperty_names_{};
             std::vector< std::string > cell_2Dproperty_names_{};
