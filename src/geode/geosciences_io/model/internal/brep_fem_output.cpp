@@ -106,27 +106,41 @@ namespace
             std::string_view attribute_name,
             double default_value ) const
         {
+            auto solid_attribute_id =
+                tet_solid.facets()
+                    .facet_attribute_manager()
+                    .create_attribute< geode::VariableAttribute, double >(
+                        attribute_name, default_value,
+                        geode::AttributeProperties{} );
             auto solid_attribute =
                 tet_solid.facets()
                     .facet_attribute_manager()
-                    .find_or_create_attribute< geode::VariableAttribute,
-                        double >( attribute_name, default_value );
+                    .find_attribute< geode::VariableAttribute, double >(
+                        solid_attribute_id );
+            auto solid_surface_name_attribute_id =
+                tet_solid.facets()
+                    .facet_attribute_manager()
+                    .create_attribute< geode::VariableAttribute, std::string >(
+                        SURFACE_NAME_ATTRIBUTE, "No_name",
+                        geode::AttributeProperties{} );
             auto solid_surface_name_attribute =
                 tet_solid.facets()
                     .facet_attribute_manager()
-                    .find_or_create_attribute< geode::VariableAttribute,
-                        std::string >( SURFACE_NAME_ATTRIBUTE, "No_name" );
+                    .find_attribute< geode::VariableAttribute, std::string >(
+                        solid_surface_name_attribute_id );
             for( const auto& surface : brep_.surfaces() )
             {
                 const auto& mesh = surface.mesh();
-                if( !mesh.polygon_attribute_manager().attribute_exists(
-                        attribute_name ) )
+                const auto attribute_ids =
+                    mesh.polygon_attribute_manager()
+                        .attribute_ids_matching_name( attribute_name );
+                if( !attribute_ids.has_value() )
                 {
                     continue;
                 }
                 const auto& surface_attribute =
                     mesh.polygon_attribute_manager().find_generic_attribute(
-                        attribute_name );
+                        attribute_ids.value().front() );
                 for( const auto polygon : geode::Range{ mesh.nb_polygons() } )
                 {
                     const auto facets_in_solid =
@@ -154,8 +168,9 @@ namespace
             for( const auto& surface : brep_.surfaces() )
             {
                 const auto& mesh = surface.mesh();
-                if( mesh.polygon_attribute_manager().attribute_exists(
-                        APERTURE_ATTRIBUTE_NAME ) )
+                if( mesh.polygon_attribute_manager()
+                        .attribute_ids_matching_name( APERTURE_ATTRIBUTE_NAME )
+                        .has_value() )
                 {
                     paint_facets_attribute( tet_solid, model_to_mesh_mapping,
                         APERTURE_ATTRIBUTE_NAME, -1.0 );
@@ -171,27 +186,41 @@ namespace
             std::string_view attribute_name,
             double default_value ) const
         {
-            const auto& solid_attribute =
+            const auto solid_attribute_id =
                 tet_solid.edges()
                     .edge_attribute_manager()
-                    .find_or_create_attribute< geode::VariableAttribute,
-                        double >( attribute_name, default_value );
+                    .create_attribute< geode::VariableAttribute, double >(
+                        attribute_name, default_value,
+                        geode::AttributeProperties{} );
+            auto solid_attribute =
+                tet_solid.edges()
+                    .edge_attribute_manager()
+                    .find_attribute< geode::VariableAttribute, double >(
+                        solid_attribute_id );
+            const auto solid_line_name_attribute_id =
+                tet_solid.edges()
+                    .edge_attribute_manager()
+                    .create_attribute< geode::VariableAttribute, std::string >(
+                        LINE_NAME_ATTRIBUTE, "No_name",
+                        geode::AttributeProperties{} );
             auto solid_line_name_attribute =
                 tet_solid.edges()
                     .edge_attribute_manager()
-                    .find_or_create_attribute< geode::VariableAttribute,
-                        std::string >( LINE_NAME_ATTRIBUTE, "No_name" );
+                    .find_attribute< geode::VariableAttribute, std::string >(
+                        solid_line_name_attribute_id );
             for( const auto& line : brep_.lines() )
             {
                 const auto& mesh = line.mesh();
-                if( !mesh.edge_attribute_manager().attribute_exists(
-                        attribute_name ) )
+                const auto attribute_ids =
+                    mesh.edge_attribute_manager().attribute_ids_matching_name(
+                        attribute_name );
+                if( !attribute_ids.has_value() )
                 {
                     continue;
                 }
                 const auto& line_attribute =
                     mesh.edge_attribute_manager().find_generic_attribute(
-                        attribute_name );
+                        attribute_ids.value().front() );
                 for( const auto edge : geode::Range{ mesh.nb_edges() } )
                 {
                     const auto edges_in_solid =
@@ -219,8 +248,10 @@ namespace
             for( const auto& line : brep_.lines() )
             {
                 const auto& mesh = line.mesh();
-                if( mesh.edge_attribute_manager().attribute_exists(
-                        CONDUIT_AREA_ATTRIBUTE_NAME ) )
+                if( mesh.edge_attribute_manager()
+                        .attribute_ids_matching_name(
+                            CONDUIT_AREA_ATTRIBUTE_NAME )
+                        .has_value() )
                 {
                     paint_line_attribute( tet_solid, model_to_mesh_mapping,
                         CONDUIT_AREA_ATTRIBUTE_NAME, -1.0 );
@@ -235,10 +266,15 @@ namespace
             const geode::TetrahedralSolid3D& tet_solid,
             const geode::ModelToMeshMappings& model_to_mesh_mapping ) const
         {
+            auto attribute_p_id =
+                tet_solid.polyhedron_attribute_manager()
+                    .create_attribute< geode::VariableAttribute, std::string >(
+                        "Block_ID_polyhedron", "No_name",
+                        geode::AttributeProperties{} );
             auto attribute_p =
                 tet_solid.polyhedron_attribute_manager()
-                    .find_or_create_attribute< geode::VariableAttribute,
-                        std::string >( "Block_ID_polyhedron", "No_name" );
+                    .find_attribute< geode::VariableAttribute, std::string >(
+                        attribute_p_id );
             for( const auto& block : brep_.blocks() )
             {
                 for( const auto polyhedron_id :
@@ -262,10 +298,15 @@ namespace
             const geode::TetrahedralSolid3D& tet_solid,
             const geode::ModelToMeshMappings& model_to_mesh_mapping ) const
         {
+            auto attribute_v_id =
+                tet_solid.vertex_attribute_manager()
+                    .create_attribute< geode::VariableAttribute,
+                        std::vector< std::string > >(
+                        "Block_ID_vertex", {}, geode::AttributeProperties{} );
             auto attribute_v =
                 tet_solid.vertex_attribute_manager()
-                    .find_or_create_attribute< geode::VariableAttribute,
-                        std::vector< std::string > >( "Block_ID_vertex", {} );
+                    .find_attribute< geode::VariableAttribute,
+                        std::vector< std::string > >( attribute_v_id );
             for( const auto& block : brep_.blocks() )
             {
                 for( const auto vertex_id :
@@ -291,12 +332,12 @@ namespace
             for( const auto& block : brep_.blocks() )
             {
                 const auto& mesh = block.mesh();
-                for( const auto& attribute_name :
-                    mesh.polyhedron_attribute_manager().attribute_names() )
+                for( const auto& attribute_id :
+                    mesh.polyhedron_attribute_manager().attribute_ids() )
                 {
                     const auto& block_polyhedron_attribute =
                         mesh.polyhedron_attribute_manager()
-                            .find_generic_attribute( attribute_name );
+                            .find_generic_attribute( attribute_id );
                     if( !block_polyhedron_attribute )
                     {
                         continue;
@@ -312,12 +353,17 @@ namespace
                     {
                         continue;
                     }
+                    auto solid_polyhedron_attribute_id =
+                        solid.polyhedron_attribute_manager()
+                            .create_attribute< geode::VariableAttribute,
+                                double >(
+                                block_polyhedron_attribute->name().value(),
+                                block_polyhedron_attribute->generic_value( 0 ),
+                                block_polyhedron_attribute->properties() );
                     auto solid_polyhedron_attribute =
                         solid.polyhedron_attribute_manager()
-                            .find_or_create_attribute< geode::VariableAttribute,
-                                double >( attribute_name,
-                                block_polyhedron_attribute->generic_value(
-                                    0 ) );
+                            .find_attribute< geode::VariableAttribute, double >(
+                                solid_polyhedron_attribute_id );
                     for( const auto polyhedron :
                         geode::Range{ mesh.nb_polyhedra() } )
                     {

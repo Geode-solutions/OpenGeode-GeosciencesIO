@@ -73,18 +73,52 @@ namespace
               builder_{ model },
               solid_{ geode::TetrahedralSolid3D::create() },
               solid_builder_{ geode::TetrahedralSolidBuilder3D::create(
-                  *solid_ ) },
-              vertex_id_{ solid_->vertex_attribute_manager()
-                      .find_or_create_attribute< geode::VariableAttribute,
-                          geode::index_t >( "vertex_id", geode::NO_ID ) },
-              block_name_attribute_{ solid_->polyhedron_attribute_manager()
-                      .find_or_create_attribute< geode::VariableAttribute,
-                          std::string >( BLOCK_NAME_ATTRIBUTE_NAME, "" ) }
+                  *solid_ ) }
+
         {
             solid_->enable_facets();
+            const auto vertex_attribute_id_id =
+                solid_->vertex_attribute_manager()
+                    .create_attribute< geode::VariableAttribute,
+                        geode::index_t >( "vertex_id", geode::NO_ID,
+                        geode::AttributeProperties{} );
+            vertex_id_ =
+                solid_->vertex_attribute_manager()
+                    .find_attribute< geode::VariableAttribute, geode::index_t >(
+                        vertex_attribute_id_id );
+            const auto block_name_attribute_id =
+                solid_->polyhedron_attribute_manager()
+                    .create_attribute< geode::VariableAttribute, std::string >(
+                        BLOCK_NAME_ATTRIBUTE_NAME, "",
+                        geode::AttributeProperties{} );
+            block_name_attribute_ =
+                solid_->polyhedron_attribute_manager()
+                    .find_attribute< geode::VariableAttribute, std::string >(
+                        block_name_attribute_id );
+            const auto facet_id_attribute_id =
+                solid_->facets()
+                    .facet_attribute_manager()
+                    .create_attribute< geode::VariableAttribute, geode::uuid >(
+                        "facet_id", default_id_, geode::AttributeProperties{} );
+            facet_id_ =
+                solid_->facets()
+                    .facet_attribute_manager()
+                    .find_attribute< geode::VariableAttribute, geode::uuid >(
+                        facet_id_attribute_id );
             geode::OpenGeodeGeosciencesIOModelException::check_exception(
                 file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "[LSOInput] Error while opening file: ", filename );
+        }
+
+        ~LSOInputImpl()
+        {
+            solid_->vertex_attribute_manager().delete_attribute(
+                vertex_id_->id() );
+            solid_->polyhedron_attribute_manager().delete_attribute(
+                block_name_attribute_->id() );
+            solid_->facets().facet_attribute_manager().delete_attribute(
+                facet_id_->id() );
+            solid_->disable_facets();
         }
 
         bool read_file()
@@ -227,10 +261,6 @@ namespace
             {
                 geode::goto_keyword( file_, "MODEL" );
             }
-            facet_id_ = solid_->facets()
-                            .facet_attribute_manager()
-                            .find_or_create_attribute< geode::VariableAttribute,
-                                geode::uuid >( "facet_id", default_id_ );
             std::getline( file_, line_ );
             while( geode::string_starts_with( line_, "SURFACE" ) )
             {

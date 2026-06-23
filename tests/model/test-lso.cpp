@@ -80,15 +80,15 @@ void check_model( const geode::StructuralModel& model,
         "loaded StructuralModel is not correct" );
     for( const auto& block : model.blocks() )
     {
-        const auto block_attribute_names =
-            block.mesh().vertex_attribute_manager().attribute_names();
+        const auto block_attribute_ids =
+            block.mesh().vertex_attribute_manager().attribute_ids();
         geode::OpenGeodeGeosciencesIOModelException::test(
-            block_attribute_names.size()
+            block_attribute_ids.size()
                 == nb_vertices_attributes + nb_mandatory_attributes,
             "Number of Block attributes in the loaded "
             "StructuralModel is not correct: expected ",
             nb_vertices_attributes + nb_mandatory_attributes,
-            " attributes, got ", block_attribute_names.size(), " attributes." );
+            " attributes, got ", block_attribute_ids.size(), " attributes." );
     }
 }
 
@@ -115,17 +115,17 @@ void test_file( std::string file,
         const auto reload_block_mesh =
             geode::load_tetrahedral_solid< 3 >( block_mesh_filename );
 
-        for( const auto name :
-            block_mesh.vertex_attribute_manager().attribute_names() )
+        for( const auto ids :
+            block_mesh.vertex_attribute_manager().attribute_ids() )
         {
             geode::OpenGeodeGeosciencesIOModelException::test(
                 reload_block_mesh->vertex_attribute_manager().attribute_exists(
-                    name ) );
+                    ids ) );
             geode::OpenGeodeGeosciencesIOModelException::test(
                 reload_block_mesh->vertex_attribute_manager().attribute_type(
-                    name )
+                    ids )
                     == block_mesh.vertex_attribute_manager().attribute_type(
-                        name ),
+                        ids ),
                 "Wrong attribute type for reloaded mesh" );
         }
 

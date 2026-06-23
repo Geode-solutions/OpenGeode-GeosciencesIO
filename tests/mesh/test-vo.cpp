@@ -39,9 +39,11 @@ void test_grid_input()
 {
     const auto grid = geode::load_regular_grid< 3 >(
         absl::StrCat( geode::DATA_PATH, "test.vo" ) );
-
+    auto attribute_ids =
+        grid->cell_attribute_manager().attribute_ids_matching_name( "random" );
     auto attribute_to_test =
-        grid->cell_attribute_manager().find_attribute< double >( "random" );
+        grid->cell_attribute_manager().find_read_only_attribute< double >(
+            attribute_ids.value().front() );
 
     const auto first_value =
         attribute_to_test->value( grid->cell_index( { 0, 0, 0 } ) );

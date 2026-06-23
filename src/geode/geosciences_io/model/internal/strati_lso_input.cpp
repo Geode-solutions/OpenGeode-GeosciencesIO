@@ -51,9 +51,14 @@ namespace
             for( const auto& block : model.blocks() )
             {
                 auto& manager = block.mesh().vertex_attribute_manager();
+                const auto strati_attribute_ids =
+                    manager.attribute_ids_matching_name(
+                        STRATI_ATTRIBUTE_NAME );
+                const auto geol_attribute_ids =
+                    manager.attribute_ids_matching_name( GEOL_ATTRIBUTE_NAME );
                 geode::OpenGeodeGeosciencesIOModelException::check_exception(
-                    manager.attribute_exists( STRATI_ATTRIBUTE_NAME )
-                        && manager.attribute_exists( GEOL_ATTRIBUTE_NAME ),
+                    strati_attribute_ids.has_value()
+                        && geol_attribute_ids.has_value(),
                     nullptr, geode::OpenGeodeException::TYPE::data,
                     "[ImplicitLSOInput] Could not find the properties "
                     "associated to StratigraphicModeling in the file, "
@@ -69,10 +74,11 @@ namespace
                     "uuid '",
                     block.id().string(), "'." );
                 const auto strati_attribute =
-                    manager.find_attribute< double >( STRATI_ATTRIBUTE_NAME );
+                    manager.find_read_only_attribute< double >(
+                        strati_attribute_ids.value().front() );
                 const auto geol_attribute =
-                    manager.find_attribute< std::array< double, 2 > >(
-                        GEOL_ATTRIBUTE_NAME );
+                    manager.find_read_only_attribute< std::array< double, 2 > >(
+                        geol_attribute_ids.value().front() );
                 for( const auto vertex_id :
                     geode::Range{ block.mesh().nb_vertices() } )
                 {
