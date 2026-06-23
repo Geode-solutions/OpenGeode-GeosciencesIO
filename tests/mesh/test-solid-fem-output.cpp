@@ -39,10 +39,14 @@ namespace
     {
         auto tet_solid = geode::load_tetrahedral_solid< 3 >(
             absl::StrCat( geode::DATA_PATH, "bmsh_342.og_tso3d" ) );
-        const auto attribute =
+        const auto attribute_id =
             tet_solid->polyhedron_attribute_manager()
-                .find_or_create_attribute< geode::VariableAttribute,
-                    geode::index_t >( "geode_aspect_ratio", 10 );
+                .create_attribute< geode::VariableAttribute, geode::index_t >(
+                    "geode_aspect_ratio", 10, geode::AttributeProperties{} );
+        auto attribute =
+            tet_solid->polyhedron_attribute_manager()
+                .find_attribute< geode::VariableAttribute, geode::index_t >(
+                    attribute_id );
         geode_unused( attribute );
         geode::save_tetrahedral_solid( *tet_solid, "test.fem" );
     }

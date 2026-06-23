@@ -177,12 +177,18 @@ namespace
             absl::FixedArray<
                 std::shared_ptr< geode::VariableAttribute< double > > >
                 data_attributes( tokens.size() - 4 );
-            for( const auto attribute_id : geode::Indices{ data_attributes } )
+            for( const auto attribute_index :
+                geode::Indices{ data_attributes } )
             {
-                data_attributes[attribute_id] =
+                const auto attribute_id =
                     grid_.cell_attribute_manager()
-                        .find_or_create_attribute< geode::VariableAttribute,
-                            double >( tokens[4 + attribute_id], 0 );
+                        .create_attribute< geode::VariableAttribute, double >(
+                            tokens[4 + attribute_index], 0,
+                            geode::AttributeProperties{} );
+                data_attributes[attribute_index] =
+                    grid_.cell_attribute_manager()
+                        .find_attribute< geode::VariableAttribute, double >(
+                            attribute_id );
             }
             std::getline( data_file, line );
             while( std::getline( data_file, line ) )

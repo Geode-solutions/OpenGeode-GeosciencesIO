@@ -305,9 +305,13 @@ namespace
         absl::Span< const geode::index_t > inverse_mapping,
         Container value_array )
     {
-        auto attribute = attribute_manager.template find_or_create_attribute<
+        const auto attribute_id = attribute_manager.template create_attribute<
             geode::VariableAttribute, Container >(
-            attribute_name, value_array );
+            attribute_name, value_array, geode::AttributeProperties{} );
+        auto attribute =
+            attribute_manager
+                .find_attribute< geode::VariableAttribute, Container >(
+                    attribute_id );
         for( const auto pt_id : geode::Range{ nb_vertices } )
         {
             for( const auto item_id : geode::LRange{ value_array.size() } )
@@ -499,10 +503,16 @@ namespace geode
                     attributes_header.esizes[attr_id];
                 if( nb_attribute_items == 1 )
                 {
-                    auto attribute = attribute_manager.find_or_create_attribute<
-                        geode::VariableAttribute, double >(
-                        attributes_header.names[attr_id],
-                        attributes_header.no_data_values[attr_id] );
+                    const auto attribute_id =
+                        attribute_manager.create_attribute<
+                            geode::VariableAttribute, double >(
+                            attributes_header.names[attr_id],
+                            attributes_header.no_data_values[attr_id],
+                            AttributeProperties{} );
+                    auto attribute =
+                        attribute_manager
+                            .find_attribute< geode::VariableAttribute, double >(
+                                attribute_id );
                     for( const auto pt_id : geode::Range{ nb_vertices } )
                     {
                         attribute->set_value( pt_id,
