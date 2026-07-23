@@ -229,7 +229,7 @@ namespace
 
         void write_property( geode::AttributeBase& attribute )
         {
-            file_ << attribute.name() << EOL;
+            file_ << attribute.name().value() << EOL;
             absl::flat_hash_map< double, std::vector< geode::index_t > >
                 attribute_distribution =
                     create_attribute_distribution( attribute );
@@ -272,15 +272,15 @@ namespace
             geode::index_t nb_vertex_att{ 3 };
             std::vector< std::shared_ptr< geode::AttributeBase > > attributes;
             attributes.reserve(
-                solid_.vertex_attribute_manager().attribute_names().size() );
-            for( const auto name :
-                solid_.vertex_attribute_manager().attribute_names() )
+                solid_.vertex_attribute_manager().attribute_ids().size() );
+            for( const auto id :
+                solid_.vertex_attribute_manager().attribute_ids() )
             {
                 const auto attribute =
                     solid_.vertex_attribute_manager().find_generic_attribute(
-                        name );
+                        id );
                 if( !attribute || !attribute->is_genericable()
-                    || name == "points" )
+                    || attribute->name().value() == "points" )
                 {
                     continue;
                 }
@@ -319,14 +319,17 @@ namespace
 
         void write_porosity()
         {
-            if( !solid_.polyhedron_attribute_manager().attribute_exists(
-                    "Porosity" ) )
+            const auto porosity_attribute_ids =
+                solid_.polyhedron_attribute_manager()
+                    .attribute_ids_matching_name( "Porosity" );
+            if( !porosity_attribute_ids.has_value() )
             {
                 return;
             }
             const auto& porosity_attribute =
-                solid_.polyhedron_attribute_manager().find_attribute< double >(
-                    "Porosity" );
+                solid_.polyhedron_attribute_manager()
+                    .find_read_only_attribute< double >(
+                        porosity_attribute_ids.value().front() );
             if( !porosity_attribute )
             {
                 return;
@@ -416,20 +419,20 @@ namespace
         {
             file_ << "REF_DISE_I" << EOL;
             int nb_elem_att =
-                solid_.polyhedron_attribute_manager().attribute_names().size()
+                solid_.polyhedron_attribute_manager().attribute_ids().size()
                 - 3;
             file_ << SPACE << nb_elem_att << "," << SPACE
                   << solid_.nb_polyhedra() << ","
                   << " 0" << EOL;
-            for( const auto name :
-                solid_.polyhedron_attribute_manager().attribute_names() )
+            for( const auto id :
+                solid_.polyhedron_attribute_manager().attribute_ids() )
             {
                 const auto attribute = solid_.polyhedron_attribute_manager()
-                                           .find_generic_attribute( name );
+                                           .find_generic_attribute( id );
                 if( !attribute || !attribute->is_genericable()
-                    || name == "tetrahedron_vertices"
-                    || name == "tetrahedron_adjacents"
-                    || name == "geode_active" )
+                    || attribute->name().value() == "tetrahedron_vertices"
+                    || attribute->name().value() == "tetrahedron_adjacents"
+                    || attribute->name().value() == "geode_active" )
                 {
                     continue;
                 }
@@ -439,13 +442,15 @@ namespace
 
         void write_nodal_sets()
         {
-            if( solid_.vertex_attribute_manager().attribute_exists(
-                    "Block_ID_vertex" ) )
+            const auto block_id_vertex_attribute_ids =
+                solid_.vertex_attribute_manager().attribute_ids_matching_name(
+                    "Block_ID_vertex" );
+            if( block_id_vertex_attribute_ids.has_value() )
             {
                 auto attribute_v =
                     solid_.vertex_attribute_manager()
-                        .find_attribute< std::vector< std::string > >(
-                            "Block_ID_vertex" );
+                        .find_read_only_attribute< std::vector< std::string > >(
+                            block_id_vertex_attribute_ids.value().front() );
                 file_ << "NODALSETS" << EOL;
                 const auto vertex_regions =
                     create_region_map( *attribute_v, false );
@@ -459,13 +464,16 @@ namespace
 
         void write_element_sets()
         {
-            if( solid_.polyhedron_attribute_manager().attribute_exists(
-                    "Block_ID_polyhedron" ) )
+            const auto block_id_polyhedron_attribute_ids =
+                solid_.polyhedron_attribute_manager()
+                    .attribute_ids_matching_name( "Block_ID_polyhedron" );
+            if( block_id_polyhedron_attribute_ids.has_value() )
             {
                 file_ << "ELEMENTALSETS" << EOL;
                 auto attribute_p =
                     solid_.polyhedron_attribute_manager()
-                        .find_attribute< std::string >( "Block_ID_polyhedron" );
+                        .find_read_only_attribute< std::string >(
+                            block_id_polyhedron_attribute_ids.value().front() );
                 const auto elem_regions =
                     create_region_map( *attribute_p, true );
                 for( const auto& elem_region : elem_regions )
@@ -652,8 +660,10 @@ namespace
                 {
                     return false;
                 }
-                if( !solid_.facets().facet_attribute_manager().attribute_exists(
-                        APERTURE_ATTRIBUTE_NAME ) )
+                if( !solid_.facets()
+                        .facet_attribute_manager()
+                        .attribute_ids_matching_name( APERTURE_ATTRIBUTE_NAME )
+                        .has_value() )
                 {
                     return false;
                 }
@@ -665,15 +675,28 @@ namespace
                 auto& feature2D_group =
                     features_.features2D_groups.emplace_back(
                         FEATURE2D_GROUP_NAME );
+                const auto aperture_attribute_id =
+                    solid_.facets()
+                        .facet_attribute_manager()
+                        .attribute_ids_matching_name( APERTURE_ATTRIBUTE_NAME )
+                        .value()
+                        .at( 0 );
                 const auto aperture_attribute =
                     solid_.facets()
                         .facet_attribute_manager()
-                        .find_attribute< double >( APERTURE_ATTRIBUTE_NAME );
+                        .find_read_only_attribute< double >(
+                            aperture_attribute_id );
+                const auto conductivity_attribute_id =
+                    solid_.facets()
+                        .facet_attribute_manager()
+                        .create_attribute< geode::VariableAttribute, double >(
+                            CONDUCTIVITY_ATTRIBUTE_NAME, -1.0,
+                            geode::AttributeProperties{} );
                 const auto conductivity_attribute =
                     solid_.facets()
                         .facet_attribute_manager()
-                        .find_or_create_attribute< geode::VariableAttribute,
-                            double >( CONDUCTIVITY_ATTRIBUTE_NAME, -1.0 );
+                        .find_attribute< geode::VariableAttribute, double >(
+                            conductivity_attribute_id );
                 bool some_features_built{ false };
                 for( const auto facet :
                     geode::Range{ solid_.facets().nb_facets() } )
@@ -746,8 +769,10 @@ namespace
                 geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                     some_features_built, nullptr,
                     geode::OpenGeodeException::TYPE::data,
-                    "No 2D feature built. Please verify that your model "
-                    "contains diagres_discontinuity_aperture property." );
+                    "No 2D feature built. Please verify that your "
+                    "model "
+                    "contains diagres_discontinuity_aperture "
+                    "property." );
             }
 
             bool must_build_1d_feature_groups() const
@@ -756,8 +781,11 @@ namespace
                 {
                     return false;
                 }
-                if( !solid_.edges().edge_attribute_manager().attribute_exists(
-                        CONDUIT_AREA_ATTRIBUTE_NAME ) )
+                if( !solid_.edges()
+                        .edge_attribute_manager()
+                        .attribute_ids_matching_name(
+                            CONDUIT_AREA_ATTRIBUTE_NAME )
+                        .has_value() )
                 {
                     return false;
                 }
@@ -769,16 +797,29 @@ namespace
                 auto& feature1D_group =
                     features_.features1D_groups.emplace_back(
                         FEATURE1D_GROUP_NAME );
+                const auto conduit_area_attribute_id =
+                    solid_.edges()
+                        .edge_attribute_manager()
+                        .attribute_ids_matching_name(
+                            CONDUIT_AREA_ATTRIBUTE_NAME )
+                        .value()
+                        .at( 0 );
                 const auto conduit_area_attribute =
                     solid_.edges()
                         .edge_attribute_manager()
-                        .find_attribute< double >(
-                            CONDUIT_AREA_ATTRIBUTE_NAME );
-                const auto conductivity_attribute =
+                        .find_read_only_attribute< double >(
+                            conduit_area_attribute_id );
+                const auto conductivity_attribute_id =
                     solid_.edges()
                         .edge_attribute_manager()
-                        .find_or_create_attribute< geode::VariableAttribute,
-                            double >( CONDUCTIVITY_ATTRIBUTE_NAME, -1.0 );
+                        .create_attribute< geode::VariableAttribute, double >(
+                            CONDUCTIVITY_ATTRIBUTE_NAME, -1.0,
+                            geode::AttributeProperties{} );
+                auto conductivity_attribute =
+                    solid_.edges()
+                        .edge_attribute_manager()
+                        .find_attribute< geode::VariableAttribute, double >(
+                            conductivity_attribute_id );
                 bool some_features_built{ false };
                 for( const auto edge :
                     geode::Range{ solid_.edges().nb_edges() } )

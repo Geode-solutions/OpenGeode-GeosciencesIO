@@ -72,35 +72,36 @@ namespace
 
         void write_prop_header()
         {
-            const auto names =
-                pointset_.vertex_attribute_manager().attribute_names();
+            const auto ids =
+                pointset_.vertex_attribute_manager().attribute_ids();
             geode::internal::PropHeaderData prop_header;
             std::vector< geode::internal::PropClassHeaderData >
                 header_properties_data;
-            header_properties_data.reserve( names.size() );
-            generic_att_.reserve( names.size() );
-            if( !names.empty() )
+            header_properties_data.reserve( ids.size() );
+            generic_att_.reserve( ids.size() );
+            if( !ids.empty() )
             {
                 VRTX_KEYWORD = "PVRTX";
             }
 
-            for( const auto& name : names )
+            for( const auto& id : ids )
             {
                 const auto attribute =
                     pointset_.vertex_attribute_manager().find_generic_attribute(
-                        name );
+                        id );
                 if( !attribute || !attribute->is_genericable()
-                    || name == "points" )
+                    || attribute->name().value() == "points" )
                 {
                     continue;
                 }
                 generic_att_.push_back( attribute );
-                prop_header.names.emplace_back( geode::to_string( name ) );
+                prop_header.names.emplace_back(
+                    geode::to_string( attribute->name().value() ) );
                 prop_header.prop_legal_ranges.push_back(
                     std::make_pair( "**none**", "**none**" ) );
                 prop_header.no_data_values.push_back( -99999. );
                 prop_header.property_classes.emplace_back(
-                    geode::to_string( name ) );
+                    geode::to_string( attribute->name().value() ) );
                 prop_header.kinds.push_back( "Real Number" );
                 prop_header.property_subclass.push_back(
                     std::make_pair( "QUANTITY", "Float" ) );
@@ -108,7 +109,8 @@ namespace
                 prop_header.units.push_back( "unitless" );
 
                 geode::internal::PropClassHeaderData tmp_prop_class_header;
-                tmp_prop_class_header.name = geode::to_string( name );
+                tmp_prop_class_header.name =
+                    geode::to_string( attribute->name().value() );
 
                 header_properties_data.push_back( tmp_prop_class_header );
             }

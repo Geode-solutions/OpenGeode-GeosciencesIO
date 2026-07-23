@@ -158,10 +158,14 @@ namespace
             attributes_.reserve( header_.attribute_names.size() );
             for( const auto& attr_name : header_.attribute_names )
             {
+                const auto attribute_id =
+                    curve_.vertex_attribute_manager()
+                        .template create_attribute< geode::VariableAttribute,
+                            double >(
+                            attr_name, 0, geode::AttributeProperties{} );
                 attributes_.push_back( curve_.vertex_attribute_manager()
-                        .template find_or_create_attribute<
-                            geode::VariableAttribute, double >(
-                            attr_name, 0 ) );
+                        .find_attribute< geode::VariableAttribute, double >(
+                            attribute_id ) );
             }
         }
 
