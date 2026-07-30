@@ -81,11 +81,18 @@ namespace geode
             model_surface_ = std::move( std::get< 0 >( surface_conversion ) );
             std::tie( model_solid_, model2solid_ ) =
                 convert_brep_into_solid( model_ );
+            AttributeValues< index_t > region_attribute_values;
+            region_attribute_values.default_value = NO_ID;
+            region_attribute_values.no_value = NO_ID;
+            AttributeProperties region_attribute_properties;
+            region_attribute_properties.assignable = false;
+            region_attribute_properties.interpolable = false;
+            region_attribute_properties.transferable = true;
             const auto region_attribute_id =
                 model_solid_->polyhedron_attribute_manager()
                     .template create_attribute< VariableAttribute, index_t >(
-                        REGION_ID_ATTRIBUTE_NAME, NO_ID,
-                        geode::AttributeProperties{} );
+                        REGION_ID_ATTRIBUTE_NAME, region_attribute_values,
+                        region_attribute_properties );
             region_attribute_ =
                 model_solid_->polyhedron_attribute_manager()
                     .find_attribute< VariableAttribute, index_t >(
@@ -330,12 +337,21 @@ namespace geode
         template < typename Model >
         void GeosExporterImpl< Model >::transfer_cell_properties()
         {
+            AttributeProperties solid_attribute_properties;
+            solid_attribute_properties.assignable = false;
+            solid_attribute_properties.interpolable = false;
+            solid_attribute_properties.transferable = true;
             for( const auto& property_name : cell_1Dproperty_names_ )
             {
+                AttributeValues< double > solid_attribute_values;
+                solid_attribute_values.default_value = 0;
+                solid_attribute_values.no_value = 0;
+
                 auto solid_property_id =
                     model_solid_->polyhedron_attribute_manager()
                         .template create_attribute< VariableAttribute, double >(
-                            property_name, 0., geode::AttributeProperties{} );
+                            property_name, solid_attribute_values,
+                            solid_attribute_properties );
                 auto solid_property =
                     model_solid_->polyhedron_attribute_manager()
                         .find_attribute< VariableAttribute, double >(
@@ -365,11 +381,16 @@ namespace geode
             }
             for( const auto& property_name : cell_2Dproperty_names_ )
             {
+                AttributeValues< std::array< double, 2 > >
+                    solid_attribute_values;
+                solid_attribute_values.default_value = { 0, 0 };
+                solid_attribute_values.no_value = { 0, 0 };
                 auto solid_property_id =
                     model_solid_->polyhedron_attribute_manager()
                         .template create_attribute< VariableAttribute,
                             std::array< double, 2 > >( property_name,
-                            { 0., 0. }, geode::AttributeProperties{} );
+                            solid_attribute_values,
+                            solid_attribute_properties );
                 auto solid_property =
                     model_solid_->polyhedron_attribute_manager()
                         .find_attribute< VariableAttribute,
@@ -400,11 +421,16 @@ namespace geode
             }
             for( const auto& property_name : cell_3Dproperty_names_ )
             {
+                AttributeValues< std::array< double, 3 > >
+                    solid_attribute_values;
+                solid_attribute_values.default_value = { 0, 0, 0 };
+                solid_attribute_values.no_value = { 0, 0, 0 };
                 auto solid_property_id =
                     model_solid_->polyhedron_attribute_manager()
                         .template create_attribute< VariableAttribute,
                             std::array< double, 3 > >( property_name,
-                            { 0., 0., 0. }, geode::AttributeProperties{} );
+                            solid_attribute_values,
+                            solid_attribute_properties );
                 auto solid_property =
                     model_solid_->polyhedron_attribute_manager()
                         .find_attribute< VariableAttribute,

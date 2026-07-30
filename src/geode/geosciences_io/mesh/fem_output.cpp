@@ -686,12 +686,20 @@ namespace
                         .facet_attribute_manager()
                         .find_read_only_attribute< double >(
                             aperture_attribute_id );
+                geode::AttributeValues< double > conductivity_attribute_values;
+                conductivity_attribute_values.default_value = -1.0;
+                conductivity_attribute_values.no_value = -1.0;
+                geode::AttributeProperties conductivity_attribute_properties;
+                conductivity_attribute_properties.assignable = false;
+                conductivity_attribute_properties.interpolable = false;
+                conductivity_attribute_properties.transferable = true;
                 const auto conductivity_attribute_id =
                     solid_.facets()
                         .facet_attribute_manager()
                         .create_attribute< geode::VariableAttribute, double >(
-                            CONDUCTIVITY_ATTRIBUTE_NAME, -1.0,
-                            geode::AttributeProperties{} );
+                            CONDUCTIVITY_ATTRIBUTE_NAME,
+                            conductivity_attribute_values,
+                            conductivity_attribute_properties );
                 const auto conductivity_attribute =
                     solid_.facets()
                         .facet_attribute_manager()
@@ -809,12 +817,20 @@ namespace
                         .edge_attribute_manager()
                         .find_read_only_attribute< double >(
                             conduit_area_attribute_id );
+                geode::AttributeValues< double > conductivity_attribute_values;
+                conductivity_attribute_values.default_value = -1.0;
+                conductivity_attribute_values.no_value = -1.0;
+                geode::AttributeProperties conductivity_attribute_properties;
+                conductivity_attribute_properties.assignable = false;
+                conductivity_attribute_properties.interpolable = false;
+                conductivity_attribute_properties.transferable = true;
                 const auto conductivity_attribute_id =
                     solid_.edges()
                         .edge_attribute_manager()
                         .create_attribute< geode::VariableAttribute, double >(
-                            CONDUCTIVITY_ATTRIBUTE_NAME, -1.0,
-                            geode::AttributeProperties{} );
+                            CONDUCTIVITY_ATTRIBUTE_NAME,
+                            conductivity_attribute_values,
+                            conductivity_attribute_properties );
                 auto conductivity_attribute =
                     solid_.edges()
                         .edge_attribute_manager()

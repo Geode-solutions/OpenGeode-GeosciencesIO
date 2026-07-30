@@ -77,29 +77,43 @@ namespace
 
         {
             solid_->enable_facets();
+            geode::AttributeValues< geode::index_t > vertex_attribute_values;
+            vertex_attribute_values.default_value = geode::NO_ID;
+            vertex_attribute_values.no_value = geode::NO_ID;
+            geode::AttributeProperties attribute_properties;
+            attribute_properties.assignable = false;
+            attribute_properties.interpolable = false;
+            attribute_properties.transferable = true;
             const auto vertex_attribute_id_id =
                 solid_->vertex_attribute_manager()
                     .create_attribute< geode::VariableAttribute,
-                        geode::index_t >( "vertex_id", geode::NO_ID,
-                        geode::AttributeProperties{} );
+                        geode::index_t >( "vertex_id", vertex_attribute_values,
+                        attribute_properties );
             vertex_id_ =
                 solid_->vertex_attribute_manager()
                     .find_attribute< geode::VariableAttribute, geode::index_t >(
                         vertex_attribute_id_id );
+            geode::AttributeValues< std::string > block_name_attribute_values;
+            block_name_attribute_values.default_value = "";
+            block_name_attribute_values.no_value = "";
             const auto block_name_attribute_id =
                 solid_->polyhedron_attribute_manager()
                     .create_attribute< geode::VariableAttribute, std::string >(
-                        BLOCK_NAME_ATTRIBUTE_NAME, "",
-                        geode::AttributeProperties{} );
+                        BLOCK_NAME_ATTRIBUTE_NAME, block_name_attribute_values,
+                        attribute_properties );
             block_name_attribute_ =
                 solid_->polyhedron_attribute_manager()
                     .find_attribute< geode::VariableAttribute, std::string >(
                         block_name_attribute_id );
+            geode::AttributeValues< geode::uuid > facet_id_attribute_values;
+            facet_id_attribute_values.default_value = default_id_;
+            facet_id_attribute_values.no_value = default_id_;
             const auto facet_id_attribute_id =
                 solid_->facets()
                     .facet_attribute_manager()
                     .create_attribute< geode::VariableAttribute, geode::uuid >(
-                        "facet_id", default_id_, geode::AttributeProperties{} );
+                        "facet_id", facet_id_attribute_values,
+                        attribute_properties );
             facet_id_ =
                 solid_->facets()
                     .facet_attribute_manager()
