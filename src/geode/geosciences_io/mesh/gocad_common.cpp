@@ -305,9 +305,16 @@ namespace
         absl::Span< const geode::index_t > inverse_mapping,
         Container value_array )
     {
+        geode::AttributeValues< Container > default_attribute_values;
+        default_attribute_values.default_value = value_array;
+        default_attribute_values.no_value = value_array;
+        geode::AttributeProperties attribute_properties;
+        attribute_properties.assignable = false;
+        attribute_properties.interpolable = false;
+        attribute_properties.transferable = true;
         const auto attribute_id = attribute_manager.template create_attribute<
             geode::VariableAttribute, Container >(
-            attribute_name, value_array, geode::AttributeProperties{} );
+            attribute_name, default_attribute_values, attribute_properties );
         auto attribute =
             attribute_manager
                 .find_attribute< geode::VariableAttribute, Container >(
@@ -503,12 +510,20 @@ namespace geode
                     attributes_header.esizes[attr_id];
                 if( nb_attribute_items == 1 )
                 {
+                    geode::AttributeValues< double > attribute_values;
+                    attribute_values.default_value =
+                        attributes_header.no_data_values[attr_id];
+                    attribute_values.no_value =
+                        attributes_header.no_data_values[attr_id];
+                    geode::AttributeProperties attribute_properties;
+                    attribute_properties.assignable = false;
+                    attribute_properties.interpolable = false;
+                    attribute_properties.transferable = true;
                     const auto attribute_id =
                         attribute_manager.create_attribute<
                             geode::VariableAttribute, double >(
-                            attributes_header.names[attr_id],
-                            attributes_header.no_data_values[attr_id],
-                            AttributeProperties{} );
+                            attributes_header.names[attr_id], attribute_values,
+                            attribute_properties );
                     auto attribute =
                         attribute_manager
                             .find_attribute< geode::VariableAttribute, double >(

@@ -180,11 +180,18 @@ namespace
             for( const auto attribute_index :
                 geode::Indices{ data_attributes } )
             {
+                geode::AttributeValues< double > attribute_values;
+                attribute_values.default_value = 0;
+                attribute_values.no_value = 0;
+                geode::AttributeProperties attribute_properties;
+                attribute_properties.assignable = false;
+                attribute_properties.interpolable = false;
+                attribute_properties.transferable = true;
                 const auto attribute_id =
                     grid_.cell_attribute_manager()
                         .create_attribute< geode::VariableAttribute, double >(
-                            tokens[4 + attribute_index], 0,
-                            geode::AttributeProperties{} );
+                            tokens[4 + attribute_index], attribute_values,
+                            attribute_properties );
                 data_attributes[attribute_index] =
                     grid_.cell_attribute_manager()
                         .find_attribute< geode::VariableAttribute, double >(

@@ -106,23 +106,35 @@ namespace
             std::string_view attribute_name,
             double default_value ) const
         {
+            geode::AttributeValues< double > solid_attribute_values;
+            solid_attribute_values.default_value = default_value;
+            solid_attribute_values.no_value = default_value;
+            geode::AttributeProperties solid_attribute_properties;
+            solid_attribute_properties.assignable = false;
+            solid_attribute_properties.interpolable = false;
+            solid_attribute_properties.transferable = true;
             auto solid_attribute_id =
                 tet_solid.facets()
                     .facet_attribute_manager()
                     .create_attribute< geode::VariableAttribute, double >(
-                        attribute_name, default_value,
-                        geode::AttributeProperties{} );
+                        attribute_name, solid_attribute_values,
+                        solid_attribute_properties );
             auto solid_attribute =
                 tet_solid.facets()
                     .facet_attribute_manager()
                     .find_attribute< geode::VariableAttribute, double >(
                         solid_attribute_id );
+            geode::AttributeValues< std::string >
+                solid_surface_name_attribute_values;
+            solid_surface_name_attribute_values.default_value = "No_name";
+            solid_surface_name_attribute_values.no_value = "No_name";
             auto solid_surface_name_attribute_id =
                 tet_solid.facets()
                     .facet_attribute_manager()
                     .create_attribute< geode::VariableAttribute, std::string >(
-                        SURFACE_NAME_ATTRIBUTE, "No_name",
-                        geode::AttributeProperties{} );
+                        SURFACE_NAME_ATTRIBUTE,
+                        solid_surface_name_attribute_values,
+                        solid_attribute_properties );
             auto solid_surface_name_attribute =
                 tet_solid.facets()
                     .facet_attribute_manager()
@@ -186,23 +198,34 @@ namespace
             std::string_view attribute_name,
             double default_value ) const
         {
+            geode::AttributeValues< double > solid_attribute_values;
+            solid_attribute_values.default_value = default_value;
+            solid_attribute_values.no_value = default_value;
+            geode::AttributeProperties solid_attribute_properties;
+            solid_attribute_properties.assignable = false;
+            solid_attribute_properties.interpolable = false;
+            solid_attribute_properties.transferable = true;
             const auto solid_attribute_id =
                 tet_solid.edges()
                     .edge_attribute_manager()
                     .create_attribute< geode::VariableAttribute, double >(
-                        attribute_name, default_value,
-                        geode::AttributeProperties{} );
+                        attribute_name, solid_attribute_values,
+                        solid_attribute_properties );
             auto solid_attribute =
                 tet_solid.edges()
                     .edge_attribute_manager()
                     .find_attribute< geode::VariableAttribute, double >(
                         solid_attribute_id );
+            geode::AttributeValues< std::string >
+                solid_line_name_attribute_values;
+            solid_line_name_attribute_values.default_value = "No_name";
+            solid_line_name_attribute_values.no_value = "No_name";
             const auto solid_line_name_attribute_id =
                 tet_solid.edges()
                     .edge_attribute_manager()
                     .create_attribute< geode::VariableAttribute, std::string >(
-                        LINE_NAME_ATTRIBUTE, "No_name",
-                        geode::AttributeProperties{} );
+                        LINE_NAME_ATTRIBUTE, solid_line_name_attribute_values,
+                        solid_attribute_properties );
             auto solid_line_name_attribute =
                 tet_solid.edges()
                     .edge_attribute_manager()
@@ -266,11 +289,18 @@ namespace
             const geode::TetrahedralSolid3D& tet_solid,
             const geode::ModelToMeshMappings& model_to_mesh_mapping ) const
         {
+            geode::AttributeValues< std::string > block_id_attribute_values;
+            block_id_attribute_values.default_value = "No_name";
+            block_id_attribute_values.no_value = "No_name";
+            geode::AttributeProperties block_id_attribute_properties;
+            block_id_attribute_properties.assignable = false;
+            block_id_attribute_properties.interpolable = false;
+            block_id_attribute_properties.transferable = true;
             auto attribute_p_id =
                 tet_solid.polyhedron_attribute_manager()
                     .create_attribute< geode::VariableAttribute, std::string >(
-                        "Block_ID_polyhedron", "No_name",
-                        geode::AttributeProperties{} );
+                        "Block_ID_polyhedron", block_id_attribute_values,
+                        block_id_attribute_properties );
             auto attribute_p =
                 tet_solid.polyhedron_attribute_manager()
                     .find_attribute< geode::VariableAttribute, std::string >(
@@ -353,12 +383,17 @@ namespace
                     {
                         continue;
                     }
+                    geode::AttributeValues< double > solid_attribute_values;
+                    solid_attribute_values.default_value =
+                        block_polyhedron_attribute->generic_value( 0 );
+                    solid_attribute_values.no_value =
+                        block_polyhedron_attribute->generic_value( 0 );
                     auto solid_polyhedron_attribute_id =
                         solid.polyhedron_attribute_manager()
                             .create_attribute< geode::VariableAttribute,
                                 double >(
                                 block_polyhedron_attribute->name().value(),
-                                block_polyhedron_attribute->generic_value( 0 ),
+                                solid_attribute_values,
                                 block_polyhedron_attribute->properties() );
                     auto solid_polyhedron_attribute =
                         solid.polyhedron_attribute_manager()
