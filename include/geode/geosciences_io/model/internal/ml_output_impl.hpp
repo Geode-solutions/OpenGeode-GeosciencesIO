@@ -185,7 +185,7 @@ namespace geode
                     {
                         if( components_.find( item.id() ) != components_.end() )
                         {
-                            Logger::warn( "[MLOutput] A Surface from ",
+                            Logger::warning( "[MLOutput] A Surface from ",
                                 component_name( boundary ),
                                 " belongs to several collections. It has been "
                                 "exported only once" );

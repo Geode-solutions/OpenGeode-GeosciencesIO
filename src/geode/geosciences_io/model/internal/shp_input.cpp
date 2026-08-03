@@ -78,7 +78,7 @@ namespace
                 }
                 else
                 {
-                    geode::Logger::warn( "[SHPInput] Unknown Layer type: ",
+                    geode::Logger::warning( "[SHPInput] Unknown Layer type: ",
                         layer->GetGeomType() );
                 }
             }
@@ -109,7 +109,7 @@ namespace
                 }
                 else
                 {
-                    geode::Logger::warn(
+                    geode::Logger::warning(
                         "[SHPInput::create_corner] Unknown geometry type: ",
                         geometry->getGeometryType() );
                 }
@@ -144,8 +144,8 @@ namespace
                 }
                 else
                 {
-                    geode::Logger::warn( "[SHPInput::create_line] "
-                                         "Unknown geometry type: ",
+                    geode::Logger::warning( "[SHPInput::create_line] "
+                                            "Unknown geometry type: ",
                         geometry->getGeometryType() );
                 }
             }
@@ -219,8 +219,8 @@ namespace
                 }
                 else
                 {
-                    geode::Logger::warn( "[SHPInput::create_surface] "
-                                         "Unknown geometry type: ",
+                    geode::Logger::warning( "[SHPInput::create_surface] "
+                                            "Unknown geometry type: ",
                         geometry->getGeometryType() );
                 }
             }

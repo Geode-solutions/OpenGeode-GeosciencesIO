@@ -60,7 +60,7 @@ namespace
                 {
                     if( components().find( item.id() ) != components().end() )
                     {
-                        geode::Logger::warn( "[MLOutput] A Surface from ",
+                        geode::Logger::warning( "[MLOutput] A Surface from ",
                             fault.name().value(),
                             " belongs to several collections. It has been "
                             "exported only once" );
@@ -79,7 +79,7 @@ namespace
                 {
                     if( components().find( item.id() ) != components().end() )
                     {
-                        geode::Logger::warn( "[MLOutput] A Surface from ",
+                        geode::Logger::warning( "[MLOutput] A Surface from ",
                             horizon.name().value(),
                             " belongs to several collections. It has been "
                             "exported only once" );
