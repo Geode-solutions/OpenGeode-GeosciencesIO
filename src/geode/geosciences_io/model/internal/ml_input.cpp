@@ -199,7 +199,7 @@ namespace
                 if( model_.unique_vertex( corner_surface_index[i] )
                     != geode::NO_ID )
                 {
-                    geode::Logger::warning(
+                    geode::Logger::warn(
                         "[MLInput::build_corners] Overriding Corner/Surface "
                         "topological information. Please verify "
                         "StructuralModel validity." );
@@ -958,7 +958,7 @@ namespace
                             }
                             else
                             {
-                                geode::Logger::warning(
+                                geode::Logger::warn(
                                     "[MLInput] Stated in LAYER ",
                                     stratigraphic_unit.name().value(),
                                     ", Block id ", b + blocks_offset,
@@ -1000,7 +1000,7 @@ namespace
                             }
                             else
                             {
-                                geode::Logger::warning(
+                                geode::Logger::warn(
                                     "[MLInput] Stated in FAULT_BLOCK ",
                                     fault_block.name().value(), ", Block id ",
                                     b + blocks_offset,
