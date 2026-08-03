@@ -350,7 +350,7 @@ namespace
                 if( solid_facets.empty() )
                 {
                     inspect_required_ = true;
-                    geode::Logger::warn(
+                    geode::Logger::warning(
                         "[LSOInput] Surface triangle with vertices [",
                         facet_vertices[0], " ", facet_vertices[1], " ",
                         facet_vertices[2],
@@ -505,7 +505,7 @@ namespace
                 else
                 {
                     inspect_required_ = true;
-                    geode::Logger::warn( "[LSOInput] Block ",
+                    geode::Logger::warning( "[LSOInput] Block ",
                         block.name().value(), " is not conformal to surface ",
                         surface.name().value(), "." );
                 }
@@ -777,7 +777,7 @@ namespace
                     {
                         continue;
                     }
-                    geode::Logger::warn( "Surface ",
+                    geode::Logger::warning( "Surface ",
                         surface.name().value_or( surface.id().string() ),
                         " was not split by one of its internal lines, adding "
                         "the relation and splitting the surface to ensure "
