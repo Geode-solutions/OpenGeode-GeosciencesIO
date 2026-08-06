@@ -62,11 +62,11 @@ namespace
     {
         if( const auto edge = mesh.polygon_edge_from_vertices( v0, v1 ) )
         {
-            return std::make_tuple( edge.value(), true );
+            return { edge.value(), true };
         }
         if( const auto edge = mesh.polygon_edge_from_vertices( v1, v0 ) )
         {
-            return std::make_tuple( edge.value(), false );
+            return { edge.value(), false };
         }
         throw geode::OpenGeodeGeosciencesIOModelException{
             mesh.edge_barycenter( std::array{ v0, v1 } ),
@@ -418,8 +418,8 @@ namespace
 
         const geode::uuid& find_or_create_line( LineData& line_data )
         {
-            const auto it = corners2line_.find(
-                std::make_pair( line_data.corner0, line_data.corner1 ) );
+            const auto it =
+                corners2line_.find( { line_data.corner0, line_data.corner1 } );
             if( it != corners2line_.end() )
             {
                 for( const auto& line_id : it->second )
@@ -430,8 +430,8 @@ namespace
                     }
                 }
             }
-            const auto it_reverse = corners2line_.find(
-                std::make_pair( line_data.corner1, line_data.corner0 ) );
+            const auto it_reverse =
+                corners2line_.find( { line_data.corner1, line_data.corner0 } );
             if( it_reverse != corners2line_.end() )
             {
                 for( const auto& line_id : it_reverse->second )
@@ -522,8 +522,7 @@ namespace
         {
             const auto& line_id = builder_.add_line();
             auto it = corners2line_.try_emplace(
-                std::make_pair( line_data.corner0, line_data.corner1 ),
-                LinesID{ line_id } );
+                { line_data.corner0, line_data.corner1 }, LinesID{ line_id } );
             if( !it.second )
             {
                 it.first->second.push_back( line_id );

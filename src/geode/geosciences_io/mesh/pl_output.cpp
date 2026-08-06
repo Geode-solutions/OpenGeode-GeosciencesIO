@@ -77,13 +77,13 @@ namespace
                 prop_header.names.emplace_back(
                     geode::to_string( attribute->name().value() ) );
                 prop_header.prop_legal_ranges.push_back(
-                    std::make_pair( "**none**", "**none**" ) );
+                    { "**none**", "**none**" } );
                 prop_header.no_data_values.push_back( -99999. );
                 prop_header.property_classes.emplace_back(
                     geode::to_string( attribute->name().value() ) );
                 prop_header.kinds.push_back( "Real Number" );
                 prop_header.property_subclass.push_back(
-                    std::make_pair( "QUANTITY", "Float" ) );
+                    { "QUANTITY", "Float" } );
                 prop_header.esizes.push_back( 1 );
                 prop_header.units.push_back( "unitless" );
 

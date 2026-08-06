@@ -107,7 +107,8 @@ namespace
                     if( s0.first < s1.first )
                     {
                         paired_signs.emplace(
-                            std::make_pair( s0.first, s1.first ),
+                            std::pair< geode::uuid, geode::uuid >{
+                                s0.first, s1.first },
                             s0.second != s1.second );
                     }
                 }
@@ -247,7 +248,8 @@ namespace
             for( const auto b : geode::Indices{ block_boundaries } )
             {
                 sides.emplace(
-                    std::make_pair( block.id(), block_boundaries[b] ),
+                    std::pair< geode::uuid, geode::uuid >{
+                        block.id(), block_boundaries[b] },
                     correct ? relative_signs[b] : !relative_signs[b] );
             }
         }
