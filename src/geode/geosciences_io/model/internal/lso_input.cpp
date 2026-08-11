@@ -208,7 +208,7 @@ namespace
             const auto tokens = get_tokens();
             const auto unique_id =
                 geode::string_to_index( tokens[2] ) - OFFSET_START;
-            return std::make_tuple( solid_->point( unique_id ), unique_id );
+            return { solid_->point( unique_id ), unique_id };
         }
 
         geode::Point3D read_point() const
