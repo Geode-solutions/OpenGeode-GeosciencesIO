@@ -282,9 +282,9 @@ namespace
                 absl::Span< const std::string_view > remaining_tokens(
                     &tokens[1], tokens.size() - 1 );
                 const auto h_id = builder_.add_horizon();
-                builder_.set_horizon_name(
-                    h_id, geode::internal::read_name( remaining_tokens ) );
                 const auto& horizon = model_.horizon( h_id );
+                builder_.set_horizon_name(
+                    horizon, geode::internal::read_name( remaining_tokens ) );
                 read_tfaces( horizon );
             }
         }

@@ -729,8 +729,8 @@ namespace
                 {
                     const auto& fault_uuid =
                         builder_.add_fault( fault_map_.at( tsurf.feature ) );
-                    builder_.set_fault_name( fault_uuid, tsurf.name );
                     const auto& fault = model_.fault( fault_uuid );
+                    builder_.set_fault_name( fault, tsurf.name );
                     for( const auto& uuid : tsurf.tfaces )
                     {
                         builder_.add_surface_in_fault(
@@ -757,8 +757,8 @@ namespace
                 {
                     const auto& horizon_uuid = builder_.add_horizon(
                         horizon_map_.at( tsurf.feature ) );
-                    builder_.set_horizon_name( horizon_uuid, tsurf.name );
                     const auto& horizon = model_.horizon( horizon_uuid );
+                    builder_.set_horizon_name( horizon, tsurf.name );
                     for( const auto& uuid : tsurf.tfaces )
                     {
                         builder_.add_surface_in_horizon(
@@ -845,7 +845,8 @@ namespace
             const auto& stratigraphic_unit_id =
                 builder_.add_stratigraphic_unit();
             builder_.set_stratigraphic_unit_name(
-                stratigraphic_unit_id, std::move( name ) );
+                model_.stratigraphic_unit( stratigraphic_unit_id ),
+                std::move( name ) );
             create_stratigraphic_unit_topology( stratigraphic_unit_id );
         }
 
@@ -854,7 +855,8 @@ namespace
         {
             auto name = geode::internal::read_name( tokens );
             const auto& fault_block_id = builder_.add_fault_block();
-            builder_.set_fault_block_name( fault_block_id, std::move( name ) );
+            builder_.set_fault_block_name(
+                model_.fault_block( fault_block_id ), std::move( name ) );
             create_fault_block_topology( fault_block_id );
         }
 

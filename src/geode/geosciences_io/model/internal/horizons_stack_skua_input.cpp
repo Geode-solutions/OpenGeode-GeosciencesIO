@@ -76,7 +76,7 @@ namespace
                 const auto& unit_uuid = builder.add_stratigraphic_unit();
                 const auto& strati_unit =
                     horizons_stack.stratigraphic_unit( unit_uuid );
-                builder.set_stratigraphic_unit_name( unit_uuid, unit_name );
+                builder.set_stratigraphic_unit_name( strati_unit, unit_name );
                 for( const auto& unit_top : unit.children( "top" ) )
                 {
                     const auto top_horizon_name = absl::StripAsciiWhitespace(
@@ -87,7 +87,8 @@ namespace
                     {
                         const auto& top_horizon_uuid = builder.add_horizon();
                         builder.set_horizon_name(
-                            top_horizon_uuid, top_horizon_name );
+                            horizons_stack.horizon( top_horizon_uuid ),
+                            top_horizon_name );
                         name_map[top_horizon_name] = top_horizon_uuid;
                     }
                     const auto& top_horizon = horizons_stack.horizon(
@@ -100,12 +101,12 @@ namespace
                     if( top_horizon.contact_type() == CONTACT_TYPE::conformal )
                     {
                         builder.set_horizon_contact_type(
-                            top_horizon.id(), CONTACT_TYPE::erosion );
+                            top_horizon, CONTACT_TYPE::erosion );
                     }
                     else
                     {
                         builder.set_horizon_contact_type(
-                            top_horizon.id(), CONTACT_TYPE::discontinuity );
+                            top_horizon, CONTACT_TYPE::discontinuity );
                     }
                 }
                 for( const auto& unit_base : unit.children( "base" ) )
@@ -118,7 +119,8 @@ namespace
                     {
                         const auto& base_horizon_uuid = builder.add_horizon();
                         builder.set_horizon_name(
-                            base_horizon_uuid, base_horizon_name );
+                            horizons_stack.horizon( base_horizon_uuid ),
+                            base_horizon_name );
                         name_map[base_horizon_name] = base_horizon_uuid;
                     }
                     const auto& base_horizon = horizons_stack.horizon(
@@ -131,12 +133,12 @@ namespace
                     if( base_horizon.contact_type() == CONTACT_TYPE::conformal )
                     {
                         builder.set_horizon_contact_type(
-                            base_horizon.id(), CONTACT_TYPE::baselap );
+                            base_horizon, CONTACT_TYPE::baselap );
                     }
                     else
                     {
                         builder.set_horizon_contact_type(
-                            base_horizon.id(), CONTACT_TYPE::discontinuity );
+                            base_horizon, CONTACT_TYPE::discontinuity );
                     }
                 }
             }
