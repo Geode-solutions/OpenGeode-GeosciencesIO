@@ -186,12 +186,11 @@ namespace
             for( auto& point : colocated_info.unique_points )
             {
                 const auto& corner_id = builder_.add_corner();
-                builder_.corner_mesh_builder( corner_id )
-                    ->create_point( point );
+                const auto& corner = model_.corner( corner_id );
+                builder_.corner_mesh_builder( corner )->create_point( point );
                 const auto vertex_id = builder_.create_unique_vertex();
                 builder_.set_unique_vertex(
-                    { model_.corner( corner_id ).component_id(), 0 },
-                    vertex_id );
+                    { corner.component_id(), 0 }, vertex_id );
             }
             for( const auto i :
                 geode::Indices{ colocated_info.colocated_mapping } )
@@ -495,7 +494,7 @@ namespace
                 auto builder =
                     builder_
                         .surface_mesh_builder< geode::TriangulatedSurface3D >(
-                            tsurf.tfaces[triangle_id] );
+                            model_.surface( tsurf.tfaces[triangle_id] ) );
                 if( data.header.name )
                 {
                     builder->set_name( data.header.name.value() );
@@ -565,7 +564,8 @@ namespace
         void create_line_geometry(
             const LineData& line_data, const geode::uuid& line_id )
         {
-            const auto line_builder = builder_.line_mesh_builder( line_id );
+            const auto line_builder =
+                builder_.line_mesh_builder( model_.line( line_id ) );
             for( const auto& point : line_data.points )
             {
                 line_builder->create_point( point );
@@ -742,10 +742,10 @@ namespace
                 {
                     const auto& model_boundary_uuid =
                         builder_.add_model_boundary();
-                    builder_.set_model_boundary_name(
-                        model_boundary_uuid, tsurf.name );
                     const auto& model_boundary =
                         model_.model_boundary( model_boundary_uuid );
+                    builder_.set_model_boundary_name(
+                        model_boundary, tsurf.name );
                     for( const auto& uuid : tsurf.tfaces )
                     {
                         builder_.add_surface_in_model_boundary(
@@ -786,10 +786,10 @@ namespace
                 return;
             }
             const auto& model_boundary_uuid = builder_.add_model_boundary();
-            builder_.set_model_boundary_name(
-                model_boundary_uuid, "undefined boundary" );
             const auto& model_boundary =
                 model_.model_boundary( model_boundary_uuid );
+            builder_.set_model_boundary_name(
+                model_boundary, "undefined boundary" );
             for( const auto& uuid : diff )
             {
                 builder_.add_surface_in_model_boundary(
@@ -813,7 +813,7 @@ namespace
             std::string name = geode::internal::read_name( remaining_tokens );
             const auto& surface_id = builder_.add_surface(
                 geode::OpenGeodeTriangulatedSurface3D::impl_name_static() );
-            builder_.set_surface_name( surface_id, name );
+            builder_.set_surface_name( model_.surface( surface_id ), name );
             auto& tsurf = tsurfs_[tsurf_names2index_.at( name )];
             tsurf.feature = geode::to_string( tokens[1] );
             tsurf.tfaces.emplace_back( surface_id );
@@ -832,7 +832,8 @@ namespace
                 return;
             }
             const auto& block_id = builder_.add_block();
-            builder_.set_block_name( block_id, std::move( name ) );
+            builder_.set_block_name(
+                model_.block( block_id ), std::move( name ) );
             create_block_topology( block_id );
             blocks_.emplace_back( block_id );
         }

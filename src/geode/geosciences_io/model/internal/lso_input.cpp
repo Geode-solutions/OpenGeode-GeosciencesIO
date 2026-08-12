@@ -299,7 +299,7 @@ namespace
                         geode::TriangulatedSurface3D::type_name_static() ) );
                 const auto& surface = model_.surface( id );
                 builder_.add_surface_in_horizon( surface, horizon );
-                builder_.set_surface_name( id, horizon.name().value() );
+                builder_.set_surface_name( surface, horizon.name().value() );
                 std::getline( file_, line_ );
                 read_triangles( id );
             }
@@ -309,11 +309,11 @@ namespace
         {
             absl::flat_hash_map< geode::index_t, geode::index_t >
                 vertex_mapping;
+            const auto& surface = model_.surface( surface_id );
             auto builder =
                 builder_.surface_mesh_builder< geode::TriangulatedSurface3D >(
-                    surface_id );
-            const auto component_id =
-                model_.surface( surface_id ).component_id();
+                    surface );
+            const auto component_id = surface.component_id();
             while( std::getline( file_, line_ )
                    && geode::string_starts_with( line_, "TRGL" ) )
             {
@@ -390,7 +390,7 @@ namespace
                 const auto block_id =
                     builder_.add_block( geode::MeshFactory::default_impl(
                         geode::TetrahedralSolid3D::type_name_static() ) );
-                builder_.set_block_name( block_id, tokens[1] );
+                builder_.set_block_name( model_.block( block_id ), tokens[1] );
                 build_block_mesh( block_id );
                 build_block_relations( block_id );
                 std::getline( file_, line_ );
@@ -399,11 +399,12 @@ namespace
 
         void build_block_mesh( const geode::uuid& block_id )
         {
+            const auto& block = model_.block( block_id );
             auto builder =
                 builder_.block_mesh_builder< geode::TetrahedralSolid3D >(
-                    block_id );
-            const auto component_id = model_.block( block_id ).component_id();
-            const auto block_name = model_.block( block_id ).name();
+                    block );
+            const auto component_id = block.component_id();
+            const auto block_name = block.name();
             absl::flat_hash_map< geode::index_t, geode::index_t >
                 vertex_mapping;
             std::vector< geode::index_t > inverse_vertex_mapping;
@@ -604,9 +605,9 @@ namespace
                     id, geode::Corner3D::component_type_static() ) )
             {
                 const auto& corner_id = builder_.add_corner();
-                auto builder = builder_.corner_mesh_builder( corner_id );
-                builder->create_point( point );
                 const auto& corner = model_.corner( corner_id );
+                auto builder = builder_.corner_mesh_builder( corner );
+                builder->create_point( point );
                 builder_.set_unique_vertex( { corner.component_id(), 0 }, id );
             }
         }
@@ -694,7 +695,7 @@ namespace
             const auto& line_id = builder_.add_line();
             const auto& line = model_.line( line_id );
             line_relations.emplace( line_id, 1 );
-            auto builder = builder_.line_mesh_builder( line_id );
+            auto builder = builder_.line_mesh_builder( line );
             const auto vertex_id0 = mesh.polygon_edge_vertex( border, 0 );
             auto v_id = builder->create_point( mesh.point( vertex_id0 ) );
             const auto unique_id0 =
