@@ -568,10 +568,10 @@ namespace
             for( const auto& cmv :
                 model_.component_mesh_vertices( unique_vertex_id ) )
             {
-                if( cmv.component_id.type()
+                if( cmv.component_id.type
                     == geode::Surface3D::component_type_static() )
                 {
-                    result.emplace_back( cmv.component_id.id() );
+                    result.emplace_back( cmv.component_id.id );
                 }
             }
             return result;
@@ -720,18 +720,18 @@ namespace
             for( const auto& cmv :
                 model_.component_mesh_vertices( unique_id0 ) )
             {
-                if( cmv.component_id.type() == corner_type )
+                if( cmv.component_id.type == corner_type )
                 {
                     builder_.add_corner_line_boundary_relationship(
-                        model_.corner( cmv.component_id.id() ), line );
+                        model_.corner( cmv.component_id.id ), line );
                 }
             }
             for( const auto& cmv : model_.component_mesh_vertices( unique_id ) )
             {
-                if( cmv.component_id.type() == corner_type )
+                if( cmv.component_id.type == corner_type )
                 {
                     builder_.add_corner_line_boundary_relationship(
-                        model_.corner( cmv.component_id.id() ), line );
+                        model_.corner( cmv.component_id.id ), line );
                 }
             }
         }
@@ -742,7 +742,7 @@ namespace
             for( const auto& cmv0 :
                 model_.component_mesh_vertices( unique_id0 ) )
             {
-                if( cmv0.component_id.type()
+                if( cmv0.component_id.type
                     != geode::Line3D::component_type_static() )
                 {
                     continue;
@@ -756,7 +756,7 @@ namespace
                         const auto max = std::max( cmv0.vertex, cmv1.vertex );
                         if( max - min == 1 )
                         {
-                            return cmv0.component_id.id();
+                            return cmv0.component_id.id;
                         }
                     }
                 }

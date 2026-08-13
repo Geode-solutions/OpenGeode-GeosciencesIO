@@ -248,7 +248,7 @@ namespace
                 {
                     const auto edges_in_solid =
                         model_to_mesh_mapping.line_edges_mapping.in2out(
-                            { line.component_id().id(), edge } );
+                            { line.component_id().id, edge } );
                     const auto line_attribute_value =
                         line_attribute->generic_value( edge );
                     for( const auto edge_in_solid : edges_in_solid )

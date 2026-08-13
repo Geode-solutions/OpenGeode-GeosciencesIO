@@ -130,7 +130,7 @@ namespace
                 bool all_exported{ true };
                 for( const auto& item_id : model_.items( component.id() ) )
                 {
-                    if( !exported_surfaces_.contains( item_id.id() ) )
+                    if( !exported_surfaces_.contains( item_id.id ) )
                     {
                         all_exported = false;
                         break;
@@ -145,13 +145,13 @@ namespace
                       << EOL;
                 for( const auto& item_id : model_.items( component.id() ) )
                 {
-                    if( !exported_surfaces_.emplace( item_id.id(), nb_tfaces )
+                    if( !exported_surfaces_.emplace( item_id.id, nb_tfaces )
                             .second )
                     {
                         continue;
                     }
                     file_ << "TFACE " << nb_tfaces++ << EOL;
-                    const auto& surface = model_.surface( item_id.id() );
+                    const auto& surface = model_.surface( item_id.id );
                     const auto& mesh = surface.mesh();
                     file_ << "KEYVERTICES";
                     write_triangle( mesh, item_id, 0 );
@@ -216,7 +216,7 @@ namespace
                 const auto cmv = model_.component_mesh_vertices( v );
                 for( const auto& mv : cmv )
                 {
-                    if( mv.component_id.type()
+                    if( mv.component_id.type
                         != geode::Block3D::component_type_static() )
                     {
                         continue;
@@ -229,7 +229,7 @@ namespace
                 const auto& first_vertex = block_vertices[first];
                 cmvs.emplace( first_vertex, v + OFFSET_START );
                 const auto& block =
-                    model_.block( first_vertex.component_id.id() );
+                    model_.block( first_vertex.component_id.id );
                 const auto& mesh = block.mesh();
                 file_ << "VRTX " << count++ << " "
                       << mesh.point( first_vertex.vertex ).string() << EOL;
@@ -256,10 +256,10 @@ namespace
             const
         {
             geode::index_t id{ 0 };
-            auto first_uuid = block_vertices.front().component_id.id();
+            auto first_uuid = block_vertices.front().component_id.id;
             for( const auto i : geode::Range{ 1, block_vertices.size() } )
             {
-                const auto& uuid = block_vertices[i].component_id.id();
+                const auto& uuid = block_vertices[i].component_id.id;
                 if( uuid < first_uuid )
                 {
                     first_uuid = uuid;
