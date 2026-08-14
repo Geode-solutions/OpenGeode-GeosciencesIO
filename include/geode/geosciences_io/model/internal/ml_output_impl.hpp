@@ -330,7 +330,7 @@ namespace geode
                 bool is_corner{ false };
                 for( const auto& cmv1 : model_.component_mesh_vertices( uid1 ) )
                 {
-                    if( cmv1.component_id.type()
+                    if( cmv1.component_id.type
                         == Corner3D::component_type_static() )
                     {
                         is_corner = true;

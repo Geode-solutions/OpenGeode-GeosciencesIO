@@ -247,7 +247,7 @@ namespace
             surface_lines.reserve( line_starts.size() );
             for( const auto& line_start : line_starts )
             {
-                const auto& surface_id = line_start.first.component_id.id();
+                const auto& surface_id = line_start.first.component_id.id;
                 const auto& surface = model_.surface( surface_id );
                 auto line_data = compute_line( surface, line_start );
                 line_data.line = find_or_create_line( line_data );
@@ -346,13 +346,13 @@ namespace
                         for( const auto& line_cmv :
                             model_.component_mesh_vertices( vertex ) )
                         {
-                            if( line_cmv.component_id.type()
+                            if( line_cmv.component_id.type
                                 != geode::Line3D::component_type_static() )
                             {
                                 continue;
                             }
                             const auto& line =
-                                model_.line( line_cmv.component_id.id() );
+                                model_.line( line_cmv.component_id.id );
                             if( !model_.is_internal( line, surface )
                                 && should_line_be_internal( line, surface ) )
                             {
@@ -397,12 +397,12 @@ namespace
                 [[maybe_unused]] bool done{ false };
                 for( const auto& cmv : model_.component_mesh_vertices( v ) )
                 {
-                    if( cmv.component_id.type()
+                    if( cmv.component_id.type
                         != geode::Line3D::component_type_static() )
                     {
                         continue;
                     }
-                    const auto& line = model_.line( cmv.component_id.id() );
+                    const auto& line = model_.line( cmv.component_id.id );
                     points[v] = line.mesh().point( cmv.vertex );
                     done = true;
                     break;
@@ -616,10 +616,10 @@ namespace
                 model_.component_mesh_vertices( model_.unique_vertex(
                     { surface.component_id(), line_start.first.vertex } ) ) )
             {
-                if( cmv.component_id.type()
+                if( cmv.component_id.type
                     == geode::Corner3D::component_type_static() )
                 {
-                    result.corner0 = cmv.component_id.id();
+                    result.corner0 = cmv.component_id.id;
                     break;
                 }
             }
@@ -668,10 +668,10 @@ namespace
                 model_.component_mesh_vertices( model_.unique_vertex(
                     { surface.component_id(), result.indices.back() } ) ) )
             {
-                if( cmv.component_id.type()
+                if( cmv.component_id.type
                     == geode::Corner3D::component_type_static() )
                 {
-                    result.corner1 = cmv.component_id.id();
+                    result.corner1 = cmv.component_id.id;
                     break;
                 }
             }
