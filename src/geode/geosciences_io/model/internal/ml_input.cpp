@@ -62,11 +62,11 @@ namespace
     {
         if( const auto edge = mesh.polygon_edge_from_vertices( v0, v1 ) )
         {
-            return std::make_tuple( edge.value(), true );
+            return { edge.value(), true };
         }
         if( const auto edge = mesh.polygon_edge_from_vertices( v1, v0 ) )
         {
-            return std::make_tuple( edge.value(), false );
+            return { edge.value(), false };
         }
         throw geode::OpenGeodeGeosciencesIOModelException{
             mesh.edge_barycenter( std::array{ v0, v1 } ),
@@ -186,12 +186,11 @@ namespace
             for( auto& point : colocated_info.unique_points )
             {
                 const auto& corner_id = builder_.add_corner();
-                builder_.corner_mesh_builder( corner_id )
-                    ->create_point( point );
+                const auto& corner = model_.corner( corner_id );
+                builder_.corner_mesh_builder( corner )->create_point( point );
                 const auto vertex_id = builder_.create_unique_vertex();
                 builder_.set_unique_vertex(
-                    { model_.corner( corner_id ).component_id(), 0 },
-                    vertex_id );
+                    { corner.component_id(), 0 }, vertex_id );
             }
             for( const auto i :
                 geode::Indices{ colocated_info.colocated_mapping } )
@@ -199,7 +198,7 @@ namespace
                 if( model_.unique_vertex( corner_surface_index[i] )
                     != geode::NO_ID )
                 {
-                    geode::Logger::warn(
+                    geode::Logger::warning(
                         "[MLInput::build_corners] Overriding Corner/Surface "
                         "topological information. Please verify "
                         "StructuralModel validity." );
@@ -248,7 +247,7 @@ namespace
             surface_lines.reserve( line_starts.size() );
             for( const auto& line_start : line_starts )
             {
-                const auto& surface_id = line_start.first.component_id.id();
+                const auto& surface_id = line_start.first.component_id.id;
                 const auto& surface = model_.surface( surface_id );
                 auto line_data = compute_line( surface, line_start );
                 line_data.line = find_or_create_line( line_data );
@@ -347,13 +346,13 @@ namespace
                         for( const auto& line_cmv :
                             model_.component_mesh_vertices( vertex ) )
                         {
-                            if( line_cmv.component_id.type()
+                            if( line_cmv.component_id.type
                                 != geode::Line3D::component_type_static() )
                             {
                                 continue;
                             }
                             const auto& line =
-                                model_.line( line_cmv.component_id.id() );
+                                model_.line( line_cmv.component_id.id );
                             if( !model_.is_internal( line, surface )
                                 && should_line_be_internal( line, surface ) )
                             {
@@ -398,12 +397,12 @@ namespace
                 [[maybe_unused]] bool done{ false };
                 for( const auto& cmv : model_.component_mesh_vertices( v ) )
                 {
-                    if( cmv.component_id.type()
+                    if( cmv.component_id.type
                         != geode::Line3D::component_type_static() )
                     {
                         continue;
                     }
-                    const auto& line = model_.line( cmv.component_id.id() );
+                    const auto& line = model_.line( cmv.component_id.id );
                     points[v] = line.mesh().point( cmv.vertex );
                     done = true;
                     break;
@@ -418,8 +417,8 @@ namespace
 
         const geode::uuid& find_or_create_line( LineData& line_data )
         {
-            const auto it = corners2line_.find(
-                std::make_pair( line_data.corner0, line_data.corner1 ) );
+            const auto it =
+                corners2line_.find( { line_data.corner0, line_data.corner1 } );
             if( it != corners2line_.end() )
             {
                 for( const auto& line_id : it->second )
@@ -430,8 +429,8 @@ namespace
                     }
                 }
             }
-            const auto it_reverse = corners2line_.find(
-                std::make_pair( line_data.corner1, line_data.corner0 ) );
+            const auto it_reverse =
+                corners2line_.find( { line_data.corner1, line_data.corner0 } );
             if( it_reverse != corners2line_.end() )
             {
                 for( const auto& line_id : it_reverse->second )
@@ -495,7 +494,7 @@ namespace
                 auto builder =
                     builder_
                         .surface_mesh_builder< geode::TriangulatedSurface3D >(
-                            tsurf.tfaces[triangle_id] );
+                            model_.surface( tsurf.tfaces[triangle_id] ) );
                 if( data.header.name )
                 {
                     builder->set_name( data.header.name.value() );
@@ -522,8 +521,7 @@ namespace
         {
             const auto& line_id = builder_.add_line();
             auto it = corners2line_.try_emplace(
-                std::make_pair( line_data.corner0, line_data.corner1 ),
-                LinesID{ line_id } );
+                { line_data.corner0, line_data.corner1 }, LinesID{ line_id } );
             if( !it.second )
             {
                 it.first->second.push_back( line_id );
@@ -566,7 +564,8 @@ namespace
         void create_line_geometry(
             const LineData& line_data, const geode::uuid& line_id )
         {
-            const auto line_builder = builder_.line_mesh_builder( line_id );
+            const auto line_builder =
+                builder_.line_mesh_builder( model_.line( line_id ) );
             for( const auto& point : line_data.points )
             {
                 line_builder->create_point( point );
@@ -617,10 +616,10 @@ namespace
                 model_.component_mesh_vertices( model_.unique_vertex(
                     { surface.component_id(), line_start.first.vertex } ) ) )
             {
-                if( cmv.component_id.type()
+                if( cmv.component_id.type
                     == geode::Corner3D::component_type_static() )
                 {
-                    result.corner0 = cmv.component_id.id();
+                    result.corner0 = cmv.component_id.id;
                     break;
                 }
             }
@@ -669,10 +668,10 @@ namespace
                 model_.component_mesh_vertices( model_.unique_vertex(
                     { surface.component_id(), result.indices.back() } ) ) )
             {
-                if( cmv.component_id.type()
+                if( cmv.component_id.type
                     == geode::Corner3D::component_type_static() )
                 {
-                    result.corner1 = cmv.component_id.id();
+                    result.corner1 = cmv.component_id.id;
                     break;
                 }
             }
@@ -730,8 +729,8 @@ namespace
                 {
                     const auto& fault_uuid =
                         builder_.add_fault( fault_map_.at( tsurf.feature ) );
-                    builder_.set_fault_name( fault_uuid, tsurf.name );
                     const auto& fault = model_.fault( fault_uuid );
+                    builder_.set_fault_name( fault, tsurf.name );
                     for( const auto& uuid : tsurf.tfaces )
                     {
                         builder_.add_surface_in_fault(
@@ -743,10 +742,10 @@ namespace
                 {
                     const auto& model_boundary_uuid =
                         builder_.add_model_boundary();
-                    builder_.set_model_boundary_name(
-                        model_boundary_uuid, tsurf.name );
                     const auto& model_boundary =
                         model_.model_boundary( model_boundary_uuid );
+                    builder_.set_model_boundary_name(
+                        model_boundary, tsurf.name );
                     for( const auto& uuid : tsurf.tfaces )
                     {
                         builder_.add_surface_in_model_boundary(
@@ -758,8 +757,8 @@ namespace
                 {
                     const auto& horizon_uuid = builder_.add_horizon(
                         horizon_map_.at( tsurf.feature ) );
-                    builder_.set_horizon_name( horizon_uuid, tsurf.name );
                     const auto& horizon = model_.horizon( horizon_uuid );
+                    builder_.set_horizon_name( horizon, tsurf.name );
                     for( const auto& uuid : tsurf.tfaces )
                     {
                         builder_.add_surface_in_horizon(
@@ -787,10 +786,10 @@ namespace
                 return;
             }
             const auto& model_boundary_uuid = builder_.add_model_boundary();
-            builder_.set_model_boundary_name(
-                model_boundary_uuid, "undefined boundary" );
             const auto& model_boundary =
                 model_.model_boundary( model_boundary_uuid );
+            builder_.set_model_boundary_name(
+                model_boundary, "undefined boundary" );
             for( const auto& uuid : diff )
             {
                 builder_.add_surface_in_model_boundary(
@@ -814,7 +813,7 @@ namespace
             std::string name = geode::internal::read_name( remaining_tokens );
             const auto& surface_id = builder_.add_surface(
                 geode::OpenGeodeTriangulatedSurface3D::impl_name_static() );
-            builder_.set_surface_name( surface_id, name );
+            builder_.set_surface_name( model_.surface( surface_id ), name );
             auto& tsurf = tsurfs_[tsurf_names2index_.at( name )];
             tsurf.feature = geode::to_string( tokens[1] );
             tsurf.tfaces.emplace_back( surface_id );
@@ -833,7 +832,8 @@ namespace
                 return;
             }
             const auto& block_id = builder_.add_block();
-            builder_.set_block_name( block_id, std::move( name ) );
+            builder_.set_block_name(
+                model_.block( block_id ), std::move( name ) );
             create_block_topology( block_id );
             blocks_.emplace_back( block_id );
         }
@@ -845,7 +845,8 @@ namespace
             const auto& stratigraphic_unit_id =
                 builder_.add_stratigraphic_unit();
             builder_.set_stratigraphic_unit_name(
-                stratigraphic_unit_id, std::move( name ) );
+                model_.stratigraphic_unit( stratigraphic_unit_id ),
+                std::move( name ) );
             create_stratigraphic_unit_topology( stratigraphic_unit_id );
         }
 
@@ -854,7 +855,8 @@ namespace
         {
             auto name = geode::internal::read_name( tokens );
             const auto& fault_block_id = builder_.add_fault_block();
-            builder_.set_fault_block_name( fault_block_id, std::move( name ) );
+            builder_.set_fault_block_name(
+                model_.fault_block( fault_block_id ), std::move( name ) );
             create_fault_block_topology( fault_block_id );
         }
 
@@ -958,7 +960,7 @@ namespace
                             }
                             else
                             {
-                                geode::Logger::warn(
+                                geode::Logger::warning(
                                     "[MLInput] Stated in LAYER ",
                                     stratigraphic_unit.name().value(),
                                     ", Block id ", b + blocks_offset,
@@ -1000,7 +1002,7 @@ namespace
                             }
                             else
                             {
-                                geode::Logger::warn(
+                                geode::Logger::warning(
                                     "[MLInput] Stated in FAULT_BLOCK ",
                                     fault_block.name().value(), ", Block id ",
                                     b + blocks_offset,

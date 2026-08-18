@@ -81,10 +81,22 @@ namespace geode
             model_surface_ = std::move( std::get< 0 >( surface_conversion ) );
             std::tie( model_solid_, model2solid_ ) =
                 convert_brep_into_solid( model_ );
+            AttributeValues< index_t > region_attribute_values;
+            region_attribute_values.default_value = NO_ID;
+            region_attribute_values.no_value = NO_ID;
+            AttributeProperties region_attribute_properties;
+            region_attribute_properties.assignable = false;
+            region_attribute_properties.interpolable = false;
+            region_attribute_properties.transferable = true;
+            const auto region_attribute_id =
+                model_solid_->polyhedron_attribute_manager()
+                    .template create_attribute< VariableAttribute, index_t >(
+                        REGION_ID_ATTRIBUTE_NAME, region_attribute_values,
+                        region_attribute_properties );
             region_attribute_ =
                 model_solid_->polyhedron_attribute_manager()
-                    .template find_or_create_attribute< VariableAttribute,
-                        index_t >( REGION_ID_ATTRIBUTE_NAME, NO_ID );
+                    .find_attribute< VariableAttribute, index_t >(
+                        region_attribute_id );
             if( std::filesystem::path{ to_string( files_directory ) }
                     .is_relative() )
             {
@@ -310,8 +322,8 @@ namespace geode
             {
                 if( !block.mesh()
                         .polyhedron_attribute_manager()
-                        .attribute_exists( property_name ) )
-
+                        .attribute_ids_matching_name( property_name )
+                        .has_value() )
                 {
                     Logger::info( "The property ", property_name,
                         " will not be exported because it is not defined on "
@@ -325,12 +337,25 @@ namespace geode
         template < typename Model >
         void GeosExporterImpl< Model >::transfer_cell_properties()
         {
+            AttributeProperties solid_attribute_properties;
+            solid_attribute_properties.assignable = false;
+            solid_attribute_properties.interpolable = false;
+            solid_attribute_properties.transferable = true;
             for( const auto& property_name : cell_1Dproperty_names_ )
             {
+                AttributeValues< double > solid_attribute_values;
+                solid_attribute_values.default_value = 0;
+                solid_attribute_values.no_value = 0;
+
+                auto solid_property_id =
+                    model_solid_->polyhedron_attribute_manager()
+                        .template create_attribute< VariableAttribute, double >(
+                            property_name, solid_attribute_values,
+                            solid_attribute_properties );
                 auto solid_property =
                     model_solid_->polyhedron_attribute_manager()
-                        .template find_or_create_attribute< VariableAttribute,
-                            double >( property_name, 0. );
+                        .find_attribute< VariableAttribute, double >(
+                            solid_property_id );
                 for( const auto polyhedron_id :
                     Range( model_solid_->nb_polyhedra() ) )
                 {
@@ -338,12 +363,17 @@ namespace geode
                         model2solid_.solid_polyhedra_mapping
                             .out2in( polyhedron_id )
                             .front();
-
+                    const auto attribute_ids =
+                        model_.block( polyhedron_mesh_element.mesh_id )
+                            .mesh()
+                            .polyhedron_attribute_manager()
+                            .attribute_ids_matching_name( property_name );
                     const auto model_property =
                         model_.block( polyhedron_mesh_element.mesh_id )
                             .mesh()
                             .polyhedron_attribute_manager()
-                            .template find_attribute< double >( property_name );
+                            .template find_read_only_attribute< double >(
+                                attribute_ids.value().front() );
                     auto value = model_property->value(
                         polyhedron_mesh_element.element_id );
                     solid_property->set_value( polyhedron_id, value );
@@ -351,11 +381,20 @@ namespace geode
             }
             for( const auto& property_name : cell_2Dproperty_names_ )
             {
+                AttributeValues< std::array< double, 2 > >
+                    solid_attribute_values;
+                solid_attribute_values.default_value = { 0, 0 };
+                solid_attribute_values.no_value = { 0, 0 };
+                auto solid_property_id =
+                    model_solid_->polyhedron_attribute_manager()
+                        .template create_attribute< VariableAttribute,
+                            std::array< double, 2 > >( property_name,
+                            solid_attribute_values,
+                            solid_attribute_properties );
                 auto solid_property =
                     model_solid_->polyhedron_attribute_manager()
-                        .template find_or_create_attribute< VariableAttribute,
-                            std::array< double, 2 > >(
-                            property_name, { 0., 0. } );
+                        .find_attribute< VariableAttribute,
+                            std::array< double, 2 > >( solid_property_id );
                 for( const auto polyhedron_id :
                     Range( model_solid_->nb_polyhedra() ) )
                 {
@@ -363,13 +402,18 @@ namespace geode
                         model2solid_.solid_polyhedra_mapping
                             .out2in( polyhedron_id )
                             .front();
-
+                    const auto attribute_ids =
+                        model_.block( polyhedron_mesh_element.mesh_id )
+                            .mesh()
+                            .polyhedron_attribute_manager()
+                            .attribute_ids_matching_name( property_name );
                     const auto model_property =
                         model_.block( polyhedron_mesh_element.mesh_id )
                             .mesh()
                             .polyhedron_attribute_manager()
-                            .template find_attribute< std::array< double, 2 > >(
-                                property_name );
+                            .template find_read_only_attribute<
+                                std::array< double, 2 > >(
+                                attribute_ids.value().front() );
                     auto value = model_property->value(
                         polyhedron_mesh_element.element_id );
                     solid_property->set_value( polyhedron_id, value );
@@ -377,11 +421,20 @@ namespace geode
             }
             for( const auto& property_name : cell_3Dproperty_names_ )
             {
+                AttributeValues< std::array< double, 3 > >
+                    solid_attribute_values;
+                solid_attribute_values.default_value = { 0, 0, 0 };
+                solid_attribute_values.no_value = { 0, 0, 0 };
+                auto solid_property_id =
+                    model_solid_->polyhedron_attribute_manager()
+                        .template create_attribute< VariableAttribute,
+                            std::array< double, 3 > >( property_name,
+                            solid_attribute_values,
+                            solid_attribute_properties );
                 auto solid_property =
                     model_solid_->polyhedron_attribute_manager()
-                        .template find_or_create_attribute< VariableAttribute,
-                            std::array< double, 3 > >(
-                            property_name, { 0., 0., 0. } );
+                        .find_attribute< VariableAttribute,
+                            std::array< double, 3 > >( solid_property_id );
                 for( const auto polyhedron_id :
                     Range( model_solid_->nb_polyhedra() ) )
                 {
@@ -389,13 +442,18 @@ namespace geode
                         model2solid_.solid_polyhedra_mapping
                             .out2in( polyhedron_id )
                             .front();
-
+                    const auto attribute_ids =
+                        model_.block( polyhedron_mesh_element.mesh_id )
+                            .mesh()
+                            .polyhedron_attribute_manager()
+                            .attribute_ids_matching_name( property_name );
                     const auto model_property =
                         model_.block( polyhedron_mesh_element.mesh_id )
                             .mesh()
                             .polyhedron_attribute_manager()
-                            .template find_attribute< std::array< double, 3 > >(
-                                property_name );
+                            .template find_read_only_attribute<
+                                std::array< double, 3 > >(
+                                attribute_ids.value().front() );
                     auto value = model_property->value(
                         polyhedron_mesh_element.element_id );
                     solid_property->set_value( polyhedron_id, value );

@@ -73,18 +73,66 @@ namespace
               builder_{ model },
               solid_{ geode::TetrahedralSolid3D::create() },
               solid_builder_{ geode::TetrahedralSolidBuilder3D::create(
-                  *solid_ ) },
-              vertex_id_{ solid_->vertex_attribute_manager()
-                      .find_or_create_attribute< geode::VariableAttribute,
-                          geode::index_t >( "vertex_id", geode::NO_ID ) },
-              block_name_attribute_{ solid_->polyhedron_attribute_manager()
-                      .find_or_create_attribute< geode::VariableAttribute,
-                          std::string >( BLOCK_NAME_ATTRIBUTE_NAME, "" ) }
+                  *solid_ ) }
+
         {
             solid_->enable_facets();
+            geode::AttributeValues< geode::index_t > vertex_attribute_values;
+            vertex_attribute_values.default_value = geode::NO_ID;
+            vertex_attribute_values.no_value = geode::NO_ID;
+            geode::AttributeProperties attribute_properties;
+            attribute_properties.assignable = false;
+            attribute_properties.interpolable = false;
+            attribute_properties.transferable = true;
+            const auto vertex_attribute_id_id =
+                solid_->vertex_attribute_manager()
+                    .create_attribute< geode::VariableAttribute,
+                        geode::index_t >( "vertex_id", vertex_attribute_values,
+                        attribute_properties );
+            vertex_id_ =
+                solid_->vertex_attribute_manager()
+                    .find_attribute< geode::VariableAttribute, geode::index_t >(
+                        vertex_attribute_id_id );
+            geode::AttributeValues< std::string > block_name_attribute_values;
+            block_name_attribute_values.default_value = "";
+            block_name_attribute_values.no_value = "";
+            const auto block_name_attribute_id =
+                solid_->polyhedron_attribute_manager()
+                    .create_attribute< geode::VariableAttribute, std::string >(
+                        BLOCK_NAME_ATTRIBUTE_NAME, block_name_attribute_values,
+                        attribute_properties );
+            block_name_attribute_ =
+                solid_->polyhedron_attribute_manager()
+                    .find_attribute< geode::VariableAttribute, std::string >(
+                        block_name_attribute_id );
+            geode::AttributeValues< geode::uuid > facet_id_attribute_values;
+            facet_id_attribute_values.default_value = default_id_;
+            facet_id_attribute_values.no_value = default_id_;
+            const auto facet_id_attribute_id =
+                solid_->facets()
+                    .facet_attribute_manager()
+                    .create_attribute< geode::VariableAttribute, geode::uuid >(
+                        "facet_id", facet_id_attribute_values,
+                        attribute_properties );
+            facet_id_ =
+                solid_->facets()
+                    .facet_attribute_manager()
+                    .find_attribute< geode::VariableAttribute, geode::uuid >(
+                        facet_id_attribute_id );
             geode::OpenGeodeGeosciencesIOModelException::check_exception(
                 file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "[LSOInput] Error while opening file: ", filename );
+        }
+
+        ~LSOInputImpl()
+        {
+            solid_->vertex_attribute_manager().delete_attribute(
+                vertex_id_->id() );
+            solid_->polyhedron_attribute_manager().delete_attribute(
+                block_name_attribute_->id() );
+            solid_->facets().facet_attribute_manager().delete_attribute(
+                facet_id_->id() );
+            solid_->disable_facets();
         }
 
         bool read_file()
@@ -160,7 +208,7 @@ namespace
             const auto tokens = get_tokens();
             const auto unique_id =
                 geode::string_to_index( tokens[2] ) - OFFSET_START;
-            return std::make_tuple( solid_->point( unique_id ), unique_id );
+            return { solid_->point( unique_id ), unique_id };
         }
 
         geode::Point3D read_point() const
@@ -227,10 +275,6 @@ namespace
             {
                 geode::goto_keyword( file_, "MODEL" );
             }
-            facet_id_ = solid_->facets()
-                            .facet_attribute_manager()
-                            .find_or_create_attribute< geode::VariableAttribute,
-                                geode::uuid >( "facet_id", default_id_ );
             std::getline( file_, line_ );
             while( geode::string_starts_with( line_, "SURFACE" ) )
             {
@@ -238,9 +282,9 @@ namespace
                 absl::Span< const std::string_view > remaining_tokens(
                     &tokens[1], tokens.size() - 1 );
                 const auto h_id = builder_.add_horizon();
-                builder_.set_horizon_name(
-                    h_id, geode::internal::read_name( remaining_tokens ) );
                 const auto& horizon = model_.horizon( h_id );
+                builder_.set_horizon_name(
+                    horizon, geode::internal::read_name( remaining_tokens ) );
                 read_tfaces( horizon );
             }
         }
@@ -255,7 +299,7 @@ namespace
                         geode::TriangulatedSurface3D::type_name_static() ) );
                 const auto& surface = model_.surface( id );
                 builder_.add_surface_in_horizon( surface, horizon );
-                builder_.set_surface_name( id, horizon.name().value() );
+                builder_.set_surface_name( surface, horizon.name().value() );
                 std::getline( file_, line_ );
                 read_triangles( id );
             }
@@ -265,11 +309,11 @@ namespace
         {
             absl::flat_hash_map< geode::index_t, geode::index_t >
                 vertex_mapping;
+            const auto& surface = model_.surface( surface_id );
             auto builder =
                 builder_.surface_mesh_builder< geode::TriangulatedSurface3D >(
-                    surface_id );
-            const auto component_id =
-                model_.surface( surface_id ).component_id();
+                    surface );
+            const auto component_id = surface.component_id();
             while( std::getline( file_, line_ )
                    && geode::string_starts_with( line_, "TRGL" ) )
             {
@@ -306,7 +350,7 @@ namespace
                 if( solid_facets.empty() )
                 {
                     inspect_required_ = true;
-                    geode::Logger::warn(
+                    geode::Logger::warning(
                         "[LSOInput] Surface triangle with vertices [",
                         facet_vertices[0], " ", facet_vertices[1], " ",
                         facet_vertices[2],
@@ -346,7 +390,7 @@ namespace
                 const auto block_id =
                     builder_.add_block( geode::MeshFactory::default_impl(
                         geode::TetrahedralSolid3D::type_name_static() ) );
-                builder_.set_block_name( block_id, tokens[1] );
+                builder_.set_block_name( model_.block( block_id ), tokens[1] );
                 build_block_mesh( block_id );
                 build_block_relations( block_id );
                 std::getline( file_, line_ );
@@ -355,11 +399,12 @@ namespace
 
         void build_block_mesh( const geode::uuid& block_id )
         {
+            const auto& block = model_.block( block_id );
             auto builder =
                 builder_.block_mesh_builder< geode::TetrahedralSolid3D >(
-                    block_id );
-            const auto component_id = model_.block( block_id ).component_id();
-            const auto block_name = model_.block( block_id ).name();
+                    block );
+            const auto component_id = block.component_id();
+            const auto block_name = block.name();
             absl::flat_hash_map< geode::index_t, geode::index_t >
                 vertex_mapping;
             std::vector< geode::index_t > inverse_vertex_mapping;
@@ -461,7 +506,7 @@ namespace
                 else
                 {
                     inspect_required_ = true;
-                    geode::Logger::warn( "[LSOInput] Block ",
+                    geode::Logger::warning( "[LSOInput] Block ",
                         block.name().value(), " is not conformal to surface ",
                         surface.name().value(), "." );
                 }
@@ -523,10 +568,10 @@ namespace
             for( const auto& cmv :
                 model_.component_mesh_vertices( unique_vertex_id ) )
             {
-                if( cmv.component_id.type()
+                if( cmv.component_id.type
                     == geode::Surface3D::component_type_static() )
                 {
-                    result.emplace_back( cmv.component_id.id() );
+                    result.emplace_back( cmv.component_id.id );
                 }
             }
             return result;
@@ -560,9 +605,9 @@ namespace
                     id, geode::Corner3D::component_type_static() ) )
             {
                 const auto& corner_id = builder_.add_corner();
-                auto builder = builder_.corner_mesh_builder( corner_id );
-                builder->create_point( point );
                 const auto& corner = model_.corner( corner_id );
+                auto builder = builder_.corner_mesh_builder( corner );
+                builder->create_point( point );
                 builder_.set_unique_vertex( { corner.component_id(), 0 }, id );
             }
         }
@@ -650,7 +695,7 @@ namespace
             const auto& line_id = builder_.add_line();
             const auto& line = model_.line( line_id );
             line_relations.emplace( line_id, 1 );
-            auto builder = builder_.line_mesh_builder( line_id );
+            auto builder = builder_.line_mesh_builder( line );
             const auto vertex_id0 = mesh.polygon_edge_vertex( border, 0 );
             auto v_id = builder->create_point( mesh.point( vertex_id0 ) );
             const auto unique_id0 =
@@ -675,18 +720,18 @@ namespace
             for( const auto& cmv :
                 model_.component_mesh_vertices( unique_id0 ) )
             {
-                if( cmv.component_id.type() == corner_type )
+                if( cmv.component_id.type == corner_type )
                 {
                     builder_.add_corner_line_boundary_relationship(
-                        model_.corner( cmv.component_id.id() ), line );
+                        model_.corner( cmv.component_id.id ), line );
                 }
             }
             for( const auto& cmv : model_.component_mesh_vertices( unique_id ) )
             {
-                if( cmv.component_id.type() == corner_type )
+                if( cmv.component_id.type == corner_type )
                 {
                     builder_.add_corner_line_boundary_relationship(
-                        model_.corner( cmv.component_id.id() ), line );
+                        model_.corner( cmv.component_id.id ), line );
                 }
             }
         }
@@ -697,7 +742,7 @@ namespace
             for( const auto& cmv0 :
                 model_.component_mesh_vertices( unique_id0 ) )
             {
-                if( cmv0.component_id.type()
+                if( cmv0.component_id.type
                     != geode::Line3D::component_type_static() )
                 {
                     continue;
@@ -711,7 +756,7 @@ namespace
                         const auto max = std::max( cmv0.vertex, cmv1.vertex );
                         if( max - min == 1 )
                         {
-                            return cmv0.component_id.id();
+                            return cmv0.component_id.id;
                         }
                     }
                 }
@@ -733,7 +778,7 @@ namespace
                     {
                         continue;
                     }
-                    geode::Logger::warn( "Surface ",
+                    geode::Logger::warning( "Surface ",
                         surface.name().value_or( surface.id().string() ),
                         " was not split by one of its internal lines, adding "
                         "the relation and splitting the surface to ensure "

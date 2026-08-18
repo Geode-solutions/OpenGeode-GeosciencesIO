@@ -63,24 +63,23 @@ namespace
                 std::min( cmvs0.size(), cmvs1.size() ) );
             for( const auto& cmv0 : cmvs0 )
             {
-                if( cmv0.component_id.type()
+                if( cmv0.component_id.type
                     != geode::Surface3D::component_type_static() )
                 {
                     continue;
                 }
                 for( const auto& cmv1 : cmvs1 )
                 {
-                    if( cmv1.component_id.type()
+                    if( cmv1.component_id.type
                         != geode::Surface3D::component_type_static() )
                     {
                         continue;
                     }
-                    if( cmv1.component_id.id() != cmv0.component_id.id() )
+                    if( cmv1.component_id.id != cmv0.component_id.id )
                     {
                         continue;
                     }
-                    const auto& surface =
-                        brep.surface( cmv0.component_id.id() );
+                    const auto& surface = brep.surface( cmv0.component_id.id );
                     const auto& surface_mesh = surface.mesh();
                     const auto v0v1 = surface_mesh.polygon_edge_from_vertices(
                         cmv0.vertex, cmv1.vertex );
@@ -107,7 +106,8 @@ namespace
                     if( s0.first < s1.first )
                     {
                         paired_signs.emplace(
-                            std::make_pair( s0.first, s1.first ),
+                            std::pair< geode::uuid, geode::uuid >{
+                                s0.first, s1.first },
                             s0.second != s1.second );
                     }
                 }
@@ -247,7 +247,8 @@ namespace
             for( const auto b : geode::Indices{ block_boundaries } )
             {
                 sides.emplace(
-                    std::make_pair( block.id(), block_boundaries[b] ),
+                    std::pair< geode::uuid, geode::uuid >{
+                        block.id(), block_boundaries[b] },
                     correct ? relative_signs[b] : !relative_signs[b] );
             }
         }

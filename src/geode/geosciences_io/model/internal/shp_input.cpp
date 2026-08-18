@@ -78,7 +78,7 @@ namespace
                 }
                 else
                 {
-                    geode::Logger::warn( "[SHPInput] Unknown Layer type: ",
+                    geode::Logger::warning( "[SHPInput] Unknown Layer type: ",
                         layer->GetGeomType() );
                 }
             }
@@ -88,9 +88,9 @@ namespace
         void create_corner( OGRLayer& layer )
         {
             const auto& id = builder_.add_corner();
-            builder_.set_corner_name( id, layer.GetName() );
             const auto& corner = section_.corner( id );
-            auto corner_builder = builder_.corner_mesh_builder( id );
+            builder_.set_corner_name( corner, layer.GetName() );
+            auto corner_builder = builder_.corner_mesh_builder( corner );
             for( const auto& feature : layer )
             {
                 const auto* geometry = feature->GetGeometryRef();
@@ -109,7 +109,7 @@ namespace
                 }
                 else
                 {
-                    geode::Logger::warn(
+                    geode::Logger::warning(
                         "[SHPInput::create_corner] Unknown geometry type: ",
                         geometry->getGeometryType() );
                 }
@@ -119,8 +119,8 @@ namespace
         void create_line( OGRLayer& layer )
         {
             const auto& id = builder_.add_line();
-            builder_.set_line_name( id, layer.GetName() );
             const auto& line = section_.line( id );
+            builder_.set_line_name( line, layer.GetName() );
             for( const auto& feature : layer )
             {
                 const auto* geometry = feature->GetGeometryRef();
@@ -144,8 +144,8 @@ namespace
                 }
                 else
                 {
-                    geode::Logger::warn( "[SHPInput::create_line] "
-                                         "Unknown geometry type: ",
+                    geode::Logger::warning( "[SHPInput::create_line] "
+                                            "Unknown geometry type: ",
                         geometry->getGeometryType() );
                 }
             }
@@ -155,7 +155,7 @@ namespace
             const OGRLineString& line_string, const geode::Line2D& line )
         {
             const auto& curve = line.mesh();
-            auto curve_builder = builder_.line_mesh_builder( line.id() );
+            auto curve_builder = builder_.line_mesh_builder( line );
             const auto start = read_points( line_string, line, *curve_builder );
             for( const auto p : geode::Range{ start, curve.nb_vertices() - 1 } )
             {
@@ -195,8 +195,8 @@ namespace
         void create_surface( OGRLayer& layer )
         {
             const auto& id = builder_.add_surface();
-            builder_.set_surface_name( id, layer.GetName() );
             const auto& surface = section_.surface( id );
+            builder_.set_surface_name( surface, layer.GetName() );
             for( const auto& feature : layer )
             {
                 const auto* geometry = feature->GetGeometryRef();
@@ -219,8 +219,8 @@ namespace
                 }
                 else
                 {
-                    geode::Logger::warn( "[SHPInput::create_surface] "
-                                         "Unknown geometry type: ",
+                    geode::Logger::warning( "[SHPInput::create_surface] "
+                                            "Unknown geometry type: ",
                         geometry->getGeometryType() );
                 }
             }
@@ -230,8 +230,7 @@ namespace
             const OGRPolygon& polygon_string, const geode::Surface2D& surface )
         {
             const auto& mesh = surface.mesh();
-            auto surface_builder =
-                builder_.surface_mesh_builder( surface.id() );
+            auto surface_builder = builder_.surface_mesh_builder( surface );
             for( const auto* line_string : polygon_string )
             {
                 const auto start =

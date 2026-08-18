@@ -185,7 +185,7 @@ namespace geode
                     {
                         if( components_.find( item.id() ) != components_.end() )
                         {
-                            Logger::warn( "[MLOutput] A Surface from ",
+                            Logger::warning( "[MLOutput] A Surface from ",
                                 component_name( boundary ),
                                 " belongs to several collections. It has been "
                                 "exported only once" );
@@ -330,7 +330,7 @@ namespace geode
                 bool is_corner{ false };
                 for( const auto& cmv1 : model_.component_mesh_vertices( uid1 ) )
                 {
-                    if( cmv1.component_id.type()
+                    if( cmv1.component_id.type
                         == Corner3D::component_type_static() )
                     {
                         is_corner = true;

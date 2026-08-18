@@ -58,7 +58,7 @@ namespace
                 for( const auto& collection :
                     model_.collections( surface.id() ) )
                 {
-                    if( collection.type()
+                    if( collection.type
                         == geode::ModelBoundary3D::component_type_static() )
                     {
                         is_part_of_model_boundary = true;

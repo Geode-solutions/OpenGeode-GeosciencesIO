@@ -100,8 +100,7 @@ void test_modelA4()
         {
             for( const auto& collection : model.collections( surface.id() ) )
             {
-                const auto& name =
-                    model.model_boundary( collection.id() ).name();
+                const auto& name = model.model_boundary( collection.id ).name();
                 geode::OpenGeodeGeosciencesIOModelException::test(
                     name == "voi_top_boundary" || name == "voi_bottom_boundary",
                     "ModelBoundary name is not correct" );
