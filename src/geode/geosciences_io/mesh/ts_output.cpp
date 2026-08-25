@@ -87,7 +87,7 @@ namespace
                     surface_.vertex_attribute_manager().find_generic_attribute(
                         id );
                 if( !attribute || !attribute->is_genericable()
-                    || attribute->name().value() == "points" )
+                    || !attribute->properties().transferable )
                 {
                     continue;
                 }

@@ -27,8 +27,6 @@
 #include <string>
 #include <vector>
 
-#include <geode/basic/attribute_manager.hpp>
-
 #include <geode/geometry/point.hpp>
 
 #include <geode/mesh/core/edged_curve.hpp>

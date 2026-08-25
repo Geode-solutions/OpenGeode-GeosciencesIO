@@ -69,7 +69,8 @@ namespace
                 VRTX_KEYWORD = "PVRTX";
                 const auto attribute = edged_curve_.vertex_attribute_manager()
                                            .find_generic_attribute( id );
-                if( !attribute || !attribute->is_genericable() )
+                if( !attribute || !attribute->is_genericable()
+                    || !attribute->properties().transferable )
                 {
                     continue;
                 }
