@@ -280,7 +280,7 @@ namespace
                     solid_.vertex_attribute_manager().find_generic_attribute(
                         id );
                 if( !attribute || !attribute->is_genericable()
-                    || attribute->name().value() == "points" )
+                    || !attribute->properties().transferable )
                 {
                     continue;
                 }
@@ -430,9 +430,7 @@ namespace
                 const auto attribute = solid_.polyhedron_attribute_manager()
                                            .find_generic_attribute( id );
                 if( !attribute || !attribute->is_genericable()
-                    || attribute->name().value() == "tetrahedron_vertices"
-                    || attribute->name().value() == "tetrahedron_adjacents"
-                    || attribute->name().value() == "geode_active" )
+                    || !attribute->properties().transferable )
                 {
                     continue;
                 }
@@ -660,14 +658,10 @@ namespace
                 {
                     return false;
                 }
-                if( !solid_.facets()
-                        .facet_attribute_manager()
-                        .attribute_ids_matching_name( APERTURE_ATTRIBUTE_NAME )
-                        .has_value() )
-                {
-                    return false;
-                }
-                return true;
+                return solid_.facets()
+                    .facet_attribute_manager()
+                    .attribute_ids_matching_name( APERTURE_ATTRIBUTE_NAME )
+                    .has_value();
             }
 
             void build_2d_feature_groups()
@@ -789,15 +783,10 @@ namespace
                 {
                     return false;
                 }
-                if( !solid_.edges()
-                        .edge_attribute_manager()
-                        .attribute_ids_matching_name(
-                            CONDUIT_AREA_ATTRIBUTE_NAME )
-                        .has_value() )
-                {
-                    return false;
-                }
-                return true;
+                return solid_.edges()
+                    .edge_attribute_manager()
+                    .attribute_ids_matching_name( CONDUIT_AREA_ATTRIBUTE_NAME )
+                    .has_value();
             }
 
             void build_1d_feature_groups()

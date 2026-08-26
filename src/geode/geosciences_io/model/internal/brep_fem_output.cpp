@@ -368,18 +368,13 @@ namespace
                     const auto& block_polyhedron_attribute =
                         mesh.polyhedron_attribute_manager()
                             .find_generic_attribute( attribute_id );
-                    if( !block_polyhedron_attribute )
-                    {
-                        continue;
-                    }
-                    if( !block_polyhedron_attribute->properties().transferable )
-                    {
-                        continue;
-                    }
-                    if( block_polyhedron_attribute->type()
-                            != typeid( double ).name()
-                        && block_polyhedron_attribute->type()
-                               != typeid( float ).name() )
+                    if( !block_polyhedron_attribute
+                        || !block_polyhedron_attribute->properties()
+                            .transferable
+                        || ( block_polyhedron_attribute->type()
+                                 != typeid( double ).name()
+                             && block_polyhedron_attribute->type()
+                                    != typeid( float ).name() ) )
                     {
                         continue;
                     }

@@ -72,20 +72,20 @@ namespace
 
         void write_prop_header()
         {
-            const auto ids =
+            const auto vertex_attribute_ids =
                 surface_.vertex_attribute_manager().attribute_ids();
             geode::internal::PropHeaderData prop_header;
             std::vector< geode::internal::PropClassHeaderData >
                 header_properties_data;
-            header_properties_data.reserve( ids.size() );
-            generic_att_.reserve( ids.size() );
+            header_properties_data.reserve( vertex_attribute_ids.size() );
+            generic_att_.reserve( vertex_attribute_ids.size() );
 
-            for( const auto& id : ids )
+            for( const auto& attribute_id : vertex_attribute_ids )
             {
                 VRTX_KEYWORD = "PVRTX";
                 const auto attribute =
                     surface_.vertex_attribute_manager().find_generic_attribute(
-                        id );
+                        attribute_id );
                 if( !attribute || !attribute->is_genericable()
                     || !attribute->properties().transferable )
                 {
