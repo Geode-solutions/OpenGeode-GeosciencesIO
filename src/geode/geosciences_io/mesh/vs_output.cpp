@@ -72,25 +72,25 @@ namespace
 
         void write_prop_header()
         {
-            const auto ids =
+            const auto vertex_attribute_ids =
                 pointset_.vertex_attribute_manager().attribute_ids();
             geode::internal::PropHeaderData prop_header;
             std::vector< geode::internal::PropClassHeaderData >
                 header_properties_data;
-            header_properties_data.reserve( ids.size() );
-            generic_att_.reserve( ids.size() );
-            if( !ids.empty() )
+            header_properties_data.reserve( vertex_attribute_ids.size() );
+            generic_att_.reserve( vertex_attribute_ids.size() );
+            if( !vertex_attribute_ids.empty() )
             {
                 VRTX_KEYWORD = "PVRTX";
             }
 
-            for( const auto& id : ids )
+            for( const auto& attribute_id : vertex_attribute_ids )
             {
                 const auto attribute =
                     pointset_.vertex_attribute_manager().find_generic_attribute(
-                        id );
+                        attribute_id );
                 if( !attribute || !attribute->is_genericable()
-                    || attribute->name().value() == "points" )
+                    || !attribute->properties().transferable )
                 {
                     continue;
                 }

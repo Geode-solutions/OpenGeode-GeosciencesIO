@@ -57,18 +57,19 @@ namespace
 
         void write_prop_header()
         {
-            const auto ids =
+            const auto vertex_attribute_ids =
                 edged_curve_.vertex_attribute_manager().attribute_ids();
             geode::internal::PropHeaderData prop_header;
             std::vector< geode::internal::PropClassHeaderData >
                 prop_class_header;
-            prop_class_header.reserve( ids.size() );
+            prop_class_header.reserve( vertex_attribute_ids.size() );
 
-            for( const auto& id : ids )
+            for( const auto& attribute_id : vertex_attribute_ids )
             {
                 VRTX_KEYWORD = "PVRTX";
-                const auto attribute = edged_curve_.vertex_attribute_manager()
-                                           .find_generic_attribute( id );
+                const auto attribute =
+                    edged_curve_.vertex_attribute_manager()
+                        .find_generic_attribute( attribute_id );
                 if( !attribute || !attribute->is_genericable()
                     || !attribute->properties().transferable )
                 {
