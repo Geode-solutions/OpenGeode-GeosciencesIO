@@ -26,6 +26,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <geode/basic/variable_attribute.hpp>
@@ -89,6 +90,7 @@ namespace geode
 
             bool check_property_name( std::string_view property_name ) const;
             void transfer_cell_properties();
+            void transfer_physical_properties();
             void delete_mapping_attributes();
 
             std::string write_solid_file() const;
@@ -109,6 +111,10 @@ namespace geode
             std::vector< std::string > cell_1Dproperty_names_{};
             std::vector< std::string > cell_2Dproperty_names_{};
             std::vector< std::string > cell_3Dproperty_names_{};
+
+            /// Pairs of (field name in the vtu file, field name in GEOS)
+            std::vector< std::pair< std::string, std::string > >
+                imported_fields_{};
 
             std::vector< std::unique_ptr< PointSet3D > > well_perforations_{};
         };
