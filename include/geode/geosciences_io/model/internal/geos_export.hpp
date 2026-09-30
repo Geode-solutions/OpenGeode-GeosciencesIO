@@ -73,6 +73,8 @@ namespace geode
             void write_files() const;
 
             void add_well_perforations( const PointSet3D& perforations );
+            void add_well_perforations(
+                const PointSet3D& perforations, std::string_view name );
             void add_cell_property1d( std::string_view property_name );
             void add_cell_property2d( std::string_view property_name );
             void add_cell_property3d( std::string_view property_name );
@@ -117,6 +119,7 @@ namespace geode
                 imported_fields_{};
 
             std::vector< std::unique_ptr< PointSet3D > > well_perforations_{};
+            std::vector< std::string > well_names_{};
         };
     } // namespace internal
 } // namespace geode

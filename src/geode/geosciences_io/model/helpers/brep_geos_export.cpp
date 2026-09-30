@@ -73,6 +73,11 @@ namespace geode
     {
         impl_->add_well_perforations( well_perforation );
     }
+    void BRepGeosExporter::add_well_perforations(
+        const PointSet3D& well_perforation, std::string_view name )
+    {
+        impl_->add_well_perforations( well_perforation, name );
+    }
     void BRepGeosExporter::add_cell_property_1d( std::string_view name )
     {
         impl_->add_cell_property1d( name );

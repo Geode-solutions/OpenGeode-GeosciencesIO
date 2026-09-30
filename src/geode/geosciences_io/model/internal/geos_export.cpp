@@ -29,6 +29,8 @@
 
 #include <pugixml.hpp>
 
+#include <absl/algorithm/container.h>
+#include <absl/strings/str_format.h>
 #include <absl/strings/str_join.h>
 
 #include <geode/basic/attribute_manager.hpp>
@@ -101,9 +103,9 @@ namespace geode
                         .front();
                 const auto model_property = block_attribute(
                     model.block( polyhedron_mesh_element.mesh_id ) );
-                solid_property->set_value( polyhedron_id,
-                    model_property->value(
-                        polyhedron_mesh_element.element_id ) );
+                solid_property->set_value(
+                    polyhedron_id, model_property->value(
+                                       polyhedron_mesh_element.element_id ) );
             }
         }
 
@@ -128,7 +130,7 @@ namespace geode
         void transfer_block_attribute_by_id( const Model& model,
             SolidMesh3D& solid,
             const ModelToMeshMappings& model2solid,
-            const PhysicalProperties::PhysicalPropertyInfo& property_info,
+            const PhysicalProperties::Info& property_info,
             std::string_view solid_attribute_name )
         {
             OpenGeodeGeosciencesIOModelException::check_exception(
@@ -140,8 +142,9 @@ namespace geode
             for( const auto& block : model.blocks() )
             {
                 OpenGeodeGeosciencesIOModelException::check_exception(
-                    block.mesh().polyhedron_attribute_manager().attribute_exists(
-                        property_info.attribute_id ),
+                    block.mesh()
+                        .polyhedron_attribute_manager()
+                        .attribute_exists( property_info.attribute_id ),
                     nullptr, OpenGeodeException::TYPE::data,
                     "[GeosExporter] Physical property ", solid_attribute_name,
                     " attribute is missing on Block ", block.id().string(),
@@ -225,7 +228,21 @@ namespace geode
         void GeosExporterImpl< Model >::add_well_perforations(
             const PointSet3D& perforations )
         {
+            add_well_perforations( perforations,
+                absl::StrCat( "well_", well_perforations_.size() ) );
+        }
+
+        template < typename Model >
+        void GeosExporterImpl< Model >::add_well_perforations(
+            const PointSet3D& perforations, std::string_view name )
+        {
+            OpenGeodeGeosciencesIOModelException::check_exception(
+                absl::c_find( well_names_, name ) == well_names_.end(), nullptr,
+                OpenGeodeException::TYPE::data,
+                "[GeosExporter] Well perforations named ", name,
+                " already added." );
             well_perforations_.push_back( perforations.clone() );
+            well_names_.emplace_back( to_string( name ) );
         }
 
         template < typename Model >
@@ -297,9 +314,9 @@ namespace geode
             pugi::xml_node& root ) const
         {
             auto aabb = create_aabb_tree( *model_solid_ );
-            index_t well_id{ 0 };
-            for( const auto& well : well_perforations_ )
+            for( const auto well_id : Indices{ well_perforations_ } )
             {
+                const auto& well = well_perforations_[well_id];
                 BoundingBox3D perf_box;
                 for( const auto point : Range( well->nb_vertices() ) )
                 {
@@ -333,7 +350,7 @@ namespace geode
                 }
                 auto box_node = root.append_child( "Box" );
                 box_node.append_attribute( "name" ).set_value(
-                    absl::StrCat( "well_", well_id++ ).c_str() );
+                    well_names_[well_id].c_str() );
                 static constexpr auto SAFETY_OFFSET = 100. * GLOBAL_EPSILON;
                 box_node.append_attribute( "xMin" ).set_value( absl::StrCat(
                     "{", perf_box.min().value( 0 ) - SAFETY_OFFSET, ", ",
@@ -438,8 +455,8 @@ namespace geode
             if( model_.has_physical_property(
                     PHYSICAL_PROPERTY_NAME::porosity ) )
             {
-                transfer_block_attribute_by_id< double >( model_,
-                    *model_solid_, model2solid_,
+                transfer_block_attribute_by_id< double >( model_, *model_solid_,
+                    model2solid_,
                     model_.physical_property_attribute(
                         PHYSICAL_PROPERTY_NAME::porosity ),
                     POROSITY_VTU_NAME );
