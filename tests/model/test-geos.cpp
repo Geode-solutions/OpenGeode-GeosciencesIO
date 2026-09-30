@@ -79,10 +79,8 @@ void toy_model()
     exporter.add_well_perforations( *point_set );
     exporter.run();
 }
-/ namespace
 
-    void
-    test_grid_geos()
+void test_grid_geos()
 {
     auto model = geode::load_brep( absl::StrCat(
         geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
