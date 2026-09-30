@@ -88,21 +88,6 @@ namespace geode
     {
         impl_->add_well_perforations( well_perforation, name );
     }
-    void StructuralModelGeosExporter::add_cell_property_1d(
-        std::string_view name )
-    {
-        impl_->add_cell_property1d( name );
-    }
-    void StructuralModelGeosExporter::add_cell_property_2d(
-        std::string_view name )
-    {
-        impl_->add_cell_property2d( name );
-    }
-    void StructuralModelGeosExporter::add_cell_property_3d(
-        std::string_view name )
-    {
-        impl_->add_cell_property3d( name );
-    }
 
     void StructuralModelGeosExporter::run()
     {

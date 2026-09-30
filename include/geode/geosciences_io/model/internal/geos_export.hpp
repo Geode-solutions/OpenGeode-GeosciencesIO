@@ -75,9 +75,6 @@ namespace geode
             void add_well_perforations( const PointSet3D& perforations );
             void add_well_perforations(
                 const PointSet3D& perforations, std::string_view name );
-            void add_cell_property1d( std::string_view property_name );
-            void add_cell_property2d( std::string_view property_name );
-            void add_cell_property3d( std::string_view property_name );
 
         protected:
             std::string_view files_directory() const;
@@ -110,11 +107,6 @@ namespace geode
             std::string files_directory_;
             std::string prefix_;
 
-            std::vector< std::string > cell_1Dproperty_names_{};
-            std::vector< std::string > cell_2Dproperty_names_{};
-            std::vector< std::string > cell_3Dproperty_names_{};
-
-            /// Pairs of (field name in the vtu file, field name in GEOS)
             std::vector< std::pair< std::string, std::string > >
                 imported_fields_{};
 

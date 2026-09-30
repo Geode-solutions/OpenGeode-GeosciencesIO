@@ -57,9 +57,6 @@ namespace geode
          */
         void add_well_perforations(
             const PointSet3D& well_perforations, std::string_view name );
-        void add_cell_property_1d( std::string_view name );
-        void add_cell_property_2d( std::string_view name );
-        void add_cell_property_3d( std::string_view name );
 
         void run();
 

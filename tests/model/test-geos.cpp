@@ -21,22 +21,14 @@
  *
  */
 
-#include <algorithm>
 #include <array>
-#include <cmath>
-#include <fstream>
-#include <iterator>
-#include <sstream>
 #include <string_view>
-#include <vector>
 
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/logger.hpp>
-#include <geode/basic/uuid.hpp>
 #include <geode/basic/variable_attribute.hpp>
 #include <geode/tests_config.hpp>
 
-#include <absl/strings/match.h>
 #include <absl/strings/str_cat.h>
 
 #include <geode/geosciences_io/model/helpers/brep_geos_export.hpp>
@@ -49,14 +41,11 @@
 
 #include <geode/mesh/core/geode/geode_point_set.hpp>
 #include <geode/mesh/core/hybrid_solid.hpp>
-#include <geode/mesh/io/hybrid_solid_input.hpp>
 
 #include <geode/model/mixin/core/block.hpp>
 #include <geode/model/mixin/core/physical_properties.hpp>
-#include <geode/model/representation/builder/brep_builder.hpp>
 #include <geode/model/representation/core/brep.hpp>
 #include <geode/model/representation/io/brep_input.hpp>
-#include <geode/model/representation/io/brep_output.hpp>
 
 void test_picasso()
 {
