@@ -48,11 +48,7 @@ namespace geode
         ~BRepGeosExporter();
 
         void add_well_perforations( const PointSet3D& well_perforations );
-        /*!
-         * Add well perforations exported as a named Box in the Geometry
-         * section, so it can be referenced in setNames of GEOS
-         * FieldSpecifications.
-         */
+
         void add_well_perforations(
             const PointSet3D& well_perforations, std::string_view name );
 
