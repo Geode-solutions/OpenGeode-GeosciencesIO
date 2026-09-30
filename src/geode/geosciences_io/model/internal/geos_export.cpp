@@ -446,7 +446,7 @@ namespace geode
             {
                 transfer_block_attribute_by_id< std::array< double, 3 > >(
                     model_, *model_solid_, model2solid_,
-                    model_.physical_property_attribute(
+                    model_.physical_property_info(
                         PHYSICAL_PROPERTY_NAME::permeability ),
                     PERMEABILITY_VTU_NAME );
                 imported_fields_.emplace_back(
@@ -457,7 +457,7 @@ namespace geode
             {
                 transfer_block_attribute_by_id< double >( model_, *model_solid_,
                     model2solid_,
-                    model_.physical_property_attribute(
+                    model_.physical_property_info(
                         PHYSICAL_PROPERTY_NAME::porosity ),
                     POROSITY_VTU_NAME );
                 imported_fields_.emplace_back(

@@ -81,31 +81,29 @@ void toy_model()
     exporter.run();
 }
 
-void add_well( geode::BRepGeosExporter& exporter,
+void add_vertical_well( geode::BRepGeosExporter& exporter,
     std::string_view name,
-    const geode::Point3D& min,
-    const geode::Point3D& max )
+    double x,
+    double y )
 {
+    static constexpr std::array< double, 2 > LAYER_CENTERS_Z{ 0.305, 0.915 };
     auto point_set = geode::PointSet3D::create(
         geode::OpenGeodePointSet3D::impl_name_static() );
     auto builder = geode::PointSetBuilder3D::create( *point_set );
-    builder->create_point( min );
-    builder->create_point( max );
+    for( const auto z : LAYER_CENTERS_Z )
+    {
+        builder->create_point( geode::Point3D{ { x, y, z } } );
+    }
     exporter.add_well_perforations( *point_set, name );
 }
 
 void add_spe10_wells( geode::BRepGeosExporter& exporter )
 {
-    add_well( exporter, "source", geode::Point3D{ { 182.85, 335.25, -0.01 } },
-        geode::Point3D{ { 189.00, 338.35, 2.00 } } );
-    add_well( exporter, "sink1", geode::Point3D{ { -0.01, -0.01, -0.01 } },
-        geode::Point3D{ { 6.126, 3.078, 2.00 } } );
-    add_well( exporter, "sink2", geode::Point3D{ { -0.01, 667.482, -0.01 } },
-        geode::Point3D{ { 6.126, 670.60, 2.00 } } );
-    add_well( exporter, "sink3", geode::Point3D{ { 359.634, -0.01, -0.01 } },
-        geode::Point3D{ { 365.8, 3.048, 2.00 } } );
-    add_well( exporter, "sink4", geode::Point3D{ { 359.634, 667.482, -0.01 } },
-        geode::Point3D{ { 365.8, 670.60, 2.00 } } );
+    add_vertical_well( exporter, "source", 185.93, 336.8 );
+    add_vertical_well( exporter, "sink1", 3.048, 1.524 );
+    add_vertical_well( exporter, "sink2", 3.048, 669.036 );
+    add_vertical_well( exporter, "sink3", 362.712, 1.524 );
+    add_vertical_well( exporter, "sink4", 362.712, 669.036 );
 }
 
 void test_grid_geos()
@@ -124,8 +122,8 @@ int main()
         geode::OpenGeodeGeosciencesIOModelLibrary::initialize();
         geode::OpenGeodeIOMeshLibrary::initialize();
         geode::OpenGeodeIOModelLibrary::initialize();
-        // test_picasso();
-        // toy_model();
+        test_picasso();
+        toy_model();
         test_grid_geos();
         geode::Logger::info( "TEST SUCCESS" );
 
