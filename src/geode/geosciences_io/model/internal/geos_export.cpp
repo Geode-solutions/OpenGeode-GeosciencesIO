@@ -72,12 +72,12 @@ namespace geode
         constexpr auto PERMEABILITY_GEOS_NAME = "rockPerm_permeability";
         constexpr auto POROSITY_GEOS_NAME = "rockPorosity_referencePorosity";
 
-        template < typename T, typename Model, typename AttributeGetter >
-        void transfer_block_attribute( const Model& model,
+        template < typename T, typename Model >
+        void transfer_block_attribute_by_id( const Model& model,
             SolidMesh3D& solid,
             const ModelToMeshMappings& model2solid,
-            std::string_view solid_attribute_name,
-            const AttributeGetter& block_attribute )
+            std::string_view attribute_name,
+            const uuid& attribute_id )
         {
             AttributeValues< T > solid_attribute_values;
             solid_attribute_values.default_value = T{};
@@ -89,38 +89,37 @@ namespace geode
             const auto solid_property_id =
                 solid.polyhedron_attribute_manager()
                     .template create_attribute< VariableAttribute, T >(
-                        solid_attribute_name, solid_attribute_values,
+                        attribute_name, solid_attribute_values,
                         solid_attribute_properties );
             auto solid_property =
                 solid.polyhedron_attribute_manager()
                     .template find_attribute< VariableAttribute, T >(
                         solid_property_id );
-            for( const auto polyhedron_id : Range( solid.nb_polyhedra() ) )
+            const auto& polyhedra_mapping = model2solid.solid_polyhedra_mapping;
+            for( const auto& block : model.blocks() )
             {
-                const auto& polyhedron_mesh_element =
-                    model2solid.solid_polyhedra_mapping.out2in( polyhedron_id )
-                        .front();
-                const auto model_property = block_attribute(
-                    model.block( polyhedron_mesh_element.mesh_id ) );
-                solid_property->set_value(
-                    polyhedron_id, model_property->value(
-                                       polyhedron_mesh_element.element_id ) );
-            }
-        }
-
-        template < typename T, typename Model >
-        void transfer_block_attribute_by_id( const Model& model,
-            SolidMesh3D& solid,
-            const ModelToMeshMappings& model2solid,
-            std::string_view attribute_name,
-            const uuid& attribute_id )
-        {
-            transfer_block_attribute< T >( model, solid, model2solid,
-                attribute_name, [&attribute_id]( const Block3D& block ) {
-                    return block.mesh()
-                        .polyhedron_attribute_manager()
+                const auto& block_mesh = block.mesh();
+                const auto block_property =
+                    block_mesh.polyhedron_attribute_manager()
                         .template find_read_only_attribute< T >( attribute_id );
-                } );
+                for( const auto polyhedron_id :
+                    Range( block_mesh.nb_polyhedra() ) )
+                {
+                    const MeshElement block_polyhedron{ block.id(),
+                        polyhedron_id };
+                    if( !polyhedra_mapping.has_mapping_input(
+                            block_polyhedron ) )
+                    {
+                        continue;
+                    }
+                    const auto& value = block_property->value( polyhedron_id );
+                    for( const auto solid_polyhedron_id :
+                        polyhedra_mapping.in2out( block_polyhedron ) )
+                    {
+                        solid_property->set_value( solid_polyhedron_id, value );
+                    }
+                }
+            }
         }
 
         template < typename Model >
@@ -266,7 +265,6 @@ namespace geode
         void GeosExporterImpl< Model >::prepare_export()
         {
             initialize_solid_region_attribute();
-            transfer_cell_properties();
             transfer_physical_properties();
         }
 

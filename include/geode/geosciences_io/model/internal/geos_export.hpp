@@ -88,7 +88,6 @@ namespace geode
             void write_mesh_files( pugi::xml_node& root ) const;
 
             bool check_property_name( std::string_view property_name ) const;
-            void transfer_cell_properties();
             void transfer_physical_properties();
             void delete_mapping_attributes();
 
