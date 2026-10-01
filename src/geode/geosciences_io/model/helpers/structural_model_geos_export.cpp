@@ -79,11 +79,6 @@ namespace geode
     StructuralModelGeosExporter::~StructuralModelGeosExporter() = default;
 
     void StructuralModelGeosExporter::add_well_perforations(
-        const PointSet3D& well_perforation )
-    {
-        impl_->add_well_perforations( well_perforation );
-    }
-    void StructuralModelGeosExporter::add_well_perforations(
         const PointSet3D& well_perforation, std::string_view name )
     {
         impl_->add_well_perforations( well_perforation, name );

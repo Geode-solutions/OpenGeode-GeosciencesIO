@@ -64,7 +64,7 @@ void toy_model()
         geode::OpenGeodePointSet3D::impl_name_static() );
     auto builder = geode::PointSetBuilder3D::create( *point_set );
     builder->create_point( geode::Point3D{ { 20., 20., 10. } } );
-    exporter.add_well_perforations( *point_set );
+    exporter.add_well_perforations( *point_set, "well" );
     exporter.run();
 }
 

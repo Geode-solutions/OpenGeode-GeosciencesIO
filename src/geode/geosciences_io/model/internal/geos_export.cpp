@@ -27,16 +27,19 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include <pugixml.hpp>
 
 #include <absl/algorithm/container.h>
+#include <absl/container/linked_hash_map.h>
 #include <absl/strings/str_format.h>
 #include <absl/strings/str_join.h>
 
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/filename.hpp>
 #include <geode/basic/logger.hpp>
+#include <geode/basic/mapping.hpp>
 #include <geode/basic/variable_attribute.hpp>
 
 #include <geode/geometry/aabb.hpp>
@@ -69,39 +72,43 @@ namespace geode
     namespace internal
     {
         constexpr auto REGION_ID_ATTRIBUTE_NAME = "attribute";
-        constexpr auto PERMEABILITY_GEOS_NAME = "rockPerm_permeability";
-        constexpr auto POROSITY_GEOS_NAME = "rockPorosity_referencePorosity";
 
-        template < typename T, typename Model >
-        void transfer_block_attribute_by_id( const Model& model,
+        const absl::linked_hash_map< PHYSICAL_PROPERTY_NAME, std::string_view >
+            PHYSICAL_PROPERTY_GEOS_NAMES{
+                { PHYSICAL_PROPERTY_NAME::permeability,
+                    "rockPerm_permeability" },
+                { PHYSICAL_PROPERTY_NAME::porosity,
+                    "rockPorosity_referencePorosity" },
+            };
+
+        template < typename Model >
+        std::string transfer_block_attribute( const Model& model,
             SolidMesh3D& solid,
             const ModelToMeshMappings& model2solid,
-            std::string_view attribute_name,
-            const uuid& attribute_id )
+            const PhysicalProperties::Info& property_info )
         {
-            AttributeValues< T > solid_attribute_values;
-            solid_attribute_values.default_value = T{};
-            solid_attribute_values.no_value = T{};
-            AttributeProperties solid_attribute_properties;
-            solid_attribute_properties.assignable = false;
-            solid_attribute_properties.interpolable = false;
-            solid_attribute_properties.transferable = true;
-            const auto solid_property_id =
-                solid.polyhedron_attribute_manager()
-                    .template create_attribute< VariableAttribute, T >(
-                        attribute_name, solid_attribute_values,
-                        solid_attribute_properties );
-            auto solid_property =
-                solid.polyhedron_attribute_manager()
-                    .template find_attribute< VariableAttribute, T >(
-                        solid_property_id );
+            const auto& attribute_id = property_info.attribute_id;
+            OpenGeodeGeosciencesIOModelException::check_exception(
+                property_info.component_type
+                    == Block3D::component_type_static(),
+                nullptr, OpenGeodeException::TYPE::data,
+                "[GeosExporter] Physical property attribute ",
+                attribute_id.string(),
+                " must be defined on Blocks to be exported." );
+            auto& solid_manager = solid.polyhedron_attribute_manager();
             const auto& polyhedra_mapping = model2solid.solid_polyhedra_mapping;
             for( const auto& block : model.blocks() )
             {
                 const auto& block_mesh = block.mesh();
-                const auto block_property =
-                    block_mesh.polyhedron_attribute_manager()
-                        .template find_read_only_attribute< T >( attribute_id );
+                const auto& block_manager =
+                    block_mesh.polyhedron_attribute_manager();
+                OpenGeodeGeosciencesIOModelException::check_exception(
+                    block_manager.attribute_exists( attribute_id ), nullptr,
+                    OpenGeodeException::TYPE::data,
+                    "[GeosExporter] Physical property attribute ",
+                    attribute_id.string(), " is missing on Block ",
+                    block.id().string(), "." );
+                GenericMapping< index_t > block2solid;
                 for( const auto polyhedron_id :
                     Range( block_mesh.nb_polyhedra() ) )
                 {
@@ -112,67 +119,22 @@ namespace geode
                     {
                         continue;
                     }
-                    const auto& value = block_property->value( polyhedron_id );
                     for( const auto solid_polyhedron_id :
                         polyhedra_mapping.in2out( block_polyhedron ) )
                     {
-                        solid_property->set_value( solid_polyhedron_id, value );
+                        block2solid.map( polyhedron_id, solid_polyhedron_id );
                     }
                 }
+                solid_manager.import( block_manager, block2solid, attribute_id );
             }
-        }
-
-        template < typename Model >
-        std::string transfer_block_attribute_by_id( const Model& model,
-            SolidMesh3D& solid,
-            const ModelToMeshMappings& model2solid,
-            const PhysicalProperties::Info& property_info )
-        {
-            const auto attribute_id = property_info.attribute_id;
+            const auto attribute =
+                solid_manager.find_generic_attribute( attribute_id );
             OpenGeodeGeosciencesIOModelException::check_exception(
-                property_info.component_type
-                    == Block3D::component_type_static(),
-                nullptr, OpenGeodeException::TYPE::data,
-                "[GeosExporter] Physical property attribute ",
-                attribute_id.string(),
-                " must be defined on Blocks to be exported." );
-            std::optional< std::string > attribute_name;
-            local_index_t nb_items{ 0 };
-            for( const auto& block : model.blocks() )
-            {
-                const auto& manager =
-                    block.mesh().polyhedron_attribute_manager();
-                OpenGeodeGeosciencesIOModelException::check_exception(
-                    manager.attribute_exists( attribute_id ), nullptr,
-                    OpenGeodeException::TYPE::data,
-                    "[GeosExporter] Physical property attribute ",
-                    attribute_id.string(), " is missing on Block ",
-                    block.id().string(), "." );
-                if( !attribute_name )
-                {
-                    const auto attribute =
-                        manager.find_generic_attribute( attribute_id );
-                    attribute_name = attribute->name();
-                    nb_items = attribute->nb_items();
-                }
-            }
-            OpenGeodeGeosciencesIOModelException::check_exception(
-                attribute_name.has_value(), nullptr,
+                attribute && attribute->name().has_value(), nullptr,
                 OpenGeodeException::TYPE::data,
                 "[GeosExporter] Physical property attribute ",
                 attribute_id.string(), " has no name." );
-            if( nb_items == 1 )
-            {
-                transfer_block_attribute_by_id< double >( model, solid,
-                    model2solid, attribute_name.value(), attribute_id );
-            }
-            else if( nb_items == 3 )
-            {
-                transfer_block_attribute_by_id< std::array< double, 3 > >(
-                    model, solid, model2solid, attribute_name.value(),
-                    attribute_id );
-            }
-            return attribute_name.value();
+            return attribute->name().value();
         }
 
         template < typename Model >
@@ -238,14 +200,6 @@ namespace geode
                 files_directory(), "/", prefix(), "_simulation.xml" );
             doc_xml.save_file( filename_xml.c_str(), PUGIXML_TEXT( "    " ),
                 pugi::format_indent_attributes );
-        }
-
-        template < typename Model >
-        void GeosExporterImpl< Model >::add_well_perforations(
-            const PointSet3D& perforations )
-        {
-            add_well_perforations( perforations,
-                absl::StrCat( "well_", well_perforations_.size() ) );
         }
 
         template < typename Model >
@@ -406,25 +360,18 @@ namespace geode
         template < typename Model >
         void GeosExporterImpl< Model >::transfer_physical_properties()
         {
-            if( model_.has_physical_property(
-                    PHYSICAL_PROPERTY_NAME::permeability ) )
+            for( const auto& [property, geos_name] :
+                PHYSICAL_PROPERTY_GEOS_NAMES )
             {
-                auto attribute_name = transfer_block_attribute_by_id( model_,
+                if( !model_.has_physical_property( property ) )
+                {
+                    continue;
+                }
+                auto attribute_name = transfer_block_attribute( model_,
                     *model_solid_, model2solid_,
-                    model_.physical_property_info(
-                        PHYSICAL_PROPERTY_NAME::permeability ) );
+                    model_.physical_property_info( property ) );
                 imported_fields_.emplace_back(
-                    std::move( attribute_name ), PERMEABILITY_GEOS_NAME );
-            }
-            if( model_.has_physical_property(
-                    PHYSICAL_PROPERTY_NAME::porosity ) )
-            {
-                auto attribute_name = transfer_block_attribute_by_id( model_,
-                    *model_solid_, model2solid_,
-                    model_.physical_property_info(
-                        PHYSICAL_PROPERTY_NAME::porosity ) );
-                imported_fields_.emplace_back(
-                    std::move( attribute_name ), POROSITY_GEOS_NAME );
+                    std::move( attribute_name ), to_string( geos_name ) );
             }
         }
 

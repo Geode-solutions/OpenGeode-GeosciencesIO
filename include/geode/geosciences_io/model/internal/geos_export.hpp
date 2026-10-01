@@ -72,7 +72,6 @@ namespace geode
             void prepare_export();
             void write_files() const;
 
-            void add_well_perforations( const PointSet3D& perforations );
             void add_well_perforations(
                 const PointSet3D& perforations, std::string_view name );
 

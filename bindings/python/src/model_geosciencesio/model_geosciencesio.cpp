@@ -43,10 +43,6 @@ PYBIND11_MODULE( opengeode_geosciencesio_py_model, module )
         .def( pybind11::init< const geode::BRep&, std::string_view >() )
         .def( "add_well_perforations",
             static_cast< void ( geode::BRepGeosExporter::* )(
-                const geode::PointSet3D& ) >(
-                &geode::BRepGeosExporter::add_well_perforations ) )
-        .def( "add_well_perforations",
-            static_cast< void ( geode::BRepGeosExporter::* )(
                 const geode::PointSet3D&, std::string_view ) >(
                 &geode::BRepGeosExporter::add_well_perforations ) )
         .def( "run", &geode::BRepGeosExporter::run );
@@ -55,10 +51,6 @@ PYBIND11_MODULE( opengeode_geosciencesio_py_model, module )
         module, "StructuralModelGeosExporter" )
         .def( pybind11::init< const geode::StructuralModel&,
             std::string_view >() )
-        .def( "add_well_perforations",
-            static_cast< void ( geode::StructuralModelGeosExporter::* )(
-                const geode::PointSet3D& ) >(
-                &geode::StructuralModelGeosExporter::add_well_perforations ) )
         .def( "add_well_perforations",
             static_cast< void ( geode::StructuralModelGeosExporter::* )(
                 const geode::PointSet3D&, std::string_view ) >(

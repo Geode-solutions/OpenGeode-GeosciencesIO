@@ -47,8 +47,6 @@ namespace geode
         BRepGeosExporter( const BRep& brep, std::string_view files_directory );
         ~BRepGeosExporter();
 
-        void add_well_perforations( const PointSet3D& well_perforations );
-
         void add_well_perforations(
             const PointSet3D& well_perforations, std::string_view name );
 
