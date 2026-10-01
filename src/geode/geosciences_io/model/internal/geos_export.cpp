@@ -125,7 +125,8 @@ namespace geode
                         block2solid.map( polyhedron_id, solid_polyhedron_id );
                     }
                 }
-                solid_manager.import( block_manager, block2solid, attribute_id );
+                solid_manager.import(
+                    block_manager, block2solid, attribute_id );
             }
             const auto attribute =
                 solid_manager.find_generic_attribute( attribute_id );
