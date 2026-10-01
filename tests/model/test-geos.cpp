@@ -21,7 +21,12 @@
  *
  */
 
+#include <array>
+#include <string_view>
+
+#include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/logger.hpp>
+#include <geode/basic/variable_attribute.hpp>
 #include <geode/tests_config.hpp>
 
 #include <absl/strings/str_cat.h>
@@ -35,7 +40,10 @@
 #include <geode/mesh/core/point_set.hpp>
 
 #include <geode/mesh/core/geode/geode_point_set.hpp>
+#include <geode/mesh/core/hybrid_solid.hpp>
 
+#include <geode/model/mixin/core/block.hpp>
+#include <geode/model/mixin/core/physical_properties.hpp>
 #include <geode/model/representation/core/brep.hpp>
 #include <geode/model/representation/io/brep_input.hpp>
 
@@ -52,15 +60,48 @@ void toy_model()
     auto model = geode::load_brep( absl::StrCat(
         geode::DATA_PATH, "adaptive_brep_perm_and_poro.og_brep" ) );
     geode::BRepGeosExporter exporter( model, "toy_model" );
-    exporter.add_cell_property_1d( "permeability" );
-    exporter.add_cell_property_1d( "porosity" );
     auto point_set = geode::PointSet3D::create(
         geode::OpenGeodePointSet3D::impl_name_static() );
     auto builder = geode::PointSetBuilder3D::create( *point_set );
     builder->create_point( geode::Point3D{ { 20., 20., 10. } } );
-    exporter.add_well_perforations( *point_set );
+    exporter.add_well_perforations( *point_set, "well" );
     exporter.run();
 }
+
+void add_vertical_well( geode::BRepGeosExporter& exporter,
+    std::string_view name,
+    double x,
+    double y )
+{
+    static constexpr std::array< double, 2 > LAYER_CENTERS_Z{ 0.305, 0.915 };
+    auto point_set = geode::PointSet3D::create(
+        geode::OpenGeodePointSet3D::impl_name_static() );
+    auto builder = geode::PointSetBuilder3D::create( *point_set );
+    for( const auto z : LAYER_CENTERS_Z )
+    {
+        builder->create_point( geode::Point3D{ { x, y, z } } );
+    }
+    exporter.add_well_perforations( *point_set, name );
+}
+
+void add_spe10_wells( geode::BRepGeosExporter& exporter )
+{
+    add_vertical_well( exporter, "source", 185.93, 336.8 );
+    add_vertical_well( exporter, "sink1", 3.048, 1.524 );
+    add_vertical_well( exporter, "sink2", 3.048, 669.036 );
+    add_vertical_well( exporter, "sink3", 362.712, 1.524 );
+    add_vertical_well( exporter, "sink4", 362.712, 669.036 );
+}
+
+void test_grid_geos()
+{
+    auto model = geode::load_brep( absl::StrCat(
+        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+    geode::BRepGeosExporter exporter( model, "grid_geos" );
+    add_spe10_wells( exporter );
+    exporter.run();
+}
+
 int main()
 {
     try
@@ -68,9 +109,9 @@ int main()
         geode::OpenGeodeGeosciencesIOModelLibrary::initialize();
         geode::OpenGeodeIOMeshLibrary::initialize();
         geode::OpenGeodeIOModelLibrary::initialize();
-
         test_picasso();
         toy_model();
+        test_grid_geos();
         geode::Logger::info( "TEST SUCCESS" );
 
         return 0;

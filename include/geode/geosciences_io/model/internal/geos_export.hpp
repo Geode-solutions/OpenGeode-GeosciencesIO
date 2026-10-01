@@ -26,6 +26,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <geode/basic/variable_attribute.hpp>
@@ -71,10 +72,8 @@ namespace geode
             void prepare_export();
             void write_files() const;
 
-            void add_well_perforations( const PointSet3D& perforations );
-            void add_cell_property1d( std::string_view property_name );
-            void add_cell_property2d( std::string_view property_name );
-            void add_cell_property3d( std::string_view property_name );
+            void add_well_perforations(
+                const PointSet3D& perforations, std::string_view name );
 
         protected:
             std::string_view files_directory() const;
@@ -88,7 +87,7 @@ namespace geode
             void write_mesh_files( pugi::xml_node& root ) const;
 
             bool check_property_name( std::string_view property_name ) const;
-            void transfer_cell_properties();
+            void transfer_physical_properties();
             void delete_mapping_attributes();
 
             std::string write_solid_file() const;
@@ -106,11 +105,11 @@ namespace geode
             std::string files_directory_;
             std::string prefix_;
 
-            std::vector< std::string > cell_1Dproperty_names_{};
-            std::vector< std::string > cell_2Dproperty_names_{};
-            std::vector< std::string > cell_3Dproperty_names_{};
+            std::vector< std::pair< std::string, std::string > >
+                imported_fields_{};
 
             std::vector< std::unique_ptr< PointSet3D > > well_perforations_{};
+            std::vector< std::string > well_names_{};
         };
     } // namespace internal
 } // namespace geode

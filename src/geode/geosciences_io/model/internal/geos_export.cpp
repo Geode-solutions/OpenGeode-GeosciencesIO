@@ -21,19 +21,25 @@
  *
  */
 
-#pragma once
-
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include <pugixml.hpp>
+
+#include <absl/algorithm/container.h>
+#include <absl/container/linked_hash_map.h>
+#include <absl/strings/str_format.h>
+#include <absl/strings/str_join.h>
 
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/filename.hpp>
 #include <geode/basic/logger.hpp>
+#include <geode/basic/mapping.hpp>
 #include <geode/basic/variable_attribute.hpp>
 
 #include <geode/geometry/aabb.hpp>
@@ -55,6 +61,7 @@
 #include <geode/mesh/io/tetrahedral_solid_output.hpp>
 
 #include <geode/model/mixin/core/block.hpp>
+#include <geode/model/mixin/core/physical_properties.hpp>
 
 #include <geode/geosciences/explicit/representation/core/structural_model.hpp>
 #include <geode/geosciences_io/model/internal/geos_export.hpp>
@@ -65,6 +72,71 @@ namespace geode
     namespace internal
     {
         constexpr auto REGION_ID_ATTRIBUTE_NAME = "attribute";
+
+        const absl::linked_hash_map< PHYSICAL_PROPERTY_NAME, std::string_view >
+            PHYSICAL_PROPERTY_GEOS_NAMES{
+                { PHYSICAL_PROPERTY_NAME::permeability,
+                    "rockPerm_permeability" },
+                { PHYSICAL_PROPERTY_NAME::porosity,
+                    "rockPorosity_referencePorosity" },
+            };
+
+        template < typename Model >
+        std::string transfer_block_attribute( const Model& model,
+            SolidMesh3D& solid,
+            const ModelToMeshMappings& model2solid,
+            const PhysicalProperties::Info& property_info )
+        {
+            const auto& attribute_id = property_info.attribute_id;
+            OpenGeodeGeosciencesIOModelException::check_exception(
+                property_info.component_type
+                    == Block3D::component_type_static(),
+                nullptr, OpenGeodeException::TYPE::data,
+                "[GeosExporter] Physical property attribute ",
+                attribute_id.string(),
+                " must be defined on Blocks to be exported." );
+            auto& solid_manager = solid.polyhedron_attribute_manager();
+            const auto& polyhedra_mapping = model2solid.solid_polyhedra_mapping;
+            for( const auto& block : model.blocks() )
+            {
+                const auto& block_mesh = block.mesh();
+                const auto& block_manager =
+                    block_mesh.polyhedron_attribute_manager();
+                OpenGeodeGeosciencesIOModelException::check_exception(
+                    block_manager.attribute_exists( attribute_id ), nullptr,
+                    OpenGeodeException::TYPE::data,
+                    "[GeosExporter] Physical property attribute ",
+                    attribute_id.string(), " is missing on Block ",
+                    block.id().string(), "." );
+                GenericMapping< index_t > block2solid;
+                for( const auto polyhedron_id :
+                    Range( block_mesh.nb_polyhedra() ) )
+                {
+                    const MeshElement block_polyhedron{ block.id(),
+                        polyhedron_id };
+                    if( !polyhedra_mapping.has_mapping_input(
+                            block_polyhedron ) )
+                    {
+                        continue;
+                    }
+                    for( const auto solid_polyhedron_id :
+                        polyhedra_mapping.in2out( block_polyhedron ) )
+                    {
+                        block2solid.map( polyhedron_id, solid_polyhedron_id );
+                    }
+                }
+                solid_manager.import(
+                    block_manager, block2solid, attribute_id );
+            }
+            const auto attribute =
+                solid_manager.find_generic_attribute( attribute_id );
+            OpenGeodeGeosciencesIOModelException::check_exception(
+                attribute && attribute->name().has_value(), nullptr,
+                OpenGeodeException::TYPE::data,
+                "[GeosExporter] Physical property attribute ",
+                attribute_id.string(), " has no name." );
+            return attribute->name().value();
+        }
 
         template < typename Model >
         GeosExporterImpl< Model >::GeosExporterImpl(
@@ -133,43 +205,22 @@ namespace geode
 
         template < typename Model >
         void GeosExporterImpl< Model >::add_well_perforations(
-            const PointSet3D& perforations )
+            const PointSet3D& perforations, std::string_view name )
         {
+            OpenGeodeGeosciencesIOModelException::check_exception(
+                absl::c_find( well_names_, name ) == well_names_.end(), nullptr,
+                OpenGeodeException::TYPE::data,
+                "[GeosExporter] Well perforations named ", name,
+                " already added." );
             well_perforations_.push_back( perforations.clone() );
+            well_names_.emplace_back( to_string( name ) );
         }
 
-        template < typename Model >
-        void GeosExporterImpl< Model >::add_cell_property1d(
-            std::string_view property_name )
-        {
-            if( check_property_name( property_name ) )
-            {
-                cell_1Dproperty_names_.push_back( to_string( property_name ) );
-            }
-        }
-        template < typename Model >
-        void GeosExporterImpl< Model >::add_cell_property2d(
-            std::string_view property_name )
-        {
-            if( check_property_name( property_name ) )
-            {
-                cell_2Dproperty_names_.push_back( to_string( property_name ) );
-            }
-        }
-        template < typename Model >
-        void GeosExporterImpl< Model >::add_cell_property3d(
-            std::string_view property_name )
-        {
-            if( check_property_name( property_name ) )
-            {
-                cell_3Dproperty_names_.push_back( to_string( property_name ) );
-            }
-        }
         template < typename Model >
         void GeosExporterImpl< Model >::prepare_export()
         {
             initialize_solid_region_attribute();
-            transfer_cell_properties();
+            transfer_physical_properties();
         }
 
         template < typename Model >
@@ -206,9 +257,9 @@ namespace geode
             pugi::xml_node& root ) const
         {
             auto aabb = create_aabb_tree( *model_solid_ );
-            index_t well_id{ 0 };
-            for( const auto& well : well_perforations_ )
+            for( const auto well_id : Indices{ well_perforations_ } )
             {
+                const auto& well = well_perforations_[well_id];
                 BoundingBox3D perf_box;
                 for( const auto point : Range( well->nb_vertices() ) )
                 {
@@ -242,7 +293,7 @@ namespace geode
                 }
                 auto box_node = root.append_child( "Box" );
                 box_node.append_attribute( "name" ).set_value(
-                    absl::StrCat( "well_", well_id++ ).c_str() );
+                    well_names_[well_id].c_str() );
                 static constexpr auto SAFETY_OFFSET = 100. * GLOBAL_EPSILON;
                 box_node.append_attribute( "xMin" ).set_value( absl::StrCat(
                     "{", perf_box.min().value( 0 ) - SAFETY_OFFSET, ", ",
@@ -268,50 +319,23 @@ namespace geode
                 to_string( prefix() ).c_str() );
             vtk_mesh_node.append_attribute( "file" ).set_value(
                 absl::StrCat( "./", file_vtu ).c_str() );
-            std::string property_names{ "{" };
-            auto first = true;
-            for( const auto& cell_prop_name : cell_1Dproperty_names_ )
+            if( imported_fields_.empty() )
             {
-                if( !first )
-                {
-                    absl::StrAppend( &property_names, "," );
-                }
-                else
-                {
-                    first = false;
-                }
-                absl::StrAppend( &property_names, cell_prop_name );
+                return;
             }
-            for( const auto& cell_prop_name : cell_2Dproperty_names_ )
-            {
-                if( !first )
-                {
-                    absl::StrAppend( &property_names, "," );
-                }
-                else
-                {
-                    first = false;
-                }
-                absl::StrAppend( &property_names, cell_prop_name );
-            }
-            for( const auto& cell_prop_name : cell_3Dproperty_names_ )
-
-            {
-                if( !first )
-                {
-                    absl::StrAppend( &property_names, "," );
-                }
-                else
-                {
-                    first = false;
-                }
-                absl::StrAppend( &property_names, cell_prop_name );
-            }
-            absl::StrAppend( &property_names, "}" );
+            const auto join_fields = [this]( bool vtu_names ) {
+                return absl::StrCat( "{ ",
+                    absl::StrJoin( imported_fields_, ", ",
+                        [vtu_names]( std::string* out, const auto& field ) {
+                            absl::StrAppend(
+                                out, vtu_names ? field.first : field.second );
+                        } ),
+                    " }" );
+            };
             vtk_mesh_node.append_attribute( "fieldsToImport" )
-                .set_value( property_names.c_str() );
-            vtk_mesh_node.append_attribute( "fieldNamesInGEOSX" )
-                .set_value( "{ please enter property name in Geos}" );
+                .set_value( join_fields( true ).c_str() );
+            vtk_mesh_node.append_attribute( "fieldNamesInGEOS" )
+                .set_value( join_fields( false ).c_str() );
         }
 
         template < typename Model >
@@ -335,129 +359,20 @@ namespace geode
         }
 
         template < typename Model >
-        void GeosExporterImpl< Model >::transfer_cell_properties()
+        void GeosExporterImpl< Model >::transfer_physical_properties()
         {
-            AttributeProperties solid_attribute_properties;
-            solid_attribute_properties.assignable = false;
-            solid_attribute_properties.interpolable = false;
-            solid_attribute_properties.transferable = true;
-            for( const auto& property_name : cell_1Dproperty_names_ )
+            for( const auto& [property, geos_name] :
+                PHYSICAL_PROPERTY_GEOS_NAMES )
             {
-                AttributeValues< double > solid_attribute_values;
-                solid_attribute_values.default_value = 0;
-                solid_attribute_values.no_value = 0;
-
-                auto solid_property_id =
-                    model_solid_->polyhedron_attribute_manager()
-                        .template create_attribute< VariableAttribute, double >(
-                            property_name, solid_attribute_values,
-                            solid_attribute_properties );
-                auto solid_property =
-                    model_solid_->polyhedron_attribute_manager()
-                        .find_attribute< VariableAttribute, double >(
-                            solid_property_id );
-                for( const auto polyhedron_id :
-                    Range( model_solid_->nb_polyhedra() ) )
+                if( !model_.has_physical_property( property ) )
                 {
-                    auto polyhedron_mesh_element =
-                        model2solid_.solid_polyhedra_mapping
-                            .out2in( polyhedron_id )
-                            .front();
-                    const auto attribute_ids =
-                        model_.block( polyhedron_mesh_element.mesh_id )
-                            .mesh()
-                            .polyhedron_attribute_manager()
-                            .attribute_ids_matching_name( property_name );
-                    const auto model_property =
-                        model_.block( polyhedron_mesh_element.mesh_id )
-                            .mesh()
-                            .polyhedron_attribute_manager()
-                            .template find_read_only_attribute< double >(
-                                attribute_ids.value().front() );
-                    auto value = model_property->value(
-                        polyhedron_mesh_element.element_id );
-                    solid_property->set_value( polyhedron_id, value );
+                    continue;
                 }
-            }
-            for( const auto& property_name : cell_2Dproperty_names_ )
-            {
-                AttributeValues< std::array< double, 2 > >
-                    solid_attribute_values;
-                solid_attribute_values.default_value = { 0, 0 };
-                solid_attribute_values.no_value = { 0, 0 };
-                auto solid_property_id =
-                    model_solid_->polyhedron_attribute_manager()
-                        .template create_attribute< VariableAttribute,
-                            std::array< double, 2 > >( property_name,
-                            solid_attribute_values,
-                            solid_attribute_properties );
-                auto solid_property =
-                    model_solid_->polyhedron_attribute_manager()
-                        .find_attribute< VariableAttribute,
-                            std::array< double, 2 > >( solid_property_id );
-                for( const auto polyhedron_id :
-                    Range( model_solid_->nb_polyhedra() ) )
-                {
-                    auto polyhedron_mesh_element =
-                        model2solid_.solid_polyhedra_mapping
-                            .out2in( polyhedron_id )
-                            .front();
-                    const auto attribute_ids =
-                        model_.block( polyhedron_mesh_element.mesh_id )
-                            .mesh()
-                            .polyhedron_attribute_manager()
-                            .attribute_ids_matching_name( property_name );
-                    const auto model_property =
-                        model_.block( polyhedron_mesh_element.mesh_id )
-                            .mesh()
-                            .polyhedron_attribute_manager()
-                            .template find_read_only_attribute<
-                                std::array< double, 2 > >(
-                                attribute_ids.value().front() );
-                    auto value = model_property->value(
-                        polyhedron_mesh_element.element_id );
-                    solid_property->set_value( polyhedron_id, value );
-                }
-            }
-            for( const auto& property_name : cell_3Dproperty_names_ )
-            {
-                AttributeValues< std::array< double, 3 > >
-                    solid_attribute_values;
-                solid_attribute_values.default_value = { 0, 0, 0 };
-                solid_attribute_values.no_value = { 0, 0, 0 };
-                auto solid_property_id =
-                    model_solid_->polyhedron_attribute_manager()
-                        .template create_attribute< VariableAttribute,
-                            std::array< double, 3 > >( property_name,
-                            solid_attribute_values,
-                            solid_attribute_properties );
-                auto solid_property =
-                    model_solid_->polyhedron_attribute_manager()
-                        .find_attribute< VariableAttribute,
-                            std::array< double, 3 > >( solid_property_id );
-                for( const auto polyhedron_id :
-                    Range( model_solid_->nb_polyhedra() ) )
-                {
-                    auto polyhedron_mesh_element =
-                        model2solid_.solid_polyhedra_mapping
-                            .out2in( polyhedron_id )
-                            .front();
-                    const auto attribute_ids =
-                        model_.block( polyhedron_mesh_element.mesh_id )
-                            .mesh()
-                            .polyhedron_attribute_manager()
-                            .attribute_ids_matching_name( property_name );
-                    const auto model_property =
-                        model_.block( polyhedron_mesh_element.mesh_id )
-                            .mesh()
-                            .polyhedron_attribute_manager()
-                            .template find_read_only_attribute<
-                                std::array< double, 3 > >(
-                                attribute_ids.value().front() );
-                    auto value = model_property->value(
-                        polyhedron_mesh_element.element_id );
-                    solid_property->set_value( polyhedron_id, value );
-                }
+                auto attribute_name = transfer_block_attribute( model_,
+                    *model_solid_, model2solid_,
+                    model_.physical_property_info( property ) );
+                imported_fields_.emplace_back(
+                    std::move( attribute_name ), to_string( geos_name ) );
             }
         }
 
