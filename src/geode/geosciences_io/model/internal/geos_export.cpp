@@ -21,6 +21,7 @@
  *
  */
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -55,17 +56,95 @@
 #include <geode/mesh/core/tetrahedral_solid.hpp>
 #include <geode/mesh/helpers/aabb_solid_helpers.hpp>
 
-#include <geode/mesh/io/hybrid_solid_output.hpp>
 #include <geode/mesh/io/point_set_output.hpp>
-#include <geode/mesh/io/polyhedral_solid_output.hpp>
-#include <geode/mesh/io/tetrahedral_solid_output.hpp>
 
+#include <geode/model/helpers/component_mesh_polygons.hpp>
 #include <geode/model/mixin/core/block.hpp>
 #include <geode/model/mixin/core/physical_properties.hpp>
+#include <geode/model/mixin/core/surface.hpp>
+
+#include <geode/io/mesh/detail/vtu_solid_output_impl.hpp>
 
 #include <geode/geosciences/explicit/representation/core/structural_model.hpp>
 #include <geode/geosciences_io/model/internal/geos_export.hpp>
 #include <geode/model/representation/core/brep.hpp>
+
+namespace
+{
+    geode::index_t polygon_cell_type( geode::index_t nb_vertices )
+    {
+        if( nb_vertices == 3 )
+        {
+            return geode::detail::VTK_TRIANGLE_TYPE;
+        }
+        if( nb_vertices == 4 )
+        {
+            return geode::detail::VTK_QUAD_TYPE;
+        }
+        return geode::detail::VTK_POLYGON_TYPE;
+    }
+
+    // Writes the solid polyhedra followed by the surface polygons in a single
+    // UnstructuredGrid, all the cells sharing the solid vertices
+    template < typename SolidOutputImpl >
+    class GeosVTUOutputImpl : public SolidOutputImpl
+    {
+    public:
+        template < typename Solid >
+        GeosVTUOutputImpl( std::string_view filename,
+            const Solid& solid,
+            absl::Span< const geode::PolygonVertices > surface_cells,
+            const geode::AttributeManager& cell_attributes )
+            : SolidOutputImpl{ filename, solid },
+              surface_cells_{ surface_cells },
+              cell_attributes_( cell_attributes )
+        {
+        }
+
+    private:
+        [[nodiscard]] geode::index_t nb_additional_cells() const override
+        {
+            return surface_cells_.size();
+        }
+
+        void write_additional_cells( std::vector< int64_t >& cell_connectivity,
+            std::vector< int64_t >& cell_offsets,
+            std::vector< uint8_t >& cell_types ) const override
+        {
+            for( const auto& polygon_vertices : surface_cells_ )
+            {
+                cell_connectivity.insert( cell_connectivity.end(),
+                    polygon_vertices.begin(), polygon_vertices.end() );
+                cell_offsets.push_back(
+                    static_cast< int64_t >( cell_connectivity.size() ) );
+                cell_types.push_back(
+                    polygon_cell_type( polygon_vertices.size() ) );
+            }
+        }
+
+        pugi::xml_node write_vtk_cell_attributes(
+            pugi::xml_node& piece ) override
+        {
+            auto cell_data = piece.append_child( "CellData" );
+            this->write_attributes( cell_data, cell_attributes_ );
+            return cell_data;
+        }
+
+        absl::Span< const geode::PolygonVertices > surface_cells_;
+        const geode::AttributeManager& cell_attributes_;
+    };
+
+    template < typename SolidOutputImpl, typename Solid >
+    void save_geos_vtu( std::string_view filename,
+        const Solid& solid,
+        absl::Span< const geode::PolygonVertices > surface_cells,
+        const geode::AttributeManager& cell_attributes )
+    {
+        GeosVTUOutputImpl< SolidOutputImpl > writer{ filename, solid,
+            surface_cells, cell_attributes };
+        writer.write_file();
+    }
+} // namespace
 
 namespace geode
 {
@@ -149,8 +228,6 @@ namespace geode
         {
             auto curve_conversion = convert_brep_into_curve( model_ );
             model_curve_ = std::move( std::get< 0 >( curve_conversion ) );
-            auto surface_conversion = convert_brep_into_surface( model_ );
-            model_surface_ = std::move( std::get< 0 >( surface_conversion ) );
             std::tie( model_solid_, model2solid_ ) =
                 convert_brep_into_solid( model_ );
             AttributeValues< index_t > region_attribute_values;
@@ -160,7 +237,7 @@ namespace geode
             region_attribute_properties.assignable = false;
             region_attribute_properties.interpolable = false;
             region_attribute_properties.transferable = true;
-            const auto region_attribute_id =
+            region_attribute_id_ =
                 model_solid_->polyhedron_attribute_manager()
                     .template create_attribute< VariableAttribute, index_t >(
                         REGION_ID_ATTRIBUTE_NAME, region_attribute_values,
@@ -168,7 +245,7 @@ namespace geode
             region_attribute_ =
                 model_solid_->polyhedron_attribute_manager()
                     .find_attribute< VariableAttribute, index_t >(
-                        region_attribute_id );
+                        region_attribute_id_ );
             if( std::filesystem::path{ to_string( files_directory ) }
                     .is_relative() )
             {
@@ -219,7 +296,8 @@ namespace geode
         template < typename Model >
         void GeosExporterImpl< Model >::prepare_export()
         {
-            initialize_solid_region_attribute();
+            const auto nb_solid_regions = initialize_solid_region_attribute();
+            initialize_surface_cells( nb_solid_regions );
             transfer_physical_properties();
         }
 
@@ -244,12 +322,41 @@ namespace geode
                 region_attribute_->set_value( polyhedron_id,
                     region_map_id
                         .find( model2solid_.solid_polyhedra_mapping
-                                .out2in( polyhedron_id )
-                                .front()
-                                .mesh_id )
+                                   .out2in( polyhedron_id )
+                                   .front()
+                                   .mesh_id )
                         ->second );
             }
-            return region_map_id.size();
+            index_t nb_regions{ 0 };
+            for( const auto& [block_id, region_id] : region_map_id )
+            {
+                nb_regions = std::max( nb_regions, region_id + 1 );
+            }
+            return nb_regions;
+        }
+
+        template < typename Model >
+        void GeosExporterImpl< Model >::initialize_surface_cells(
+            index_t first_surface_region_id )
+        {
+            auto region_id = first_surface_region_id;
+            for( const auto& surface : model_.surfaces() )
+            {
+                for( const auto polygon_id :
+                    Range{ surface.mesh().nb_polygons() } )
+                {
+                    auto vertices =
+                        polygon_unique_vertices( model_, surface, polygon_id );
+                    for( auto& vertex : vertices )
+                    {
+                        vertex = model2solid_.unique_vertices_mapping.in2out(
+                            vertex );
+                    }
+                    surface_cells_.emplace_back( std::move( vertices ) );
+                    surface_cells_region_.push_back( region_id );
+                }
+                region_id++;
+            }
         }
 
         template < typename Model >
@@ -299,12 +406,12 @@ namespace geode
                     "{", perf_box.min().value( 0 ) - SAFETY_OFFSET, ", ",
                     perf_box.min().value( 1 ) - SAFETY_OFFSET, ", ",
                     perf_box.min().value( 2 ) - SAFETY_OFFSET, "}" )
-                        .c_str() );
+                                                                   .c_str() );
                 box_node.append_attribute( "xMax" ).set_value( absl::StrCat(
                     "{", perf_box.max().value( 0 ) + SAFETY_OFFSET, ", ",
                     perf_box.max().value( 1 ) + SAFETY_OFFSET, ", ",
                     perf_box.max().value( 2 ) + SAFETY_OFFSET, "}" )
-                        .c_str() );
+                                                                   .c_str() );
             }
         }
 
@@ -345,9 +452,9 @@ namespace geode
             for( const auto& block : model_.blocks() )
             {
                 if( !block.mesh()
-                        .polyhedron_attribute_manager()
-                        .attribute_ids_matching_name( property_name )
-                        .has_value() )
+                         .polyhedron_attribute_manager()
+                         .attribute_ids_matching_name( property_name )
+                         .has_value() )
                 {
                     Logger::info( "The property ", property_name,
                         " will not be exported because it is not defined on "
@@ -382,21 +489,37 @@ namespace geode
             const auto filename = absl::StrCat( prefix(), ".vtu" );
             const auto file_vtu =
                 absl::StrCat( files_directory(), "/", filename );
+            const auto nb_polyhedra = model_solid_->nb_polyhedra();
+            AttributeManager cell_attributes;
+            cell_attributes.copy(
+                model_solid_->polyhedron_attribute_manager() );
+            cell_attributes.resize( nb_polyhedra + surface_cells_.size() );
+            auto region_attribute =
+                cell_attributes.find_attribute< VariableAttribute, index_t >(
+                    region_attribute_id_ );
+            for( const auto surface_cell : Indices{ surface_cells_region_ } )
+            {
+                region_attribute->set_value( nb_polyhedra + surface_cell,
+                    surface_cells_region_[surface_cell] );
+            }
             if( const auto* tetra = dynamic_cast< const TetrahedralSolid3D* >(
                     model_solid_.get() ) )
             {
-                save_tetrahedral_solid( *tetra, file_vtu );
+                save_geos_vtu< detail::VTUTetrahedralOutputImpl >(
+                    file_vtu, *tetra, surface_cells_, cell_attributes );
             }
             else if( const auto* hybrid = dynamic_cast< const HybridSolid3D* >(
                          model_solid_.get() ) )
             {
-                save_hybrid_solid( *hybrid, file_vtu );
+                save_geos_vtu< detail::VTUHybridOutputImpl >(
+                    file_vtu, *hybrid, surface_cells_, cell_attributes );
             }
             else if( const auto* poly =
                          dynamic_cast< const PolyhedralSolid3D* >(
                              model_solid_.get() ) )
             {
-                save_polyhedral_solid( *poly, file_vtu );
+                save_geos_vtu< detail::VTUPolyhedralOutputImpl >(
+                    file_vtu, *poly, surface_cells_, cell_attributes );
             }
             else
             {

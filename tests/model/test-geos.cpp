@@ -22,7 +22,11 @@
  */
 
 #include <array>
+#include <optional>
+#include <string>
 #include <string_view>
+
+#include <pugixml.hpp>
 
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/logger.hpp>
@@ -44,6 +48,7 @@
 
 #include <geode/model/mixin/core/block.hpp>
 #include <geode/model/mixin/core/physical_properties.hpp>
+#include <geode/model/mixin/core/surface.hpp>
 #include <geode/model/representation/core/brep.hpp>
 #include <geode/model/representation/io/brep_input.hpp>
 
@@ -93,13 +98,85 @@ void add_spe10_wells( geode::BRepGeosExporter& exporter )
     add_vertical_well( exporter, "sink4", 362.712, 669.036 );
 }
 
+// GEOS imports each surface as a node set named after its region attribute:
+// the exporter numbers the Blocks first, then the Surfaces
+std::string geos_surface_set_name(
+    const geode::BRep& model, const geode::Surface3D& surface )
+{
+    auto region_id = model.nb_blocks();
+    for( const auto& model_surface : model.surfaces() )
+    {
+        if( model_surface.id() == surface.id() )
+        {
+            break;
+        }
+        region_id++;
+    }
+    return absl::StrCat( region_id );
+}
+
+struct FaceBoundaryCondition
+{
+    std::string_view name;
+    std::string_view field_name;
+    std::optional< int > component;
+    std::string_view scale;
+};
+
+// CompositionalMultiphaseFVM requires pressure, temperature and the whole
+// composition for face Dirichlet boundary conditions
+static constexpr std::array< FaceBoundaryCondition, 4 > SINK_FACE_CONDITIONS{ {
+    { "boundaryPressure", "pressure", std::nullopt, "2.7579e+7" },
+    { "boundaryTemperature", "temperature", std::nullopt, "300" },
+    { "boundaryComposition_oil", "globalCompFraction", 0, "0.9995" },
+    { "boundaryComposition_water", "globalCompFraction", 1, "0.0005" },
+} };
+
+void add_surface_boundary_condition( std::string_view xml_file,
+    const geode::BRep& model,
+    const geode::Surface3D& surface )
+{
+    pugi::xml_document document;
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        static_cast< bool >(
+            document.load_file( geode::to_string( xml_file ).c_str() ) ),
+        "[Test] Cannot load ", xml_file );
+    auto field_specifications =
+        document.child( "Problem" ).append_child( "FieldSpecifications" );
+    const auto set_name = geos_surface_set_name( model, surface );
+    const auto set_names = absl::StrCat( "{ ", set_name, " }" );
+    for( const auto& condition : SINK_FACE_CONDITIONS )
+    {
+        auto field = field_specifications.append_child( "FieldSpecification" );
+        field.append_attribute( "name" ).set_value(
+            absl::StrCat( condition.name, "_", set_name ).c_str() );
+        field.append_attribute( "setNames" ).set_value( set_names.c_str() );
+        field.append_attribute( "objectPath" ).set_value( "faceManager" );
+        field.append_attribute( "fieldName" )
+            .set_value( geode::to_string( condition.field_name ).c_str() );
+        if( condition.component )
+        {
+            field.append_attribute( "component" )
+                .set_value( *condition.component );
+        }
+        field.append_attribute( "scale" ).set_value(
+            geode::to_string( condition.scale ).c_str() );
+    }
+    document.save_file( geode::to_string( xml_file ).c_str(),
+        PUGIXML_TEXT( "    " ), pugi::format_indent_attributes );
+}
+
 void test_grid_geos()
 {
     auto model = geode::load_brep( absl::StrCat(
         geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+    // The model only has one Surface: its border at minimum X
+    const auto& border_surface = *model.surfaces().begin();
     geode::BRepGeosExporter exporter( model, "grid_geos" );
     add_spe10_wells( exporter );
     exporter.run();
+    add_surface_boundary_condition(
+        "grid_geos/grid_geos_simulation.xml", model, border_surface );
 }
 
 int main()
