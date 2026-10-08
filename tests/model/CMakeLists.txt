@@ -68,5 +68,4 @@ add_geode_test(
         OpenGeode-IO::mesh
         OpenGeode-IO::model
         ${PROJECT_NAME}::model
-        pugixml::pugixml
 )

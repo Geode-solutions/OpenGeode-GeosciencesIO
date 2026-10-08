@@ -46,7 +46,6 @@
 
 #include <geode/model/mixin/core/block.hpp>
 #include <geode/model/mixin/core/physical_properties.hpp>
-#include <geode/model/mixin/core/surface.hpp>
 #include <geode/model/representation/core/brep.hpp>
 #include <geode/model/representation/io/brep_input.hpp>
 
@@ -100,7 +99,6 @@ void test_grid_geos()
 {
     auto model = geode::load_brep( absl::StrCat(
         geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
-    const auto& border_surface = *model.surfaces().begin();
     geode::BRepGeosExporter exporter( model, "grid_geos" );
     add_spe10_wells( exporter );
     exporter.run();
