@@ -71,19 +71,6 @@
 
 namespace
 {
-    geode::index_t polygon_cell_type( geode::index_t nb_vertices )
-    {
-        if( nb_vertices == 3 )
-        {
-            return geode::detail::VTK_TRIANGLE_TYPE;
-        }
-        if( nb_vertices == 4 )
-        {
-            return geode::detail::VTK_QUAD_TYPE;
-        }
-        return geode::detail::VTK_POLYGON_TYPE;
-    }
-
     // Writes the solid polyhedra followed by the surface polygons in a single
     // UnstructuredGrid, all the cells sharing the solid vertices
     template < typename SolidOutputImpl >
@@ -102,32 +89,22 @@ namespace
         }
 
     private:
-        [[nodiscard]] geode::index_t nb_additional_cells() const override
+        [[nodiscard]] geode::index_t nb_additional_polygons() const override
         {
             return surface_cells_.size();
         }
 
-        void write_additional_cells( std::vector< int64_t >& cell_connectivity,
-            std::vector< int64_t >& cell_offsets,
-            std::vector< uint8_t >& cell_types ) const override
+        [[nodiscard]] absl::Span< const geode::index_t >
+            additional_polygon_vertices(
+                geode::index_t polygon_id ) const override
         {
-            for( const auto& polygon_vertices : surface_cells_ )
-            {
-                cell_connectivity.insert( cell_connectivity.end(),
-                    polygon_vertices.begin(), polygon_vertices.end() );
-                cell_offsets.push_back(
-                    static_cast< int64_t >( cell_connectivity.size() ) );
-                cell_types.push_back(
-                    polygon_cell_type( polygon_vertices.size() ) );
-            }
+            return surface_cells_[polygon_id];
         }
 
-        pugi::xml_node write_vtk_cell_attributes(
-            pugi::xml_node& piece ) override
+        [[nodiscard]] const geode::AttributeManager&
+            cell_attribute_manager() const override
         {
-            auto cell_data = piece.append_child( "CellData" );
-            this->write_attributes( cell_data, cell_attributes_ );
-            return cell_data;
+            return cell_attributes_;
         }
 
         absl::Span< const geode::PolygonVertices > surface_cells_;
