@@ -29,7 +29,10 @@
 #include <utility>
 #include <vector>
 
+#include <geode/basic/uuid.hpp>
 #include <geode/basic/variable_attribute.hpp>
+
+#include <geode/mesh/core/surface_mesh.hpp>
 
 #include <geode/model/helpers/convert_to_mesh.hpp>
 
@@ -44,13 +47,10 @@ namespace geode
 {
     FORWARD_DECLARATION_DIMENSION_CLASS( PointSet );
     FORWARD_DECLARATION_DIMENSION_CLASS( EdgedCurve );
-    FORWARD_DECLARATION_DIMENSION_CLASS( SurfaceMesh );
     FORWARD_DECLARATION_DIMENSION_CLASS( SolidMesh );
     ALIAS_3D( PointSet );
     ALIAS_3D( EdgedCurve );
-    ALIAS_3D( SurfaceMesh );
     ALIAS_3D( SolidMesh );
-    struct uuid;
     struct ModelToMeshMappings;
 } // namespace geode
 
@@ -80,6 +80,7 @@ namespace geode
             std::string_view prefix() const;
 
             index_t initialize_solid_region_attribute();
+            void initialize_surface_cells( index_t first_surface_region_id );
             virtual absl::flat_hash_map< uuid, index_t >
                 create_region_attribute_map( const Model& model ) const = 0;
 
@@ -96,11 +97,14 @@ namespace geode
         private:
             const Model& model_;
             std::unique_ptr< EdgedCurve3D > model_curve_{};
-            std::unique_ptr< SurfaceMesh3D > model_surface_{};
             std::unique_ptr< SolidMesh3D > model_solid_{};
             ModelToMeshMappings model2solid_;
 
+            uuid region_attribute_id_;
             std::shared_ptr< VariableAttribute< index_t > > region_attribute_{};
+
+            std::vector< PolygonVertices > surface_cells_{};
+            std::vector< index_t > surface_cells_region_{};
 
             std::string files_directory_;
             std::string prefix_;

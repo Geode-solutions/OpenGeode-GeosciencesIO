@@ -22,6 +22,8 @@
  */
 
 #include <array>
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include <geode/basic/attribute_manager.hpp>

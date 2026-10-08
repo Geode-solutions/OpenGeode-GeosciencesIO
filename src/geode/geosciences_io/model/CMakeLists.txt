@@ -62,6 +62,7 @@ add_geode_library(
         OpenGeode-Geosciences::explicit
         OpenGeode-Geosciences::implicit
         OpenGeode-IO::image
+        OpenGeode-IO::mesh
         GDAL::GDAL
         pugixml::pugixml
         ${PROJECT_NAME}::mesh
