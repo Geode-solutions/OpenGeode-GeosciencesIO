@@ -24,10 +24,13 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
+
+#include <absl/container/flat_hash_map.h>
 
 #include <geode/basic/uuid.hpp>
 #include <geode/basic/variable_attribute.hpp>
@@ -84,13 +87,29 @@ namespace geode::internal
 
         void write_well_perforations_boxes( pugi::xml_node& root ) const;
         void write_mesh_files( pugi::xml_node& root ) const;
+        void write_boundary_conditions( pugi::xml_node& root ) const;
 
         bool check_property_name( std::string_view property_name ) const;
         void transfer_physical_properties();
+        void transfer_boundary_conditions();
+        void transfer_boundary_condition( const uuid& attribute_id,
+            std::string_view field_name,
+            std::string_view prefix,
+            std::optional< local_index_t > component );
         void delete_mapping_attributes();
 
         std::string write_solid_file() const;
         void write_well_perforation_file() const;
+
+    private:
+        struct BoundaryCondition
+        {
+            std::string name;
+            std::string_view field_name;
+            std::optional< local_index_t > component;
+            index_t region_id{ NO_ID };
+            double value{ 0. };
+        };
 
     private:
         const Model& model_;
@@ -103,11 +122,13 @@ namespace geode::internal
 
         std::vector< PolygonVertices > surface_cells_{};
         std::vector< index_t > surface_cells_region_{};
+        absl::flat_hash_map< uuid, index_t > surface_regions_{};
 
         std::string files_directory_;
         std::string prefix_;
 
         std::vector< std::pair< std::string, std::string > > imported_fields_{};
+        std::vector< BoundaryCondition > boundary_conditions_{};
 
         std::vector< std::unique_ptr< PointSet3D > > well_perforations_{};
         std::vector< std::string > well_names_{};
