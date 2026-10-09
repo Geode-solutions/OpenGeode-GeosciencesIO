@@ -364,9 +364,9 @@ namespace geode::internal
             region_attribute_->set_value(
                 polyhedron_id, region_map_id
                                    .find( model2solid_.solid_polyhedra_mapping
-                                              .out2in( polyhedron_id )
-                                              .front()
-                                              .mesh_id )
+                                           .out2in( polyhedron_id )
+                                           .front()
+                                           .mesh_id )
                                    ->second );
         }
         index_t nb_regions{ 0 };
@@ -511,7 +511,7 @@ namespace geode::internal
             specification_node.append_attribute( "setNames" )
                 .set_value( absl::StrCat(
                     "{ ", absl::StrJoin( condition.region_ids, ", " ), " }" )
-                                .c_str() );
+                        .c_str() );
         }
     }
 
@@ -522,9 +522,9 @@ namespace geode::internal
         for( const auto& block : model_.blocks() )
         {
             if( !block.mesh()
-                     .polyhedron_attribute_manager()
-                     .attribute_ids_matching_name( property_name )
-                     .has_value() )
+                    .polyhedron_attribute_manager()
+                    .attribute_ids_matching_name( property_name )
+                    .has_value() )
             {
                 Logger::info( "The property ", property_name,
                     " will not be exported because it is not defined on "
