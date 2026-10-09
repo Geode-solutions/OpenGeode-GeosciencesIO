@@ -35,26 +35,23 @@ namespace geode
     ALIAS_3D( TriangulatedSurface );
 } // namespace geode
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    class TSOutput final : public TriangulatedSurfaceOutput< 3 >
     {
-        class TSOutput final : public TriangulatedSurfaceOutput< 3 >
+    public:
+        explicit TSOutput( std::string_view filename )
+            : TriangulatedSurfaceOutput< 3 >( filename )
         {
-        public:
-            explicit TSOutput( std::string_view filename )
-                : TriangulatedSurfaceOutput< 3 >( filename )
-            {
-            }
+        }
 
-            static std::string_view extension()
-            {
-                static constexpr auto EXT = "ts";
-                return EXT;
-            }
+        static std::string_view extension()
+        {
+            static constexpr auto EXT = "ts";
+            return EXT;
+        }
 
-            std::vector< std::string > write(
-                const TriangulatedSurface3D& surface ) const final;
-        };
-    } // namespace internal
-} // namespace geode
+        std::vector< std::string > write(
+            const TriangulatedSurface3D& surface ) const final;
+    };
+} // namespace geode::internal

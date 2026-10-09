@@ -8,37 +8,34 @@
 
 #include <geode/geosciences_io/model/common.hpp>
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    class StratigraphicLSOInput final : public StratigraphicModelInput
     {
-        class StratigraphicLSOInput final : public StratigraphicModelInput
+    public:
+        explicit StratigraphicLSOInput( std::string_view filename )
+            : StratigraphicModelInput( filename )
         {
-        public:
-            explicit StratigraphicLSOInput( std::string_view filename )
-                : StratigraphicModelInput( filename )
-            {
-            }
+        }
 
-            [[nodiscard]] static std::string_view extension()
-            {
-                static constexpr auto EXT = "lso";
-                return EXT;
-            }
+        [[nodiscard]] static std::string_view extension()
+        {
+            static constexpr auto EXT = "lso";
+            return EXT;
+        }
 
-            [[nodiscard]] StratigraphicModel read() final;
+        [[nodiscard]] StratigraphicModel read() final;
 
-            AdditionalFiles additional_files() const final
-            {
-                return {};
-            }
+        AdditionalFiles additional_files() const final
+        {
+            return {};
+        }
 
-            index_t object_priority() const final
-            {
-                return 1;
-            }
+        index_t object_priority() const final
+        {
+            return 1;
+        }
 
-            Percentage is_loadable() const final;
-        };
-    } // namespace internal
-} // namespace geode
+        Percentage is_loadable() const final;
+    };
+} // namespace geode::internal

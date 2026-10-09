@@ -176,16 +176,13 @@ namespace
     };
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    std::vector< std::string > VSOutput::write(
+        const PointSet3D& pointset ) const
     {
-        std::vector< std::string > VSOutput::write(
-            const PointSet3D& pointset ) const
-        {
-            VSOutputImpl impl{ filename(), pointset };
-            impl.write_file();
-            return { to_string( filename() ) };
-        }
-    } // namespace internal
-} // namespace geode
+        VSOutputImpl impl{ filename(), pointset };
+        impl.write_file();
+        return { to_string( filename() ) };
+    }
+} // namespace geode::internal

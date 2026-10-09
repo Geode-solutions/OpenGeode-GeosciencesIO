@@ -27,35 +27,32 @@
 
 #include <geode/mesh/io/polygonal_surface_input.hpp>
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    class DEMInput final : public PolygonalSurfaceInput< 3 >
     {
-        class DEMInput final : public PolygonalSurfaceInput< 3 >
+    public:
+        explicit DEMInput( std::string_view filename )
+            : PolygonalSurfaceInput< 3 >( filename )
         {
-        public:
-            explicit DEMInput( std::string_view filename )
-                : PolygonalSurfaceInput< 3 >( filename )
-            {
-            }
+        }
 
-            static std::string_view extension()
-            {
-                static constexpr auto EXT = "dem";
-                return EXT;
-            }
+        static std::string_view extension()
+        {
+            static constexpr auto EXT = "dem";
+            return EXT;
+        }
 
-            std::unique_ptr< PolygonalSurface< 3 > > read(
-                const MeshImpl& impl ) final;
+        std::unique_ptr< PolygonalSurface< 3 > > read(
+            const MeshImpl& impl ) final;
 
-            AdditionalFiles additional_files() const final;
+        AdditionalFiles additional_files() const final;
 
-            index_t object_priority() const final
-            {
-                return 0;
-            }
+        index_t object_priority() const final
+        {
+            return 0;
+        }
 
-            Percentage is_loadable() const final;
-        };
-    } // namespace internal
-} // namespace geode
+        Percentage is_loadable() const final;
+    };
+} // namespace geode::internal

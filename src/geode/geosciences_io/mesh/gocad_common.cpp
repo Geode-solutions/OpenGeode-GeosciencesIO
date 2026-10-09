@@ -332,359 +332,348 @@ namespace
     }
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    HeaderData read_header( std::ifstream& file )
     {
-        HeaderData read_header( std::ifstream& file )
+        check_keyword( file, "HEADER" );
+        HeaderData header;
+        std::string line;
+        while( std::getline( file, line ) )
         {
-            check_keyword( file, "HEADER" );
-            HeaderData header;
-            std::string line;
-            while( std::getline( file, line ) )
+            if( string_starts_with( line, "}" ) )
             {
-                if( string_starts_with( line, "}" ) )
-                {
-                    return header;
-                }
-                constexpr std::string_view NAME_PREFFIX = "name:";
-                const auto name_it = line.find( NAME_PREFFIX );
-                if( name_it != std::string::npos )
-                {
-                    std::string_view name_line{ line };
-                    name_line.remove_prefix( name_it + NAME_PREFFIX.size() );
-                    header.name = read_name( geode::string_split( name_line ) );
-                }
+                return header;
             }
-            throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
-                geode::OpenGeodeException::TYPE::data,
-                "[read_header] Cannot find the end of \"HEADER\" section" };
-        }
-
-        void write_header( std::ofstream& file, const HeaderData& data )
-        {
-            file << "HEADER {" << EOL;
-            if( data.name )
+            constexpr std::string_view NAME_PREFFIX = "name:";
+            const auto name_it = line.find( NAME_PREFFIX );
+            if( name_it != std::string::npos )
             {
-                file << "name:" << data.name.value() << EOL;
+                std::string_view name_line{ line };
+                name_line.remove_prefix( name_it + NAME_PREFFIX.size() );
+                header.name = read_name( geode::string_split( name_line ) );
             }
-            file << "}" << EOL;
         }
+        throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
+            geode::OpenGeodeException::TYPE::data,
+            "[read_header] Cannot find the end of \"HEADER\" section" };
+    }
 
-        CRSData read_CRS( std::ifstream& file )
+    void write_header( std::ofstream& file, const HeaderData& data )
+    {
+        file << "HEADER {" << EOL;
+        if( data.name )
         {
-            CRSData crs;
-            if( !next_keyword_if_it_exists(
-                    file, "GOCAD_ORIGINAL_COORDINATE_SYSTEM" ) )
+            file << "name:" << data.name.value() << EOL;
+        }
+        file << "}" << EOL;
+    }
+
+    CRSData read_CRS( std::ifstream& file )
+    {
+        CRSData crs;
+        if( !next_keyword_if_it_exists(
+                file, "GOCAD_ORIGINAL_COORDINATE_SYSTEM" ) )
+        {
+            return crs;
+        }
+        std::string line;
+        while( std::getline( file, line ) )
+        {
+            if( string_starts_with( line, "END_ORIGINAL_COORDINATE_SYSTEM" ) )
             {
                 return crs;
             }
-            std::string line;
-            while( std::getline( file, line ) )
+            const auto tokens = split_string_considering_quotes( line );
+            if( tokens[0] == "ZPOSITIVE" )
             {
-                if( string_starts_with(
-                        line, "END_ORIGINAL_COORDINATE_SYSTEM" ) )
-                {
-                    return crs;
-                }
-                const auto tokens = split_string_considering_quotes( line );
-                if( tokens[0] == "ZPOSITIVE" )
-                {
-                    crs.z_sign_positive = ( tokens[1] == "Elevation" );
-                }
-                else if( tokens[0] == "PROJECTION" )
-                {
-                    crs.projection = tokens[1];
-                }
-                else if( tokens[0] == "DATUM" )
-                {
-                    crs.datum = tokens[1];
-                }
-                else if( tokens[0] == "NAME" )
-                {
-                    crs.name = tokens[1];
-                }
+                crs.z_sign_positive = ( tokens[1] == "Elevation" );
             }
-            throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
-                geode::OpenGeodeException::TYPE::data,
-                "Cannot find the end of CRS section" };
+            else if( tokens[0] == "PROJECTION" )
+            {
+                crs.projection = tokens[1];
+            }
+            else if( tokens[0] == "DATUM" )
+            {
+                crs.datum = tokens[1];
+            }
+            else if( tokens[0] == "NAME" )
+            {
+                crs.name = tokens[1];
+            }
         }
+        throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
+            geode::OpenGeodeException::TYPE::data,
+            "Cannot find the end of CRS section" };
+    }
 
-        void write_CRS( std::ofstream& file, const CRSData& data )
-        {
-            file << "GOCAD_ORIGINAL_COORDINATE_SYSTEM" << EOL;
-            file << "NAME " << write_string_with_quotes( data.name ) << EOL;
-            file << "PROJECTION " << data.projection << EOL;
-            file << "DATUM " << data.datum << EOL;
-            file << "AXIS_NAME " << data.axis_names[0] << SPACE
-                 << data.axis_names[1] << SPACE << data.axis_names[2] << EOL;
-            file << "AXIS_UNIT " << data.axis_units[0] << SPACE
-                 << data.axis_units[1] << SPACE << data.axis_units[2] << EOL;
-            file << "ZPOSITIVE "
-                 << ( data.z_sign_positive ? "Elevation" : "Depth" ) << EOL;
-            file << "END_ORIGINAL_COORDINATE_SYSTEM" << EOL;
-        }
+    void write_CRS( std::ofstream& file, const CRSData& data )
+    {
+        file << "GOCAD_ORIGINAL_COORDINATE_SYSTEM" << EOL;
+        file << "NAME " << write_string_with_quotes( data.name ) << EOL;
+        file << "PROJECTION " << data.projection << EOL;
+        file << "DATUM " << data.datum << EOL;
+        file << "AXIS_NAME " << data.axis_names[0] << SPACE
+             << data.axis_names[1] << SPACE << data.axis_names[2] << EOL;
+        file << "AXIS_UNIT " << data.axis_units[0] << SPACE
+             << data.axis_units[1] << SPACE << data.axis_units[2] << EOL;
+        file << "ZPOSITIVE " << ( data.z_sign_positive ? "Elevation" : "Depth" )
+             << EOL;
+        file << "END_ORIGINAL_COORDINATE_SYSTEM" << EOL;
+    }
 
-        PropHeaderData read_prop_header(
-            std::ifstream& file, std::string_view prefix )
+    PropHeaderData read_prop_header(
+        std::ifstream& file, std::string_view prefix )
+    {
+        PropHeaderData header;
+        const auto opt_line = geode::next_keyword_if_it_exists(
+            file, absl::StrCat( prefix, "PROPERTIES" ) );
+        if( !opt_line )
         {
-            PropHeaderData header;
-            const auto opt_line = geode::next_keyword_if_it_exists(
-                file, absl::StrCat( prefix, "PROPERTIES" ) );
-            if( !opt_line )
-            {
-                return header;
-            }
-            const auto split_line =
-                split_string_considering_quotes( opt_line.value() );
-            const auto nb_attributes = split_line.size() - 1;
-            if( nb_attributes == 0 )
-            {
-                return header;
-            }
-            header.names.resize( nb_attributes );
-            for( const auto attr_id : geode::Range{ nb_attributes } )
-            {
-                header.names[attr_id] =
-                    geode::to_string( split_line[attr_id + 1] );
-            }
-            read_property_keyword_with_two_strings( file,
-                absl::StrCat( prefix, "PROP_LEGAL_RANGES" ),
-                header.prop_legal_ranges, nb_attributes );
-            read_property_keyword_with_one_double( file,
-                absl::StrCat( prefix, "NO_DATA_VALUES" ), header.no_data_values,
-                nb_attributes );
-            read_property_keyword_with_one_string( file,
-                absl::StrCat( prefix, "PROPERTY_CLASSES" ),
-                header.property_classes, nb_attributes );
-            read_property_keyword_with_one_string( file,
-                absl::StrCat( prefix, "PROPERTY_KINDS" ), header.kinds,
-                nb_attributes );
-            read_property_keyword_with_two_strings( file,
-                absl::StrCat( prefix, "PROPERTY_SUBCLASSES" ),
-                header.property_subclass, nb_attributes );
-            read_property_keyword_with_one_index_t( file,
-                absl::StrCat( prefix, "ESIZES" ), header.esizes,
-                nb_attributes );
-            read_property_keyword_with_one_string( file,
-                absl::StrCat( prefix, "UNITS" ), header.units, nb_attributes );
             return header;
         }
-
-        void read_properties( const PropHeaderData& properties_header,
-            std::vector< std::vector< double > >& attribute_values,
-            absl::Span< const std::string_view > tokens,
-            geode::index_t line_properties_position )
+        const auto split_line =
+            split_string_considering_quotes( opt_line.value() );
+        const auto nb_attributes = split_line.size() - 1;
+        if( nb_attributes == 0 )
         {
-            for( const auto attr_id :
-                geode::Indices{ properties_header.names } )
+            return header;
+        }
+        header.names.resize( nb_attributes );
+        for( const auto attr_id : geode::Range{ nb_attributes } )
+        {
+            header.names[attr_id] = geode::to_string( split_line[attr_id + 1] );
+        }
+        read_property_keyword_with_two_strings( file,
+            absl::StrCat( prefix, "PROP_LEGAL_RANGES" ),
+            header.prop_legal_ranges, nb_attributes );
+        read_property_keyword_with_one_double( file,
+            absl::StrCat( prefix, "NO_DATA_VALUES" ), header.no_data_values,
+            nb_attributes );
+        read_property_keyword_with_one_string( file,
+            absl::StrCat( prefix, "PROPERTY_CLASSES" ), header.property_classes,
+            nb_attributes );
+        read_property_keyword_with_one_string( file,
+            absl::StrCat( prefix, "PROPERTY_KINDS" ), header.kinds,
+            nb_attributes );
+        read_property_keyword_with_two_strings( file,
+            absl::StrCat( prefix, "PROPERTY_SUBCLASSES" ),
+            header.property_subclass, nb_attributes );
+        read_property_keyword_with_one_index_t( file,
+            absl::StrCat( prefix, "ESIZES" ), header.esizes, nb_attributes );
+        read_property_keyword_with_one_string( file,
+            absl::StrCat( prefix, "UNITS" ), header.units, nb_attributes );
+        return header;
+    }
+
+    void read_properties( const PropHeaderData& properties_header,
+        std::vector< std::vector< double > >& attribute_values,
+        absl::Span< const std::string_view > tokens,
+        geode::index_t line_properties_position )
+    {
+        for( const auto attr_id : geode::Indices{ properties_header.names } )
+        {
+            for( const auto item :
+                geode::LRange{ properties_header.esizes[attr_id] } )
             {
-                for( const auto item :
-                    geode::LRange{ properties_header.esizes[attr_id] } )
-                {
-                    geode_unused( item );
-                    OpenGeodeGeosciencesIOMeshException::check_exception(
-                        line_properties_position < tokens.size(), nullptr,
-                        geode::OpenGeodeException::TYPE::data,
-                        "[GocadInput::read_point_properties] Cannot read "
-                        "properties: number of property items is higher than "
-                        "number of tokens." );
-                    attribute_values[attr_id].push_back(
-                        geode::string_to_double(
-                            tokens[line_properties_position] ) );
-                    line_properties_position++;
-                }
+                geode_unused( item );
+                OpenGeodeGeosciencesIOMeshException::check_exception(
+                    line_properties_position < tokens.size(), nullptr,
+                    geode::OpenGeodeException::TYPE::data,
+                    "[GocadInput::read_point_properties] Cannot read "
+                    "properties: number of property items is higher than "
+                    "number of tokens." );
+                attribute_values[attr_id].push_back( geode::string_to_double(
+                    tokens[line_properties_position] ) );
+                line_properties_position++;
             }
         }
+    }
 
-        void create_attributes( const PropHeaderData& attributes_header,
-            absl::Span< const std::vector< double > > attributes_values,
-            geode::AttributeManager& attribute_manager,
-            geode::index_t nb_vertices,
-            absl::Span< const geode::index_t > inverse_vertex_mapping )
+    void create_attributes( const PropHeaderData& attributes_header,
+        absl::Span< const std::vector< double > > attributes_values,
+        geode::AttributeManager& attribute_manager,
+        geode::index_t nb_vertices,
+        absl::Span< const geode::index_t > inverse_vertex_mapping )
+    {
+        for( const auto attr_id : geode::Indices{ attributes_header.names } )
         {
-            for( const auto attr_id :
-                geode::Indices{ attributes_header.names } )
+            const auto nb_attribute_items = attributes_header.esizes[attr_id];
+            if( nb_attribute_items == 1 )
             {
-                const auto nb_attribute_items =
-                    attributes_header.esizes[attr_id];
-                if( nb_attribute_items == 1 )
-                {
-                    geode::AttributeValues< double > attribute_values;
-                    attribute_values.default_value =
-                        attributes_header.no_data_values[attr_id];
-                    attribute_values.no_value =
-                        attributes_header.no_data_values[attr_id];
-                    geode::AttributeProperties attribute_properties;
-                    attribute_properties.assignable = false;
-                    attribute_properties.interpolable = false;
-                    attribute_properties.transferable = true;
-                    const auto attribute_id =
-                        attribute_manager.create_attribute<
-                            geode::VariableAttribute, double >(
+                geode::AttributeValues< double > attribute_values;
+                attribute_values.default_value =
+                    attributes_header.no_data_values[attr_id];
+                attribute_values.no_value =
+                    attributes_header.no_data_values[attr_id];
+                geode::AttributeProperties attribute_properties;
+                attribute_properties.assignable = false;
+                attribute_properties.interpolable = false;
+                attribute_properties.transferable = true;
+                const auto attribute_id =
+                    attribute_manager
+                        .create_attribute< geode::VariableAttribute, double >(
                             attributes_header.names[attr_id], attribute_values,
                             attribute_properties );
-                    auto attribute =
-                        attribute_manager
-                            .find_attribute< geode::VariableAttribute, double >(
-                                attribute_id );
-                    for( const auto pt_id : geode::Range{ nb_vertices } )
-                    {
-                        attribute->set_value( pt_id,
-                            attributes_values[attr_id]
-                                             [inverse_vertex_mapping[pt_id]] );
-                    }
-                }
-                else if( nb_attribute_items == 2 )
+                auto attribute =
+                    attribute_manager
+                        .find_attribute< geode::VariableAttribute, double >(
+                            attribute_id );
+                for( const auto pt_id : geode::Range{ nb_vertices } )
                 {
-                    std::array< double, 2 > container;
-                    container.fill( attributes_header.no_data_values[attr_id] );
-                    add_vertices_container_attribute(
-                        attributes_header.names[attr_id],
-                        attributes_values[attr_id], attribute_manager,
-                        nb_vertices, inverse_vertex_mapping, container );
-                }
-                else if( nb_attribute_items == 3 )
-                {
-                    std::array< double, 3 > container;
-                    container.fill( attributes_header.no_data_values[attr_id] );
-                    add_vertices_container_attribute(
-                        attributes_header.names[attr_id],
-                        attributes_values[attr_id], attribute_manager,
-                        nb_vertices, inverse_vertex_mapping, container );
-                }
-                else
-                {
-                    std::vector< double > container( nb_attribute_items,
-                        attributes_header.no_data_values[attr_id] );
-                    add_vertices_container_attribute<>(
-                        attributes_header.names[attr_id],
-                        attributes_values[attr_id], attribute_manager,
-                        nb_vertices, inverse_vertex_mapping, container );
+                    attribute->set_value( pt_id,
+                        attributes_values[attr_id]
+                                         [inverse_vertex_mapping[pt_id]] );
                 }
             }
+            else if( nb_attribute_items == 2 )
+            {
+                std::array< double, 2 > container;
+                container.fill( attributes_header.no_data_values[attr_id] );
+                add_vertices_container_attribute(
+                    attributes_header.names[attr_id],
+                    attributes_values[attr_id], attribute_manager, nb_vertices,
+                    inverse_vertex_mapping, container );
+            }
+            else if( nb_attribute_items == 3 )
+            {
+                std::array< double, 3 > container;
+                container.fill( attributes_header.no_data_values[attr_id] );
+                add_vertices_container_attribute(
+                    attributes_header.names[attr_id],
+                    attributes_values[attr_id], attribute_manager, nb_vertices,
+                    inverse_vertex_mapping, container );
+            }
+            else
+            {
+                std::vector< double > container( nb_attribute_items,
+                    attributes_header.no_data_values[attr_id] );
+                add_vertices_container_attribute<>(
+                    attributes_header.names[attr_id],
+                    attributes_values[attr_id], attribute_manager, nb_vertices,
+                    inverse_vertex_mapping, container );
+            }
         }
+    }
 
-        void write_prop_header(
-            std::ofstream& file, const PropHeaderData& data )
+    void write_prop_header( std::ofstream& file, const PropHeaderData& data )
+    {
+        file << "PROPERTIES";
+        for( const auto& name : data.names )
         {
-            file << "PROPERTIES";
-            for( const auto& name : data.names )
-            {
-                file << SPACE << write_string_with_quotes( name );
-            }
-            file << EOL;
-            file << "PROP_LEGAL_RANGES";
-            for( const auto& prop_range : data.prop_legal_ranges )
-            {
-                file << SPACE << prop_range.first << SPACE << prop_range.second;
-            }
-            file << EOL;
-            file << "NO_DATA_VALUES";
-            for( const auto prop_ndv : data.no_data_values )
-            {
-                file << SPACE << prop_ndv;
-            }
-            file << EOL;
-            file << "PROPERTY_CLASSES";
-            for( const auto& prop_class : data.property_classes )
-            {
-                file << SPACE << write_string_with_quotes( prop_class );
-            }
-            file << EOL;
-            file << "PROPERTY_KINDS";
-            for( const auto& kind : data.kinds )
-            {
-                file << SPACE << write_string_with_quotes( kind );
-            }
-            file << EOL;
-            file << "PROPERTY_SUBCLASSES";
-            for( const auto& prop_subclasse : data.property_subclass )
-            {
-                file << SPACE << prop_subclasse.first << SPACE
-                     << prop_subclasse.second;
-            }
-            file << EOL;
-            file << "ESIZES";
-            for( const auto esize : data.esizes )
-            {
-                file << SPACE << esize;
-            }
-            file << EOL;
-            file << "UNITS";
-            for( const auto& unit : data.units )
-            {
-                file << SPACE << write_string_with_quotes( unit );
-            }
-            file << EOL;
+            file << SPACE << write_string_with_quotes( name );
         }
-        void write_property_class_header(
-            std::ofstream& file, const PropClassHeaderData& data )
+        file << EOL;
+        file << "PROP_LEGAL_RANGES";
+        for( const auto& prop_range : data.prop_legal_ranges )
         {
-            file << "PROPERTY_CLASS_HEADER" << SPACE << data.name << SPACE
-                 << "{" << EOL;
-            file << "kind:" << data.kind << EOL;
-            file << "unit:" << data.unit << EOL;
-            file << "name:" << data.name << EOL;
-            if( data.is_z )
-            {
-                file << "is_Z: on" << EOL;
-            }
-            file << "}" << EOL;
+            file << SPACE << prop_range.first << SPACE << prop_range.second;
         }
+        file << EOL;
+        file << "NO_DATA_VALUES";
+        for( const auto prop_ndv : data.no_data_values )
+        {
+            file << SPACE << prop_ndv;
+        }
+        file << EOL;
+        file << "PROPERTY_CLASSES";
+        for( const auto& prop_class : data.property_classes )
+        {
+            file << SPACE << write_string_with_quotes( prop_class );
+        }
+        file << EOL;
+        file << "PROPERTY_KINDS";
+        for( const auto& kind : data.kinds )
+        {
+            file << SPACE << write_string_with_quotes( kind );
+        }
+        file << EOL;
+        file << "PROPERTY_SUBCLASSES";
+        for( const auto& prop_subclasse : data.property_subclass )
+        {
+            file << SPACE << prop_subclasse.first << SPACE
+                 << prop_subclasse.second;
+        }
+        file << EOL;
+        file << "ESIZES";
+        for( const auto esize : data.esizes )
+        {
+            file << SPACE << esize;
+        }
+        file << EOL;
+        file << "UNITS";
+        for( const auto& unit : data.units )
+        {
+            file << SPACE << write_string_with_quotes( unit );
+        }
+        file << EOL;
+    }
+    void write_property_class_header(
+        std::ofstream& file, const PropClassHeaderData& data )
+    {
+        file << "PROPERTY_CLASS_HEADER" << SPACE << data.name << SPACE << "{"
+             << EOL;
+        file << "kind:" << data.kind << EOL;
+        file << "unit:" << data.unit << EOL;
+        file << "name:" << data.name << EOL;
+        if( data.is_z )
+        {
+            file << "is_Z: on" << EOL;
+        }
+        file << "}" << EOL;
+    }
 
-        std::string read_name( absl::Span< const std::string_view > tokens )
-        {
-            return absl::StrReplaceAll(
-                absl::StrJoin( tokens.begin(), tokens.end(), " " ),
-                { { "\"", "" } } );
-        }
+    std::string read_name( absl::Span< const std::string_view > tokens )
+    {
+        return absl::StrReplaceAll(
+            absl::StrJoin( tokens.begin(), tokens.end(), " " ),
+            { { "\"", "" } } );
+    }
 
-        std::optional< TSurfData > read_tsurf( std::ifstream& file )
+    std::optional< TSurfData > read_tsurf( std::ifstream& file )
+    {
+        if( !goto_keyword_if_it_exists( file, "GOCAD TSurf" ) )
         {
-            if( !goto_keyword_if_it_exists( file, "GOCAD TSurf" ) )
-            {
-                return std::nullopt;
-            }
-            TSurfData tsurf;
-            tsurf.header = read_header( file );
-            tsurf.crs = read_CRS( file );
-            tsurf.vertices_properties_header =
-                geode::internal::read_prop_header( file, "" );
-            tsurf.vertices_attribute_values.resize(
-                tsurf.vertices_properties_header.names.size() );
-            read_tfaces( file, tsurf );
-            return tsurf;
+            return std::nullopt;
         }
+        TSurfData tsurf;
+        tsurf.header = read_header( file );
+        tsurf.crs = read_CRS( file );
+        tsurf.vertices_properties_header =
+            geode::internal::read_prop_header( file, "" );
+        tsurf.vertices_attribute_values.resize(
+            tsurf.vertices_properties_header.names.size() );
+        read_tfaces( file, tsurf );
+        return tsurf;
+    }
 
-        std::optional< ECurveData > read_ecurve( std::ifstream& file )
+    std::optional< ECurveData > read_ecurve( std::ifstream& file )
+    {
+        if( !goto_keyword_if_it_exists( file, "GOCAD PLine" ) )
         {
-            if( !goto_keyword_if_it_exists( file, "GOCAD PLine" ) )
-            {
-                return std::nullopt;
-            }
-            ECurveData ecurve;
-            ecurve.header = read_header( file );
-            ecurve.crs = read_CRS( file );
-            read_ilines( file, ecurve );
-            return ecurve;
+            return std::nullopt;
         }
+        ECurveData ecurve;
+        ecurve.header = read_header( file );
+        ecurve.crs = read_CRS( file );
+        read_ilines( file, ecurve );
+        return ecurve;
+    }
 
-        std::optional< VSetData > read_vs_points( std::ifstream& file )
+    std::optional< VSetData > read_vs_points( std::ifstream& file )
+    {
+        if( !goto_keyword_if_it_exists( file, "GOCAD VSet" ) )
         {
-            if( !goto_keyword_if_it_exists( file, "GOCAD VSet" ) )
-            {
-                return std::nullopt;
-            }
-            VSetData vertex_set;
-            vertex_set.header = read_header( file );
-            vertex_set.crs = read_CRS( file );
-            vertex_set.vertices_properties_header =
-                geode::internal::read_prop_header( file, "" );
-            vertex_set.vertices_attribute_values.resize(
-                vertex_set.vertices_properties_header.names.size() );
-            read_VSet_vertices( file, vertex_set );
-            return vertex_set;
+            return std::nullopt;
         }
-    } // namespace internal
-} // namespace geode
+        VSetData vertex_set;
+        vertex_set.header = read_header( file );
+        vertex_set.crs = read_CRS( file );
+        vertex_set.vertices_properties_header =
+            geode::internal::read_prop_header( file, "" );
+        vertex_set.vertices_attribute_values.resize(
+            vertex_set.vertices_properties_header.names.size() );
+        read_VSet_vertices( file, vertex_set );
+        return vertex_set;
+    }
+} // namespace geode::internal

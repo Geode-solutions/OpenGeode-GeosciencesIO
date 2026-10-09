@@ -416,29 +416,25 @@ namespace
     };
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    std::vector< std::string > BRepFemOutput::write( const BRep& brep ) const
     {
-        std::vector< std::string > BRepFemOutput::write(
-            const BRep& brep ) const
-        {
-            BRepFemOutputImpl impl{ filename(), brep };
-            impl.write_file();
-            return { to_string( filename() ) };
-        }
+        BRepFemOutputImpl impl{ filename(), brep };
+        impl.write_file();
+        return { to_string( filename() ) };
+    }
 
-        bool BRepFemOutput::is_saveable( const BRep& brep ) const
+    bool BRepFemOutput::is_saveable( const BRep& brep ) const
+    {
+        for( const auto unique_vertex : Range{ brep.nb_unique_vertices() } )
         {
-            for( const auto unique_vertex : Range{ brep.nb_unique_vertices() } )
+            if( !brep.has_component_mesh_vertices(
+                    unique_vertex, Block3D::component_type_static() ) )
             {
-                if( !brep.has_component_mesh_vertices(
-                        unique_vertex, Block3D::component_type_static() ) )
-                {
-                    return false;
-                }
+                return false;
             }
-            return true;
         }
-    } // namespace internal
-} // namespace geode
+        return true;
+    }
+} // namespace geode::internal

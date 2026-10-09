@@ -33,37 +33,34 @@ namespace geode
     ALIAS_3D( PointSet );
 } // namespace geode
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    class VSInput : public PointSetInput< 3 >
     {
-        class VSInput : public PointSetInput< 3 >
+    public:
+        explicit VSInput( std::string_view filename )
+            : PointSetInput< 3 >( filename )
         {
-        public:
-            explicit VSInput( std::string_view filename )
-                : PointSetInput< 3 >( filename )
-            {
-            }
+        }
 
-            static std::string_view extension()
-            {
-                static constexpr auto EXT = "vs";
-                return EXT;
-            }
+        static std::string_view extension()
+        {
+            static constexpr auto EXT = "vs";
+            return EXT;
+        }
 
-            std::unique_ptr< PointSet3D > read( const MeshImpl& impl ) final;
+        std::unique_ptr< PointSet3D > read( const MeshImpl& impl ) final;
 
-            AdditionalFiles additional_files() const final
-            {
-                return {};
-            }
+        AdditionalFiles additional_files() const final
+        {
+            return {};
+        }
 
-            index_t object_priority() const final
-            {
-                return 0;
-            }
+        index_t object_priority() const final
+        {
+            return 0;
+        }
 
-            Percentage is_loadable() const final;
-        };
-    } // namespace internal
-} // namespace geode
+        Percentage is_loadable() const final;
+    };
+} // namespace geode::internal

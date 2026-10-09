@@ -23,26 +23,35 @@
 
 #pragma once
 
-#include <geode/geosciences/explicit/representation/io/structural_model_input.hpp>
-#include <geode/geosciences_io/model/common.hpp>
+#include <geode/geosciences_io/mesh/common.hpp>
+
+#include <geode/mesh/io/light_regular_grid_input.hpp>
+
+namespace geode
+{
+    FORWARD_DECLARATION_DIMENSION_CLASS( LightRegularGrid );
+    ALIAS_3D( LightRegularGrid );
+} // namespace geode
 
 namespace geode::internal
 {
-    class MLInput final : public StructuralModelInput
+    class JSONGridInput final : public LightRegularGridInput3D
     {
     public:
-        explicit MLInput( std::string_view filename )
-            : StructuralModelInput( filename )
+        explicit JSONGridInput( std::string_view filename )
+            : LightRegularGridInput3D( filename )
         {
         }
 
         static std::string_view extension()
         {
-            static constexpr auto EXT = "ml";
+            static constexpr auto EXT = "json";
             return EXT;
         }
 
-        StructuralModel read() final;
+        LightRegularGrid3D read() final;
+
+        Percentage is_loadable() const final;
 
         AdditionalFiles additional_files() const final
         {
@@ -53,7 +62,5 @@ namespace geode::internal
         {
             return 0;
         }
-
-        Percentage is_loadable() const final;
     };
 } // namespace geode::internal

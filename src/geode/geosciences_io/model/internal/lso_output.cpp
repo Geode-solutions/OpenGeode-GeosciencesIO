@@ -278,42 +278,37 @@ namespace
     };
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    std::vector< std::string > LSOOutput::write(
+        const StructuralModel& structural_model ) const
     {
-        std::vector< std::string > LSOOutput::write(
-            const StructuralModel& structural_model ) const
-        {
-            LSOOutputImpl impl{ filename(), structural_model };
-            impl.write_file();
-            return { to_string( filename() ) };
-        }
+        LSOOutputImpl impl{ filename(), structural_model };
+        impl.write_file();
+        return { to_string( filename() ) };
+    }
 
-        bool LSOOutput::is_saveable(
-            const StructuralModel& structural_model ) const
+    bool LSOOutput::is_saveable( const StructuralModel& structural_model ) const
+    {
+        for( const auto& surface : structural_model.surfaces() )
         {
-            for( const auto& surface : structural_model.surfaces() )
+            const auto& mesh = surface.mesh();
+            if( mesh.nb_polygons() == 0
+                || mesh.type_name()
+                       != TriangulatedSurface3D::type_name_static() )
             {
-                const auto& mesh = surface.mesh();
-                if( mesh.nb_polygons() == 0
-                    || mesh.type_name()
-                           != TriangulatedSurface3D::type_name_static() )
-                {
-                    return false;
-                }
+                return false;
             }
-            for( const auto& block : structural_model.blocks() )
-            {
-                const auto& mesh = block.mesh();
-                if( mesh.nb_polyhedra() == 0
-                    || mesh.type_name()
-                           != TetrahedralSolid3D::type_name_static() )
-                {
-                    return false;
-                }
-            }
-            return true;
         }
-    } // namespace internal
-} // namespace geode
+        for( const auto& block : structural_model.blocks() )
+        {
+            const auto& mesh = block.mesh();
+            if( mesh.nb_polyhedra() == 0
+                || mesh.type_name() != TetrahedralSolid3D::type_name_static() )
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+} // namespace geode::internal

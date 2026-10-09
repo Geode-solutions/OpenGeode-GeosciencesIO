@@ -81,34 +81,31 @@ namespace
     };
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    std::vector< std::string > MLOutputBRep::write( const BRep& brep ) const
     {
-        std::vector< std::string > MLOutputBRep::write( const BRep& brep ) const
+        OpenGeodeGeosciencesIOModelException::check_exception(
+            check_brep_polygons( brep ), nullptr,
+            OpenGeodeException::TYPE::data,
+            "[MLOutput::write] Can not export into .ml a "
+            "BRep with non triangular surface polygons." );
+        if( brep.nb_model_boundaries() > 0 )
         {
-            OpenGeodeGeosciencesIOModelException::check_exception(
-                check_brep_polygons( brep ), nullptr,
-                OpenGeodeException::TYPE::data,
-                "[MLOutput::write] Can not export into .ml a "
-                "BRep with non triangular surface polygons." );
-            if( brep.nb_model_boundaries() > 0 )
-            {
-                MLOutputImplBRep impl{ filename(), brep };
-                impl.write_file();
-            }
-            else
-            {
-                const auto new_brep = clone_with_model_boundaries( brep );
-                MLOutputImplBRep impl{ filename(), new_brep };
-                impl.write_file();
-            }
-            return { to_string( filename() ) };
+            MLOutputImplBRep impl{ filename(), brep };
+            impl.write_file();
         }
+        else
+        {
+            const auto new_brep = clone_with_model_boundaries( brep );
+            MLOutputImplBRep impl{ filename(), new_brep };
+            impl.write_file();
+        }
+        return { to_string( filename() ) };
+    }
 
-        bool MLOutputBRep::is_saveable( const BRep& brep ) const
-        {
-            return check_brep_polygons( brep );
-        }
-    } // namespace internal
-} // namespace geode
+    bool MLOutputBRep::is_saveable( const BRep& brep ) const
+    {
+        return check_brep_polygons( brep );
+    }
+} // namespace geode::internal

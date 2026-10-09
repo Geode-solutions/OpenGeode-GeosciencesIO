@@ -187,16 +187,13 @@ namespace
     };
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    std::vector< std::string > TSOutput::write(
+        const TriangulatedSurface3D& surface ) const
     {
-        std::vector< std::string > TSOutput::write(
-            const TriangulatedSurface3D& surface ) const
-        {
-            TSOutputImpl impl{ filename(), surface };
-            impl.write_file();
-            return { to_string( filename() ) };
-        }
-    } // namespace internal
-} // namespace geode
+        TSOutputImpl impl{ filename(), surface };
+        impl.write_file();
+        return { to_string( filename() ) };
+    }
+} // namespace geode::internal

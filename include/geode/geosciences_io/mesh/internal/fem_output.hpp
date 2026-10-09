@@ -32,26 +32,23 @@
 
 #include <geode/geosciences_io/mesh/common.hpp>
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    class SolidFemOutput final : public TetrahedralSolidOutput< 3 >
     {
-        class SolidFemOutput final : public TetrahedralSolidOutput< 3 >
+    public:
+        explicit SolidFemOutput( std::string_view filename )
+            : TetrahedralSolidOutput< 3 >( filename )
         {
-        public:
-            explicit SolidFemOutput( std::string_view filename )
-                : TetrahedralSolidOutput< 3 >( filename )
-            {
-            }
+        }
 
-            static std::string_view extension()
-            {
-                static constexpr auto EXT = "fem";
-                return EXT;
-            }
+        static std::string_view extension()
+        {
+            static constexpr auto EXT = "fem";
+            return EXT;
+        }
 
-            std::vector< std::string > write(
-                const TetrahedralSolid3D& solid ) const final;
-        };
-    } // namespace internal
-} // namespace geode
+        std::vector< std::string > write(
+            const TetrahedralSolid3D& solid ) const final;
+    };
+} // namespace geode::internal

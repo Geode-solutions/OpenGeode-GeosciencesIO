@@ -27,56 +27,52 @@
 
 #include <geode/mesh/io/light_regular_grid_input.hpp>
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    class GEOTIFFInput final : public LightRegularGridInput2D
     {
-        class GEOTIFFInput final : public LightRegularGridInput2D
+    public:
+        explicit GEOTIFFInput( std::string_view filename )
+            : LightRegularGridInput2D( filename )
         {
-        public:
-            explicit GEOTIFFInput( std::string_view filename )
-                : LightRegularGridInput2D( filename )
-            {
-            }
+        }
 
-            static std::vector< std::string > extensions()
-            {
-                static const std::vector< std::string > extensions{ "tiff",
-                    "tif" };
-                return extensions;
-            }
+        static std::vector< std::string > extensions()
+        {
+            static const std::vector< std::string > extensions{ "tiff", "tif" };
+            return extensions;
+        }
 
-            LightRegularGrid< 2 > read() final;
+        LightRegularGrid< 2 > read() final;
 
-            // TODO: implement missing files
-            // A tiff can use completementary file to open... but actually I
-            // donnot use it:
-            //* Sidecar Metadata Files: TIFF files may be accompanied by XMP
-            //(.xmp) or other sidecar files containing metadata, especially in
-            // workflows that use Adobe software or other image management
-            // tools.
-            //* Associated Color Profiles: TIFF images may rely on ICC color
-            // profiles (.icc or .icm) to ensure color consistency across
-            // different devices.
-            //* Layered or Multi-Page TIFFs: Some TIFF files store multiple
-            // images (e.g., multi-page scans). In such cases, associated files
-            // might be used to store extracted or processed versions of
-            // individual pages.
-            //* Auxiliary Data Files: In geospatial imaging (GeoTIFF),
-            // additional files such as .tfw (world file) or .prj may provide
-            // spatial reference data.
-            //* Thumbnails or Proxy Files: Some workflows generate
-            // low-resolution preview images (.jpg or .png) for quick browsing
-            // without opening large TIFF files.
+        // TODO: implement missing files
+        // A tiff can use completementary file to open... but actually I
+        // donnot use it:
+        //* Sidecar Metadata Files: TIFF files may be accompanied by XMP
+        //(.xmp) or other sidecar files containing metadata, especially in
+        // workflows that use Adobe software or other image management
+        // tools.
+        //* Associated Color Profiles: TIFF images may rely on ICC color
+        // profiles (.icc or .icm) to ensure color consistency across
+        // different devices.
+        //* Layered or Multi-Page TIFFs: Some TIFF files store multiple
+        // images (e.g., multi-page scans). In such cases, associated files
+        // might be used to store extracted or processed versions of
+        // individual pages.
+        //* Auxiliary Data Files: In geospatial imaging (GeoTIFF),
+        // additional files such as .tfw (world file) or .prj may provide
+        // spatial reference data.
+        //* Thumbnails or Proxy Files: Some workflows generate
+        // low-resolution preview images (.jpg or .png) for quick browsing
+        // without opening large TIFF files.
 
-            Percentage is_loadable() const final;
+        Percentage is_loadable() const final;
 
-            AdditionalFiles additional_files() const final;
+        AdditionalFiles additional_files() const final;
 
-            index_t object_priority() const final
-            {
-                return 1;
-            }
-        };
-    } // namespace internal
-} // namespace geode
+        index_t object_priority() const final
+        {
+            return 1;
+        }
+    };
+} // namespace geode::internal

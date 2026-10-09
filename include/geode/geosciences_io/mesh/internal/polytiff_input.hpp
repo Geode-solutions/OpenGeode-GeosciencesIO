@@ -33,36 +33,32 @@ namespace geode
     ALIAS_3D( PolygonalSurface );
 } // namespace geode
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    class PolyTIFFInput final : public PolygonalSurfaceInput3D
     {
-        class PolyTIFFInput final : public PolygonalSurfaceInput3D
+    public:
+        explicit PolyTIFFInput( std::string_view filename )
+            : PolygonalSurfaceInput3D( filename )
         {
-        public:
-            explicit PolyTIFFInput( std::string_view filename )
-                : PolygonalSurfaceInput3D( filename )
-            {
-            }
+        }
 
-            static std::vector< std::string > extensions()
-            {
-                static const std::vector< std::string > extensions{ "tiff",
-                    "tif" };
-                return extensions;
-            }
+        static std::vector< std::string > extensions()
+        {
+            static const std::vector< std::string > extensions{ "tiff", "tif" };
+            return extensions;
+        }
 
-            std::unique_ptr< PolygonalSurface3D > read(
-                const MeshImpl& impl ) final;
+        std::unique_ptr< PolygonalSurface3D > read(
+            const MeshImpl& impl ) final;
 
-            AdditionalFiles additional_files() const final;
+        AdditionalFiles additional_files() const final;
 
-            index_t object_priority() const final
-            {
-                return 2;
-            }
+        index_t object_priority() const final
+        {
+            return 2;
+        }
 
-            Percentage is_loadable() const final;
-        };
-    } // namespace internal
-} // namespace geode
+        Percentage is_loadable() const final;
+    };
+} // namespace geode::internal

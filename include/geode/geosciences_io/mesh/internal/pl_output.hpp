@@ -35,26 +35,23 @@ namespace geode
     ALIAS_3D( EdgedCurve );
 } // namespace geode
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    class PLOutput final : public EdgedCurveOutput< 3 >
     {
-        class PLOutput final : public EdgedCurveOutput< 3 >
+    public:
+        explicit PLOutput( std::string_view filename )
+            : EdgedCurveOutput< 3 >( filename )
         {
-        public:
-            explicit PLOutput( std::string_view filename )
-                : EdgedCurveOutput< 3 >( filename )
-            {
-            }
+        }
 
-            static std::string_view extension()
-            {
-                static constexpr auto EXT = "pl";
-                return EXT;
-            }
+        static std::string_view extension()
+        {
+            static constexpr auto EXT = "pl";
+            return EXT;
+        }
 
-            std::vector< std::string > write(
-                const EdgedCurve3D& edged_curve ) const final;
-        };
-    } // namespace internal
-} // namespace geode
+        std::vector< std::string > write(
+            const EdgedCurve3D& edged_curve ) const final;
+    };
+} // namespace geode::internal

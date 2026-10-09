@@ -369,27 +369,23 @@ namespace
     };
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    std::unique_ptr< HybridSolid3D > GRDECLInput::read( const MeshImpl& impl )
     {
-        std::unique_ptr< HybridSolid3D > GRDECLInput::read(
-            const MeshImpl& impl )
-        {
-            auto solid = HybridSolid3D::create( impl );
-            GRDECLInputImpl reader{ this->filename(), *solid };
-            reader.read_file();
-            return solid;
-        }
+        auto solid = HybridSolid3D::create( impl );
+        GRDECLInputImpl reader{ this->filename(), *solid };
+        reader.read_file();
+        return solid;
+    }
 
-        Percentage GRDECLInput::is_loadable() const
+    Percentage GRDECLInput::is_loadable() const
+    {
+        std::ifstream file{ to_string( this->filename() ) };
+        if( goto_keyword_if_it_exists( file, "SPECGRID" ) )
         {
-            std::ifstream file{ to_string( this->filename() ) };
-            if( goto_keyword_if_it_exists( file, "SPECGRID" ) )
-            {
-                return Percentage{ 1 };
-            }
-            return Percentage{ 0 };
+            return Percentage{ 1 };
         }
-    } // namespace internal
-} // namespace geode
+        return Percentage{ 0 };
+    }
+} // namespace geode::internal

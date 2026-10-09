@@ -33,38 +33,35 @@ namespace geode
     ALIAS_3D( TriangulatedSurface );
 } // namespace geode
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    class TSInput : public TriangulatedSurfaceInput< 3 >
     {
-        class TSInput : public TriangulatedSurfaceInput< 3 >
+    public:
+        explicit TSInput( std::string_view filename )
+            : TriangulatedSurfaceInput< 3 >( filename )
         {
-        public:
-            explicit TSInput( std::string_view filename )
-                : TriangulatedSurfaceInput< 3 >( filename )
-            {
-            }
+        }
 
-            static std::string_view extension()
-            {
-                static constexpr auto EXT = "ts";
-                return EXT;
-            }
+        static std::string_view extension()
+        {
+            static constexpr auto EXT = "ts";
+            return EXT;
+        }
 
-            std::unique_ptr< TriangulatedSurface3D > read(
-                const MeshImpl& impl ) final;
+        std::unique_ptr< TriangulatedSurface3D > read(
+            const MeshImpl& impl ) final;
 
-            AdditionalFiles additional_files() const final
-            {
-                return {};
-            }
+        AdditionalFiles additional_files() const final
+        {
+            return {};
+        }
 
-            index_t object_priority() const final
-            {
-                return 0;
-            }
+        index_t object_priority() const final
+        {
+            return 0;
+        }
 
-            Percentage is_loadable() const final;
-        };
-    } // namespace internal
-} // namespace geode
+        Percentage is_loadable() const final;
+    };
+} // namespace geode::internal

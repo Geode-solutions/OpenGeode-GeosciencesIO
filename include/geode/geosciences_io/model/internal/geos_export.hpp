@@ -54,66 +54,62 @@ namespace geode
     struct ModelToMeshMappings;
 } // namespace geode
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    template < typename Model >
+    class GeosExporterImpl
     {
-        template < typename Model >
-        class GeosExporterImpl
-        {
-            OPENGEODE_DISABLE_COPY_AND_MOVE( GeosExporterImpl );
+        OPENGEODE_DISABLE_COPY_AND_MOVE( GeosExporterImpl );
 
-        public:
-            GeosExporterImpl() = delete;
-            GeosExporterImpl(
-                std::string_view files_directory, const Model& model );
-            virtual ~GeosExporterImpl() = default;
+    public:
+        GeosExporterImpl() = delete;
+        GeosExporterImpl(
+            std::string_view files_directory, const Model& model );
+        virtual ~GeosExporterImpl() = default;
 
-            void prepare_export();
-            void write_files() const;
+        void prepare_export();
+        void write_files() const;
 
-            void add_well_perforations(
-                const PointSet3D& perforations, std::string_view name );
+        void add_well_perforations(
+            const PointSet3D& perforations, std::string_view name );
 
-        protected:
-            std::string_view files_directory() const;
-            std::string_view prefix() const;
+    protected:
+        std::string_view files_directory() const;
+        std::string_view prefix() const;
 
-            index_t initialize_solid_region_attribute();
-            void initialize_surface_cells( index_t first_surface_region_id );
-            virtual absl::flat_hash_map< uuid, index_t >
-                create_region_attribute_map( const Model& model ) const = 0;
+        index_t initialize_solid_region_attribute();
+        void initialize_surface_cells( index_t first_surface_region_id );
+        virtual absl::flat_hash_map< uuid, index_t >
+            create_region_attribute_map( const Model& model ) const = 0;
 
-            void write_well_perforations_boxes( pugi::xml_node& root ) const;
-            void write_mesh_files( pugi::xml_node& root ) const;
+        void write_well_perforations_boxes( pugi::xml_node& root ) const;
+        void write_mesh_files( pugi::xml_node& root ) const;
 
-            bool check_property_name( std::string_view property_name ) const;
-            void transfer_physical_properties();
-            void delete_mapping_attributes();
+        bool check_property_name( std::string_view property_name ) const;
+        void transfer_physical_properties();
+        void delete_mapping_attributes();
 
-            std::string write_solid_file() const;
-            void write_well_perforation_file() const;
+        std::string write_solid_file() const;
+        void write_well_perforation_file() const;
 
-        private:
-            const Model& model_;
-            std::unique_ptr< EdgedCurve3D > model_curve_{};
-            std::unique_ptr< SolidMesh3D > model_solid_{};
-            ModelToMeshMappings model2solid_;
+    private:
+        const Model& model_;
+        std::unique_ptr< EdgedCurve3D > model_curve_{};
+        std::unique_ptr< SolidMesh3D > model_solid_{};
+        ModelToMeshMappings model2solid_;
 
-            uuid region_attribute_id_;
-            std::shared_ptr< VariableAttribute< index_t > > region_attribute_{};
+        uuid region_attribute_id_;
+        std::shared_ptr< VariableAttribute< index_t > > region_attribute_{};
 
-            std::vector< PolygonVertices > surface_cells_{};
-            std::vector< index_t > surface_cells_region_{};
+        std::vector< PolygonVertices > surface_cells_{};
+        std::vector< index_t > surface_cells_region_{};
 
-            std::string files_directory_;
-            std::string prefix_;
+        std::string files_directory_;
+        std::string prefix_;
 
-            std::vector< std::pair< std::string, std::string > >
-                imported_fields_{};
+        std::vector< std::pair< std::string, std::string > > imported_fields_{};
 
-            std::vector< std::unique_ptr< PointSet3D > > well_perforations_{};
-            std::vector< std::string > well_names_{};
-        };
-    } // namespace internal
-} // namespace geode
+        std::vector< std::unique_ptr< PointSet3D > > well_perforations_{};
+        std::vector< std::string > well_names_{};
+    };
+} // namespace geode::internal
