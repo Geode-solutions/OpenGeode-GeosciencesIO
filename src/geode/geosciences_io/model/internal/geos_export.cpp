@@ -235,11 +235,8 @@ namespace geode::internal
                 {
                     continue;
                 }
-                for( const auto solid_polyhedron_id :
-                    polyhedra_mapping.in2out( block_polyhedron ) )
-                {
-                    block2solid.map( polyhedron_id, solid_polyhedron_id );
-                }
+                block2solid.map( polyhedron_id,
+                    polyhedra_mapping.in2out( block_polyhedron ) );
             }
             solid_manager.import( block_manager, block2solid, attribute_id );
         }
@@ -365,7 +362,6 @@ namespace geode::internal
                 polyhedron_id, region_map_id
                                    .find( model2solid_.solid_polyhedra_mapping
                                            .out2in( polyhedron_id )
-                                           .front()
                                            .mesh_id )
                                    ->second );
         }
