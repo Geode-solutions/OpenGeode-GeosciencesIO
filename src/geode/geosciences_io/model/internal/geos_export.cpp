@@ -28,6 +28,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <typeinfo>
 #include <utility>
 
 #include <pugixml.hpp>
@@ -38,6 +39,7 @@
 #include <absl/strings/str_join.h>
 
 #include <geode/basic/attribute_manager.hpp>
+#include <geode/basic/constant_attribute.hpp>
 #include <geode/basic/filename.hpp>
 #include <geode/basic/logger.hpp>
 #include <geode/basic/mapping.hpp>
@@ -120,6 +122,71 @@ namespace
         GeosVTUOutputImpl< SolidOutputImpl > writer{ filename, solid,
             surface_cells, cell_attributes };
         writer.write_file();
+    }
+
+    struct GeosBoundaryField
+    {
+        std::string_view field_name;
+        std::string_view name_prefix;
+    };
+
+    const absl::linked_hash_map< geode::PHYSICAL_PROPERTY_NAME,
+        GeosBoundaryField >
+        BOUNDARY_CONDITION_GEOS_FIELDS{
+            { geode::PHYSICAL_PROPERTY_NAME::boundary_pressure,
+                { "pressure", "boundaryPressure" } },
+            { geode::PHYSICAL_PROPERTY_NAME::boundary_temperature,
+                { "temperature", "boundaryTemperature" } },
+        };
+
+    const absl::linked_hash_map< geode::PHYSICAL_PROPERTY_NAME,
+        std::string_view >
+        FLUID_FRACTION_GEOS_NAMES{
+            { geode::PHYSICAL_PROPERTY_NAME::boundary_oil_fraction, "oil" },
+            { geode::PHYSICAL_PROPERTY_NAME::boundary_gas_fraction, "gas" },
+            { geode::PHYSICAL_PROPERTY_NAME::boundary_water_fraction, "water" },
+        };
+
+    std::optional< double > surface_constant_value(
+        const geode::Surface3D& surface, const geode::uuid& attribute_id )
+    {
+        const auto& manager = surface.mesh().polygon_attribute_manager();
+        if( !manager.attribute_exists( attribute_id ) )
+        {
+            return std::nullopt;
+        }
+        geode::OpenGeodeGeosciencesIOModelException::check_exception(
+            manager.attribute_type( attribute_id ) == typeid( double ).name(),
+            nullptr, geode::OpenGeodeException::TYPE::data,
+            "[GeosExporter] Boundary condition attribute ",
+            attribute_id.string(), " on Surface ", surface.id().string(),
+            " must store double values." );
+        const auto attribute = std::dynamic_pointer_cast<
+            const geode::ConstantAttribute< double > >(
+            manager.find_read_only_attribute< double >( attribute_id ) );
+        geode::OpenGeodeGeosciencesIOModelException::check_exception(
+            attribute.get(), nullptr, geode::OpenGeodeException::TYPE::data,
+            "[GeosExporter] Boundary condition attribute ",
+            attribute_id.string(), " on Surface ", surface.id().string(),
+            " must be a ConstantAttribute. Only constant boundary conditions "
+            "per Surface are supported." );
+        return attribute->value();
+    }
+
+    template < typename Model >
+    const geode::uuid& boundary_condition_attribute_id(
+        const Model& model, geode::PHYSICAL_PROPERTY_NAME property )
+    {
+        const auto& property_info = model.physical_property_info( property );
+        geode::OpenGeodeGeosciencesIOModelException::check_exception(
+            property_info.component_type
+                == geode::Surface3D::component_type_static(),
+            nullptr, geode::OpenGeodeException::TYPE::data,
+            "[GeosExporter] Physical property attribute ",
+            property_info.attribute_id.string(),
+            " must be defined on Surfaces to be exported as a boundary "
+            "condition." );
+        return property_info.attribute_id;
     }
 } // namespace
 
@@ -242,6 +309,13 @@ namespace geode::internal
             write_well_perforation_file();
         }
 
+        if( !boundary_conditions_.empty() )
+        {
+            auto field_specifications_node =
+                pb_node.append_child( "FieldSpecifications" );
+            write_boundary_conditions( field_specifications_node );
+        }
+
         const auto filename_xml =
             absl::StrCat( files_directory(), "/", prefix(), "_simulation.xml" );
         doc_xml.save_file( filename_xml.c_str(), PUGIXML_TEXT( "    " ),
@@ -267,6 +341,7 @@ namespace geode::internal
         const auto nb_solid_regions = initialize_solid_region_attribute();
         initialize_surface_cells( nb_solid_regions );
         transfer_physical_properties();
+        transfer_boundary_conditions();
     }
 
     template < typename Model >
@@ -321,6 +396,7 @@ namespace geode::internal
                 surface_cells_.emplace_back( std::move( vertices ) );
                 surface_cells_region_.push_back( region_id );
             }
+            surface_regions_.emplace( surface.id(), region_id );
             region_id++;
         }
     }
@@ -412,6 +488,34 @@ namespace geode::internal
     }
 
     template < typename Model >
+    void GeosExporterImpl< Model >::write_boundary_conditions(
+        pugi::xml_node& root ) const
+    {
+        for( const auto& condition : boundary_conditions_ )
+        {
+            auto specification_node = root.append_child( "FieldSpecification" );
+            specification_node.append_attribute( "name" ).set_value(
+                condition.name.c_str() );
+            specification_node.append_attribute( "objectPath" )
+                .set_value( "faceManager" );
+            specification_node.append_attribute( "fieldName" )
+                .set_value( condition.field_name.c_str() );
+            if( condition.component )
+            {
+                specification_node.append_attribute( "component" )
+                    .set_value(
+                        static_cast< unsigned int >( *condition.component ) );
+            }
+            specification_node.append_attribute( "scale" ).set_value(
+                absl::StrFormat( "%.15g", condition.value ).c_str() );
+            specification_node.append_attribute( "setNames" )
+                .set_value( absl::StrCat(
+                    "{ ", absl::StrJoin( condition.region_ids, ", " ), " }" )
+                        .c_str() );
+        }
+    }
+
+    template < typename Model >
     bool GeosExporterImpl< Model >::check_property_name(
         std::string_view property_name ) const
     {
@@ -445,6 +549,61 @@ namespace geode::internal
                     model_.physical_property_info( property ) );
             imported_fields_.emplace_back(
                 std::move( attribute_name ), to_string( geos_name ) );
+        }
+    }
+
+    template < typename Model >
+    void GeosExporterImpl< Model >::transfer_boundary_conditions()
+    {
+        for( const auto& [property, field] : BOUNDARY_CONDITION_GEOS_FIELDS )
+        {
+            if( !model_.has_physical_property( property ) )
+            {
+                continue;
+            }
+            transfer_boundary_condition(
+                boundary_condition_attribute_id( model_, property ),
+                field.field_name, field.name_prefix, std::nullopt );
+        }
+        local_index_t component{ 0 };
+        for( const auto& [property, fluid] : FLUID_FRACTION_GEOS_NAMES )
+        {
+            if( !model_.has_physical_property( property ) )
+            {
+                continue;
+            }
+            transfer_boundary_condition(
+                boundary_condition_attribute_id( model_, property ),
+                "globalCompFraction",
+                absl::StrCat( "boundaryComposition_", fluid ), component++ );
+        }
+    }
+
+    template < typename Model >
+    void GeosExporterImpl< Model >::transfer_boundary_condition(
+        const uuid& attribute_id,
+        std::string_view field_name,
+        std::string_view name_prefix,
+        std::optional< local_index_t > component )
+    {
+        absl::linked_hash_map< double, std::vector< index_t > > value_regions;
+        for( const auto& surface : model_.surfaces() )
+        {
+            const auto value = surface_constant_value( surface, attribute_id );
+            if( !value )
+            {
+                continue;
+            }
+            value_regions[value.value()].push_back(
+                surface_regions_.at( surface.id() ) );
+        }
+        index_t condition_id{ 0 };
+        for( auto& [value, region_ids] : value_regions )
+        {
+            boundary_conditions_.push_back(
+                { absl::StrCat( name_prefix, "_", condition_id++ ),
+                    to_string( field_name ), component, std::move( region_ids ),
+                    value } );
         }
     }
 

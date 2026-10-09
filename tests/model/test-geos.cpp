@@ -22,19 +22,24 @@
  */
 
 #include <array>
+#include <cmath>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <geode/basic/attribute_manager.hpp>
+#include <geode/basic/constant_attribute.hpp>
 #include <geode/basic/logger.hpp>
 #include <geode/basic/variable_attribute.hpp>
 #include <geode/tests_config.hpp>
 
 #include <absl/strings/str_cat.h>
+#include <absl/types/span.h>
 
 #include <geode/geosciences_io/model/helpers/brep_geos_export.hpp>
 
+#include <geode/geometry/bounding_box.hpp>
 #include <geode/geometry/point.hpp>
 #include <geode/io/mesh/common.hpp>
 #include <geode/io/model/common.hpp>
@@ -44,18 +49,97 @@
 #include <geode/mesh/core/geode/geode_point_set.hpp>
 #include <geode/mesh/core/hybrid_solid.hpp>
 
+#include <geode/mesh/core/surface_mesh.hpp>
+
 #include <geode/model/mixin/core/block.hpp>
 #include <geode/model/mixin/core/physical_properties.hpp>
+#include <geode/model/mixin/core/surface.hpp>
+#include <geode/model/representation/builder/brep_builder.hpp>
 #include <geode/model/representation/core/brep.hpp>
 #include <geode/model/representation/io/brep_input.hpp>
+
+std::vector< geode::uuid > east_surfaces( const geode::BRep& model )
+{
+    static constexpr double TOLERANCE{ 1e-3 };
+    const auto east_x = model.bounding_box().max().value( 0 );
+    std::vector< geode::uuid > surfaces;
+    for( const auto& surface : model.surfaces() )
+    {
+        const auto box = surface.mesh().bounding_box();
+        if( std::fabs( box.min().value( 0 ) - east_x ) < TOLERANCE
+            && std::fabs( box.max().value( 0 ) - east_x ) < TOLERANCE )
+        {
+            surfaces.push_back( surface.id() );
+        }
+    }
+    return surfaces;
+}
+
+template < template < typename > class Attribute, typename T >
+geode::uuid add_boundary_condition( geode::BRep& model,
+    absl::Span< const geode::uuid > surfaces,
+    geode::PHYSICAL_PROPERTY_NAME property,
+    std::string_view name,
+    T value )
+{
+    const geode::uuid attribute_id;
+    geode::AttributeValues< T > values;
+    values.default_value = value;
+    for( const auto& surface_id : surfaces )
+    {
+        model.surface( surface_id )
+            .mesh()
+            .polygon_attribute_manager()
+            .create_attribute< Attribute, T >( name, attribute_id, values, {} );
+    }
+    geode::BRepBuilder{ model }.set_physical_property(
+        property, geode::Surface3D::component_type_static(), attribute_id );
+    return attribute_id;
+}
 
 void test_picasso()
 {
     // Load structural model
     auto model =
         geode::load_brep( absl::StrCat( geode::DATA_PATH, "picasso.og_brep" ) );
+    const auto surfaces = east_surfaces( model );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        !surfaces.empty(), "[Test] No east Surface found" );
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "pressure", 1e7 );
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_temperature, "temperature",
+        350. );
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_oil_fraction, "oil_fraction",
+        0.9995 );
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_water_fraction,
+        "water_fraction", 0.0005 );
     geode::BRepGeosExporter exporter( model, "picasso" );
     exporter.run();
+}
+
+void test_variable_boundary_condition()
+{
+    auto model =
+        geode::load_brep( absl::StrCat( geode::DATA_PATH, "picasso.og_brep" ) );
+    const auto surfaces = east_surfaces( model );
+    add_boundary_condition< geode::VariableAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "pressure", 1e7 );
+    geode::BRepGeosExporter exporter( model, "picasso_variable" );
+    try
+    {
+        exporter.run();
+    }
+    catch( const geode::OpenGeodeException& exception )
+    {
+        geode::Logger::info( "[Test] Expected error: ", exception.what() );
+        return;
+    }
+    throw geode::OpenGeodeGeosciencesIOModelException{ nullptr,
+        geode::OpenGeodeException::TYPE::internal,
+        "[Test] Variable boundary condition should not be exported" };
 }
 void toy_model()
 {
@@ -112,6 +196,7 @@ int main()
         geode::OpenGeodeIOMeshLibrary::initialize();
         geode::OpenGeodeIOModelLibrary::initialize();
         test_picasso();
+        test_variable_boundary_condition();
         toy_model();
         test_grid_geos();
         geode::Logger::info( "TEST SUCCESS" );
