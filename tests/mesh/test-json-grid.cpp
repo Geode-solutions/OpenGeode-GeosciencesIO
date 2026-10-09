@@ -23,9 +23,12 @@
 
 #include <geode/tests_config.hpp>
 
+#include <fstream>
+
 #include <geode/basic/assert.hpp>
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/logger.hpp>
+#include <geode/basic/range.hpp>
 
 #include <geode/geometry/point.hpp>
 
@@ -108,6 +111,96 @@ void check_grid( const geode::LightRegularGrid3D& grid )
         false, 4, 1.3335214321633148e-43 );
 }
 
+void write_file( std::string_view filename, std::string_view content )
+{
+    std::ofstream file{ geode::to_string( filename ) };
+    file << content;
+}
+
+void test_unordered_records()
+{
+    constexpr auto filename = "unordered_grid.json";
+    write_file( filename, R"({
+        "grid_df": [
+            { "x": 2, "y": 1, "z": 6, "value": 112 },
+            { "x": 0, "y": 0, "z": 5, "value": 0 },
+            { "x": 0, "y": 1, "z": 6, "value": 110 },
+            { "x": 2, "y": 0, "z": 5, "value": 2 },
+            { "x": 0, "y": 1, "z": 5, "value": 10 },
+            { "x": 2, "y": 0, "z": 6, "value": 102 },
+            { "x": 2, "y": 1, "z": 5, "value": 12 },
+            { "x": 0, "y": 0, "z": 6, "value": 100 }
+        ],
+        "name": "unordered"
+    })" );
+    const auto grid = geode::load_light_regular_grid< 3 >( filename );
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        grid.nb_cells_in_direction( 0 ) == 1
+            && grid.nb_cells_in_direction( 1 ) == 1
+            && grid.nb_cells_in_direction( 2 ) == 1,
+        "Wrong number of cells for unordered grid" );
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        grid.name() == "unordered", "Wrong name for unordered grid" );
+    const auto attribute = find_attribute< double >( grid, "value" );
+    for( const auto vertex : geode::Range{ grid.nb_grid_vertices() } )
+    {
+        const auto& point = grid.point( vertex );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            attribute->value( vertex )
+                == point.value( 0 ) + 10. * point.value( 1 )
+                       + 100. * ( point.value( 2 ) - 5. ),
+            "Wrong value for unordered vertex ", vertex );
+    }
+}
+
+void test_invalid_grid( std::string_view filename, std::string_view content )
+{
+    write_file( filename, content );
+    try
+    {
+        [[maybe_unused]] const auto grid =
+            geode::load_light_regular_grid< 3 >( filename );
+    }
+    catch( const geode::OpenGeodeException& )
+    {
+        return;
+    }
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        false, "Invalid grid ", filename, " should not be loaded" );
+}
+
+void test_invalid_grids()
+{
+    test_invalid_grid( "duplicated_vertex_grid.json", R"({
+        "grid_df": [
+            { "x": 0, "y": 0, "z": 0 },
+            { "x": 1, "y": 0, "z": 0 },
+            { "x": 0, "y": 1, "z": 0 },
+            { "x": 1, "y": 1, "z": 0 },
+            { "x": 0, "y": 0, "z": 1 },
+            { "x": 1, "y": 0, "z": 1 },
+            { "x": 0, "y": 1, "z": 1 },
+            { "x": 0, "y": 1, "z": 1 }
+        ]
+    })" );
+    test_invalid_grid( "irregular_grid.json", R"({
+        "grid_df": [
+            { "x": 0, "y": 0, "z": 0 },
+            { "x": 1, "y": 0, "z": 0 },
+            { "x": 3, "y": 0, "z": 0 },
+            { "x": 0, "y": 1, "z": 0 },
+            { "x": 1, "y": 1, "z": 0 },
+            { "x": 3, "y": 1, "z": 0 },
+            { "x": 0, "y": 0, "z": 1 },
+            { "x": 1, "y": 0, "z": 1 },
+            { "x": 3, "y": 0, "z": 1 },
+            { "x": 0, "y": 1, "z": 1 },
+            { "x": 1, "y": 1, "z": 1 },
+            { "x": 3, "y": 1, "z": 1 }
+        ]
+    })" );
+}
+
 int main()
 {
     try
@@ -123,6 +216,9 @@ int main()
             absl::StrCat( "json_grid.", grid.native_extension() );
         geode::save_light_regular_grid( grid, output );
         check_grid( geode::load_light_regular_grid< 3 >( output ) );
+
+        test_unordered_records();
+        test_invalid_grids();
 
         geode::Logger::info( "[TEST SUCCESS]" );
 
