@@ -86,26 +86,23 @@ namespace
     };
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    std::unique_ptr< PointSet3D > VSInput::read( const MeshImpl& impl )
     {
-        std::unique_ptr< PointSet3D > VSInput::read( const MeshImpl& impl )
-        {
-            auto surface = PointSet3D::create( impl );
-            VSInputImpl reader{ this->filename(), *surface };
-            reader.read_file();
-            return surface;
-        }
+        auto surface = PointSet3D::create( impl );
+        VSInputImpl reader{ this->filename(), *surface };
+        reader.read_file();
+        return surface;
+    }
 
-        Percentage VSInput::is_loadable() const
+    Percentage VSInput::is_loadable() const
+    {
+        std::ifstream file{ to_string( this->filename() ) };
+        if( goto_keyword_if_it_exists( file, "GOCAD VSet" ) )
         {
-            std::ifstream file{ to_string( this->filename() ) };
-            if( goto_keyword_if_it_exists( file, "GOCAD VSet" ) )
-            {
-                return Percentage{ 1 };
-            }
-            return Percentage{ 0 };
+            return Percentage{ 1 };
         }
-    } // namespace internal
-} // namespace geode
+        return Percentage{ 0 };
+    }
+} // namespace geode::internal

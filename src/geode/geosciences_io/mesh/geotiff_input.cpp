@@ -67,36 +67,32 @@ namespace
     };
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    LightRegularGrid2D GEOTIFFInput::read()
     {
-        LightRegularGrid2D GEOTIFFInput::read()
-        {
-            GEOTIFFInputImpl geo_reader( filename() );
-            return geo_reader.read_file();
-        }
+        GEOTIFFInputImpl geo_reader( filename() );
+        return geo_reader.read_file();
+    }
 
-        Percentage GEOTIFFInput::is_loadable() const
+    Percentage GEOTIFFInput::is_loadable() const
+    {
+        const auto raster_percent = is_raster_image_loadable< 2 >( filename() );
+        if( raster_percent.value() != 1 )
         {
-            const auto raster_percent =
-                is_raster_image_loadable< 2 >( filename() );
-            if( raster_percent.value() != 1 )
-            {
-                return raster_percent;
-            }
-            detail::GDALFile reader{ this->filename() };
-            if( !reader.is_coordinate_system_loadable() )
-            {
-                return Percentage{ 0 };
-            }
-            return Percentage{ 1 };
+            return raster_percent;
         }
+        detail::GDALFile reader{ this->filename() };
+        if( !reader.is_coordinate_system_loadable() )
+        {
+            return Percentage{ 0 };
+        }
+        return Percentage{ 1 };
+    }
 
-        auto GEOTIFFInput::additional_files() const -> AdditionalFiles
-        {
-            detail::GDALFile reader{ this->filename() };
-            return reader.additional_files< AdditionalFiles >();
-        }
-    } // namespace internal
-} // namespace geode
+    auto GEOTIFFInput::additional_files() const -> AdditionalFiles
+    {
+        detail::GDALFile reader{ this->filename() };
+        return reader.additional_files< AdditionalFiles >();
+    }
+} // namespace geode::internal

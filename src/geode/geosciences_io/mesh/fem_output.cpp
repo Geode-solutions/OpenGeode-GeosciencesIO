@@ -1270,18 +1270,15 @@ namespace
     };
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    std::vector< std::string > SolidFemOutput::write(
+        const TetrahedralSolid3D& solid ) const
     {
-        std::vector< std::string > SolidFemOutput::write(
-            const TetrahedralSolid3D& solid ) const
-        {
-            SolidFemOutputImpl impl{ filename(), solid };
-            impl.write_file();
-            return { to_string( filename() ) };
-        }
-    } // namespace internal
-} // namespace geode
+        SolidFemOutputImpl impl{ filename(), solid };
+        impl.write_file();
+        return { to_string( filename() ) };
+    }
+} // namespace geode::internal
 
 #include <geode/basic/detail/enable_debug_logger.hpp>

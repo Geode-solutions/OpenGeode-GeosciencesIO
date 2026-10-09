@@ -31,6 +31,7 @@
 #include <geode/geosciences_io/mesh/internal/fem_output.hpp>
 #include <geode/geosciences_io/mesh/internal/geotiff_input.hpp>
 #include <geode/geosciences_io/mesh/internal/grdecl_input.hpp>
+#include <geode/geosciences_io/mesh/internal/json_grid_input.hpp>
 #include <geode/geosciences_io/mesh/internal/pl_input.hpp>
 #include <geode/geosciences_io/mesh/internal/pl_output.hpp>
 #include <geode/geosciences_io/mesh/internal/polytiff_input.hpp>
@@ -113,6 +114,9 @@ namespace
             geode::LightRegularGridInputFactory2D::register_creator<
                 geode::internal::GEOTIFFInput >( tif_ext );
         }
+        geode::LightRegularGridInputFactory3D::register_creator<
+            geode::internal::JSONGridInput >(
+            geode::internal::JSONGridInput::extension().data() );
     }
 
     void register_regular_grid_input()

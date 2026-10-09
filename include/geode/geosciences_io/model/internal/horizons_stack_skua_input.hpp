@@ -27,40 +27,36 @@
 
 #include <geode/geosciences_io/model/common.hpp>
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    template < index_t dimension >
+    class HorizonStackSKUAInput final : public HorizonsStackInput< dimension >
     {
-        template < index_t dimension >
-        class HorizonStackSKUAInput final
-            : public HorizonsStackInput< dimension >
+    public:
+        explicit HorizonStackSKUAInput( std::string_view filename )
+            : HorizonsStackInput< dimension >( filename )
         {
-        public:
-            explicit HorizonStackSKUAInput( std::string_view filename )
-                : HorizonsStackInput< dimension >( filename )
-            {
-            }
+        }
 
-            static std::string_view extension()
-            {
-                static constexpr auto EXT = "xml";
-                return EXT;
-            }
+        static std::string_view extension()
+        {
+            static constexpr auto EXT = "xml";
+            return EXT;
+        }
 
-            HorizonsStack< dimension > read() final;
+        HorizonsStack< dimension > read() final;
 
-            AdditionalFiles additional_files() const final
-            {
-                return {};
-            }
+        AdditionalFiles additional_files() const final
+        {
+            return {};
+        }
 
-            index_t object_priority() const final
-            {
-                return 0;
-            }
+        index_t object_priority() const final
+        {
+            return 0;
+        }
 
-            Percentage is_loadable() const final;
-        };
-        ALIAS_2D_AND_3D( HorizonStackSKUAInput );
-    } // namespace internal
-} // namespace geode
+        Percentage is_loadable() const final;
+    };
+    ALIAS_2D_AND_3D( HorizonStackSKUAInput );
+} // namespace geode::internal

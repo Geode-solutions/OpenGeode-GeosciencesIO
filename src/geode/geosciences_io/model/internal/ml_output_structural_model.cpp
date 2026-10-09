@@ -230,37 +230,34 @@ namespace
     };
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    std::vector< std::string > MLOutputStructuralModel::write(
+        const StructuralModel& structural_model ) const
     {
-        std::vector< std::string > MLOutputStructuralModel::write(
-            const StructuralModel& structural_model ) const
+        OpenGeodeGeosciencesIOModelException::check_exception(
+            check_brep_polygons( structural_model ), nullptr,
+            OpenGeodeException::TYPE::data,
+            "[MLOutput::write] Can not export into .ml a "
+            "StructuralModel with non triangular surface polygons." );
+        if( structural_model.nb_model_boundaries() > 0 )
         {
-            OpenGeodeGeosciencesIOModelException::check_exception(
-                check_brep_polygons( structural_model ), nullptr,
-                OpenGeodeException::TYPE::data,
-                "[MLOutput::write] Can not export into .ml a "
-                "StructuralModel with non triangular surface polygons." );
-            if( structural_model.nb_model_boundaries() > 0 )
-            {
-                MLOutputImplSM impl{ filename(), structural_model };
-                impl.write_file();
-            }
-            else
-            {
-                const auto new_structural_model =
-                    clone_with_model_boundaries( structural_model );
-                MLOutputImplSM impl{ filename(), new_structural_model };
-                impl.write_file();
-            }
-            return { to_string( filename() ) };
+            MLOutputImplSM impl{ filename(), structural_model };
+            impl.write_file();
         }
+        else
+        {
+            const auto new_structural_model =
+                clone_with_model_boundaries( structural_model );
+            MLOutputImplSM impl{ filename(), new_structural_model };
+            impl.write_file();
+        }
+        return { to_string( filename() ) };
+    }
 
-        bool MLOutputStructuralModel::is_saveable(
-            const StructuralModel& structural_model ) const
-        {
-            return check_brep_polygons( structural_model );
-        }
-    } // namespace internal
-} // namespace geode
+    bool MLOutputStructuralModel::is_saveable(
+        const StructuralModel& structural_model ) const
+    {
+        return check_brep_polygons( structural_model );
+    }
+} // namespace geode::internal

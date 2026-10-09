@@ -35,34 +35,31 @@ namespace geode
     ALIAS_3D( RegularGrid );
 } // namespace geode
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    class VOInput : public RegularGridInput< 3 >
     {
-        class VOInput : public RegularGridInput< 3 >
+    public:
+        explicit VOInput( std::string_view filename )
+            : RegularGridInput< 3 >( filename )
         {
-        public:
-            explicit VOInput( std::string_view filename )
-                : RegularGridInput< 3 >( filename )
-            {
-            }
+        }
 
-            static std::string_view extension()
-            {
-                static constexpr auto EXT = "vo";
-                return EXT;
-            }
+        static std::string_view extension()
+        {
+            static constexpr auto EXT = "vo";
+            return EXT;
+        }
 
-            std::unique_ptr< RegularGrid3D > read( const MeshImpl& impl ) final;
+        std::unique_ptr< RegularGrid3D > read( const MeshImpl& impl ) final;
 
-            AdditionalFiles additional_files() const final;
+        AdditionalFiles additional_files() const final;
 
-            index_t object_priority() const final
-            {
-                return 0;
-            }
+        index_t object_priority() const final
+        {
+            return 0;
+        }
 
-            Percentage is_loadable() const final;
-        };
-    } // namespace internal
-} // namespace geode
+        Percentage is_loadable() const final;
+    };
+} // namespace geode::internal

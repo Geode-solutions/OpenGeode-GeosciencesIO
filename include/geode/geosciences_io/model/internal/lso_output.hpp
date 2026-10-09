@@ -29,29 +29,25 @@
 #include <geode/geosciences/explicit/representation/io/structural_model_output.hpp>
 #include <geode/geosciences_io/model/common.hpp>
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    class LSOOutput final : public StructuralModelOutput
     {
-        class LSOOutput final : public StructuralModelOutput
+    public:
+        explicit LSOOutput( std::string_view filename )
+            : StructuralModelOutput( filename )
         {
-        public:
-            explicit LSOOutput( std::string_view filename )
-                : StructuralModelOutput( filename )
-            {
-            }
+        }
 
-            static std::string_view extension()
-            {
-                static constexpr auto EXT = "lso";
-                return EXT;
-            }
+        static std::string_view extension()
+        {
+            static constexpr auto EXT = "lso";
+            return EXT;
+        }
 
-            std::vector< std::string > write(
-                const StructuralModel& structural_model ) const final;
+        std::vector< std::string > write(
+            const StructuralModel& structural_model ) const final;
 
-            bool is_saveable(
-                const StructuralModel& structural_model ) const final;
-        };
-    } // namespace internal
-} // namespace geode
+        bool is_saveable( const StructuralModel& structural_model ) const final;
+    };
+} // namespace geode::internal

@@ -172,30 +172,26 @@ namespace
     };
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    template < index_t dimension >
+    HorizonsStack< dimension > HorizonStackSKUAInput< dimension >::read()
     {
-        template < index_t dimension >
-        HorizonsStack< dimension > HorizonStackSKUAInput< dimension >::read()
-        {
-            HorizonStackSKUAInputImpl< dimension > impl{ this->filename() };
-            return impl.read_file();
-        }
+        HorizonStackSKUAInputImpl< dimension > impl{ this->filename() };
+        return impl.read_file();
+    }
 
-        template < index_t dimension >
-        Percentage HorizonStackSKUAInput< dimension >::is_loadable() const
+    template < index_t dimension >
+    Percentage HorizonStackSKUAInput< dimension >::is_loadable() const
+    {
+        std::ifstream file{ geode::to_string( this->filename() ) };
+        if( goto_keyword_if_it_exists( file, " <LocalStratigraphicColumn" ) )
         {
-            std::ifstream file{ geode::to_string( this->filename() ) };
-            if( goto_keyword_if_it_exists(
-                    file, " <LocalStratigraphicColumn" ) )
-            {
-                return Percentage{ 1 };
-            }
-            return Percentage{ 0 };
+            return Percentage{ 1 };
         }
+        return Percentage{ 0 };
+    }
 
-        template class HorizonStackSKUAInput< 2 >;
-        template class HorizonStackSKUAInput< 3 >;
-    } // namespace internal
-} // namespace geode
+    template class HorizonStackSKUAInput< 2 >;
+    template class HorizonStackSKUAInput< 3 >;
+} // namespace geode::internal

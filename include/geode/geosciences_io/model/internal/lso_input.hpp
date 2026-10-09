@@ -26,37 +26,34 @@
 #include <geode/geosciences/explicit/representation/io/structural_model_input.hpp>
 #include <geode/geosciences_io/model/common.hpp>
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    class LSOInput final : public StructuralModelInput
     {
-        class LSOInput final : public StructuralModelInput
+    public:
+        explicit LSOInput( std::string_view filename )
+            : StructuralModelInput( filename )
         {
-        public:
-            explicit LSOInput( std::string_view filename )
-                : StructuralModelInput( filename )
-            {
-            }
+        }
 
-            static std::string_view extension()
-            {
-                static constexpr auto EXT = "lso";
-                return EXT;
-            }
+        static std::string_view extension()
+        {
+            static constexpr auto EXT = "lso";
+            return EXT;
+        }
 
-            StructuralModel read() final;
+        StructuralModel read() final;
 
-            AdditionalFiles additional_files() const final
-            {
-                return {};
-            }
+        AdditionalFiles additional_files() const final
+        {
+            return {};
+        }
 
-            index_t object_priority() const final
-            {
-                return 0;
-            }
+        index_t object_priority() const final
+        {
+            return 0;
+        }
 
-            Percentage is_loadable() const final;
-        };
-    } // namespace internal
-} // namespace geode
+        Percentage is_loadable() const final;
+    };
+} // namespace geode::internal

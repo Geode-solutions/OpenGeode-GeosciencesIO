@@ -34,17 +34,13 @@ namespace geode
     class BRep;
 } // namespace geode
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    struct RegionSurfaceSide
     {
-        struct RegionSurfaceSide
-        {
-            absl::flat_hash_map< uuid, bool > universe_surface_sides;
-            absl::flat_hash_map< std::pair< uuid, uuid >, bool >
-                regions_surface_sides;
-        };
-        RegionSurfaceSide determine_surface_to_regions_sides(
-            const BRep& brep );
-    } // namespace internal
-} // namespace geode
+        absl::flat_hash_map< uuid, bool > universe_surface_sides;
+        absl::flat_hash_map< std::pair< uuid, uuid >, bool >
+            regions_surface_sides;
+    };
+    RegionSurfaceSide determine_surface_to_regions_sides( const BRep& brep );
+} // namespace geode::internal

@@ -1043,26 +1043,23 @@ namespace
     };
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    StructuralModel MLInput::read()
     {
-        StructuralModel MLInput::read()
-        {
-            StructuralModel structural_model;
-            MLInputImpl impl{ filename(), structural_model };
-            impl.read_file();
-            return structural_model;
-        }
+        StructuralModel structural_model;
+        MLInputImpl impl{ filename(), structural_model };
+        impl.read_file();
+        return structural_model;
+    }
 
-        Percentage MLInput::is_loadable() const
+    Percentage MLInput::is_loadable() const
+    {
+        std::ifstream file{ to_string( this->filename() ) };
+        if( goto_keyword_if_it_exists( file, "GOCAD Model3d" ) )
         {
-            std::ifstream file{ to_string( this->filename() ) };
-            if( goto_keyword_if_it_exists( file, "GOCAD Model3d" ) )
-            {
-                return Percentage{ 1 };
-            }
-            return Percentage{ 0 };
+            return Percentage{ 1 };
         }
-    } // namespace internal
-} // namespace geode
+        return Percentage{ 0 };
+    }
+} // namespace geode::internal

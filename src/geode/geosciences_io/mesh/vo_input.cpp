@@ -229,43 +229,38 @@ namespace
     };
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    std::unique_ptr< RegularGrid3D > VOInput::read( const MeshImpl& impl )
     {
-        std::unique_ptr< RegularGrid3D > VOInput::read( const MeshImpl& impl )
-        {
-            auto voxet = RegularGrid3D::create( impl );
-            VOInputImpl reader{ filename(), *voxet };
-            reader.read_file();
-            return voxet;
-        }
+        auto voxet = RegularGrid3D::create( impl );
+        VOInputImpl reader{ filename(), *voxet };
+        reader.read_file();
+        return voxet;
+    }
 
-        auto VOInput::additional_files() const -> AdditionalFiles
+    auto VOInput::additional_files() const -> AdditionalFiles
+    {
+        std::ifstream file{ geode::to_string( filename() ), std::ios::binary };
+        const auto data_file = get_data_file( file );
+        file.close();
+        if( !data_file.has_value() )
         {
-            std::ifstream file{ geode::to_string( filename() ),
-                std::ios::binary };
-            const auto data_file = get_data_file( file );
-            file.close();
-            if( !data_file.has_value() )
-            {
-                return {};
-            }
-            AdditionalFiles missing;
-            missing.mandatory_files.emplace_back(
-                data_file.value(), file_exists( data_file.value() ) );
-            return missing;
+            return {};
         }
+        AdditionalFiles missing;
+        missing.mandatory_files.emplace_back(
+            data_file.value(), file_exists( data_file.value() ) );
+        return missing;
+    }
 
-        Percentage VOInput::is_loadable() const
+    Percentage VOInput::is_loadable() const
+    {
+        std::ifstream file{ to_string( this->filename() ), std::ios::binary };
+        if( goto_keyword_if_it_exists( file, "GOCAD Voxet" ) )
         {
-            std::ifstream file{ to_string( this->filename() ),
-                std::ios::binary };
-            if( goto_keyword_if_it_exists( file, "GOCAD Voxet" ) )
-            {
-                return Percentage{ 1 };
-            }
-            return Percentage{ 0 };
+            return Percentage{ 1 };
         }
-    } // namespace internal
-} // namespace geode
+        return Percentage{ 0 };
+    }
+} // namespace geode::internal

@@ -33,54 +33,51 @@
 #include <geode/mesh/builder/edged_curve_builder.hpp>
 #include <geode/mesh/core/edged_curve.hpp>
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    class WellInputImpl
     {
-        class WellInputImpl
+    public:
+        WellInputImpl( std::string_view filename, EdgedCurve3D& curve )
+            : file_{ to_string( filename ) },
+              curve_( curve ),
+              builder_( EdgedCurveBuilder3D::create( curve ) )
         {
-        public:
-            WellInputImpl( std::string_view filename, EdgedCurve3D& curve )
-                : file_{ to_string( filename ) },
-                  curve_( curve ),
-                  builder_( EdgedCurveBuilder3D::create( curve ) )
-            {
-                OpenGeodeGeosciencesIOMeshException::check_exception(
-                    file_.good(), nullptr, OpenGeodeException::TYPE::data,
-                    "Error while opening file: ", filename );
-                builder_->set_name(
-                    filename_without_extension( filename ).string() );
-            }
+            OpenGeodeGeosciencesIOMeshException::check_exception( file_.good(),
+                nullptr, OpenGeodeException::TYPE::data,
+                "Error while opening file: ", filename );
+            builder_->set_name(
+                filename_without_extension( filename ).string() );
+        }
 
-            void read_file()
+        void read_file()
+        {
+            std::string line;
+            while( std::getline( file_, line ) )
             {
-                std::string line;
-                while( std::getline( file_, line ) )
-                {
-                    builder_->create_point( read_coord( line ) );
-                }
-                for( const auto pt_id : Range{ curve_.nb_vertices() - 1 } )
-                {
-                    builder_->create_edge( pt_id, pt_id + 1 );
-                }
+                builder_->create_point( read_coord( line ) );
             }
-
-        private:
-            geode::Point3D read_coord( std::string_view line ) const
+            for( const auto pt_id : Range{ curve_.nb_vertices() - 1 } )
             {
-                const auto tokens = string_split( line );
-                OpenGeodeGeosciencesIOMeshException::check_exception(
-                    tokens.size() == 3, nullptr, OpenGeodeException::TYPE::data,
-                    "[WellInput::read_coord] Wrong number of tokens" );
-                return Point3D{ { string_to_double( tokens[0] ),
-                    string_to_double( tokens[1] ),
-                    string_to_double( tokens[2] ) } };
+                builder_->create_edge( pt_id, pt_id + 1 );
             }
+        }
 
-        private:
-            std::ifstream file_;
-            EdgedCurve3D& curve_;
-            std::unique_ptr< EdgedCurveBuilder3D > builder_;
-        };
-    } // namespace internal
-} // namespace geode
+    private:
+        geode::Point3D read_coord( std::string_view line ) const
+        {
+            const auto tokens = string_split( line );
+            OpenGeodeGeosciencesIOMeshException::check_exception(
+                tokens.size() == 3, nullptr, OpenGeodeException::TYPE::data,
+                "[WellInput::read_coord] Wrong number of tokens" );
+            return Point3D{ { string_to_double( tokens[0] ),
+                string_to_double( tokens[1] ),
+                string_to_double( tokens[2] ) } };
+        }
+
+    private:
+        std::ifstream file_;
+        EdgedCurve3D& curve_;
+        std::unique_ptr< EdgedCurveBuilder3D > builder_;
+    };
+} // namespace geode::internal

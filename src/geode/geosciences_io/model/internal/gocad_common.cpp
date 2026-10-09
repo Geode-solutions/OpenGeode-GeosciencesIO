@@ -256,24 +256,21 @@ namespace
     }
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    RegionSurfaceSide determine_surface_to_regions_sides( const BRep& brep )
     {
-        RegionSurfaceSide determine_surface_to_regions_sides( const BRep& brep )
-        {
-            OpenGeodeGeosciencesIOModelException::check_exception(
-                brep.nb_model_boundaries() > 0, nullptr,
-                geode::OpenGeodeException::TYPE::data,
-                "[determine_surface_to_regions_sides] Requires ModelBoundaries "
-                "to be defined" );
-            RegionSurfaceSide result;
-            const auto paired_signs = determine_paired_signs( brep );
-            result.universe_surface_sides =
-                determine_universe_sides( brep, paired_signs );
-            result.regions_surface_sides =
-                determine_regions_sides( brep, paired_signs );
-            return result;
-        }
-    } // namespace internal
-} // namespace geode
+        OpenGeodeGeosciencesIOModelException::check_exception(
+            brep.nb_model_boundaries() > 0, nullptr,
+            geode::OpenGeodeException::TYPE::data,
+            "[determine_surface_to_regions_sides] Requires ModelBoundaries "
+            "to be defined" );
+        RegionSurfaceSide result;
+        const auto paired_signs = determine_paired_signs( brep );
+        result.universe_surface_sides =
+            determine_universe_sides( brep, paired_signs );
+        result.regions_surface_sides =
+            determine_regions_sides( brep, paired_signs );
+        return result;
+    }
+} // namespace geode::internal

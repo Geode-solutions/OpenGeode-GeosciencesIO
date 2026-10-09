@@ -97,41 +97,38 @@ namespace
     };
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    StratigraphicModel StratigraphicLSOInput::read()
     {
-        StratigraphicModel StratigraphicLSOInput::read()
-        {
-            StratigraphicLSOInputImpl impl{ filename() };
-            return impl.read_file();
-        }
+        StratigraphicLSOInputImpl impl{ filename() };
+        return impl.read_file();
+    }
 
-        Percentage StratigraphicLSOInput::is_loadable() const
+    Percentage StratigraphicLSOInput::is_loadable() const
+    {
+        const auto structural_percent =
+            is_structural_model_loadable( filename() );
+        if( structural_percent.value() != 1 )
         {
-            const auto structural_percent =
-                is_structural_model_loadable( filename() );
-            if( structural_percent.value() != 1 )
-            {
-                return structural_percent;
-            }
-            std::ifstream file{ to_string( filename() ) };
-            const auto line = goto_keyword_if_it_exists( file, "PROPERTIES" );
-            if( !line )
-            {
-                return Percentage{ 0 };
-            }
-            if( line->find( StratigraphicLSOInputImpl::GEOL_ATTRIBUTE_NAME )
-                == std::string::npos )
-            {
-                return Percentage{ 0 };
-            }
-            if( line->find( StratigraphicLSOInputImpl::STRATI_ATTRIBUTE_NAME )
-                == std::string::npos )
-            {
-                return Percentage{ 0 };
-            }
-            return Percentage{ 1 };
+            return structural_percent;
         }
-    } // namespace internal
-} // namespace geode
+        std::ifstream file{ to_string( filename() ) };
+        const auto line = goto_keyword_if_it_exists( file, "PROPERTIES" );
+        if( !line )
+        {
+            return Percentage{ 0 };
+        }
+        if( line->find( StratigraphicLSOInputImpl::GEOL_ATTRIBUTE_NAME )
+            == std::string::npos )
+        {
+            return Percentage{ 0 };
+        }
+        if( line->find( StratigraphicLSOInputImpl::STRATI_ATTRIBUTE_NAME )
+            == std::string::npos )
+        {
+            return Percentage{ 0 };
+        }
+        return Percentage{ 1 };
+    }
+} // namespace geode::internal

@@ -221,27 +221,23 @@ namespace
     };
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    std::unique_ptr< EdgedCurve3D > WellDevInput::read( const MeshImpl& impl )
     {
-        std::unique_ptr< EdgedCurve3D > WellDevInput::read(
-            const MeshImpl& impl )
-        {
-            auto well = EdgedCurve3D::create( impl );
-            WellDevInputImpl reader{ this->filename(), *well };
-            reader.read_file();
-            return well;
-        }
+        auto well = EdgedCurve3D::create( impl );
+        WellDevInputImpl reader{ this->filename(), *well };
+        reader.read_file();
+        return well;
+    }
 
-        Percentage WellDevInput::is_loadable() const
+    Percentage WellDevInput::is_loadable() const
+    {
+        std::ifstream file{ to_string( this->filename() ) };
+        if( goto_keyword_if_it_exists( file, "# WELL TRACE" ) )
         {
-            std::ifstream file{ to_string( this->filename() ) };
-            if( goto_keyword_if_it_exists( file, "# WELL TRACE" ) )
-            {
-                return Percentage{ 1 };
-            }
-            return Percentage{ 0 };
+            return Percentage{ 1 };
         }
-    } // namespace internal
-} // namespace geode
+        return Percentage{ 0 };
+    }
+} // namespace geode::internal

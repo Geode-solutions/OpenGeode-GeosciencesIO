@@ -28,6 +28,7 @@ add_geode_library(
         "geotiff_input.cpp"
         "gocad_common.cpp"
         "grdecl_input.cpp"
+        "json_grid_input.cpp"
         "pl_input.cpp"
         "pl_output.cpp"
         "polytiff_input.cpp"
@@ -48,6 +49,7 @@ add_geode_library(
         "internal/geotiff_input.hpp"
         "internal/gocad_common.hpp"
         "internal/grdecl_input.hpp"
+        "internal/json_grid_input.hpp"
         "internal/pl_input.hpp"
         "internal/pl_output.hpp"
         "internal/polytiff_input.hpp"
@@ -69,5 +71,6 @@ add_geode_library(
         OpenGeode::image
         OpenGeode-IO::image
         GDAL::GDAL
+        nlohmann_json::nlohmann_json
 
 )

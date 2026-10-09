@@ -268,36 +268,33 @@ namespace
     };
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    Section SHPInput::read()
     {
-        Section SHPInput::read()
-        {
-            Section section;
-            SHPInputImpl impl{ section, filename() };
-            impl.read_file();
-            return section;
-        }
+        Section section;
+        SHPInputImpl impl{ section, filename() };
+        impl.read_file();
+        return section;
+    }
 
-        auto SHPInput::additional_files() const -> AdditionalFiles
-        {
-            const auto file_path = filepath_without_extension( filename() );
-            const auto shx_file = absl::StrCat( file_path.string(), ".shx" );
-            AdditionalFiles missing;
-            missing.mandatory_files.emplace_back(
-                shx_file, file_exists( shx_file ) );
-            return missing;
-        }
+    auto SHPInput::additional_files() const -> AdditionalFiles
+    {
+        const auto file_path = filepath_without_extension( filename() );
+        const auto shx_file = absl::StrCat( file_path.string(), ".shx" );
+        AdditionalFiles missing;
+        missing.mandatory_files.emplace_back(
+            shx_file, file_exists( shx_file ) );
+        return missing;
+    }
 
-        Percentage SHPInput::is_loadable() const
+    Percentage SHPInput::is_loadable() const
+    {
+        detail::GDALFile reader{ filename() };
+        if( reader.dataset().GetLayerCount() == 0 )
         {
-            detail::GDALFile reader{ filename() };
-            if( reader.dataset().GetLayerCount() == 0 )
-            {
-                return Percentage{ 0 };
-            }
-            return Percentage{ 1 };
+            return Percentage{ 0 };
         }
-    } // namespace internal
-} // namespace geode
+        return Percentage{ 1 };
+    }
+} // namespace geode::internal

@@ -27,35 +27,31 @@
 
 #include <geode/geosciences_io/model/common.hpp>
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    class SHPInput final : public SectionInput
     {
-        class SHPInput final : public SectionInput
+    public:
+        explicit SHPInput( std::string_view filename )
+            : SectionInput( filename )
         {
-        public:
-            explicit SHPInput( std::string_view filename )
-                : SectionInput( filename )
-            {
-            }
+        }
 
-            static std::vector< std::string > extensions()
-            {
-                static const std::vector< std::string > extensions{ "shp",
-                    "shz" };
-                return extensions;
-            }
+        static std::vector< std::string > extensions()
+        {
+            static const std::vector< std::string > extensions{ "shp", "shz" };
+            return extensions;
+        }
 
-            Section read() final;
+        Section read() final;
 
-            AdditionalFiles additional_files() const final;
+        AdditionalFiles additional_files() const final;
 
-            index_t object_priority() const final
-            {
-                return 0;
-            }
+        index_t object_priority() const final
+        {
+            return 0;
+        }
 
-            Percentage is_loadable() const final;
-        };
-    } // namespace internal
-} // namespace geode
+        Percentage is_loadable() const final;
+    };
+} // namespace geode::internal

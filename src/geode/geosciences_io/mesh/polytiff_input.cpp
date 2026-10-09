@@ -93,37 +93,34 @@ namespace
     };
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    std::unique_ptr< PolygonalSurface3D > PolyTIFFInput::read(
+        const MeshImpl& /*impl*/ )
     {
-        std::unique_ptr< PolygonalSurface3D > PolyTIFFInput::read(
-            const MeshImpl& /*impl*/ )
-        {
-            PolyTIFFInputImpl geo_reader( filename() );
-            return geo_reader.read_file();
-        }
+        PolyTIFFInputImpl geo_reader( filename() );
+        return geo_reader.read_file();
+    }
 
-        auto PolyTIFFInput::additional_files() const -> AdditionalFiles
-        {
-            detail::GDALFile reader{ filename() };
-            return reader.additional_files< AdditionalFiles >();
-        }
+    auto PolyTIFFInput::additional_files() const -> AdditionalFiles
+    {
+        detail::GDALFile reader{ filename() };
+        return reader.additional_files< AdditionalFiles >();
+    }
 
-        Percentage PolyTIFFInput::is_loadable() const
+    Percentage PolyTIFFInput::is_loadable() const
+    {
+        const auto grid_percent =
+            is_light_regular_grid_loadable< 2 >( filename() );
+        if( grid_percent.value() != 1 )
         {
-            const auto grid_percent =
-                is_light_regular_grid_loadable< 2 >( filename() );
-            if( grid_percent.value() != 1 )
-            {
-                return grid_percent;
-            }
-            detail::GDALFile reader{ this->filename() };
-            if( reader.dataset().GetRasterCount() == 0 )
-            {
-                return Percentage{ 0 };
-            }
-            return Percentage{ 1 };
+            return grid_percent;
         }
-    } // namespace internal
-} // namespace geode
+        detail::GDALFile reader{ this->filename() };
+        if( reader.dataset().GetRasterCount() == 0 )
+        {
+            return Percentage{ 0 };
+        }
+        return Percentage{ 1 };
+    }
+} // namespace geode::internal

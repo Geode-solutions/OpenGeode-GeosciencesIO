@@ -25,22 +25,18 @@
 
 #include <geode/geosciences_io/mesh/internal/well_input.hpp>
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    std::unique_ptr< EdgedCurve3D > WellTxtInput::read( const MeshImpl& impl )
     {
-        std::unique_ptr< EdgedCurve3D > WellTxtInput::read(
-            const MeshImpl& impl )
-        {
-            auto well = EdgedCurve3D::create( impl );
-            WellInputImpl reader{ this->filename(), *well };
-            reader.read_file();
-            return well;
-        }
+        auto well = EdgedCurve3D::create( impl );
+        WellInputImpl reader{ this->filename(), *well };
+        reader.read_file();
+        return well;
+    }
 
-        Percentage WellTxtInput::is_loadable() const
-        {
-            return Percentage{ 1 };
-        }
-    } // namespace internal
-} // namespace geode
+    Percentage WellTxtInput::is_loadable() const
+    {
+        return Percentage{ 1 };
+    }
+} // namespace geode::internal

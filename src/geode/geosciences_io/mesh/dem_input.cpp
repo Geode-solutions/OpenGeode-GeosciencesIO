@@ -143,37 +143,33 @@ namespace
     };
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    std::unique_ptr< PolygonalSurface3D > DEMInput::read( const MeshImpl& impl )
     {
-        std::unique_ptr< PolygonalSurface3D > DEMInput::read(
-            const MeshImpl& impl )
-        {
-            auto surface = PolygonalSurface3D::create( impl );
-            DEMInputImpl reader{ *surface, this->filename() };
-            reader.read_file();
-            return surface;
-        }
+        auto surface = PolygonalSurface3D::create( impl );
+        DEMInputImpl reader{ *surface, this->filename() };
+        reader.read_file();
+        return surface;
+    }
 
-        auto DEMInput::additional_files() const -> AdditionalFiles
-        {
-            detail::GDALFile reader{ this->filename() };
-            return reader.additional_files< AdditionalFiles >();
-        }
+    auto DEMInput::additional_files() const -> AdditionalFiles
+    {
+        detail::GDALFile reader{ this->filename() };
+        return reader.additional_files< AdditionalFiles >();
+    }
 
-        Percentage DEMInput::is_loadable() const
+    Percentage DEMInput::is_loadable() const
+    {
+        detail::GDALFile reader{ this->filename() };
+        if( !reader.is_coordinate_system_loadable() )
         {
-            detail::GDALFile reader{ this->filename() };
-            if( !reader.is_coordinate_system_loadable() )
-            {
-                return Percentage{ 0 };
-            }
-            if( reader.dataset().GetRasterCount() == 0 )
-            {
-                return Percentage{ 0 };
-            }
-            return Percentage{ 1 };
+            return Percentage{ 0 };
         }
-    } // namespace internal
-} // namespace geode
+        if( reader.dataset().GetRasterCount() == 0 )
+        {
+            return Percentage{ 0 };
+        }
+        return Percentage{ 1 };
+    }
+} // namespace geode::internal

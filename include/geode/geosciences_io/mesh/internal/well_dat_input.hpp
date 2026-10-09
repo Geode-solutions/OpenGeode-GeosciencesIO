@@ -33,37 +33,34 @@ namespace geode
     ALIAS_3D( EdgedCurve );
 } // namespace geode
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    class WellDatInput : public EdgedCurveInput< 3 >
     {
-        class WellDatInput : public EdgedCurveInput< 3 >
+    public:
+        explicit WellDatInput( std::string_view filename )
+            : EdgedCurveInput< 3 >( filename )
         {
-        public:
-            explicit WellDatInput( std::string_view filename )
-                : EdgedCurveInput< 3 >( filename )
-            {
-            }
+        }
 
-            static std::string_view extension()
-            {
-                static constexpr auto EXT = "dat";
-                return EXT;
-            }
+        static std::string_view extension()
+        {
+            static constexpr auto EXT = "dat";
+            return EXT;
+        }
 
-            std::unique_ptr< EdgedCurve3D > read( const MeshImpl& impl ) final;
+        std::unique_ptr< EdgedCurve3D > read( const MeshImpl& impl ) final;
 
-            AdditionalFiles additional_files() const final
-            {
-                return {};
-            }
+        AdditionalFiles additional_files() const final
+        {
+            return {};
+        }
 
-            index_t object_priority() const final
-            {
-                return 0;
-            }
+        index_t object_priority() const final
+        {
+            return 0;
+        }
 
-            Percentage is_loadable() const final;
-        };
-    } // namespace internal
-} // namespace geode
+        Percentage is_loadable() const final;
+    };
+} // namespace geode::internal

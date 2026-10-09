@@ -86,26 +86,23 @@ namespace
     };
 
 } // namespace
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    std::unique_ptr< EdgedCurve3D > PLInput::read( const MeshImpl& impl )
     {
-        std::unique_ptr< EdgedCurve3D > PLInput::read( const MeshImpl& impl )
-        {
-            auto curve = EdgedCurve3D::create( impl );
-            PLInputImpl reader{ this->filename(), *curve };
-            reader.read_file();
-            return curve;
-        }
+        auto curve = EdgedCurve3D::create( impl );
+        PLInputImpl reader{ this->filename(), *curve };
+        reader.read_file();
+        return curve;
+    }
 
-        Percentage PLInput::is_loadable() const
+    Percentage PLInput::is_loadable() const
+    {
+        std::ifstream file{ to_string( this->filename() ) };
+        if( goto_keyword_if_it_exists( file, "GOCAD PLine" ) )
         {
-            std::ifstream file{ to_string( this->filename() ) };
-            if( goto_keyword_if_it_exists( file, "GOCAD PLine" ) )
-            {
-                return Percentage{ 1 };
-            }
-            return Percentage{ 0 };
+            return Percentage{ 1 };
         }
-    } // namespace internal
-} // namespace geode
+        return Percentage{ 0 };
+    }
+} // namespace geode::internal

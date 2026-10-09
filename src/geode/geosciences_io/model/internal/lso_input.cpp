@@ -818,30 +818,27 @@ namespace
     };
 } // namespace
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    StructuralModel LSOInput::read()
     {
-        StructuralModel LSOInput::read()
+        StructuralModel structural_model;
+        LSOInputImpl impl{ filename(), structural_model };
+        const auto file_reading_ok = impl.read_file();
+        if( !file_reading_ok )
         {
-            StructuralModel structural_model;
-            LSOInputImpl impl{ filename(), structural_model };
-            const auto file_reading_ok = impl.read_file();
-            if( !file_reading_ok )
-            {
-                this->need_to_inspect_result();
-            }
-            return structural_model;
+            this->need_to_inspect_result();
         }
+        return structural_model;
+    }
 
-        Percentage LSOInput::is_loadable() const
+    Percentage LSOInput::is_loadable() const
+    {
+        std::ifstream file{ to_string( this->filename() ) };
+        if( goto_keyword_if_it_exists( file, "GOCAD LightTSolid" ) )
         {
-            std::ifstream file{ to_string( this->filename() ) };
-            if( goto_keyword_if_it_exists( file, "GOCAD LightTSolid" ) )
-            {
-                return Percentage{ 1 };
-            }
-            return Percentage{ 0 };
+            return Percentage{ 1 };
         }
-    } // namespace internal
-} // namespace geode
+        return Percentage{ 0 };
+    }
+} // namespace geode::internal

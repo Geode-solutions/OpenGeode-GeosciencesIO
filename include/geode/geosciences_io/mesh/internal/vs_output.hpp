@@ -36,26 +36,23 @@ namespace geode
     ALIAS_3D( PointSet );
 } // namespace geode
 
-namespace geode
+namespace geode::internal
 {
-    namespace internal
+    class VSOutput final : public PointSetOutput< 3 >
     {
-        class VSOutput final : public PointSetOutput< 3 >
+    public:
+        explicit VSOutput( std::string_view filename )
+            : PointSetOutput< 3 >( filename )
         {
-        public:
-            explicit VSOutput( std::string_view filename )
-                : PointSetOutput< 3 >( filename )
-            {
-            }
+        }
 
-            static std::string_view extension()
-            {
-                static constexpr auto EXT = "vs";
-                return EXT;
-            }
+        static std::string_view extension()
+        {
+            static constexpr auto EXT = "vs";
+            return EXT;
+        }
 
-            std::vector< std::string > write(
-                const PointSet3D& surface ) const final;
-        };
-    } // namespace internal
-} // namespace geode
+        std::vector< std::string > write(
+            const PointSet3D& surface ) const final;
+    };
+} // namespace geode::internal
