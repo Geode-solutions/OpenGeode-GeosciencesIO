@@ -107,7 +107,7 @@ void test_picasso()
         !surfaces.empty(), "[Test] No east Surface found" );
     add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
         geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "pressure", 1e7 );
-    add_boundary_condition< geode::VariableAttribute >( model, surfaces,
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
         geode::PHYSICAL_PROPERTY_NAME::boundary_temperature, "temperature",
         350. );
     add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
@@ -120,20 +120,14 @@ void test_picasso()
     exporter.run();
 }
 
-void test_non_constant_boundary_condition()
+void test_variable_boundary_condition()
 {
     auto model =
         geode::load_brep( absl::StrCat( geode::DATA_PATH, "picasso.og_brep" ) );
     const auto surfaces = east_surfaces( model );
-    const auto attribute_id =
-        add_boundary_condition< geode::VariableAttribute >( model, surfaces,
-            geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "pressure", 1e7 );
-    model.surface( surfaces.front() )
-        .mesh()
-        .polygon_attribute_manager()
-        .find_attribute< geode::VariableAttribute, double >( attribute_id )
-        ->set_value( 0, 2e7 );
-    geode::BRepGeosExporter exporter( model, "picasso_non_constant" );
+    add_boundary_condition< geode::VariableAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "pressure", 1e7 );
+    geode::BRepGeosExporter exporter( model, "picasso_variable" );
     try
     {
         exporter.run();
@@ -145,7 +139,7 @@ void test_non_constant_boundary_condition()
     }
     throw geode::OpenGeodeGeosciencesIOModelException{ nullptr,
         geode::OpenGeodeException::TYPE::internal,
-        "[Test] Non constant boundary condition should not be exported" };
+        "[Test] Variable boundary condition should not be exported" };
 }
 void toy_model()
 {
@@ -202,7 +196,7 @@ int main()
         geode::OpenGeodeIOMeshLibrary::initialize();
         geode::OpenGeodeIOModelLibrary::initialize();
         test_picasso();
-        test_non_constant_boundary_condition();
+        test_variable_boundary_condition();
         toy_model();
         test_grid_geos();
         geode::Logger::info( "TEST SUCCESS" );

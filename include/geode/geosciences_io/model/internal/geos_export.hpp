@@ -94,7 +94,7 @@ namespace geode::internal
         void transfer_boundary_conditions();
         void transfer_boundary_condition( const uuid& attribute_id,
             std::string_view field_name,
-            std::string_view prefix,
+            std::string_view name_prefix,
             std::optional< local_index_t > component );
         void delete_mapping_attributes();
 
@@ -105,9 +105,9 @@ namespace geode::internal
         struct BoundaryCondition
         {
             std::string name;
-            std::string_view field_name;
+            std::string field_name;
             std::optional< local_index_t > component;
-            index_t region_id{ NO_ID };
+            std::vector< index_t > region_ids;
             double value{ 0. };
         };
 
