@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <array>
 #include <memory>
 #include <optional>
 #include <string>
@@ -31,6 +32,7 @@
 #include <vector>
 
 #include <absl/container/flat_hash_map.h>
+#include <absl/types/span.h>
 
 #include <geode/basic/uuid.hpp>
 #include <geode/basic/variable_attribute.hpp>
@@ -54,6 +56,8 @@ namespace geode
     ALIAS_3D( PointSet );
     ALIAS_3D( EdgedCurve );
     ALIAS_3D( SolidMesh );
+    FORWARD_DECLARATION_DIMENSION_CLASS( Surface );
+    ALIAS_3D( Surface );
     struct ModelToMeshMappings;
 } // namespace geode
 
@@ -88,6 +92,7 @@ namespace geode::internal
         void write_well_perforations_boxes( pugi::xml_node& root ) const;
         void write_mesh_files( pugi::xml_node& root ) const;
         void write_boundary_conditions( pugi::xml_node& root ) const;
+        void write_boundary_functions( pugi::xml_node& root ) const;
 
         bool check_property_name( std::string_view property_name ) const;
         void transfer_physical_properties();
@@ -100,6 +105,7 @@ namespace geode::internal
 
         std::string write_solid_file() const;
         void write_well_perforation_file() const;
+        void write_boundary_table_files() const;
 
     private:
         struct BoundaryCondition
@@ -108,8 +114,33 @@ namespace geode::internal
             std::string field_name;
             std::optional< local_index_t > component;
             std::vector< index_t > region_ids;
-            double value{ 0. };
+            double scale{ 0. };
+            std::optional< std::string > function_name;
         };
+
+        // GEOS TableFunction grid of a Surface, built from its polygon centers
+        // so that each polygon is looked up on its own node
+        struct BoundaryGrid
+        {
+            std::array< std::vector< double >, 3 > coordinates;
+            std::array< std::string, 3 > files;
+            // Surface polygon whose value is stored at each node, in Fortran
+            // order
+            std::vector< index_t > node_polygons;
+        };
+
+        struct BoundaryTable
+        {
+            std::string function_name;
+            uuid surface_id;
+            std::string voxel_file;
+            std::vector< double > values;
+        };
+
+        const BoundaryGrid& boundary_grid( const Surface3D& surface );
+        std::string add_boundary_table( const Surface3D& surface,
+            absl::Span< const double > values,
+            std::string_view name );
 
     private:
         const Model& model_;
@@ -129,6 +160,8 @@ namespace geode::internal
 
         std::vector< std::pair< std::string, std::string > > imported_fields_{};
         std::vector< BoundaryCondition > boundary_conditions_{};
+        absl::flat_hash_map< uuid, BoundaryGrid > boundary_grids_{};
+        std::vector< BoundaryTable > boundary_tables_{};
 
         std::vector< std::unique_ptr< PointSet3D > > well_perforations_{};
         std::vector< std::string > well_names_{};

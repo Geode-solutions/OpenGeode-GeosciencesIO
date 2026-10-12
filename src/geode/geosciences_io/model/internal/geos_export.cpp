@@ -22,8 +22,10 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -34,19 +36,25 @@
 #include <pugixml.hpp>
 
 #include <absl/algorithm/container.h>
+#include <absl/container/flat_hash_map.h>
 #include <absl/container/linked_hash_map.h>
 #include <absl/strings/str_format.h>
 #include <absl/strings/str_join.h>
+#include <absl/types/span.h>
 
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/constant_attribute.hpp>
 #include <geode/basic/filename.hpp>
 #include <geode/basic/logger.hpp>
 #include <geode/basic/mapping.hpp>
+#include <geode/basic/range.hpp>
 #include <geode/basic/variable_attribute.hpp>
 
 #include <geode/geometry/aabb.hpp>
+#include <geode/geometry/bounding_box.hpp>
 #include <geode/geometry/distance.hpp>
+#include <geode/geometry/nn_search.hpp>
+#include <geode/geometry/point.hpp>
 
 #include <geode/geosciences_io/model/common.hpp>
 
@@ -147,11 +155,20 @@ namespace
             { geode::PHYSICAL_PROPERTY_NAME::boundary_water_fraction, "water" },
         };
 
-    std::optional< double > surface_constant_value(
+    constexpr auto BOUNDARY_TABLES_DIRECTORY = "boundary_tables";
+    constexpr std::array< std::string_view, 3 > AXIS_NAMES{ "x", "y", "z" };
+
+    using TableCoordinates = std::array< std::vector< double >, 3 >;
+
+    // Value of the attribute on each Surface polygon, reduced to a single value
+    // for a ConstantAttribute
+    std::optional< std::vector< double > > surface_values(
         const geode::Surface3D& surface, const geode::uuid& attribute_id )
     {
-        const auto& manager = surface.mesh().polygon_attribute_manager();
-        if( !manager.attribute_exists( attribute_id ) )
+        const auto& mesh = surface.mesh();
+        const auto& manager = mesh.polygon_attribute_manager();
+        if( !manager.attribute_exists( attribute_id )
+            || mesh.nb_polygons() == 0 )
         {
             return std::nullopt;
         }
@@ -161,16 +178,222 @@ namespace
             "[GeosExporter] Boundary condition attribute ",
             attribute_id.string(), " on Surface ", surface.id().string(),
             " must store double values." );
-        const auto attribute = std::dynamic_pointer_cast<
-            const geode::ConstantAttribute< double > >(
-            manager.find_read_only_attribute< double >( attribute_id ) );
+        const auto attribute =
+            manager.find_read_only_attribute< double >( attribute_id );
+        if( const auto* constant =
+                dynamic_cast< const geode::ConstantAttribute< double >* >(
+                    attribute.get() ) )
+        {
+            return std::vector< double >{ constant->value() };
+        }
+        std::vector< double > values;
+        values.reserve( mesh.nb_polygons() );
+        for( const auto polygon_id : geode::Range{ mesh.nb_polygons() } )
+        {
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                attribute->has_value( polygon_id ), nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[GeosExporter] Boundary condition attribute ",
+                attribute_id.string(), " has no value on polygon ", polygon_id,
+                " of Surface ", surface.id().string(),
+                ". Boundary conditions must be defined on every polygon of "
+                "a Surface." );
+            values.push_back( attribute->value( polygon_id ) );
+        }
+        return values;
+    }
+
+    bool is_uniform( absl::Span< const double > values )
+    {
+        return absl::c_all_of( values, [&values]( double value ) {
+            return value == values.front();
+        } );
+    }
+
+    // Sorted coordinates of the given polygon centers along an axis, the ones
+    // closer than GLOBAL_EPSILON being merged
+    std::vector< double > axis_coordinates(
+        absl::Span< const geode::Point3D > centers,
+        absl::Span< const geode::index_t > polygons,
+        geode::local_index_t axis )
+    {
+        std::vector< double > values;
+        values.reserve( polygons.size() );
+        for( const auto polygon_id : polygons )
+        {
+            values.push_back( centers[polygon_id].value( axis ) );
+        }
+        absl::c_sort( values );
+        values.erase( std::unique( values.begin(), values.end(),
+                          []( double kept, double value ) {
+                              return value - kept <= geode::GLOBAL_EPSILON;
+                          } ),
+            values.end() );
+        return values;
+    }
+
+    // Replicates GEOS TableFunction nearest lookup along one axis
+    geode::index_t geos_nearest_index(
+        absl::Span< const double > coordinates, double input )
+    {
+        if( input <= coordinates.front() )
+        {
+            return 0;
+        }
+        const auto last =
+            static_cast< geode::index_t >( coordinates.size() - 1 );
+        if( input >= coordinates.back() )
+        {
+            return last;
+        }
+        const auto upper = static_cast< geode::index_t >(
+            absl::c_lower_bound( coordinates, input ) - coordinates.begin() );
+        if( input - coordinates[upper - 1] <= coordinates[upper] - input )
+        {
+            return upper - 1;
+        }
+        return upper;
+    }
+
+    geode::index_t nb_table_nodes( const TableCoordinates& coordinates )
+    {
+        return static_cast< geode::index_t >( coordinates[0].size()
+                                              * coordinates[1].size()
+                                              * coordinates[2].size() );
+    }
+
+    // Polygon centers flattened on the table axes holding a single coordinate
+    std::vector< geode::Point3D > table_projected_centers(
+        const TableCoordinates& coordinates,
+        absl::Span< const geode::Point3D > centers )
+    {
+        std::vector< geode::Point3D > projected_centers{ centers.begin(),
+            centers.end() };
+        for( const auto axis : geode::LRange{ 3 } )
+        {
+            if( coordinates[axis].size() != 1 )
+            {
+                continue;
+            }
+            for( auto& center : projected_centers )
+            {
+                center.set_value( axis, coordinates[axis].front() );
+            }
+        }
+        return projected_centers;
+    }
+
+    // Polygon whose value is stored at each table node, in Fortran order.
+    // Nodes looked up by no polygon center take the value of the closest one.
+    std::vector< geode::index_t > table_node_polygons(
+        const TableCoordinates& coordinates,
+        absl::Span< const geode::index_t > polygon_nodes,
+        absl::Span< const geode::Point3D > centers )
+    {
+        const auto nb_nodes = nb_table_nodes( coordinates );
+        std::vector< geode::index_t > node_polygons( nb_nodes, geode::NO_ID );
+        for( const auto polygon_id : geode::Indices{ polygon_nodes } )
+        {
+            node_polygons[polygon_nodes[polygon_id]] = polygon_id;
+        }
+        if( polygon_nodes.size() == nb_nodes )
+        {
+            return node_polygons;
+        }
+        const geode::NNSearch3D search{ table_projected_centers(
+            coordinates, centers ) };
+        const auto nb_x = coordinates[0].size();
+        const auto nb_xy = nb_x * coordinates[1].size();
+        for( const auto node : geode::Range{ nb_nodes } )
+        {
+            if( node_polygons[node] != geode::NO_ID )
+            {
+                continue;
+            }
+            node_polygons[node] = search.closest_neighbor(
+                geode::Point3D{ { coordinates[0][node % nb_x],
+                    coordinates[1][( node / nb_x ) % coordinates[1].size()],
+                    coordinates[2][node / nb_xy] } } );
+        }
+        return node_polygons;
+    }
+
+    std::vector< geode::index_t > table_polygon_nodes(
+        const TableCoordinates& coordinates,
+        absl::Span< const geode::Point3D > centers )
+    {
+        const auto nb_x = coordinates[0].size();
+        const auto nb_xy = nb_x * coordinates[1].size();
+        std::vector< geode::index_t > polygon_nodes;
+        polygon_nodes.reserve( centers.size() );
+        for( const auto& center : centers )
+        {
+            polygon_nodes.push_back(
+                geos_nearest_index( coordinates[0], center.value( 0 ) )
+                + geos_nearest_index( coordinates[1], center.value( 1 ) ) * nb_x
+                + geos_nearest_index( coordinates[2], center.value( 2 ) )
+                      * nb_xy );
+        }
+        return polygon_nodes;
+    }
+
+    std::vector< geode::index_t > polygons_sharing_node(
+        absl::Span< const geode::index_t > polygon_nodes )
+    {
+        absl::flat_hash_map< geode::index_t, geode::index_t > node_counts;
+        for( const auto node : polygon_nodes )
+        {
+            node_counts[node]++;
+        }
+        std::vector< geode::index_t > polygons;
+        for( const auto polygon_id : geode::Indices{ polygon_nodes } )
+        {
+            if( node_counts.at( polygon_nodes[polygon_id] ) > 1 )
+            {
+                polygons.push_back( polygon_id );
+            }
+        }
+        return polygons;
+    }
+
+    // Adds the x, y and z axes until every polygon center is looked up by
+    // GEOS on its own node. Each added axis only gets the coordinates of the
+    // polygons still sharing a node, which keeps the table small.
+    std::optional< TableCoordinates > separating_table_coordinates(
+        absl::Span< const geode::Point3D > centers )
+    {
+        TableCoordinates coordinates;
+        for( const auto axis : geode::LRange{ 3 } )
+        {
+            coordinates[axis] = { centers.front().value( axis ) };
+        }
+        std::vector< geode::index_t > colliding_polygons( centers.size() );
+        absl::c_iota( colliding_polygons, 0 );
+        for( const auto axis : geode::LRange{ 3 } )
+        {
+            coordinates[axis] =
+                axis_coordinates( centers, colliding_polygons, axis );
+            colliding_polygons = polygons_sharing_node(
+                table_polygon_nodes( coordinates, centers ) );
+            if( colliding_polygons.empty() )
+            {
+                return coordinates;
+            }
+        }
+        return std::nullopt;
+    }
+
+    void write_table_values(
+        const std::string& filename, absl::Span< const double > values )
+    {
+        std::ofstream file{ filename };
         geode::OpenGeodeGeosciencesIOModelException::check_exception(
-            attribute.get(), nullptr, geode::OpenGeodeException::TYPE::data,
-            "[GeosExporter] Boundary condition attribute ",
-            attribute_id.string(), " on Surface ", surface.id().string(),
-            " must be a ConstantAttribute. Only constant boundary conditions "
-            "per Surface are supported." );
-        return attribute->value();
+            file.good(), nullptr, geode::OpenGeodeException::TYPE::data,
+            "[GeosExporter] Cannot open file ", filename );
+        for( const auto value : values )
+        {
+            file << absl::StrFormat( "%.17g", value ) << "\n";
+        }
     }
 
     template < typename Model >
@@ -311,6 +534,13 @@ namespace geode::internal
             auto field_specifications_node =
                 pb_node.append_child( "FieldSpecifications" );
             write_boundary_conditions( field_specifications_node );
+        }
+
+        if( !boundary_tables_.empty() )
+        {
+            auto functions_node = pb_node.append_child( "Functions" );
+            write_boundary_functions( functions_node );
+            write_boundary_table_files();
         }
 
         const auto filename_xml =
@@ -502,12 +732,44 @@ namespace geode::internal
                     .set_value(
                         static_cast< unsigned int >( *condition.component ) );
             }
+            if( condition.function_name )
+            {
+                specification_node.append_attribute( "functionName" )
+                    .set_value( condition.function_name->c_str() );
+            }
             specification_node.append_attribute( "scale" ).set_value(
-                absl::StrFormat( "%.15g", condition.value ).c_str() );
+                absl::StrFormat( "%.15g", condition.scale ).c_str() );
             specification_node.append_attribute( "setNames" )
                 .set_value( absl::StrCat(
                     "{ ", absl::StrJoin( condition.region_ids, ", " ), " }" )
                         .c_str() );
+        }
+    }
+
+    template < typename Model >
+    void GeosExporterImpl< Model >::write_boundary_functions(
+        pugi::xml_node& root ) const
+    {
+        for( const auto& table : boundary_tables_ )
+        {
+            const auto& grid = boundary_grids_.at( table.surface_id );
+            auto function_node = root.append_child( "TableFunction" );
+            function_node.append_attribute( "name" ).set_value(
+                table.function_name.c_str() );
+            function_node.append_attribute( "inputVarNames" )
+                .set_value( "{ faceCenter }" );
+            function_node.append_attribute( "coordinateFiles" )
+                .set_value( absl::StrCat( "{ ",
+                    absl::StrJoin( grid.files, ", ",
+                        []( std::string* out, const std::string& file ) {
+                            absl::StrAppend( out, "./", file );
+                        } ),
+                    " }" )
+                        .c_str() );
+            function_node.append_attribute( "voxelFile" )
+                .set_value( absl::StrCat( "./", table.voxel_file ).c_str() );
+            function_node.append_attribute( "interpolation" )
+                .set_value( "nearest" );
         }
     }
 
@@ -585,13 +847,24 @@ namespace geode::internal
         absl::linked_hash_map< double, std::vector< index_t > > value_regions;
         for( const auto& surface : model_.surfaces() )
         {
-            const auto value = surface_constant_value( surface, attribute_id );
-            if( !value )
+            const auto values = surface_values( surface, attribute_id );
+            if( !values )
             {
                 continue;
             }
-            value_regions[value.value()].push_back(
-                surface_regions_.at( surface.id() ) );
+            const auto region_id = surface_regions_.at( surface.id() );
+            if( is_uniform( values.value() ) )
+            {
+                value_regions[values->front()].push_back( region_id );
+                continue;
+            }
+            const auto name =
+                absl::StrCat( name_prefix, "_surface", region_id );
+            auto function_name =
+                add_boundary_table( surface, values.value(), name );
+            // The table stores the actual values, hence a unit scale
+            boundary_conditions_.push_back( { name, to_string( field_name ),
+                component, { region_id }, 1., std::move( function_name ) } );
         }
         index_t condition_id{ 0 };
         for( auto& [value, region_ids] : value_regions )
@@ -599,7 +872,87 @@ namespace geode::internal
             boundary_conditions_.push_back(
                 { absl::StrCat( name_prefix, "_", condition_id++ ),
                     to_string( field_name ), component, std::move( region_ids ),
-                    value } );
+                    value, std::nullopt } );
+        }
+    }
+
+    template < typename Model >
+    auto GeosExporterImpl< Model >::boundary_grid( const Surface3D& surface )
+        -> const BoundaryGrid&
+    {
+        if( const auto grid = boundary_grids_.find( surface.id() );
+            grid != boundary_grids_.end() )
+        {
+            return grid->second;
+        }
+        const auto& mesh = surface.mesh();
+        std::vector< Point3D > centers;
+        centers.reserve( mesh.nb_polygons() );
+        for( const auto polygon_id : Range{ mesh.nb_polygons() } )
+        {
+            centers.push_back( mesh.polygon_barycenter( polygon_id ) );
+        }
+        auto coordinates = separating_table_coordinates( centers );
+        OpenGeodeGeosciencesIOModelException::check_exception(
+            coordinates.has_value(), nullptr, OpenGeodeException::TYPE::data,
+            "[GeosExporter] Cannot build an exact boundary condition table "
+            "for Surface ",
+            surface.id().string(), ": some polygons share the same center." );
+        const auto region_id = surface_regions_.at( surface.id() );
+        BoundaryGrid grid;
+        for( const auto axis : LRange{ 3 } )
+        {
+            grid.coordinates[axis] = std::move( ( *coordinates )[axis] );
+            grid.files[axis] = absl::StrCat( BOUNDARY_TABLES_DIRECTORY,
+                "/surface", region_id, "_", AXIS_NAMES[axis], "lin.geos" );
+        }
+        grid.node_polygons = table_node_polygons( grid.coordinates,
+            table_polygon_nodes( grid.coordinates, centers ), centers );
+        return boundary_grids_.emplace( surface.id(), std::move( grid ) )
+            .first->second;
+    }
+
+    template < typename Model >
+    std::string GeosExporterImpl< Model >::add_boundary_table(
+        const Surface3D& surface,
+        absl::Span< const double > values,
+        std::string_view name )
+    {
+        const auto& grid = boundary_grid( surface );
+        BoundaryTable table;
+        table.function_name = absl::StrCat( name, "_function" );
+        table.surface_id = surface.id();
+        table.voxel_file =
+            absl::StrCat( BOUNDARY_TABLES_DIRECTORY, "/", name, ".geos" );
+        table.values.reserve( grid.node_polygons.size() );
+        for( const auto polygon_id : grid.node_polygons )
+        {
+            table.values.push_back( values[polygon_id] );
+        }
+        auto function_name = table.function_name;
+        boundary_tables_.push_back( std::move( table ) );
+        return function_name;
+    }
+
+    template < typename Model >
+    void GeosExporterImpl< Model >::write_boundary_table_files() const
+    {
+        std::filesystem::create_directories(
+            absl::StrCat( files_directory(), "/", BOUNDARY_TABLES_DIRECTORY ) );
+        for( const auto& [surface_id, grid] : boundary_grids_ )
+        {
+            for( const auto axis : LRange{ 3 } )
+            {
+                write_table_values(
+                    absl::StrCat( files_directory(), "/", grid.files[axis] ),
+                    grid.coordinates[axis] );
+            }
+        }
+        for( const auto& table : boundary_tables_ )
+        {
+            write_table_values(
+                absl::StrCat( files_directory(), "/", table.voxel_file ),
+                table.values );
         }
     }
 
