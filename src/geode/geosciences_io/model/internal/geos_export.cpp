@@ -458,11 +458,8 @@ namespace geode::internal
                 {
                     continue;
                 }
-                for( const auto solid_polyhedron_id :
-                    polyhedra_mapping.in2out( block_polyhedron ) )
-                {
-                    block2solid.map( polyhedron_id, solid_polyhedron_id );
-                }
+                block2solid.map( polyhedron_id,
+                    polyhedra_mapping.in2out( block_polyhedron ) );
             }
             solid_manager.import( block_manager, block2solid, attribute_id );
         }
@@ -594,9 +591,8 @@ namespace geode::internal
             region_attribute_->set_value(
                 polyhedron_id, region_map_id
                                    .find( model2solid_.solid_polyhedra_mapping
-                                              .out2in( polyhedron_id )
-                                              .front()
-                                              .mesh_id )
+                                           .out2in( polyhedron_id )
+                                           .mesh_id )
                                    ->second );
         }
         index_t nb_regions{ 0 };
@@ -746,7 +742,7 @@ namespace geode::internal
             specification_node.append_attribute( "setNames" )
                 .set_value( absl::StrCat(
                     "{ ", absl::StrJoin( condition.region_ids, ", " ), " }" )
-                                .c_str() );
+                        .c_str() );
         }
     }
 
@@ -769,7 +765,7 @@ namespace geode::internal
                             absl::StrAppend( out, "./", file );
                         } ),
                     " }" )
-                                .c_str() );
+                        .c_str() );
             function_node.append_attribute( "voxelFile" )
                 .set_value( absl::StrCat( "./", table.voxel_file ).c_str() );
             function_node.append_attribute( "interpolation" )
@@ -784,9 +780,9 @@ namespace geode::internal
         for( const auto& block : model_.blocks() )
         {
             if( !block.mesh()
-                     .polyhedron_attribute_manager()
-                     .attribute_ids_matching_name( property_name )
-                     .has_value() )
+                    .polyhedron_attribute_manager()
+                    .attribute_ids_matching_name( property_name )
+                    .has_value() )
             {
                 Logger::info( "The property ", property_name,
                     " will not be exported because it is not defined on "

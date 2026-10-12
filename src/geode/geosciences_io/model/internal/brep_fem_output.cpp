@@ -155,20 +155,15 @@ namespace
                         attribute_ids.value().front() );
                 for( const auto polygon : geode::Range{ mesh.nb_polygons() } )
                 {
-                    const auto facets_in_solid =
+                    const auto facet_in_solid =
                         model_to_mesh_mapping.surface_polygons_mapping.in2out(
                             { surface.id(), polygon } );
-                    const auto surface_attribute_value =
-                        surface_attribute->generic_value( polygon );
-                    for( const auto facet_in_solid : facets_in_solid )
+                    solid_attribute->set_value( facet_in_solid,
+                        surface_attribute->generic_value( polygon ) );
+                    if( const auto name = surface.name() )
                     {
-                        solid_attribute->set_value(
-                            facet_in_solid, surface_attribute_value );
-                        if( const auto name = surface.name() )
-                        {
-                            solid_surface_name_attribute->set_value(
-                                facet_in_solid, name.value() );
-                        }
+                        solid_surface_name_attribute->set_value(
+                            facet_in_solid, name.value() );
                     }
                 }
             }
@@ -246,20 +241,15 @@ namespace
                         attribute_ids.value().front() );
                 for( const auto edge : geode::Range{ mesh.nb_edges() } )
                 {
-                    const auto edges_in_solid =
+                    const auto edge_in_solid =
                         model_to_mesh_mapping.line_edges_mapping.in2out(
                             { line.component_id().id, edge } );
-                    const auto line_attribute_value =
-                        line_attribute->generic_value( edge );
-                    for( const auto edge_in_solid : edges_in_solid )
+                    solid_attribute->set_value(
+                        edge_in_solid, line_attribute->generic_value( edge ) );
+                    if( const auto name = line.name() )
                     {
-                        solid_attribute->set_value(
-                            edge_in_solid, line_attribute_value );
-                        if( const auto name = line.name() )
-                        {
-                            solid_line_name_attribute->set_value(
-                                edge_in_solid, name.value() );
-                        }
+                        solid_line_name_attribute->set_value(
+                            edge_in_solid, name.value() );
                     }
                 }
             }
@@ -310,15 +300,12 @@ namespace
                 for( const auto polyhedron_id :
                     geode::Range{ block.mesh().nb_polyhedra() } )
                 {
-                    for( const auto polyhedron_out :
-                        model_to_mesh_mapping.solid_polyhedra_mapping.in2out(
-                            { block.id(), polyhedron_id } ) )
+                    if( const auto name = block.name() )
                     {
-                        if( const auto name = block.name() )
-                        {
-                            attribute_p->set_value(
-                                polyhedron_out, name.value() );
-                        }
+                        attribute_p->set_value(
+                            model_to_mesh_mapping.solid_polyhedra_mapping
+                                .in2out( { block.id(), polyhedron_id } ),
+                            name.value() );
                     }
                 }
             }
@@ -400,8 +387,7 @@ namespace
                         const auto polyhedron_out =
                             model_to_mesh_mapping.solid_polyhedra_mapping
                                 .in2out( { block.id(), polyhedron } );
-                        solid_polyhedron_attribute->set_value(
-                            polyhedron_out.front(),
+                        solid_polyhedron_attribute->set_value( polyhedron_out,
                             block_polyhedron_attribute->generic_value(
                                 polyhedron ) );
                     }
