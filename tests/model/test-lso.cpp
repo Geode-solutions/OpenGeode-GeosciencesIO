@@ -41,7 +41,7 @@
 #include <geode/geosciences/explicit/representation/io/structural_model_output.hpp>
 #include <geode/geosciences_io/model/internal/lso_input.hpp>
 
-constexpr auto nb_mandatory_attributes = 4;
+constexpr auto nb_mandatory_attributes = 2;
 
 void check_model( const geode::StructuralModel& model,
     geode::index_t nb_corners,
