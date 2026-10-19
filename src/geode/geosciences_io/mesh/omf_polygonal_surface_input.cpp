@@ -70,8 +70,8 @@ namespace
                   geometry_, "tensor_v" ) ) )
         {
             geode::OpenGeodeGeosciencesIOMeshException::check_exception(
-                static_cast< uint64_t >( u_.size() ) * v_.size() < geode::NO_ID,
-                nullptr, geode::OpenGeodeException::TYPE::data,
+                u_.size() * v_.size() < geode::NO_ID, nullptr,
+                geode::OpenGeodeException::TYPE::data,
                 "[OMFInput] Grid surface \"",
                 geode::internal::OMFFile::name( element ),
                 "\" has too many nodes" );
