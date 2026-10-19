@@ -163,6 +163,22 @@ void test_is_loadable()
             == 0,
         "A TFACE with an unknown type should not be loadable" );
 
+    write_file( "crs_unknown_type.ml", "GOCAD Model3d 1\n"
+                                       "GOCAD_ORIGINAL_COORDINATE_SYSTEM\n"
+                                       "NAME Default\n"
+                                       "END_ORIGINAL_COORDINATE_SYSTEM\n"
+                                       "TSURF A\n"
+                                       "TFACE 1 erosion A\n"
+                                       "END\n"
+                                       "GOCAD TSurf 1\n" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::internal::MLInput{ "crs_unknown_type.ml" }
+                .is_loadable()
+                .value()
+            == 0,
+        "The Model3d section should be checked after a coordinate system "
+        "block" );
+
     write_file( "empty_tsurf.ml", "GOCAD Model3d 1\n"
                                   "TSURF A\n"
                                   "TSURF B\n"

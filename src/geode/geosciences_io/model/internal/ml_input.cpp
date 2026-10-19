@@ -1084,28 +1084,31 @@ namespace geode::internal
             return Percentage{ 0 };
         }
         // Check the Model3d section: every TFACE must refer to a declared
-        // TSURF with a known geological type
-        absl::flat_hash_map< std::string, std::string > tsurf_features;
+        // TSURF with a known geological type. The value tells if the TSURF is
+        // referred to by at least one TFACE.
+        absl::flat_hash_map< std::string, bool > tsurf_has_tface;
         std::string line;
         bool end_found{ false };
         while( std::getline( file, line ) )
         {
-            if( string_starts_with( line, "END" ) )
-            {
-                end_found = true;
-                break;
-            }
             const auto tokens = string_split( line );
             if( tokens.empty() )
             {
                 continue;
             }
+            // Exact match: the header may contain other keywords starting
+            // with END (e.g. END_ORIGINAL_COORDINATE_SYSTEM)
+            if( tokens.front() == "END" )
+            {
+                end_found = true;
+                break;
+            }
             if( tokens.front() == "TSURF" )
             {
-                tsurf_features.emplace(
+                tsurf_has_tface.emplace(
                     internal::read_name(
                         absl::MakeConstSpan( tokens ).subspan( 1 ) ),
-                    "" );
+                    false );
             }
             else if( tokens.front() == "TFACE" )
             {
@@ -1115,49 +1118,51 @@ namespace geode::internal
                 }
                 const auto name = internal::read_name(
                     absl::MakeConstSpan( tokens ).subspan( 3 ) );
-                const auto it = tsurf_features.find( name );
-                if( it == tsurf_features.end() )
+                const auto it = tsurf_has_tface.find( name );
+                if( it == tsurf_has_tface.end() )
                 {
                     return Percentage{ 0 };
                 }
-                it->second = to_string( tokens[2] );
-                if( !is_known_feature( it->second ) )
+                if( !is_known_feature( to_string( tokens[2] ) ) )
                 {
                     return Percentage{ 0 };
                 }
+                it->second = true;
             }
         }
         if( !end_found )
         {
             return Percentage{ 0 };
         }
-        // Each declared TSURF needs a GOCAD TSurf section
+        // Each declared TSURF needs a GOCAD TSurf section, stop reading as
+        // soon as there are enough of them
         index_t nb_tsurf_sections{ 0 };
-        while( std::getline( file, line ) )
+        while( nb_tsurf_sections < tsurf_has_tface.size()
+               && std::getline( file, line ) )
         {
             if( string_starts_with( line, "GOCAD TSurf" ) )
             {
                 nb_tsurf_sections++;
             }
         }
-        if( nb_tsurf_sections < tsurf_features.size() )
+        if( nb_tsurf_sections < tsurf_has_tface.size() )
         {
             return Percentage{ 0 };
         }
-        if( tsurf_features.empty() )
+        if( tsurf_has_tface.empty() )
         {
             return Percentage{ 1 };
         }
         // A TSURF without TFACE is not loaded
         index_t nb_loadable_tsurfs{ 0 };
-        for( const auto& tsurf : tsurf_features )
+        for( const auto& [name, has_tface] : tsurf_has_tface )
         {
-            if( !tsurf.second.empty() )
+            if( has_tface )
             {
                 nb_loadable_tsurfs++;
             }
         }
         return Percentage{ static_cast< double >( nb_loadable_tsurfs )
-                           / static_cast< double >( tsurf_features.size() ) };
+                           / static_cast< double >( tsurf_has_tface.size() ) };
     }
 } // namespace geode::internal
