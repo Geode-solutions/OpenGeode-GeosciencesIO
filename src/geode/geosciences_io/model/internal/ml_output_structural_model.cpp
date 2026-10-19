@@ -69,7 +69,7 @@ namespace
             for( const auto& fault : model_.faults() )
             {
                 write_collection_tfaces( owned_surfaces( fault.id() ),
-                    fault_map_.at( fault.type() ), component_name( fault ) );
+                    fault_type( fault ), component_name( fault ) );
             }
             for( const auto& horizon : model_.horizons() )
             {
@@ -153,7 +153,7 @@ namespace
             for( const auto& fault : model_.faults() )
             {
                 write_collection_surface( owned_surfaces( fault.id() ),
-                    fault_map_.at( fault.type() ), component_name( fault ) );
+                    fault_type( fault ), component_name( fault ) );
             }
             for( const auto& horizon : model_.horizons() )
             {
@@ -162,11 +162,28 @@ namespace
             }
         }
 
+        std::string_view fault_type( const geode::Fault3D& fault ) const
+        {
+            const auto it = fault_map_.find( fault.type() );
+            if( it == fault_map_.end() )
+            {
+                geode::Logger::warning( "[MLOutput] Fault ",
+                    component_name( fault ),
+                    " has an unknown type. It has been exported as fault" );
+                return "fault";
+            }
+            return it->second;
+        }
+
         std::string_view horizon_type( const geode::Horizon3D& horizon ) const
         {
             const auto it = horizon_map_.find( horizon.contact_type() );
             if( it == horizon_map_.end() )
             {
+                geode::Logger::warning( "[MLOutput] Horizon ",
+                    component_name( horizon ),
+                    " has an unknown contact type. It has been exported as "
+                    "top" );
                 return "top";
             }
             return it->second;
