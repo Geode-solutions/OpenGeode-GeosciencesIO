@@ -29,6 +29,12 @@ add_geode_library(
         "gocad_common.cpp"
         "grdecl_input.cpp"
         "json_grid_input.cpp"
+        "omf_common.cpp"
+        "omf_edged_curve_input.cpp"
+        "omf_light_regular_grid_input.cpp"
+        "omf_point_set_input.cpp"
+        "omf_polygonal_surface_input.cpp"
+        "omf_triangulated_surface_input.cpp"
         "pl_input.cpp"
         "pl_output.cpp"
         "polytiff_input.cpp"
@@ -50,6 +56,12 @@ add_geode_library(
         "internal/gocad_common.hpp"
         "internal/grdecl_input.hpp"
         "internal/json_grid_input.hpp"
+        "internal/omf_common.hpp"
+        "internal/omf_edged_curve_input.hpp"
+        "internal/omf_light_regular_grid_input.hpp"
+        "internal/omf_point_set_input.hpp"
+        "internal/omf_polygonal_surface_input.hpp"
+        "internal/omf_triangulated_surface_input.hpp"
         "internal/pl_input.hpp"
         "internal/pl_output.hpp"
         "internal/polytiff_input.hpp"
@@ -72,5 +84,6 @@ add_geode_library(
         OpenGeode-IO::image
         GDAL::GDAL
         nlohmann_json::nlohmann_json
+        ZLIB::ZLIB
 
 )

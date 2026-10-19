@@ -34,6 +34,7 @@ find_package(OpenGeode REQUIRED CONFIG)
 find_package(GDAL REQUIRED CONFIG)
 find_package(OpenGeode-IO REQUIRED CONFIG)
 find_package(nlohmann_json REQUIRED CONFIG)
+find_package(zlib REQUIRED CONFIG)
 find_package(pugixml REQUIRED CONFIG)
 find_package(OpenGeode-Geosciences REQUIRED CONFIG)
 

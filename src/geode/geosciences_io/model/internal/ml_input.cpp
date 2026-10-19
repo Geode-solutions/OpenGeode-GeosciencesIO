@@ -162,6 +162,24 @@ namespace
             for( auto& tsurf : tsurfs_ )
             {
                 tsurf.data = geode::internal::read_tsurf( file_ ).value();
+                if( tsurf.tfaces.empty() )
+                {
+                    // TSURF without TFACE in the Model3d section: its
+                    // surfaces belong to other TSURFs, the TSurf is ignored.
+                    // Its BSTONEs and BORDERs are dropped too: build_corners
+                    // maps them through tsurf.tfaces, which is empty here.
+                    tsurf.data.bstones.clear();
+                    tsurf.data.borders.clear();
+                    continue;
+                }
+                const auto nb_tsurf_tfaces =
+                    tsurf.data.tface_vertices_offset.size() - 1;
+                geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                    nb_tsurf_tfaces == tsurf.tfaces.size(), nullptr,
+                    geode::OpenGeodeException::TYPE::data, "[MLInput] TSurf ",
+                    tsurf.name, " has ", nb_tsurf_tfaces,
+                    " TFACE but the Model3d section declares ",
+                    tsurf.tfaces.size(), " TFACE for it" );
                 build_surfaces( tsurf );
             }
             compute_epsilon();
@@ -206,10 +224,9 @@ namespace
         {
             const auto box = model_.bounding_box();
             const geode::Vector3D diagonal{ box.min(), box.max() };
-            epsilon_ =
-                1e-7
-                * std::min( diagonal.value( 0 ),
-                    std::min( diagonal.value( 1 ), diagonal.value( 2 ) ) );
+            const auto min_extent = std::min( diagonal.value( 0 ),
+                std::min( diagonal.value( 1 ), diagonal.value( 2 ) ) );
+            epsilon_ = std::max( geode::GLOBAL_EPSILON, 1e-7 * min_extent );
         }
 
         void build_corners()
@@ -776,6 +793,14 @@ namespace
             boundaries.reserve( tsurfs_.size() );
             for( const auto& tsurf : tsurfs_ )
             {
+                // Before the feature check: a TSURF without TFACE has no
+                // feature
+                if( tsurf.tfaces.empty() )
+                {
+                    geode::Logger::warning( "[MLInput] TSURF ", tsurf.name,
+                        " has no TFACE. It has been ignored" );
+                    continue;
+                }
                 const auto kind = feature_kind( tsurf.feature );
                 geode::OpenGeodeGeosciencesIOModelException::check_exception(
                     kind != FEATURE_KIND::unknown, nullptr,
@@ -857,7 +882,12 @@ namespace
             absl::Span< const std::string_view > tokens )
         {
             auto name = geode::internal::read_name( tokens );
-            tsurf_names2index_.emplace( name, tsurfs_.size() );
+            const auto inserted =
+                tsurf_names2index_.emplace( name, tsurfs_.size() ).second;
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                inserted, nullptr, geode::OpenGeodeException::TYPE::data,
+                "[MLInput] Several TSURF are named ", name,
+                ": their TFACE cannot be told apart" );
             tsurfs_.emplace_back( std::move( name ) );
         }
 
