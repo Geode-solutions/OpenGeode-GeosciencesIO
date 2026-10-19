@@ -379,7 +379,7 @@ namespace geode::internal
             std::vector< std::array< index_t, 2 > >& line_starts ) const
         {
             index_t current_offset{ OFFSET_START };
-            for( const auto& surface : item_range )
+            for( const Surface3D& surface : item_range )
             {
                 add_corners_and_line_starts(
                     surface, current_offset, line_starts );

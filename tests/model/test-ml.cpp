@@ -30,6 +30,8 @@
 #include <geode/model/mixin/core/model_boundary.hpp>
 #include <geode/model/mixin/core/surface.hpp>
 
+#include <geode/geosciences/explicit/mixin/core/horizon.hpp>
+#include <geode/geosciences/explicit/representation/builder/structural_model_builder.hpp>
 #include <geode/geosciences/explicit/representation/core/structural_model.hpp>
 #include <geode/geosciences/explicit/representation/io/structural_model_output.hpp>
 #include <geode/geosciences_io/model/internal/ml_input.hpp>
@@ -127,12 +129,52 @@ void test_modelA4()
     geode::save_brep( reload_brep, "modelA4_saved_from_brep.ml" );
 }
 
+void test_shared_surfaces_and_contact_types()
+{
+    auto model = geode::load_structural_model( absl::StrCat( geode::DATA_PATH,
+        "/modelA4.", geode::internal::MLInput::extension() ) );
+    geode::StructuralModelBuilder builder{ model };
+
+    // Erosion contact type has no dedicated .ml type
+    const auto& eroded = *model.horizons().begin();
+    const auto eroded_name = eroded.name().value();
+    builder.set_horizon_contact_type(
+        eroded, geode::Horizon3D::CONTACT_TYPE::erosion );
+
+    // Topographic Horizon made only of ModelBoundary Surfaces
+    const auto& top_boundary = *model.model_boundaries().begin();
+    const auto& topography_id =
+        builder.add_horizon( geode::Horizon3D::CONTACT_TYPE::topography );
+    const auto& topography = model.horizon( topography_id );
+    builder.set_horizon_name( topography, "topography" );
+    for( const auto& surface : model.model_boundary_items( top_boundary ) )
+    {
+        builder.add_surface_in_horizon( surface, topography );
+    }
+
+    geode::save_structural_model( model, "modelA4_shared_surfaces.ml" );
+    auto reload = geode::load_structural_model( "modelA4_shared_surfaces.ml" );
+    // The topographic Horizon has no Surface of its own: not exported
+    check_model( reload, 52, 98, 55, 8, 2, 3, 6 );
+    for( const auto& horizon : reload.horizons() )
+    {
+        if( horizon.name() == eroded_name )
+        {
+            geode::OpenGeodeGeosciencesIOModelException::test(
+                horizon.contact_type()
+                    == geode::Horizon3D::CONTACT_TYPE::discontinuity,
+                "Erosion Horizon should be reloaded as a discontinuity" );
+        }
+    }
+}
+
 int main()
 {
     try
     {
         geode::OpenGeodeGeosciencesIOModelLibrary::initialize();
         test_modelA4();
+        test_shared_surfaces_and_contact_types();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
