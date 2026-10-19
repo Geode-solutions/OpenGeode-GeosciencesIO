@@ -172,6 +172,41 @@ void test_shared_surfaces_and_contact_types()
         eroded_found, "Erosion Horizon should be found after reload" );
 }
 
+void test_shared_model_boundary_surfaces()
+{
+    auto model = geode::load_structural_model( absl::StrCat( geode::DATA_PATH,
+        "/modelA4.", geode::internal::MLInput::extension() ) );
+    geode::StructuralModelBuilder builder{ model };
+
+    // One Surface of the second ModelBoundary also put in the first one
+    auto boundary_it = model.model_boundaries().begin();
+    const auto& first_boundary = *boundary_it;
+    ++boundary_it;
+    const auto& second_boundary = *boundary_it;
+    const auto& shared_surface =
+        *model.model_boundary_items( second_boundary ).begin();
+    builder.add_surface_in_model_boundary( shared_surface, first_boundary );
+
+    // ModelBoundary made only of Surfaces of the first one
+    const auto& duplicate_id = builder.add_model_boundary();
+    const auto& duplicate = model.model_boundary( duplicate_id );
+    builder.set_model_boundary_name( duplicate, "duplicate_boundary" );
+    for( const auto& surface : model.model_boundary_items( first_boundary ) )
+    {
+        builder.add_surface_in_model_boundary( surface, duplicate );
+    }
+
+    geode::save_structural_model(
+        model, "modelA4_shared_boundary_surfaces.ml" );
+    auto reload =
+        geode::load_structural_model( "modelA4_shared_boundary_surfaces.ml" );
+    // The duplicate ModelBoundary has no Surface of its own: not exported
+    check_model( reload, 52, 98, 55, 8, 2, 3, 6 );
+
+    // Same ModelBoundaries exported through the BRep writer
+    geode::save_brep( model, "modelA4_shared_boundary_surfaces_brep.ml" );
+}
+
 int main()
 {
     try
@@ -179,6 +214,7 @@ int main()
         geode::OpenGeodeGeosciencesIOModelLibrary::initialize();
         test_modelA4();
         test_shared_surfaces_and_contact_types();
+        test_shared_model_boundary_surfaces();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
