@@ -23,11 +23,13 @@
 #include <string_view>
 
 #include <absl/container/flat_hash_map.h>
+#include <absl/strings/str_cat.h>
 
 #include <geode/geosciences_io/model/helpers/brep_geos_export.hpp>
 
 #include <geode/geosciences_io/model/internal/geos_export.hpp>
 #include <geode/model/mixin/core/block.hpp>
+#include <geode/model/mixin/core/block_collection.hpp>
 #include <geode/model/representation/core/brep.hpp>
 
 #include <geode/basic/pimpl_impl.hpp>
@@ -47,16 +49,33 @@ namespace geode
         virtual ~Impl() = default;
 
     protected:
-        absl::flat_hash_map< uuid, index_t > create_region_attribute_map(
+        [[nodiscard]] RegionDefinitions create_region_definitions(
             const BRep& model ) const final
         {
-            auto region_id = 0;
-            absl::flat_hash_map< uuid, index_t > region_map_id;
+            RegionDefinitions definitions;
             for( const auto& block : model.blocks() )
             {
-                region_map_id.emplace( block.id(), region_id++ );
+                const auto region_id =
+                    static_cast< index_t >( definitions.regions.size() );
+                definitions.regions.push_back(
+                    { region_id, absl::StrCat( "region_", region_id ),
+                        block.name().value_or( block.id().string() ),
+                        block.id() } );
+                definitions.block_regions.emplace( block.id(), region_id );
+                definitions.regions_by_uuid[block.id()].push_back( region_id );
             }
-            return region_map_id;
+            for( const auto& collection : model.block_collections() )
+            {
+                auto& collection_regions =
+                    definitions.regions_by_uuid[collection.id()];
+                for( const auto& block :
+                    model.block_collection_items( collection ) )
+                {
+                    collection_regions.push_back(
+                        definitions.block_regions.at( block.id() ) );
+                }
+            }
+            return definitions;
         }
     };
 
@@ -72,6 +91,12 @@ namespace geode
         const PointSet3D& well_perforation, std::string_view name )
     {
         impl_->add_well_perforations( well_perforation, name );
+    }
+
+    void BRepGeosExporter::set_physical_problem(
+        const PhysicalProblem& problem )
+    {
+        impl_->set_physical_problem( problem );
     }
 
     void BRepGeosExporter::run()

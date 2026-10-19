@@ -32,6 +32,7 @@
 #include <geode/geosciences/explicit/representation/io/structural_model_input.hpp>
 #include <geode/geosciences/explicit/representation/io/structural_model_output.hpp>
 #include <geode/geosciences/implicit/representation/io/horizons_stack_input.hpp>
+#include <geode/geosciences/simulation/common.hpp>
 
 #include <geode/geosciences_io/mesh/common.hpp>
 
@@ -102,6 +103,7 @@ namespace geode
     {
         OpenGeodeGeosciencesExplicitLibrary::initialize();
         OpenGeodeGeosciencesImplicitLibrary::initialize();
+        OpenGeodeGeosciencesSimulationLibrary::initialize();
         OpenGeodeGeosciencesIOMeshLibrary::initialize();
         register_structural_model_input();
         register_structural_model_output();

@@ -65,6 +65,7 @@ add_geode_test(
         OpenGeode::basic
         OpenGeode::mesh
         OpenGeode::model
+        OpenGeode-Geosciences::simulation
         OpenGeode-IO::mesh
         OpenGeode-IO::model
         ${PROJECT_NAME}::model

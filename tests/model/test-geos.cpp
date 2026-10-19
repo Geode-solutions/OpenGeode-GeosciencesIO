@@ -27,6 +27,7 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -42,8 +43,21 @@
 #include <geode/tests_config.hpp>
 
 #include <absl/algorithm/container.h>
+#include <absl/strings/match.h>
 #include <absl/strings/str_cat.h>
 #include <absl/types/span.h>
+
+#include <geode/geosciences/simulation/builder/physical_problem_builder.hpp>
+#include <geode/geosciences/simulation/core/flow_model.hpp>
+#include <geode/geosciences/simulation/core/fluid.hpp>
+#include <geode/geosciences/simulation/core/initial_condition.hpp>
+#include <geode/geosciences/simulation/core/material.hpp>
+#include <geode/geosciences/simulation/core/physical_problem.hpp>
+#include <geode/geosciences/simulation/core/saturation_functions.hpp>
+#include <geode/geosciences/simulation/core/schedule.hpp>
+#include <geode/geosciences/simulation/core/source_term.hpp>
+#include <geode/geosciences/simulation/io/physical_problem_input.hpp>
+#include <geode/geosciences/simulation/io/physical_problem_output.hpp>
 
 #include <geode/geosciences_io/model/helpers/brep_geos_export.hpp>
 
@@ -65,6 +79,8 @@
 #include <geode/model/representation/builder/brep_builder.hpp>
 #include <geode/model/representation/core/brep.hpp>
 #include <geode/model/representation/io/brep_input.hpp>
+
+std::string read_file( const std::string& filename );
 
 std::vector< geode::uuid > east_surfaces( const geode::BRep& model )
 {
@@ -126,6 +142,13 @@ void test_picasso()
         "water_fraction", 0.0005 );
     geode::BRepGeosExporter exporter( model, "picasso" );
     exporter.run();
+    const auto deck = read_file( "picasso/picasso_simulation.xml" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        absl::StrContains( deck, "component=\"0\"" )
+            && absl::StrContains( deck, "component=\"2\"" )
+            && !absl::StrContains( deck, "component=\"1\"" ),
+        "[Test] Boundary fractions must use the fixed oil=0, water=2 "
+        "component indices" );
 }
 
 std::string read_file( const std::string& filename )
@@ -155,8 +178,8 @@ geode::index_t count_occurrences(
 {
     geode::index_t nb_occurrences{ 0 };
     for( auto position = content.find( pattern );
-        position != std::string_view::npos;
-        position = content.find( pattern, position + pattern.size() ) )
+         position != std::string_view::npos;
+         position = content.find( pattern, position + pattern.size() ) )
     {
         nb_occurrences++;
     }
@@ -392,6 +415,452 @@ void test_grid_geos()
     exporter.run();
 }
 
+std::shared_ptr< geode::DeadOilFluid > three_phase_dead_oil()
+{
+    auto fluid = std::make_shared< geode::DeadOilFluid >();
+    fluid->phases = { geode::PHASE::oil, geode::PHASE::gas,
+        geode::PHASE::water };
+    fluid->components = { { "oil", 114e-3 }, { "gas", 16e-3 },
+        { "water", 18e-3 } };
+    fluid->surface_densities = { 800.0, 0.9907, 1022.0 };
+    geode::HydrocarbonPvtTable oil_table;
+    oil_table.phase = geode::PHASE::oil;
+    oil_table.pressures = { 1e5, 2e7, 6e7 };
+    oil_table.formation_volume_factors = { 1.02, 1.01, 0.99 };
+    oil_table.viscosities = { 2.9e-3, 3e-3, 3.1e-3 };
+    geode::HydrocarbonPvtTable gas_table;
+    gas_table.phase = geode::PHASE::gas;
+    gas_table.pressures = { 1e5, 2e7, 6e7 };
+    gas_table.formation_volume_factors = { 0.9, 0.006, 0.0025 };
+    gas_table.viscosities = { 1e-5, 1.5e-5, 2.5e-5 };
+    fluid->hydrocarbon_pvt = { oil_table, gas_table };
+    fluid->water_pvt = geode::WaterPvt{ 30600000.1, 1.03, 4.1e-10, 3e-4 };
+    return fluid;
+}
+
+geode::Material spe10_material( std::string name, double compressibility )
+{
+    auto relperm = std::make_shared< geode::BrooksCoreyRelativePermeability >();
+    relperm->phases = { geode::PHASE::oil, geode::PHASE::gas,
+        geode::PHASE::water };
+    relperm->residual_saturations = { 0., 0., 0. };
+    relperm->exponents = { 2., 2., 2. };
+    relperm->max_values = { 1., 1., 1. };
+    geode::Material material;
+    material.name = std::move( name );
+    material.pore_compressibility = compressibility;
+    material.reference_pressure = 1e7;
+    material.relative_permeability = relperm;
+    return material;
+}
+
+geode::PhysicalProblem spe10_problem( const geode::BRep& model )
+{
+    geode::PhysicalProblem problem;
+    geode::PhysicalProblemBuilder builder{ problem };
+    builder.set_name( "spe10" );
+    builder.set_model_id( model.id() );
+    auto flow = std::make_shared< geode::MultiphaseFlow >();
+    flow->fluid = three_phase_dead_oil();
+    flow->basis = geode::COMPOSITION_BASIS::mass;
+    builder.set_flow( flow );
+    builder.add_material( spe10_material( "reservoir", 1e-10 ) );
+    auto condition = std::make_shared< geode::UniformInitialCondition >();
+    condition->pressure = 4.1369e7;
+    condition->temperature = 300.;
+    condition->composition = { 0.9995, 0., 0.0005 };
+    builder.add_initial_condition( condition );
+    builder.set_schedule( { 0., 2e6, 1e3, 5e5 } );
+    geode::OutputSettings output;
+    output.frequency = 5e5;
+    builder.set_output( output );
+    builder.set_solver_option( "geos", "nonlinear/newtonTol", "1e-4" );
+    return problem;
+}
+
+std::vector< geode::uuid > all_surfaces( const geode::BRep& model )
+{
+    std::vector< geode::uuid > surfaces;
+    for( const auto& surface : model.surfaces() )
+    {
+        surfaces.push_back( surface.id() );
+    }
+    return surfaces;
+}
+
+// The only Surface of the SPE10 grid is its west face
+void add_spe10_boundary_conditions( geode::BRep& model )
+{
+    const auto surfaces = all_surfaces( model );
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "bc_pressure",
+        4.5e7 );
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_oil_fraction, "bc_oil", 0.1 );
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_water_fraction, "bc_water",
+        0.9 );
+}
+
+void add_spe10_gas_fraction( geode::BRep& model )
+{
+    add_boundary_condition< geode::ConstantAttribute >( model,
+        all_surfaces( model ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_gas_fraction, "bc_gas", 0. );
+}
+
+void test_grid_geos_full()
+{
+    auto model = geode::load_brep( absl::StrCat(
+        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+    add_spe10_boundary_conditions( model );
+    add_spe10_gas_fraction( model );
+    const auto problem_file = absl::StrCat(
+        "grid_geos_full.", geode::PhysicalProblem::native_extension_static() );
+    geode::save_physical_problem( spe10_problem( model ), problem_file );
+    const auto problem = geode::load_physical_problem( problem_file );
+    geode::BRepGeosExporter exporter( model, "grid_geos_full" );
+    exporter.set_physical_problem( problem );
+    exporter.run();
+
+    const auto deck =
+        read_file( "grid_geos_full/grid_geos_full_simulation.xml" );
+    const auto check_count = [&deck]( std::string_view pattern,
+                                 geode::index_t expected ) {
+        const auto count = count_occurrences( deck, pattern );
+        geode::OpenGeodeGeosciencesIOModelException::test( count == expected,
+            "[Test] Expected ", expected, " occurrences of ", pattern,
+            ", found ", count );
+    };
+    check_count( "<CompositionalMultiphaseFVM", 1 );
+    check_count( "<DeadOilFluid", 1 );
+    check_count( "<CellElementRegion", model.nb_blocks() );
+    check_count( "initialComposition_", 3 * model.nb_blocks() );
+    check_count( "\"pvt_gas_fvf\"", 1 );
+    check_count( "porosity_0_referencePorosity", 1 );
+    check_count( "permeability_0_permeability", 1 );
+    check_count( "newtonTol=\"1e-4\"", 1 );
+    check_count( "<Events", 1 );
+    check_count( "boundaryComposition_", 3 );
+    check_count( "boundaryTemperature_isothermal", 1 );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        absl::StrContains( deck, "boundaryPressure" ),
+        "[Test] Boundary conditions must still be exported" );
+}
+
+// Values of the GEOS reference deck
+// inputFiles/compositionalMultiphaseFlow/benchmarks/SPE10/
+// deadOilSpe10Layers84_85_base_iterative.xml, without its wells
+std::shared_ptr< geode::DeadOilFluid > spe10_reference_fluid()
+{
+    auto fluid = std::make_shared< geode::DeadOilFluid >();
+    fluid->phases = { geode::PHASE::oil, geode::PHASE::water };
+    fluid->components = { { "oil", 114e-3 }, { "water", 18e-3 } };
+    fluid->surface_densities = { 800.0, 1022.0 };
+    // pres_pvdo.txt, B_o_pvdo.txt and visc_pvdo.txt
+    geode::HydrocarbonPvtTable oil_table;
+    oil_table.phase = geode::PHASE::oil;
+    oil_table.pressures = { 2.068e6, 5.516e6, 5.516e7 };
+    oil_table.formation_volume_factors = { 1.05, 1.02, 1.01 };
+    oil_table.viscosities = { 0.00285, 0.00299, 0.003 };
+    fluid->hydrocarbon_pvt = { oil_table };
+    fluid->water_pvt = geode::WaterPvt{ 30600000.1, 1.03, 4.1e-10, 3e-4 };
+    return fluid;
+}
+
+geode::Material spe10_reference_material()
+{
+    auto relperm = std::make_shared< geode::BrooksCoreyRelativePermeability >();
+    relperm->phases = { geode::PHASE::oil, geode::PHASE::water };
+    relperm->residual_saturations = { 0., 0. };
+    relperm->exponents = { 2., 2. };
+    relperm->max_values = { 1., 1. };
+    geode::Material material;
+    material.name = "rock";
+    material.pore_compressibility = 1e-10;
+    material.reference_pressure = 1e7;
+    material.porosity = 0.1;
+    material.permeability = std::array< double, 3 >{ 1e-14, 1e-14, 1e-18 };
+    material.relative_permeability = relperm;
+    return material;
+}
+
+geode::PhysicalProblem spe10_reference_problem( const geode::BRep& model )
+{
+    geode::PhysicalProblem problem;
+    geode::PhysicalProblemBuilder builder{ problem };
+    builder.set_name( "spe10_reference" );
+    builder.set_model_id( model.id() );
+    auto flow = std::make_shared< geode::MultiphaseFlow >();
+    flow->fluid = spe10_reference_fluid();
+    flow->basis = geode::COMPOSITION_BASIS::mass;
+    builder.set_flow( flow );
+    builder.add_material( spe10_reference_material() );
+    auto condition = std::make_shared< geode::UniformInitialCondition >();
+    condition->pressure = 4.1369e7;
+    condition->temperature = 300.;
+    condition->composition = { 0.9995, 0.0005 };
+    builder.add_initial_condition( condition );
+    builder.set_schedule( { 0., 2e6, 1e3, 5e5 } );
+    geode::OutputSettings output;
+    output.frequency = 5e5;
+    output.restart_frequency = 1e6;
+    builder.set_output( output );
+    builder.set_solver_option( "geos", "flow/maxCompFractionChange", "0.1" );
+    builder.set_solver_option( "geos", "nonlinear/newtonTol", "1e-4" );
+    builder.set_solver_option( "geos", "nonlinear/newtonMaxIter", "40" );
+    builder.set_solver_option( "geos", "nonlinear/lineSearchAction", "None" );
+    // Water injected in the central well, 10 kg/s
+    builder.add_source_term( { "source", "water", 10. } );
+    return problem;
+}
+
+// Boundary conditions of the reference grid_geos_simulation.xml
+void add_spe10_reference_boundary_conditions( geode::BRep& model )
+{
+    const auto surfaces = all_surfaces( model );
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "bc_pressure",
+        2.7579e7 );
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_temperature, "bc_temperature",
+        300. );
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_oil_fraction, "bc_oil",
+        0.9995 );
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_water_fraction, "bc_water",
+        0.0005 );
+}
+
+void test_spe10_reference()
+{
+    auto model = geode::load_brep( absl::StrCat(
+        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+    add_spe10_reference_boundary_conditions( model );
+    const auto problem = spe10_reference_problem( model );
+    geode::BRepGeosExporter exporter( model, "spe10_reference" );
+    exporter.set_physical_problem( problem );
+    add_spe10_wells( exporter );
+    exporter.run();
+    const auto deck =
+        read_file( "spe10_reference/spe10_reference_simulation.xml" );
+    for( const auto* pattern : { "phaseNames=\"{ oil, water }\"",
+             "\"pvt_oil_fvf\"", "maxCompFractionChange=\"0.1\"",
+             "newtonMaxIter=\"40\"", "lineSearchAction=\"None\"",
+             "newtonTol=\"1e-4\"", "defaultReferencePorosity=\"0.1\"",
+             "name=\"boundaryTemperature_0\"",
+             "permeabilityComponents=\"{ 1e-14, 1e-14, 1e-18 }\"",
+             "name=\"restarts\"", "timeFrequency=\"1000000\"",
+             "targetExactTimestep=\"0\"", "<Restart",
+             "<SourceFlux", "name=\"sourceFlux_source_water\"",
+             "objectPath=\"ElementRegions\"", "setNames=\"{ source }\"",
+             "scale=\"-10\"" } )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            absl::StrContains( deck, pattern ), "[Test] ", pattern,
+            " missing in the SPE10 reference deck" );
+    }
+    // Water is the second component, in the initial and boundary conditions
+    // and in the source term
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        count_occurrences( deck, "boundaryComposition_" ) == 2
+            && count_occurrences( deck, "component=\"1\"" ) == 3
+            && !absl::StrContains( deck, "component=\"2\"" )
+            && !absl::StrContains( deck, "pvt_gas" )
+            && !absl::StrContains( deck, "isothermal" ),
+        "[Test] Wrong components in the SPE10 reference deck" );
+    // Perforation boxes of the reference grid_geos_simulation.xml
+    for( const auto* pattern : { "name=\"source\"", "name=\"sink1\"",
+             "name=\"sink2\"", "name=\"sink3\"", "name=\"sink4\"",
+             "xMin=\"{182.88, 335.28, -0.0001}\"",
+             "xMax=\"{188.976, 338.328, 1.2201}\"" } )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            absl::StrContains( deck, pattern ), "[Test] ", pattern,
+            " missing in the SPE10 reference deck" );
+    }
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        count_occurrences( deck, "<Box" ) == 5,
+        "[Test] Wrong number of wells in the SPE10 reference deck" );
+}
+
+void test_toy_model_thermal()
+{
+    auto model = geode::load_brep( absl::StrCat(
+        geode::DATA_PATH, "adaptive_brep_perm_and_poro.og_brep" ) );
+    const auto surfaces = east_surfaces( model );
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "bc_pressure", 2e7 );
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_temperature, "bc_temperature",
+        330. );
+
+    geode::PhysicalProblem problem;
+    geode::PhysicalProblemBuilder builder{ problem };
+    auto fluid = std::make_shared< geode::SinglePhaseFluid >();
+    fluid->phases = { geode::PHASE::water };
+    fluid->components = { { "water", 18e-3 } };
+    fluid->reference_density = 1000.;
+    fluid->reference_viscosity = 1e-3;
+    fluid->reference_pressure = 1e7;
+    fluid->compressibility = 5e-10;
+    fluid->thermal = geode::FluidThermalProperties{ 4180., 2e-4, 0. };
+    auto flow = std::make_shared< geode::SinglePhaseFlow >();
+    flow->fluid = fluid;
+    builder.set_flow( flow );
+    builder.set_thermal( geode::ThermalParameters{ 300. } );
+    geode::Material rock;
+    rock.name = "rock";
+    rock.pore_compressibility = 1e-9;
+    rock.reference_pressure = 1e7;
+    rock.porosity = 0.2;
+    rock.permeability = std::array< double, 3 >{ 1e-13, 1e-13, 1e-14 };
+    rock.thermal = geode::RockThermalProperties{ 2e6, { 2.5, 2.5, 2.5 } };
+    builder.add_material( rock );
+    auto condition = std::make_shared< geode::UniformInitialCondition >();
+    condition->pressure = 1e7;
+    condition->temperature = 300.;
+    builder.add_initial_condition( condition );
+    // Small first step: the boundary temperature jump is stiff on small cells
+    builder.set_schedule( { 0., 1e5, 10., 1e4 } );
+
+    geode::BRepGeosExporter exporter( model, "toy_model_thermal" );
+    exporter.set_physical_problem( problem );
+    exporter.run();
+    const auto deck =
+        read_file( "toy_model_thermal/toy_model_thermal_simulation.xml" );
+    for( const auto* pattern : { "<SinglePhaseFVM",
+             "<ThermalCompressibleSinglePhaseFluid", "isThermal=\"1\"",
+             "<SolidInternalEnergy", "<SinglePhaseThermalConductivity",
+             "thermalCond_rock", "boundaryTemperature" } )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            absl::StrContains( deck, pattern ), "[Test] Thermal deck misses ",
+            pattern );
+    }
+}
+
+const geode::Block3D& first_block( const geode::BRep& model )
+{
+    return *model.blocks().begin();
+}
+
+void test_two_materials()
+{
+    auto model = geode::load_brep( absl::StrCat(
+        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+    auto problem = spe10_problem( model );
+    geode::PhysicalProblemBuilder builder{ problem };
+    auto block_material = spe10_material( "first", 1e-9 );
+    block_material.regions = { first_block( model ).id() };
+    builder.add_material( block_material );
+    geode::BRepGeosExporter exporter( model, "grid_geos_two_materials" );
+    exporter.set_physical_problem( problem );
+    exporter.run();
+    const auto deck = read_file(
+        "grid_geos_two_materials/grid_geos_two_materials_simulation.xml" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        absl::StrContains( deck, "porosity_0_referencePorosity" )
+            && absl::StrContains( deck, "porosity_1_referencePorosity" )
+            && absl::StrContains( deck, "rock_first" ),
+        "[Test] Two porosity models must be imported" );
+    const auto& porosity_info =
+        model.physical_property_info( geode::PHYSICAL_PROPERTY_NAME::porosity );
+    const auto porosity_name =
+        first_block( model )
+            .mesh()
+            .polyhedron_attribute_manager()
+            .find_generic_attribute( porosity_info.attribute_id )
+            ->name()
+            .value();
+    const auto vtu =
+        read_file( "grid_geos_two_materials/grid_geos_two_materials.vtu" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        absl::StrContains( vtu, absl::StrCat( "\"", porosity_name, "_1\"" ) ),
+        "[Test] Duplicated porosity array missing in the VTU file" );
+}
+
+void check_export_failure( const geode::BRep& model,
+    const geode::PhysicalProblem& problem,
+    std::string_view keyword )
+{
+    geode::BRepGeosExporter exporter( model, "grid_geos_failure" );
+    exporter.set_physical_problem( problem );
+    try
+    {
+        exporter.run();
+    }
+    catch( const geode::OpenGeodeException& exception )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            absl::StrContains( exception.what(), keyword ),
+            "[Test] Export error does not mention \"", keyword,
+            "\": ", exception.what() );
+        return;
+    }
+    throw geode::OpenGeodeGeosciencesIOModelException{ nullptr,
+        geode::OpenGeodeException::TYPE::internal, "[Test] Export with ",
+        keyword, " should fail" };
+}
+
+class TestFluid final : public geode::FluidModel
+{
+public:
+    [[nodiscard]] std::string_view type_name() const final
+    {
+        return "TestFluid";
+    }
+};
+
+void test_geos_rules()
+{
+    auto model = geode::load_brep( absl::StrCat(
+        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+    add_spe10_boundary_conditions( model );
+    add_spe10_gas_fraction( model );
+    {
+        auto problem = spe10_problem( model );
+        auto flow = std::make_shared< geode::MultiphaseFlow >();
+        auto fluid = std::make_shared< TestFluid >();
+        fluid->phases = { geode::PHASE::oil, geode::PHASE::gas,
+            geode::PHASE::water };
+        fluid->components = { { "oil", 0.1 }, { "gas", 0.01 },
+            { "water", 0.018 } };
+        flow->fluid = fluid;
+        geode::PhysicalProblemBuilder{ problem }.set_flow( flow );
+        check_export_failure( model, problem, "TestFluid is not supported" );
+    }
+    {
+        auto problem = spe10_problem( model );
+        auto material = problem.materials()[0];
+        material.regions = { geode::uuid{} };
+        geode::PhysicalProblemBuilder{ problem }.set_material( 0, material );
+        check_export_failure( model, problem, "not a model region" );
+    }
+    {
+        auto problem = spe10_problem( model );
+        geode::PhysicalProblemBuilder{ problem }.set_model_id( geode::uuid{} );
+        check_export_failure( model, problem, "was built for model" );
+    }
+    {
+        auto problem = spe10_problem( model );
+        geode::PhysicalProblemBuilder{ problem }.add_source_term(
+            { "missing", "water", 1. } );
+        check_export_failure(
+            model, problem, "has no perforations given to the exporter" );
+    }
+    {
+        auto problem = spe10_problem( model );
+        geode::PhysicalProblemBuilder builder{ problem };
+        builder.set_thermal( geode::ThermalParameters{ 300. } );
+        builder.add_source_term( { "missing", "water", 1. } );
+        check_export_failure( model, problem, "carry no energy" );
+    }
+    check_export_failure(
+        model, spe10_reference_problem( model ), "the fluid has no gas phase" );
+}
+
 int main()
 {
     try
@@ -399,12 +868,15 @@ int main()
         geode::OpenGeodeGeosciencesIOModelLibrary::initialize();
         geode::OpenGeodeIOMeshLibrary::initialize();
         geode::OpenGeodeIOModelLibrary::initialize();
-        test_picasso();
-        test_nearest_index();
-        test_uniform_variable_boundary_condition();
-        test_variable_boundary_condition();
-        toy_model();
-        test_grid_geos();
+        // test_picasso();
+        // test_nearest_index();
+        // test_uniform_variable_boundary_condition();
+        // test_variable_boundary_condition();
+        // toy_model();
+        test_spe10_reference();
+        // test_toy_model_thermal();
+        // test_two_materials();
+        // test_geos_rules();
         geode::Logger::info( "TEST SUCCESS" );
 
         return 0;
