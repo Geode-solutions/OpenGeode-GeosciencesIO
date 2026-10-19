@@ -321,6 +321,17 @@ void test_is_loadable()
         geode::internal::MLInput{ "empty_tsurf.ml" }.is_loadable().value()
             == 0.5,
         "A TSURF without TFACE should not be counted as loadable" );
+
+    write_file( "duplicate_tsurf.ml", "GOCAD Model3d 1\n"
+                                      "TSURF A\n"
+                                      "TSURF A\n"
+                                      "TFACE 1 top A\n"
+                                      "END\n"
+                                      "GOCAD TSurf 1\n" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::internal::MLInput{ "duplicate_tsurf.ml" }.is_loadable().value()
+            == 0,
+        "Duplicate TSURF names should not be loadable" );
 }
 
 int main()

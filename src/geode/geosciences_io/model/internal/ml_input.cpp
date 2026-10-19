@@ -1156,10 +1156,18 @@ namespace geode::internal
             }
             if( tokens.front() == "TSURF" )
             {
-                tsurf_has_tface.emplace(
-                    internal::read_name(
-                        absl::MakeConstSpan( tokens ).subspan( 1 ) ),
-                    false );
+                const auto inserted =
+                    tsurf_has_tface
+                        .emplace(
+                            internal::read_name(
+                                absl::MakeConstSpan( tokens ).subspan( 1 ) ),
+                            false )
+                        .second;
+                // The reader rejects duplicate TSURF names
+                if( !inserted )
+                {
+                    return Percentage{ 0 };
+                }
             }
             else if( tokens.front() == "TFACE" )
             {
