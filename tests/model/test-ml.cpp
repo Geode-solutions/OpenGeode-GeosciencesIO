@@ -292,9 +292,7 @@ void test_is_loadable()
                                        "END\n"
                                        "GOCAD TSurf 1\n" );
     geode::OpenGeodeGeosciencesIOModelException::test(
-        geode::internal::MLInput{ "crs_unknown_type.ml" }
-                .is_loadable()
-                .value()
+        geode::internal::MLInput{ "crs_unknown_type.ml" }.is_loadable().value()
             == 0,
         "The Model3d section should be checked after a coordinate system "
         "block" );
