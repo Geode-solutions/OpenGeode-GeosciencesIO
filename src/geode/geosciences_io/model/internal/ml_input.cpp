@@ -114,7 +114,9 @@ namespace
                 if( tsurf.tfaces.empty() )
                 {
                     // TSURF without TFACE in the Model3d section: its
-                    // surfaces belong to other TSURFs, the TSurf is ignored
+                    // surfaces belong to other TSURFs, the TSurf is ignored.
+                    // Its BSTONEs and BORDERs are dropped too: build_corners
+                    // maps them through tsurf.tfaces, which is empty here.
                     tsurf.data.bstones.clear();
                     tsurf.data.borders.clear();
                     continue;
