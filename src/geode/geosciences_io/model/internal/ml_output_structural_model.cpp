@@ -23,11 +23,8 @@
 
 #include <geode/geosciences_io/model/internal/ml_output_structural_model.hpp>
 
-#include <functional>
 #include <string>
 #include <vector>
-
-#include <absl/container/flat_hash_set.h>
 
 #include <geode/mesh/core/surface_mesh.hpp>
 
@@ -52,83 +49,18 @@ namespace
                   filename, model ),
               model_( model )
         {
-            assign_surfaces_to_tsurfs();
         }
 
     private:
-        using OwnedSurfaces =
-            std::vector< std::reference_wrapper< const geode::Surface3D > >;
-
-        /*!
-         * In a .ml file, each TFACE belongs to a single TSURF. A Surface
-         * shared by several collections (e.g. a topographic Horizon that is
-         * also a ModelBoundary) is assigned to the first one, in the export
-         * order: ModelBoundaries, Faults, then Horizons. A collection
-         * without any Surface of its own is not exported.
-         */
-        void assign_surfaces_to_tsurfs()
+        void assign_geological_surfaces() override
         {
-            absl::flat_hash_set< geode::uuid > assigned;
-            for( const auto& boundary : model_.model_boundaries() )
-            {
-                for( const auto& item :
-                    model_.model_boundary_items( boundary ) )
-                {
-                    assigned.insert( item.id() );
-                }
-            }
             for( const auto& fault : model_.faults() )
             {
-                assign_surfaces( fault, model_.fault_items( fault ), assigned );
+                assign_surfaces( fault, model_.fault_items( fault ) );
             }
             for( const auto& horizon : model_.horizons() )
             {
-                assign_surfaces(
-                    horizon, model_.horizon_items( horizon ), assigned );
-            }
-        }
-
-        template < typename Collection, typename ItemRange >
-        void assign_surfaces( const Collection& collection,
-            const ItemRange& items,
-            absl::flat_hash_set< geode::uuid >& assigned )
-        {
-            auto& surfaces = owned_surfaces_[collection.id()];
-            for( const auto& item : items )
-            {
-                if( !assigned.insert( item.id() ).second )
-                {
-                    geode::Logger::warning( "[MLOutput] A Surface from ",
-                        component_name( collection ),
-                        " belongs to several collections. It has been "
-                        "exported only once" );
-                    continue;
-                }
-                surfaces.emplace_back( item );
-            }
-            if( surfaces.empty() )
-            {
-                geode::Logger::warning( "[MLOutput] ",
-                    component_name( collection ),
-                    " has no Surface of its own. It has not been exported" );
-            }
-        }
-
-        const OwnedSurfaces& owned_surfaces( const geode::uuid& id ) const
-        {
-            return owned_surfaces_.at( id );
-        }
-
-        void write_collection_tfaces( const OwnedSurfaces& surfaces,
-            std::string_view type,
-            std::string_view name )
-        {
-            for( const auto& surface : surfaces )
-            {
-                file() << "TFACE " << component_id() << SPACE << type << SPACE
-                       << name << EOL;
-                write_key_triangle( surface.get() );
-                components().emplace( surface.get().id(), component_id()++ );
+                assign_surfaces( horizon, model_.horizon_items( horizon ) );
             }
         }
 
@@ -216,44 +148,16 @@ namespace
             }
         }
 
-        void write_geological_surface( const OwnedSurfaces& surfaces,
-            std::string_view type,
-            std::string_view name )
-        {
-            if( surfaces.empty() )
-            {
-                return;
-            }
-            file() << "GOCAD TSurf 1" << EOL;
-            geode::internal::HeaderData header;
-            header.name = geode::to_string( name );
-            geode::internal::write_header( file(), header );
-            geode::internal::write_CRS( file(), {} );
-            file() << "GEOLOGICAL_FEATURE " << name << EOL;
-            file() << "GEOLOGICAL_TYPE " << type << EOL;
-            geode::index_t current_offset{ OFFSET_START };
-            for( const auto& surface : surfaces )
-            {
-                file() << "TFACE" << EOL;
-                current_offset = write_surface( surface.get(), current_offset );
-            }
-            std::vector< std::array< geode::index_t, 2 > > line_starts;
-            find_corners_and_line_starts( surfaces, line_starts );
-            write_corners( line_starts );
-            write_line_starts( current_offset, line_starts );
-            file() << "END" << EOL;
-        }
-
         void write_geological_model_surfaces() override
         {
             for( const auto& fault : model_.faults() )
             {
-                write_geological_surface( owned_surfaces( fault.id() ),
+                write_collection_surface( owned_surfaces( fault.id() ),
                     fault_map_.at( fault.type() ), component_name( fault ) );
             }
             for( const auto& horizon : model_.horizons() )
             {
-                write_geological_surface( owned_surfaces( horizon.id() ),
+                write_collection_surface( owned_surfaces( horizon.id() ),
                     horizon_type( horizon ), component_name( horizon ) );
             }
         }
@@ -270,7 +174,6 @@ namespace
 
     private:
         const geode::StructuralModel& model_;
-        absl::flat_hash_map< geode::uuid, OwnedSurfaces > owned_surfaces_;
         const absl::flat_hash_map< geode::Fault3D::FAULT_TYPE, std::string >
             fault_map_ = { { geode::Fault3D::FAULT_TYPE::no_type, "fault" },
                 { geode::Fault3D::FAULT_TYPE::normal, "normal_fault" },
