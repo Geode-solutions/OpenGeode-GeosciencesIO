@@ -179,6 +179,17 @@ void test_is_loadable()
         "The Model3d section should be checked after a coordinate system "
         "block" );
 
+    write_file( "missing_tsurf_section.ml", "GOCAD Model3d 1\n"
+                                            "TSURF A\n"
+                                            "TFACE 1 top A\n"
+                                            "END\n" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::internal::MLInput{ "missing_tsurf_section.ml" }
+                .is_loadable()
+                .value()
+            == 0,
+        "A Model3d without TSurf section should not be loadable" );
+
     write_file( "empty_tsurf.ml", "GOCAD Model3d 1\n"
                                   "TSURF A\n"
                                   "TSURF B\n"

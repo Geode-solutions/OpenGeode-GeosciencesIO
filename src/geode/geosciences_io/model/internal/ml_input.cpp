@@ -82,14 +82,30 @@ namespace
         return types;
     }
 
-    bool is_known_feature( const std::string& feature )
+    enum struct FEATURE_KIND
     {
-        if( feature.find( "fault" ) != std::string::npos )
+        fault,
+        model_boundary,
+        horizon,
+        unknown
+    };
+
+    // Shared by the reader and is_loadable to classify a TFACE feature
+    FEATURE_KIND feature_kind( const std::string& feature )
+    {
+        if( fault_types().contains( feature ) )
         {
-            return fault_types().contains( feature );
+            return FEATURE_KIND::fault;
         }
-        return feature == "boundary" || feature == "lease"
-               || horizon_types().contains( feature );
+        if( feature == "boundary" || feature == "lease" )
+        {
+            return FEATURE_KIND::model_boundary;
+        }
+        if( horizon_types().contains( feature ) )
+        {
+            return FEATURE_KIND::horizon;
+        }
+        return FEATURE_KIND::unknown;
     }
 
     std::tuple< geode::PolygonEdge, bool > find_edge(
@@ -760,7 +776,13 @@ namespace
             boundaries.reserve( tsurfs_.size() );
             for( const auto& tsurf : tsurfs_ )
             {
-                if( tsurf.feature.find( "fault" ) != std::string::npos )
+                const auto kind = feature_kind( tsurf.feature );
+                geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                    kind != FEATURE_KIND::unknown, nullptr,
+                    geode::OpenGeodeException::TYPE::data,
+                    "[MLInput] Unknown geological feature \"", tsurf.feature,
+                    "\" for TSURF ", tsurf.name );
+                if( kind == FEATURE_KIND::fault )
                 {
                     const auto& fault_uuid =
                         builder_.add_fault( fault_types().at( tsurf.feature ) );
@@ -772,8 +794,7 @@ namespace
                             model_.surface( uuid ), fault );
                     }
                 }
-                else if( tsurf.feature == "boundary"
-                         || tsurf.feature == "lease" )
+                else if( kind == FEATURE_KIND::model_boundary )
                 {
                     const auto& model_boundary_uuid =
                         builder_.add_model_boundary();
@@ -1123,7 +1144,8 @@ namespace geode::internal
                 {
                     return Percentage{ 0 };
                 }
-                if( !is_known_feature( to_string( tokens[2] ) ) )
+                if( feature_kind( to_string( tokens[2] ) )
+                    == FEATURE_KIND::unknown )
                 {
                     return Percentage{ 0 };
                 }
@@ -1134,24 +1156,15 @@ namespace geode::internal
         {
             return Percentage{ 0 };
         }
-        // Each declared TSURF needs a GOCAD TSurf section, stop reading as
-        // soon as there are enough of them
-        index_t nb_tsurf_sections{ 0 };
-        while( nb_tsurf_sections < tsurf_has_tface.size()
-               && std::getline( file, line ) )
-        {
-            if( string_starts_with( line, "GOCAD TSurf" ) )
-            {
-                nb_tsurf_sections++;
-            }
-        }
-        if( nb_tsurf_sections < tsurf_has_tface.size() )
-        {
-            return Percentage{ 0 };
-        }
         if( tsurf_has_tface.empty() )
         {
             return Percentage{ 1 };
+        }
+        // The GOCAD TSurf sections follow the Model3d section: only look for
+        // the first one, counting all of them would read the whole file
+        if( !goto_keyword_if_it_exists( file, "GOCAD TSurf" ) )
+        {
+            return Percentage{ 0 };
         }
         // A TSURF without TFACE is not loaded
         index_t nb_loadable_tsurfs{ 0 };
