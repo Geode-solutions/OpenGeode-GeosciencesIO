@@ -56,7 +56,7 @@ namespace
         }
 
     private:
-        using TSurfSurfaces =
+        using OwnedSurfaces =
             std::vector< std::reference_wrapper< const geode::Surface3D > >;
 
         /*!
@@ -93,7 +93,7 @@ namespace
             const ItemRange& items,
             absl::flat_hash_set< geode::uuid >& assigned )
         {
-            auto& surfaces = tsurf_surfaces_[collection.id()];
+            auto& surfaces = owned_surfaces_[collection.id()];
             for( const auto& item : items )
             {
                 if( !assigned.insert( item.id() ).second )
@@ -114,12 +114,12 @@ namespace
             }
         }
 
-        const TSurfSurfaces& tsurf_surfaces( const geode::uuid& id ) const
+        const OwnedSurfaces& owned_surfaces( const geode::uuid& id ) const
         {
-            return tsurf_surfaces_.at( id );
+            return owned_surfaces_.at( id );
         }
 
-        void write_tfaces( const TSurfSurfaces& surfaces,
+        void write_collection_tfaces( const OwnedSurfaces& surfaces,
             std::string_view type,
             std::string_view name )
         {
@@ -136,12 +136,12 @@ namespace
         {
             for( const auto& fault : model_.faults() )
             {
-                write_tfaces( tsurf_surfaces( fault.id() ),
+                write_collection_tfaces( owned_surfaces( fault.id() ),
                     fault_map_.at( fault.type() ), component_name( fault ) );
             }
             for( const auto& horizon : model_.horizons() )
             {
-                write_tfaces( tsurf_surfaces( horizon.id() ),
+                write_collection_tfaces( owned_surfaces( horizon.id() ),
                     horizon_type( horizon ), component_name( horizon ) );
             }
         }
@@ -150,14 +150,14 @@ namespace
         {
             for( const auto& fault : model_.faults() )
             {
-                if( !tsurf_surfaces( fault.id() ).empty() )
+                if( !owned_surfaces( fault.id() ).empty() )
                 {
                     file() << "TSURF " << component_name( fault ) << EOL;
                 }
             }
             for( const auto& horizon : model_.horizons() )
             {
-                if( !tsurf_surfaces( horizon.id() ).empty() )
+                if( !owned_surfaces( horizon.id() ).empty() )
                 {
                     file() << "TSURF " << component_name( horizon ) << EOL;
                 }
@@ -216,7 +216,7 @@ namespace
             }
         }
 
-        void write_geological_surface( const TSurfSurfaces& surfaces,
+        void write_geological_surface( const OwnedSurfaces& surfaces,
             std::string_view type,
             std::string_view name )
         {
@@ -248,12 +248,12 @@ namespace
         {
             for( const auto& fault : model_.faults() )
             {
-                write_geological_surface( tsurf_surfaces( fault.id() ),
+                write_geological_surface( owned_surfaces( fault.id() ),
                     fault_map_.at( fault.type() ), component_name( fault ) );
             }
             for( const auto& horizon : model_.horizons() )
             {
-                write_geological_surface( tsurf_surfaces( horizon.id() ),
+                write_geological_surface( owned_surfaces( horizon.id() ),
                     horizon_type( horizon ), component_name( horizon ) );
             }
         }
@@ -270,7 +270,7 @@ namespace
 
     private:
         const geode::StructuralModel& model_;
-        absl::flat_hash_map< geode::uuid, TSurfSurfaces > tsurf_surfaces_;
+        absl::flat_hash_map< geode::uuid, OwnedSurfaces > owned_surfaces_;
         const absl::flat_hash_map< geode::Fault3D::FAULT_TYPE, std::string >
             fault_map_ = { { geode::Fault3D::FAULT_TYPE::no_type, "fault" },
                 { geode::Fault3D::FAULT_TYPE::normal, "normal_fault" },
