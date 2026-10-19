@@ -52,45 +52,29 @@ namespace
         }
 
     private:
+        void assign_geological_surfaces() override
+        {
+            for( const auto& fault : model_.faults() )
+            {
+                assign_surfaces( fault, model_.fault_items( fault ) );
+            }
+            for( const auto& horizon : model_.horizons() )
+            {
+                assign_surfaces( horizon, model_.horizon_items( horizon ) );
+            }
+        }
+
         void write_geological_tfaces() override
         {
             for( const auto& fault : model_.faults() )
             {
-                for( const auto& item : model_.fault_items( fault ) )
-                {
-                    if( components().find( item.id() ) != components().end() )
-                    {
-                        geode::Logger::warning( "[MLOutput] A Surface from ",
-                            fault.name().value(),
-                            " belongs to several collections. It has been "
-                            "exported only once" );
-                        continue;
-                    }
-                    file() << "TFACE " << component_id() << SPACE
-                           << fault_map_.at( fault.type() ) << SPACE
-                           << fault.name().value() << EOL;
-                    write_key_triangle( item );
-                    components().emplace( item.id(), component_id()++ );
-                }
+                write_collection_tfaces( owned_surfaces( fault.id() ),
+                    fault_type( fault ), tsurf_name( fault ) );
             }
             for( const auto& horizon : model_.horizons() )
             {
-                for( const auto& item : model_.horizon_items( horizon ) )
-                {
-                    if( components().find( item.id() ) != components().end() )
-                    {
-                        geode::Logger::warning( "[MLOutput] A Surface from ",
-                            horizon.name().value(),
-                            " belongs to several collections. It has been "
-                            "exported only once" );
-                        continue;
-                    }
-                    file() << "TFACE " << component_id() << SPACE
-                           << horizon_map_.at( horizon.contact_type() ) << SPACE
-                           << horizon.name().value() << EOL;
-                    write_key_triangle( item );
-                    components().emplace( item.id(), component_id()++ );
-                }
+                write_collection_tfaces( owned_surfaces( horizon.id() ),
+                    horizon_type( horizon ), tsurf_name( horizon ) );
             }
         }
 
@@ -98,11 +82,17 @@ namespace
         {
             for( const auto& fault : model_.faults() )
             {
-                file() << "TSURF " << fault.name().value() << EOL;
+                if( !owned_surfaces( fault.id() ).empty() )
+                {
+                    file() << "TSURF " << tsurf_name( fault ) << EOL;
+                }
             }
             for( const auto& horizon : model_.horizons() )
             {
-                file() << "TSURF " << horizon.name().value() << EOL;
+                if( !owned_surfaces( horizon.id() ).empty() )
+                {
+                    file() << "TSURF " << tsurf_name( horizon ) << EOL;
+                }
             }
         }
 
@@ -123,8 +113,8 @@ namespace
         {
             for( const auto& stratigraphic_unit : model_.stratigraphic_units() )
             {
-                file() << "LAYER " << stratigraphic_unit.name().value() << EOL
-                       << SPACE << SPACE;
+                file() << "LAYER " << component_name( stratigraphic_unit )
+                       << EOL << SPACE << SPACE;
                 geode::index_t counter{ 0 };
                 for( const auto& item :
                     model_.stratigraphic_unit_items( stratigraphic_unit ) )
@@ -141,7 +131,7 @@ namespace
 
             for( const auto& fault_block : model_.fault_blocks() )
             {
-                file() << "FAULT_BLOCK " << fault_block.name().value() << EOL
+                file() << "FAULT_BLOCK " << component_name( fault_block ) << EOL
                        << SPACE << SPACE;
                 geode::index_t counter{ 0 };
                 for( const auto& item :
@@ -162,53 +152,41 @@ namespace
         {
             for( const auto& fault : model_.faults() )
             {
-                file() << "GOCAD TSurf 1" << EOL;
-                geode::internal::HeaderData header;
-                header.name = fault.name().value();
-                geode::internal::write_header( file(), header );
-                geode::internal::write_CRS( file(), {} );
-                file() << "GEOLOGICAL_FEATURE " << fault.name().value() << EOL;
-                file() << "GEOLOGICAL_TYPE " << fault_map_.at( fault.type() )
-                       << EOL;
-                geode::index_t current_offset{ OFFSET_START };
-                for( const auto& item : model_.fault_items( fault ) )
-                {
-                    file() << "TFACE" << EOL;
-                    current_offset = write_surface( item, current_offset );
-                }
-                std::vector< std::array< geode::index_t, 2 > > line_starts;
-
-                find_corners_and_line_starts(
-                    model_.fault_items( fault ), line_starts );
-                write_corners( line_starts );
-                write_line_starts( current_offset, line_starts );
-                file() << "END" << EOL;
+                write_collection_surface( owned_surfaces( fault.id() ),
+                    fault_type( fault ), tsurf_name( fault ) );
             }
             for( const auto& horizon : model_.horizons() )
             {
-                file() << "GOCAD TSurf 1" << EOL;
-                geode::internal::HeaderData header;
-                header.name = horizon.name().value();
-                geode::internal::write_header( file(), header );
-                geode::internal::write_CRS( file(), {} );
-                file() << "GEOLOGICAL_FEATURE " << horizon.name().value()
-                       << EOL;
-                file() << "GEOLOGICAL_TYPE "
-                       << horizon_map_.at( horizon.contact_type() ) << EOL;
-                geode::index_t current_offset{ OFFSET_START };
-                for( const auto& item : model_.horizon_items( horizon ) )
-                {
-                    file() << "TFACE" << EOL;
-                    current_offset = write_surface( item, current_offset );
-                }
-                std::vector< std::array< geode::index_t, 2 > > line_starts;
-
-                find_corners_and_line_starts(
-                    model_.horizon_items( horizon ), line_starts );
-                write_corners( line_starts );
-                write_line_starts( current_offset, line_starts );
-                file() << "END" << EOL;
+                write_collection_surface( owned_surfaces( horizon.id() ),
+                    horizon_type( horizon ), tsurf_name( horizon ) );
             }
+        }
+
+        std::string_view fault_type( const geode::Fault3D& fault ) const
+        {
+            const auto it = fault_map_.find( fault.type() );
+            if( it == fault_map_.end() )
+            {
+                geode::Logger::warning( "[MLOutput] Fault ",
+                    component_name( fault ),
+                    " has an unknown type. It has been exported as fault" );
+                return "fault";
+            }
+            return it->second;
+        }
+
+        std::string_view horizon_type( const geode::Horizon3D& horizon ) const
+        {
+            const auto it = horizon_map_.find( horizon.contact_type() );
+            if( it == horizon_map_.end() )
+            {
+                geode::Logger::warning( "[MLOutput] Horizon ",
+                    component_name( horizon ),
+                    " has an unknown contact type. It has been exported as "
+                    "top" );
+                return "top";
+            }
+            return it->second;
         }
 
     private:
@@ -220,13 +198,17 @@ namespace
                 { geode::Fault3D::FAULT_TYPE::strike_slip, "fault" },
                 { geode::Fault3D::FAULT_TYPE::listric, "fault" },
                 { geode::Fault3D::FAULT_TYPE::decollement, "fault" } };
+        // Erosion and baselap contacts have no dedicated .ml type: they are
+        // exported as unconformities
         const absl::flat_hash_map< geode::Horizon3D::CONTACT_TYPE, std::string >
             horizon_map_ = { { geode::Horizon3D::CONTACT_TYPE::conformal,
                                  "top" },
                 { geode::Horizon3D::CONTACT_TYPE::topography, "topographic" },
                 { geode::Horizon3D::CONTACT_TYPE::intrusion, "intrusive" },
                 { geode::Horizon3D::CONTACT_TYPE::discontinuity,
-                    "unconformity" } };
+                    "unconformity" },
+                { geode::Horizon3D::CONTACT_TYPE::erosion, "unconformity" },
+                { geode::Horizon3D::CONTACT_TYPE::baselap, "unconformity" } };
     };
 } // namespace
 

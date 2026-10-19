@@ -24,8 +24,14 @@
 #pragma once
 
 #include <fstream>
+#include <functional>
 #include <optional>
+#include <string>
+#include <vector>
 
+#include <absl/container/flat_hash_map.h>
+#include <absl/container/flat_hash_set.h>
+#include <absl/strings/str_cat.h>
 #include <absl/strings/str_replace.h>
 
 #include <geode/basic/filename.hpp>
@@ -109,11 +115,15 @@ namespace geode::internal
             }
             internal::write_header( file_, header );
             internal::write_CRS( file_, {} );
+            assign_surfaces_to_tsurfs();
             write_model_components();
             write_model_surfaces();
         }
 
     protected:
+        using OwnedSurfaces =
+            std::vector< std::reference_wrapper< const Surface3D > >;
+
         MLOutputImpl( std::string_view filename, const Model& model )
             : file_{ to_string( filename ) },
               model_( model ),
@@ -139,6 +149,54 @@ namespace geode::internal
             return file_;
         }
 
+        /*!
+         * In a .ml file, each TFACE belongs to a single TSURF. A Surface
+         * shared by several collections (e.g. a topographic Horizon that is
+         * also a ModelBoundary) is assigned to the first one, in the export
+         * order: ModelBoundaries, then geological collections. A collection
+         * without any Surface of its own is not exported.
+         */
+        void assign_surfaces_to_tsurfs()
+        {
+            for( const auto& boundary : model_.model_boundaries() )
+            {
+                assign_surfaces(
+                    boundary, model_.model_boundary_items( boundary ) );
+            }
+            assign_geological_surfaces();
+        }
+
+        virtual void assign_geological_surfaces() {}
+
+        template < typename Collection, typename ItemRange >
+        void assign_surfaces(
+            const Collection& collection, const ItemRange& items )
+        {
+            auto& surfaces = owned_surfaces_[collection.id()];
+            for( const auto& item : items )
+            {
+                if( !assigned_surfaces_.insert( item.id() ).second )
+                {
+                    Logger::warning( "[MLOutput] A Surface from ",
+                        component_name( collection ),
+                        " belongs to several collections. It has been "
+                        "exported only once" );
+                    continue;
+                }
+                surfaces.emplace_back( item );
+            }
+            if( surfaces.empty() )
+            {
+                Logger::warning( "[MLOutput] ", component_name( collection ),
+                    " has no Surface of its own. It has not been exported" );
+            }
+        }
+
+        const OwnedSurfaces& owned_surfaces( const uuid& collection_id ) const
+        {
+            return owned_surfaces_.at( collection_id );
+        }
+
         template < typename Component >
         void write_key_triangle( const Component& component )
         {
@@ -159,46 +217,48 @@ namespace geode::internal
         {
             for( const auto& boundary : model_.model_boundaries() )
             {
-                file_ << "TSURF " << component_name( boundary ) << EOL;
+                if( !owned_surfaces( boundary.id() ).empty() )
+                {
+                    file_ << "TSURF " << tsurf_name( boundary ) << EOL;
+                }
             }
             write_geological_tsurfs();
             for( const auto& surface_id : unclassified_tsurfs() )
             {
-                file_ << "TSURF "
-                      << component_name( model_.surface( surface_id ) ) << EOL;
+                file_ << "TSURF " << tsurf_name( model_.surface( surface_id ) )
+                      << EOL;
                 unclassified_surfaces_.emplace_back( surface_id );
             }
         }
 
         virtual void write_geological_tfaces() = 0;
 
+        void write_collection_tfaces( const OwnedSurfaces& surfaces,
+            std::string_view type,
+            std::string_view name )
+        {
+            for( const auto& surface : surfaces )
+            {
+                file_ << "TFACE " << component_id_ << SPACE << type << SPACE
+                      << name << EOL;
+                write_key_triangle( surface.get() );
+                components_.emplace( surface.get().id(), component_id_++ );
+            }
+        }
+
         void write_tfaces()
         {
             for( const auto& boundary : model_.model_boundaries() )
             {
-                for( const auto& item :
-                    model_.model_boundary_items( boundary ) )
-                {
-                    if( components_.find( item.id() ) != components_.end() )
-                    {
-                        Logger::warning( "[MLOutput] A Surface from ",
-                            component_name( boundary ),
-                            " belongs to several collections. It has been "
-                            "exported only once" );
-                        continue;
-                    }
-                    file_ << "TFACE " << component_id_ << SPACE << "boundary"
-                          << SPACE << component_name( boundary ) << EOL;
-                    write_key_triangle( item );
-                    components_.emplace( item.id(), component_id_++ );
-                }
+                write_collection_tfaces( owned_surfaces( boundary.id() ),
+                    "boundary", tsurf_name( boundary ) );
             }
             write_geological_tfaces();
             for( const auto& surface_id : unclassified_surfaces_ )
             {
                 const auto& surface = model_.surface( surface_id );
                 file_ << "TFACE " << component_id_ << SPACE << "boundary"
-                      << SPACE << component_name( surface ) << EOL;
+                      << SPACE << tsurf_name( surface ) << EOL;
                 write_key_triangle( surface );
                 components_.emplace( surface_id, component_id_++ );
             }
@@ -211,8 +271,7 @@ namespace geode::internal
             index_t counter{ 0 };
             for( const auto& boundary : model_.model_boundaries() )
             {
-                for( const auto& item :
-                    model_.model_boundary_items( boundary ) )
+                for( const Surface3D& item : owned_surfaces( boundary.id() ) )
                 {
                     char sign{ '-' };
                     if( sides_.universe_surface_sides.at( item.id() ) )
@@ -360,26 +419,11 @@ namespace geode::internal
             }
         }
 
-        void find_boundary_corners_and_line_starts(
-            const ModelBoundary3D& surface_collection,
+        void find_corners_and_line_starts( const OwnedSurfaces& surfaces,
             std::vector< std::array< index_t, 2 > >& line_starts ) const
         {
             index_t current_offset{ OFFSET_START };
-            for( const auto& surface :
-                model_.model_boundary_items( surface_collection ) )
-            {
-                add_corners_and_line_starts(
-                    surface, current_offset, line_starts );
-                current_offset += surface.mesh().nb_vertices();
-            }
-        }
-
-        template < typename ItemRange >
-        void find_corners_and_line_starts( const ItemRange& item_range,
-            std::vector< std::array< index_t, 2 > >& line_starts ) const
-        {
-            index_t current_offset{ OFFSET_START };
-            for( const auto& surface : item_range )
+            for( const Surface3D& surface : surfaces )
             {
                 add_corners_and_line_starts(
                     surface, current_offset, line_starts );
@@ -418,30 +462,40 @@ namespace geode::internal
 
         virtual void write_geological_model_surfaces() = 0;
 
+        void write_collection_surface( const OwnedSurfaces& surfaces,
+            std::string_view type,
+            std::string_view name )
+        {
+            if( surfaces.empty() )
+            {
+                return;
+            }
+            file_ << "GOCAD TSurf 1" << EOL;
+            internal::HeaderData header;
+            header.name = to_string( name );
+            internal::write_header( file_, header );
+            internal::write_CRS( file_, {} );
+            file_ << "GEOLOGICAL_FEATURE " << name << EOL;
+            file_ << "GEOLOGICAL_TYPE " << type << EOL;
+            index_t current_offset{ OFFSET_START };
+            for( const auto& surface : surfaces )
+            {
+                file_ << "TFACE" << EOL;
+                current_offset = write_surface( surface.get(), current_offset );
+            }
+            std::vector< std::array< index_t, 2 > > line_starts;
+            find_corners_and_line_starts( surfaces, line_starts );
+            write_corners( line_starts );
+            write_line_starts( current_offset, line_starts );
+            file_ << "END" << EOL;
+        }
+
         void write_model_surfaces()
         {
             for( const auto& boundary : model_.model_boundaries() )
             {
-                file_ << "GOCAD TSurf 1" << EOL;
-                internal::HeaderData header;
-                header.name = component_name( boundary );
-                internal::write_header( file_, header );
-                internal::write_CRS( file_, {} );
-                file_ << "GEOLOGICAL_FEATURE " << component_name( boundary )
-                      << EOL;
-                file_ << "GEOLOGICAL_TYPE boundary" << EOL;
-                index_t current_offset{ OFFSET_START };
-                for( const auto& item :
-                    model_.model_boundary_items( boundary ) )
-                {
-                    file_ << "TFACE" << EOL;
-                    current_offset = write_surface( item, current_offset );
-                }
-                std::vector< std::array< index_t, 2 > > line_starts;
-                find_boundary_corners_and_line_starts( boundary, line_starts );
-                write_corners( line_starts );
-                write_line_starts( current_offset, line_starts );
-                file_ << "END" << EOL;
+                write_collection_surface( owned_surfaces( boundary.id() ),
+                    "boundary", tsurf_name( boundary ) );
             }
             write_geological_model_surfaces();
             for( const auto& surface_id : unclassified_surfaces_ )
@@ -449,11 +503,10 @@ namespace geode::internal
                 file_ << "GOCAD TSurf 1" << EOL;
                 const auto& surface = model_.surface( surface_id );
                 internal::HeaderData header;
-                header.name = component_name( surface );
+                header.name = tsurf_name( surface );
                 internal::write_header( file_, header );
                 internal::write_CRS( file_, {} );
-                file_ << "GEOLOGICAL_FEATURE " << component_name( surface )
-                      << EOL;
+                file_ << "GEOLOGICAL_FEATURE " << tsurf_name( surface ) << EOL;
                 file_ << "GEOLOGICAL_TYPE " << "boundary" << EOL;
                 index_t current_offset{ OFFSET_START };
                 file_ << "TFACE" << EOL;
@@ -475,6 +528,36 @@ namespace geode::internal
                 { { " ", "_" } } );
         }
 
+        /*!
+         * TSURFs are matched by name in a .ml file: the name of a collection
+         * (or of an unclassified Surface) is made unique by appending a
+         * suffix if another TSURF already uses it.
+         */
+        template < typename Component >
+        const std::string& tsurf_name( const Component& component )
+        {
+            const auto it = tsurf_names_.find( component.id() );
+            if( it != tsurf_names_.end() )
+            {
+                return it->second;
+            }
+            auto name = component_name( component );
+            if( !used_tsurf_names_.insert( name ).second )
+            {
+                index_t suffix{ 2 };
+                auto unique_name = absl::StrCat( name, "_", suffix );
+                while( !used_tsurf_names_.insert( unique_name ).second )
+                {
+                    unique_name = absl::StrCat( name, "_", ++suffix );
+                }
+                Logger::warning( "[MLOutput] TSURF name ", name,
+                    " is already used. It has been exported as ", unique_name );
+                name = std::move( unique_name );
+            }
+            return tsurf_names_.emplace( component.id(), std::move( name ) )
+                .first->second;
+        }
+
     private:
         std::ofstream file_;
         const Model& model_;
@@ -482,5 +565,9 @@ namespace geode::internal
         absl::flat_hash_map< uuid, index_t > components_;
         index_t component_id_{ OFFSET_START };
         std::vector< uuid > unclassified_surfaces_;
+        absl::flat_hash_set< uuid > assigned_surfaces_;
+        absl::flat_hash_map< uuid, OwnedSurfaces > owned_surfaces_;
+        absl::flat_hash_map< uuid, std::string > tsurf_names_;
+        absl::flat_hash_set< std::string > used_tsurf_names_;
     };
 } // namespace geode::internal
