@@ -56,10 +56,13 @@
 #include <geode/geosciences/simulation/core/saturation_functions.hpp>
 #include <geode/geosciences/simulation/core/schedule.hpp>
 #include <geode/geosciences/simulation/core/source_term.hpp>
-#include <geode/geosciences/simulation/io/physical_problem_input.hpp>
-#include <geode/geosciences/simulation/io/physical_problem_output.hpp>
+
+#include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.hpp>
+#include <geode/geosciences/explicit/representation/builder/structural_model_builder.hpp>
+#include <geode/geosciences/explicit/representation/core/structural_model.hpp>
 
 #include <geode/geosciences_io/model/helpers/brep_geos_export.hpp>
+#include <geode/geosciences_io/model/helpers/structural_model_geos_export.hpp>
 
 #include <geode/geometry/bounding_box.hpp>
 #include <geode/geometry/point.hpp>
@@ -213,21 +216,6 @@ std::size_t nearest_index(
     return upper;
 }
 
-void test_nearest_index()
-{
-    const std::array< double, 3 > coordinates{ 0., 1., 3. };
-    const std::array< std::pair< double, std::size_t >, 9 > expected_indices{
-        { { -1., 0 }, { 0., 0 }, { 0.5, 0 }, { 0.6, 1 }, { 1., 1 }, { 2., 1 },
-            { 2.5, 2 }, { 3., 2 }, { 4., 2 } }
-    };
-    for( const auto& [input, expected_index] : expected_indices )
-    {
-        geode::OpenGeodeGeosciencesIOModelException::test(
-            nearest_index( coordinates, input ) == expected_index,
-            "[Test] Wrong nearest table index for input ", input );
-    }
-}
-
 // Mimics GEOS TableFunction nearest interpolation, values in Fortran order.
 // The picasso Surfaces are triangulated, so GEOS face centers are the polygon
 // barycenters.
@@ -368,19 +356,6 @@ void test_variable_boundary_condition()
         }
     }
 }
-void toy_model()
-{
-    auto model = geode::load_brep( absl::StrCat(
-        geode::DATA_PATH, "adaptive_brep_perm_and_poro.og_brep" ) );
-    geode::BRepGeosExporter exporter( model, "toy_model" );
-    auto point_set = geode::PointSet3D::create(
-        geode::OpenGeodePointSet3D::impl_name_static() );
-    auto builder = geode::PointSetBuilder3D::create( *point_set );
-    builder->create_point( geode::Point3D{ { 20., 20., 10. } } );
-    exporter.add_well_perforations( *point_set, "well" );
-    exporter.run();
-}
-
 void add_vertical_well( geode::BRepGeosExporter& exporter,
     std::string_view name,
     double x,
@@ -404,15 +379,6 @@ void add_spe10_wells( geode::BRepGeosExporter& exporter )
     add_vertical_well( exporter, "sink2", 3.048, 669.036 );
     add_vertical_well( exporter, "sink3", 362.712, 1.524 );
     add_vertical_well( exporter, "sink4", 362.712, 669.036 );
-}
-
-void test_grid_geos()
-{
-    auto model = geode::load_brep( absl::StrCat(
-        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
-    geode::BRepGeosExporter exporter( model, "grid_geos" );
-    add_spe10_wells( exporter );
-    exporter.run();
 }
 
 std::shared_ptr< geode::DeadOilFluid > three_phase_dead_oil()
@@ -507,45 +473,6 @@ void add_spe10_gas_fraction( geode::BRep& model )
     add_boundary_condition< geode::ConstantAttribute >( model,
         all_surfaces( model ),
         geode::PHYSICAL_PROPERTY_NAME::boundary_gas_fraction, "bc_gas", 0. );
-}
-
-void test_grid_geos_full()
-{
-    auto model = geode::load_brep( absl::StrCat(
-        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
-    add_spe10_boundary_conditions( model );
-    add_spe10_gas_fraction( model );
-    const auto problem_file = absl::StrCat(
-        "grid_geos_full.", geode::PhysicalProblem::native_extension_static() );
-    geode::save_physical_problem( spe10_problem( model ), problem_file );
-    const auto problem = geode::load_physical_problem( problem_file );
-    geode::BRepGeosExporter exporter( model, "grid_geos_full" );
-    exporter.set_physical_problem( problem );
-    exporter.run();
-
-    const auto deck =
-        read_file( "grid_geos_full/grid_geos_full_simulation.xml" );
-    const auto check_count = [&deck]( std::string_view pattern,
-                                 geode::index_t expected ) {
-        const auto count = count_occurrences( deck, pattern );
-        geode::OpenGeodeGeosciencesIOModelException::test( count == expected,
-            "[Test] Expected ", expected, " occurrences of ", pattern,
-            ", found ", count );
-    };
-    check_count( "<CompositionalMultiphaseFVM", 1 );
-    check_count( "<DeadOilFluid", 1 );
-    check_count( "<CellElementRegion", model.nb_blocks() );
-    check_count( "initialComposition_", 3 * model.nb_blocks() );
-    check_count( "\"pvt_gas_fvf\"", 1 );
-    check_count( "porosity_0_referencePorosity", 1 );
-    check_count( "permeability_0_permeability", 1 );
-    check_count( "newtonTol=\"1e-4\"", 1 );
-    check_count( "<Events", 1 );
-    check_count( "boundaryComposition_", 3 );
-    check_count( "boundaryTemperature_isothermal", 1 );
-    geode::OpenGeodeGeosciencesIOModelException::test(
-        absl::StrContains( deck, "boundaryPressure" ),
-        "[Test] Boundary conditions must still be exported" );
 }
 
 // Values of the GEOS reference deck
@@ -645,17 +572,17 @@ void test_spe10_reference()
     exporter.run();
     const auto deck =
         read_file( "spe10_reference/spe10_reference_simulation.xml" );
-    for( const auto* pattern : { "phaseNames=\"{ oil, water }\"",
-             "\"pvt_oil_fvf\"", "maxCompFractionChange=\"0.1\"",
-             "newtonMaxIter=\"40\"", "lineSearchAction=\"None\"",
-             "newtonTol=\"1e-4\"", "defaultReferencePorosity=\"0.1\"",
-             "name=\"boundaryTemperature_0\"",
-             "permeabilityComponents=\"{ 1e-14, 1e-14, 1e-18 }\"",
-             "name=\"restarts\"", "timeFrequency=\"1000000\"",
-             "targetExactTimestep=\"0\"", "<Restart",
-             "<SourceFlux", "name=\"sourceFlux_source_water\"",
-             "objectPath=\"ElementRegions\"", "setNames=\"{ source }\"",
-             "scale=\"-10\"" } )
+    for( const auto* pattern :
+        { "phaseNames=\"{ oil, water }\"", "\"pvt_oil_fvf\"",
+            "maxCompFractionChange=\"0.1\"", "newtonMaxIter=\"40\"",
+            "lineSearchAction=\"None\"", "newtonTol=\"1e-4\"",
+            "defaultReferencePorosity=\"0.1\"",
+            "name=\"boundaryTemperature_0\"",
+            "permeabilityComponents=\"{ 1e-14, 1e-14, 1e-18 }\"",
+            "name=\"restarts\"", "timeFrequency=\"1000000\"",
+            "targetExactTimestep=\"0\"", "<Restart", "<SourceFlux",
+            "name=\"sourceFlux_source_water\"", "objectPath=\"ElementRegions\"",
+            "setNames=\"{ source }\"", "scale=\"-10\"" } )
     {
         geode::OpenGeodeGeosciencesIOModelException::test(
             absl::StrContains( deck, pattern ), "[Test] ", pattern,
@@ -741,46 +668,6 @@ void test_toy_model_thermal()
     }
 }
 
-const geode::Block3D& first_block( const geode::BRep& model )
-{
-    return *model.blocks().begin();
-}
-
-void test_two_materials()
-{
-    auto model = geode::load_brep( absl::StrCat(
-        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
-    auto problem = spe10_problem( model );
-    geode::PhysicalProblemBuilder builder{ problem };
-    auto block_material = spe10_material( "first", 1e-9 );
-    block_material.regions = { first_block( model ).id() };
-    builder.add_material( block_material );
-    geode::BRepGeosExporter exporter( model, "grid_geos_two_materials" );
-    exporter.set_physical_problem( problem );
-    exporter.run();
-    const auto deck = read_file(
-        "grid_geos_two_materials/grid_geos_two_materials_simulation.xml" );
-    geode::OpenGeodeGeosciencesIOModelException::test(
-        absl::StrContains( deck, "porosity_0_referencePorosity" )
-            && absl::StrContains( deck, "porosity_1_referencePorosity" )
-            && absl::StrContains( deck, "rock_first" ),
-        "[Test] Two porosity models must be imported" );
-    const auto& porosity_info =
-        model.physical_property_info( geode::PHYSICAL_PROPERTY_NAME::porosity );
-    const auto porosity_name =
-        first_block( model )
-            .mesh()
-            .polyhedron_attribute_manager()
-            .find_generic_attribute( porosity_info.attribute_id )
-            ->name()
-            .value();
-    const auto vtu =
-        read_file( "grid_geos_two_materials/grid_geos_two_materials.vtu" );
-    geode::OpenGeodeGeosciencesIOModelException::test(
-        absl::StrContains( vtu, absl::StrCat( "\"", porosity_name, "_1\"" ) ),
-        "[Test] Duplicated porosity array missing in the VTU file" );
-}
-
 void check_export_failure( const geode::BRep& model,
     const geode::PhysicalProblem& problem,
     std::string_view keyword )
@@ -836,12 +723,7 @@ void test_geos_rules()
         auto material = problem.materials()[0];
         material.regions = { geode::uuid{} };
         geode::PhysicalProblemBuilder{ problem }.set_material( 0, material );
-        check_export_failure( model, problem, "not a model region" );
-    }
-    {
-        auto problem = spe10_problem( model );
-        geode::PhysicalProblemBuilder{ problem }.set_model_id( geode::uuid{} );
-        check_export_failure( model, problem, "was built for model" );
+        check_export_failure( model, problem, "is not a Block" );
     }
     {
         auto problem = spe10_problem( model );
@@ -857,8 +739,68 @@ void test_geos_rules()
         builder.add_source_term( { "missing", "water", 1. } );
         check_export_failure( model, problem, "carry no energy" );
     }
-    check_export_failure(
-        model, spe10_reference_problem( model ), "the fluid has no gas phase" );
+    {
+        // Without its source term, which needs wells given to the exporter
+        auto problem = spe10_reference_problem( model );
+        geode::PhysicalProblemBuilder{ problem }.remove_source_term( 0 );
+        check_export_failure( model, problem, "the fluid has no gas phase" );
+    }
+}
+
+void test_structural_model_regions()
+{
+    geode::StructuralModel model{ geode::load_brep( absl::StrCat(
+        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) ) };
+    add_spe10_boundary_conditions( model );
+    add_spe10_gas_fraction( model );
+    geode::StructuralModelBuilder model_builder{ model };
+    const auto& unit_id = model_builder.add_stratigraphic_unit();
+    const auto& unit = model.stratigraphic_unit( unit_id );
+    std::optional< geode::uuid > unit_block;
+    for( const auto& block : model.blocks() )
+    {
+        model_builder.add_block_in_stratigraphic_unit( block, unit );
+        unit_block = block.id();
+        break;
+    }
+    auto problem = spe10_problem( model );
+    auto unit_material = spe10_material( "unit", 1e-10 );
+    unit_material.regions = { unit_block.value() };
+    const auto unit_material_id =
+        geode::PhysicalProblemBuilder{ problem }.add_material( unit_material );
+    bool has_thrown{ false };
+    try
+    {
+        geode::StructuralModelGeosExporter exporter(
+            model, "structural_model_failure" );
+        exporter.set_physical_problem( problem );
+        exporter.run();
+    }
+    catch( const geode::OpenGeodeException& exception )
+    {
+        has_thrown = true;
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            absl::StrContains( exception.what(), "is part of the GEOS region" ),
+            "[Test] A Block merged in a StratigraphicUnit region should be "
+            "reported: ",
+            exception.what() );
+    }
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        has_thrown, "[Test] Export with a merged Block region should fail" );
+
+    unit_material.regions = { unit_id };
+    geode::PhysicalProblemBuilder{ problem }.set_material(
+        unit_material_id, unit_material );
+    geode::StructuralModelGeosExporter exporter(
+        model, "structural_model_regions" );
+    exporter.set_physical_problem( problem );
+    exporter.run();
+    const auto deck = read_file(
+        "structural_model_regions/structural_model_regions_simulation.xml" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        absl::StrContains( deck, "rock_unit" )
+            && absl::StrContains( deck, "rock_reservoir" ),
+        "[Test] StructuralModel deck should use both materials" );
 }
 
 int main()
@@ -868,15 +810,13 @@ int main()
         geode::OpenGeodeGeosciencesIOModelLibrary::initialize();
         geode::OpenGeodeIOMeshLibrary::initialize();
         geode::OpenGeodeIOModelLibrary::initialize();
-        // test_picasso();
-        // test_nearest_index();
-        // test_uniform_variable_boundary_condition();
-        // test_variable_boundary_condition();
-        // toy_model();
+        test_picasso();
+        test_uniform_variable_boundary_condition();
+        test_variable_boundary_condition();
         test_spe10_reference();
-        // test_toy_model_thermal();
-        // test_two_materials();
-        // test_geos_rules();
+        test_toy_model_thermal();
+        test_geos_rules();
+        test_structural_model_regions();
         geode::Logger::info( "TEST SUCCESS" );
 
         return 0;

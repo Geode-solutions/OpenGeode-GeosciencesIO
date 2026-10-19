@@ -1,3 +1,26 @@
+/*
+ * Copyright (c) 2019 - 2026 Geode-solutions
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ */
+
 #include <geode/geosciences_io/model/internal/geos_simulation_validation.hpp>
 
 #include <algorithm>
@@ -46,42 +69,18 @@ namespace
                != nullptr;
     }
 
-    std::vector< std::vector< geode::uuid > > material_regions(
-        const geode::PhysicalProblem& problem )
-    {
-        std::vector< std::vector< geode::uuid > > regions;
-        for( const auto& material : problem.materials() )
-        {
-            regions.push_back( material.regions );
-        }
-        return regions;
-    }
-
-    std::vector< std::vector< geode::uuid > > initial_condition_regions(
-        const geode::PhysicalProblem& problem )
-    {
-        std::vector< std::vector< geode::uuid > > regions;
-        for( const auto condition_id :
-            geode::Range{ problem.nb_initial_conditions() } )
-        {
-            regions.push_back(
-                problem.initial_condition( condition_id ).regions );
-        }
-        return regions;
-    }
-
     class GeosValidator
     {
     public:
-        GeosValidator( const geode::PhysicalProblem& problem,
-            const geode::internal::GeosDeckContext& context )
-            : problem_( problem ), context_( context )
+        explicit GeosValidator( const geode::PhysicalProblem& problem )
+            : problem_( problem )
         {
         }
 
-        std::vector< std::string > run()
+        std::vector< std::string > check_problem(
+            absl::Span< const std::string > well_names )
         {
-            if( !problem_.has_flow() || !problem_.flow().fluid )
+            if( !has_fluid() )
             {
                 return std::move( issues_ );
             }
@@ -89,11 +88,20 @@ namespace
             check_supported_materials();
             check_supported_initial_conditions();
             check_thermal();
-            check_source_terms();
-            check_region_assignments();
-            check_rock_properties();
+            check_source_terms( well_names );
             check_solver_options();
-            check_boundary_conditions();
+            return std::move( issues_ );
+        }
+
+        std::vector< std::string > check_deck(
+            const geode::internal::GeosDeckContext& context )
+        {
+            if( !has_fluid() )
+            {
+                return std::move( issues_ );
+            }
+            check_rock_properties( context );
+            check_boundary_conditions( context );
             return std::move( issues_ );
         }
 
@@ -109,6 +117,11 @@ namespace
         {
             add_issue(
                 object.type_name(), " is not supported by the GEOS writer" );
+        }
+
+        [[nodiscard]] bool has_fluid() const
+        {
+            return problem_.has_flow() && problem_.flow().fluid;
         }
 
         [[nodiscard]] const geode::FluidModel& fluid() const
@@ -229,12 +242,12 @@ namespace
             }
         }
 
-        void check_source_terms()
+        void check_source_terms( absl::Span< const std::string > well_names )
         {
             for( const auto& source : problem_.source_terms() )
             {
-                if( absl::c_find( context_.well_names, source.well )
-                    == context_.well_names.end() )
+                if( absl::c_find( well_names, source.well )
+                    == well_names.end() )
                 {
                     add_issue( "Source term well ", source.well,
                         " has no perforations given to the exporter" );
@@ -256,37 +269,18 @@ namespace
             }
         }
 
-        void check_region_assignments()
-        {
-            check_assignment( material_regions( problem_ ), "material" );
-            check_assignment(
-                initial_condition_regions( problem_ ), "initial condition" );
-        }
-
-        void check_assignment(
-            const std::vector< std::vector< geode::uuid > >& regions,
-            std::string_view kind )
-        {
-            std::vector< absl::Span< const geode::uuid > > item_regions{
-                regions.begin(), regions.end()
-            };
-            const auto assignment = geode::internal::assign_geos_regions(
-                context_, item_regions, kind );
-            issues_.insert( issues_.end(), assignment.issues.begin(),
-                assignment.issues.end() );
-        }
-
-        void check_rock_properties()
+        void check_rock_properties(
+            const geode::internal::GeosDeckContext& context )
         {
             for( const auto& material : problem_.materials() )
             {
-                if( !context_.porosity_attribute && !material.porosity )
+                if( !context.porosity_array && !material.porosity )
                 {
                     add_issue( "Material ", material.name,
                         " needs a porosity: the model has no porosity "
                         "property" );
                 }
-                if( !context_.permeability_attribute && !material.permeability )
+                if( !context.permeability_array && !material.permeability )
                 {
                     add_issue( "Material ", material.name,
                         " needs a permeability: the model has no "
@@ -312,10 +306,11 @@ namespace
             }
         }
 
-        void check_boundary_conditions()
+        void check_boundary_conditions(
+            const geode::internal::GeosDeckContext& context )
         {
             const auto has_fractions =
-                !context_.boundary_fraction_phases.empty();
+                !context.boundary_fraction_phases.empty();
             if( !is_multiphase() )
             {
                 if( has_fractions )
@@ -325,28 +320,29 @@ namespace
                 }
                 return;
             }
-            if( !context_.has_boundary_pressure )
+            if( !context.has_boundary_pressure )
             {
-                if( has_fractions || context_.has_boundary_temperature )
+                if( has_fractions || context.has_boundary_temperature )
                 {
                     add_issue( "GEOS boundary fluid fractions and "
                                "temperatures need a boundary pressure" );
                 }
                 return;
             }
-            check_boundary_components();
-            if( problem_.thermal() && !context_.has_boundary_temperature )
+            check_boundary_components( context );
+            if( problem_.thermal() && !context.has_boundary_temperature )
             {
                 add_issue( "GEOS thermal multiphase boundary pressures need a "
                            "boundary temperature" );
             }
         }
 
-        void check_boundary_components()
+        void check_boundary_components(
+            const geode::internal::GeosDeckContext& context )
         {
             std::vector< bool > has_fraction(
                 fluid().components.size(), false );
-            for( const auto phase : context_.boundary_fraction_phases )
+            for( const auto phase : context.boundary_fraction_phases )
             {
                 const auto component = geode::phase_component( fluid(), phase );
                 if( !component )
@@ -372,7 +368,6 @@ namespace
 
     private:
         const geode::PhysicalProblem& problem_;
-        const geode::internal::GeosDeckContext& context_;
         std::vector< std::string > issues_;
     };
     class GeosRegionAssigner
@@ -393,8 +388,7 @@ namespace
                 const auto regions = context_.regions_by_uuid.find( component );
                 if( regions == context_.regions_by_uuid.end() )
                 {
-                    add_issue( "Region ", component.string(), " of ",
-                        item_kind_, " ", item, " is not a model region" );
+                    report_unknown_region( item, component );
                     continue;
                 }
                 assign_regions( item, regions->second );
@@ -428,6 +422,22 @@ namespace
         void add_issue( const Args&... args )
         {
             assignment_.issues.emplace_back( absl::StrCat( args... ) );
+        }
+
+        void report_unknown_region(
+            geode::index_t item, const geode::uuid& component )
+        {
+            const auto merged = context_.merged_blocks.find( component );
+            if( merged == context_.merged_blocks.end() )
+            {
+                add_issue( "Region ", component.string(), " of ", item_kind_,
+                    " ", item, " is not a model region" );
+                return;
+            }
+            add_issue( "Block ", component.string(), " of ", item_kind_, " ",
+                item, " is part of the GEOS region of ",
+                context_.solid_regions[merged->second].component_name,
+                ": assign that component instead" );
         }
 
         void assign_regions(
@@ -495,6 +505,31 @@ namespace geode::internal
         return assigner.finish( default_item );
     }
 
+    GeosRegionAssignment assign_geos_materials(
+        const PhysicalProblem& problem, const GeosDeckContext& context )
+    {
+        std::vector< absl::Span< const uuid > > material_regions;
+        for( const auto& material : problem.materials() )
+        {
+            material_regions.emplace_back( material.regions );
+        }
+        return assign_geos_regions( context, material_regions, "material" );
+    }
+
+    GeosRegionAssignment assign_geos_initial_conditions(
+        const PhysicalProblem& problem, const GeosDeckContext& context )
+    {
+        std::vector< absl::Span< const uuid > > condition_regions;
+        for( const auto condition_id :
+            Range{ problem.nb_initial_conditions() } )
+        {
+            condition_regions.emplace_back(
+                problem.initial_condition( condition_id ).regions );
+        }
+        return assign_geos_regions(
+            context, condition_regions, "initial condition" );
+    }
+
     std::optional< double > geos_isothermal_temperature(
         const PhysicalProblem& problem )
     {
@@ -534,9 +569,16 @@ namespace geode::internal
             "sourceFlux_", source_term.well, "_", source_term.component );
     }
 
-    std::vector< std::string > validate_geos_simulation(
+    std::vector< std::string > validate_geos_problem(
+        const PhysicalProblem& problem,
+        absl::Span< const std::string > well_names )
+    {
+        return GeosValidator{ problem }.check_problem( well_names );
+    }
+
+    std::vector< std::string > validate_geos_deck(
         const PhysicalProblem& problem, const GeosDeckContext& context )
     {
-        return GeosValidator{ problem, context }.run();
+        return GeosValidator{ problem }.check_deck( context );
     }
 } // namespace geode::internal

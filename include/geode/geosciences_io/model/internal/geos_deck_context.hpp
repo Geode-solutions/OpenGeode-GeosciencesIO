@@ -1,3 +1,26 @@
+/*
+ * Copyright (c) 2019 - 2026 Geode-solutions
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ */
+
 #pragma once
 
 #include <array>
@@ -26,17 +49,27 @@ namespace geode::internal
         uuid component_id;
     };
 
+    /// Cell attribute of the exported mesh
+    struct GeosCellArray
+    {
+        uuid attribute_id;
+        std::string name;
+    };
+
     /// Model data needed to translate a PhysicalProblem into a GEOS deck
     struct GeosDeckContext
     {
         std::vector< GeosRegion > solid_regions;
         /// Block, StratigraphicUnit or collection uuid -> GEOS region ids
         absl::flat_hash_map< uuid, std::vector< index_t > > regions_by_uuid;
-        /// VTU array name and mean value of the porosity PhysicalProperty
-        std::optional< std::string > porosity_attribute;
+        /// Blocks merged with other Blocks into one GEOS region (e.g. the
+        /// Blocks of a StratigraphicUnit) -> that region id
+        absl::flat_hash_map< uuid, index_t > merged_blocks;
+        /// Cell array and mean value of the porosity PhysicalProperty
+        std::optional< GeosCellArray > porosity_array;
         std::optional< double > mean_porosity;
-        /// VTU array name and mean value of the permeability PhysicalProperty
-        std::optional< std::string > permeability_attribute;
+        /// Cell array and mean value of the permeability PhysicalProperty
+        std::optional< GeosCellArray > permeability_array;
         std::optional< std::array< double, 3 > > mean_permeability;
         /// Phases of the boundary fluid fraction PhysicalProperties
         std::vector< PHASE > boundary_fraction_phases;
@@ -46,10 +79,15 @@ namespace geode::internal
         std::vector< std::string > well_names;
     };
 
-    /// Model array imported in GEOS, possibly duplicated under a new name
+    /// Model array imported in GEOS, possibly copied under a new VTU name
     struct GeosImportedField
     {
-        std::string source_attribute;
+        [[nodiscard]] bool is_copy() const
+        {
+            return vtu_name != source.name;
+        }
+
+        GeosCellArray source;
         std::string vtu_name;
         std::string geos_name;
     };

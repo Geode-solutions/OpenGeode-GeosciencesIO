@@ -1,3 +1,26 @@
+/*
+ * Copyright (c) 2019 - 2026 Geode-solutions
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ */
+
 #include <geode/geosciences_io/model/internal/geos_simulation_writer.hpp>
 
 #include <array>
@@ -140,10 +163,15 @@ namespace geode::internal
     class GeosSimulationWriter::Impl
     {
     public:
-        Impl( const PhysicalProblem& problem, const GeosDeckContext& context )
-            : problem_( problem ), context_( context )
+        Impl( const PhysicalProblem& problem,
+            const GeosDeckContext& context,
+            const GeosRegionAssignment& materials,
+            const GeosRegionAssignment& initial_conditions )
+            : problem_( problem ),
+              context_( context ),
+              material_of_region_( assigned_items( materials ) ),
+              condition_of_region_( assigned_items( initial_conditions ) )
         {
-            assign_regions();
             build_porosity_groups();
             build_permeability_groups();
             build_imported_fields();
@@ -190,8 +218,8 @@ namespace geode::internal
         {
             for( const auto& source : problem_.source_terms() )
             {
-                auto node = add_named_child( field_specifications,
-                    "SourceFlux", geos_source_term_name( source ) );
+                auto node = add_named_child( field_specifications, "SourceFlux",
+                    geos_source_term_name( source ) );
                 set_attribute( node, "objectPath", "ElementRegions" );
                 set_attribute(
                     node, "setNames", absl::StrCat( "{ ", source.well, " }" ) );
@@ -294,29 +322,9 @@ namespace geode::internal
             return problem_.thermal().has_value();
         }
 
-        void assign_regions()
+        [[nodiscard]] static std::vector< index_t > assigned_items(
+            const GeosRegionAssignment& assignment )
         {
-            std::vector< absl::Span< const uuid > > material_regions;
-            for( const auto& material : problem_.materials() )
-            {
-                material_regions.emplace_back( material.regions );
-            }
-            material_of_region_ = assigned_items( material_regions );
-            std::vector< absl::Span< const uuid > > condition_regions;
-            for( const auto condition_id :
-                Range{ problem_.nb_initial_conditions() } )
-            {
-                condition_regions.emplace_back(
-                    problem_.initial_condition( condition_id ).regions );
-            }
-            condition_of_region_ = assigned_items( condition_regions );
-        }
-
-        [[nodiscard]] std::vector< index_t > assigned_items(
-            absl::Span< const absl::Span< const uuid > > item_regions ) const
-        {
-            const auto assignment =
-                assign_geos_regions( context_, item_regions, "item" );
             std::vector< index_t > items;
             items.reserve( assignment.region_items.size() );
             for( const auto& item : assignment.region_items )
@@ -340,7 +348,7 @@ namespace geode::internal
 
         index_t porosity_group( const GeosPorosityGroup& group )
         {
-            const auto imported = context_.porosity_attribute.has_value();
+            const auto imported = context_.porosity_array.has_value();
             for( const auto group_id : Indices{ porosity_groups_ } )
             {
                 const auto& existing = porosity_groups_[group_id];
@@ -362,7 +370,7 @@ namespace geode::internal
             for( const auto& material : problem_.materials() )
             {
                 const auto components =
-                    context_.permeability_attribute
+                    context_.permeability_array
                         ? material.permeability.value_or(
                             context_.mean_permeability.value_or(
                                 std::array< double, 3 >{ 0, 0, 0 } ) )
@@ -374,8 +382,7 @@ namespace geode::internal
 
         index_t permeability_group( const std::array< double, 3 >& components )
         {
-            if( context_.permeability_attribute
-                && !permeability_groups_.empty() )
+            if( context_.permeability_array && !permeability_groups_.empty() )
             {
                 return 0;
             }
@@ -392,23 +399,24 @@ namespace geode::internal
 
         void build_imported_fields()
         {
-            if( context_.permeability_attribute )
+            if( context_.permeability_array )
             {
-                const auto& attribute = context_.permeability_attribute.value();
-                imported_fields_.push_back(
-                    { attribute, attribute, "permeability_0_permeability" } );
+                const auto& permeability = context_.permeability_array.value();
+                imported_fields_.push_back( { permeability, permeability.name,
+                    "permeability_0_permeability" } );
             }
-            if( !context_.porosity_attribute )
+            if( !context_.porosity_array )
             {
                 return;
             }
-            const auto& attribute = context_.porosity_attribute.value();
+            // Each porosity model imports its own copy of the porosity array
+            const auto& porosity = context_.porosity_array.value();
             for( const auto group_id : Indices{ porosity_groups_ } )
             {
-                imported_fields_.push_back( { attribute,
+                imported_fields_.push_back( { porosity,
                     porosity_groups_.size() == 1
-                        ? attribute
-                        : absl::StrCat( attribute, "_", group_id ),
+                        ? porosity.name
+                        : absl::StrCat( porosity.name, "_", group_id ),
                     absl::StrCat(
                         "porosity_", group_id, "_referencePorosity" ) } );
             }
@@ -1000,9 +1008,11 @@ namespace geode::internal
         std::vector< GeosTableFunction > tables_;
     };
 
-    GeosSimulationWriter::GeosSimulationWriter(
-        const PhysicalProblem& problem, const GeosDeckContext& context )
-        : impl_( problem, context )
+    GeosSimulationWriter::GeosSimulationWriter( const PhysicalProblem& problem,
+        const GeosDeckContext& context,
+        const GeosRegionAssignment& materials,
+        const GeosRegionAssignment& initial_conditions )
+        : impl_( problem, context, materials, initial_conditions )
     {
     }
 

@@ -29,7 +29,6 @@
 
 #include <geode/geosciences_io/model/internal/geos_export.hpp>
 #include <geode/model/mixin/core/block.hpp>
-#include <geode/model/mixin/core/block_collection.hpp>
 #include <geode/model/representation/core/brep.hpp>
 
 #include <geode/basic/pimpl_impl.hpp>
@@ -63,17 +62,6 @@ namespace geode
                         block.id() } );
                 definitions.block_regions.emplace( block.id(), region_id );
                 definitions.regions_by_uuid[block.id()].push_back( region_id );
-            }
-            for( const auto& collection : model.block_collections() )
-            {
-                auto& collection_regions =
-                    definitions.regions_by_uuid[collection.id()];
-                for( const auto& block :
-                    model.block_collection_items( collection ) )
-                {
-                    collection_regions.push_back(
-                        definitions.block_regions.at( block.id() ) );
-                }
             }
             return definitions;
         }

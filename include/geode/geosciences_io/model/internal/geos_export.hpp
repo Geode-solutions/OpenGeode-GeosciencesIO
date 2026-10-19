@@ -96,7 +96,9 @@ namespace geode::internal
         std::string_view files_directory() const;
         std::string_view prefix() const;
 
+        void convert_model();
         index_t initialize_solid_region_attribute();
+        void add_block_collection_regions();
         void initialize_surface_cells( index_t first_surface_region_id );
         struct RegionDefinitions
         {
@@ -106,6 +108,8 @@ namespace geode::internal
             std::vector< GeosRegion > regions;
             /// Regions covered by each Block, StratigraphicUnit or collection
             absl::flat_hash_map< uuid, std::vector< index_t > > regions_by_uuid;
+            /// Blocks merged with other Blocks into one region -> that region
+            absl::flat_hash_map< uuid, index_t > merged_blocks;
         };
 
         [[nodiscard]] virtual RegionDefinitions create_region_definitions(
@@ -128,6 +132,7 @@ namespace geode::internal
         std::string write_solid_file() const;
         void duplicate_imported_fields(
             AttributeManager& cell_attributes ) const;
+        void validate_problem() const;
         void prepare_simulation();
 
         void add_isothermal_boundary_temperature( double temperature );

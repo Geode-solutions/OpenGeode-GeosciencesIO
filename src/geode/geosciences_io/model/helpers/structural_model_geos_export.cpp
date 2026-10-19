@@ -67,8 +67,7 @@ namespace geode
                     model.stratigraphic_unit_items( unit ) )
                 {
                     definitions.block_regions.emplace( block.id(), region_id );
-                    definitions.regions_by_uuid[block.id()].push_back(
-                        region_id );
+                    definitions.merged_blocks.emplace( block.id(), region_id );
                 }
             }
             for( const auto& block : model.blocks() )
