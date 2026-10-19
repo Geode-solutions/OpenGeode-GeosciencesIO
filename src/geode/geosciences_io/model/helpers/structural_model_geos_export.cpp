@@ -49,7 +49,7 @@ namespace geode
         Impl() = delete;
         Impl( const StructuralModel& model, std::string_view files_directory )
             : internal::GeosExporterImpl< StructuralModel >(
-                files_directory, model )
+                  files_directory, model )
         {
         }
         virtual ~Impl() = default;
