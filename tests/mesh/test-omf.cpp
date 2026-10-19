@@ -121,18 +121,23 @@ namespace
             " instead of ", expected.string() );
     }
 
+    /*
+     * Each reader returns the fraction of the project elements it loads
+     */
     void check_loadable( const std::string& file,
-        bool point_set,
-        bool edged_curve,
-        bool triangulated_surface,
-        bool polygonal_surface,
-        bool grid )
+        double point_set,
+        double edged_curve,
+        double triangulated_surface,
+        double polygonal_surface,
+        double grid )
     {
-        const auto check = [&file]( geode::Percentage percentage, bool expected,
-                               std::string_view type ) {
+        const auto check = [&file]( geode::Percentage percentage,
+                               double expected, std::string_view type ) {
             geode::OpenGeodeGeosciencesIOMeshException::test(
-                percentage.value() == ( expected ? 1. : 0. ), file,
-                " loadability as ", type, " is wrong" );
+                std::fabs( percentage.value() - expected )
+                    <= geode::GLOBAL_EPSILON,
+                file, " loadability as ", type, " is ", percentage.value(),
+                " instead of ", expected );
         };
         check(
             geode::is_point_set_loadable< 3 >( file ), point_set, "PointSet" );
@@ -149,7 +154,7 @@ namespace
     void test_point_set()
     {
         const auto file = data_file( "omf_points" );
-        check_loadable( file, true, false, false, false, false );
+        check_loadable( file, 1, 0, 0, 0, 0 );
         const auto point_set = geode::load_point_set< 3 >( file );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             point_set->nb_vertices() == 4, "Wrong number of points" );
@@ -183,7 +188,7 @@ namespace
     void test_edged_curve()
     {
         const auto file = data_file( "omf_lines" );
-        check_loadable( file, false, true, false, false, false );
+        check_loadable( file, 0, 1, 0, 0, 0 );
         const auto curve = geode::load_edged_curve< 3 >( file );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             curve->nb_vertices() == 5 && curve->nb_edges() == 3,
@@ -233,7 +238,7 @@ namespace
     void test_triangulated_surface()
     {
         const auto file = data_file( "omf_surfaces" );
-        check_loadable( file, false, false, true, true, false );
+        check_loadable( file, 0, 0, 0.5, 0.5, 0 );
         const auto surface = geode::load_triangulated_surface< 3 >( file );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             surface->nb_vertices() == 4 && surface->nb_polygons() == 2,
@@ -282,7 +287,7 @@ namespace
     void test_light_regular_grid()
     {
         const auto file = data_file( "omf_volume" );
-        check_loadable( file, false, false, false, false, true );
+        check_loadable( file, 0, 0, 0, 0, 1 );
         const auto grid = geode::load_light_regular_grid< 3 >( file );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             grid.nb_cells_in_direction( 0 ) == 3
@@ -327,6 +332,7 @@ namespace
 
     void test_non_uniform_grid()
     {
+        check_loadable( data_file( "omf_volume_tensor" ), 0, 0, 0, 0, 0 );
         try
         {
             const auto grid = geode::load_light_regular_grid< 3 >(
@@ -338,6 +344,17 @@ namespace
         }
         geode::OpenGeodeGeosciencesIOMeshException::test( false,
             "Non uniform grid should not be loaded as a LightRegularGrid" );
+    }
+
+    void test_mixed_loadability()
+    {
+        // 1 point set, 1 line set, 2 surfaces and 2 volumes: only the first
+        // volume is loaded as a LightRegularGrid
+        const auto file = data_file( "omf_mixed" );
+        check_loadable( file, 1. / 6, 1. / 6, 2. / 6, 0, 1. / 6 );
+        const auto grid = geode::load_light_regular_grid< 3 >( file );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            grid.name() == "volume1", "First volume should be loaded" );
     }
 
     void test_invalid_json_start()
@@ -352,7 +369,7 @@ namespace
         }
         constexpr auto filename = "omf_invalid_json_start.omf";
         std::ofstream{ filename, std::ios::binary } << content;
-        check_loadable( filename, false, false, false, false, false );
+        check_loadable( filename, 0, 0, 0, 0, 0 );
         try
         {
             const auto point_set = geode::load_point_set< 3 >( filename );
@@ -380,6 +397,7 @@ int main()
         test_light_regular_grid();
         test_non_uniform_grid();
         test_invalid_json_start();
+        test_mixed_loadability();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

@@ -542,6 +542,16 @@ namespace geode::internal
         std::string_view element_class,
         std::string_view geometry_class )
     {
+        return is_loadable(
+            filename, [element_class, geometry_class]( const OMFFile& omf ) {
+                return omf.elements( element_class, geometry_class ).size();
+            } );
+    }
+
+    Percentage OMFFile::is_loadable( std::string_view filename,
+        absl::FunctionRef< std::size_t( const OMFFile& ) >
+            nb_loadable_elements )
+    {
         try
         {
             {
@@ -552,14 +562,36 @@ namespace geode::internal
                 }
             }
             const OMFFile omf{ filename };
-            return Percentage{
-                omf.elements( element_class, geometry_class ).empty() ? 0. : 1.
-            };
+            const auto nb_elements = omf.nb_elements();
+            if( nb_elements == 0 )
+            {
+                return Percentage{ 0 };
+            }
+            return Percentage{ static_cast< double >(
+                                   nb_loadable_elements( omf ) )
+                               / static_cast< double >( nb_elements ) };
         }
         catch( ... )
         {
             return Percentage{ 0 };
         }
+    }
+
+    std::size_t OMFFile::nb_elements() const
+    {
+        std::size_t count{ 0 };
+        for( const auto& uid :
+            project_->value( "elements", nlohmann::json::array() ) )
+        {
+            const auto it = uid.is_string()
+                                ? index_.find( uid.get< std::string >() )
+                                : index_.end();
+            if( it != index_.end() && it->is_object() )
+            {
+                count++;
+            }
+        }
+        return count;
     }
 
     std::string_view OMFFile::project_name() const

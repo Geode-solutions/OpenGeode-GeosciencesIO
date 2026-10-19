@@ -60,12 +60,27 @@ namespace geode::internal
         explicit OMFFile( std::string_view filename );
 
         /*!
-         * Return 1 if the file is an OMF v1 file containing at least one
-         * element of the given class (and geometry class if not empty)
+         * Fraction of the project elements of an OMF v1 file having the given
+         * class (and geometry class if not empty), 0 if the file is not an
+         * OMF v1 file
          */
         [[nodiscard]] static Percentage is_loadable( std::string_view filename,
             std::string_view element_class,
             std::string_view geometry_class );
+
+        /*!
+         * Fraction of the project elements of an OMF v1 file that a reader
+         * loads, 0 if the file is not an OMF v1 file
+         * @param[in] nb_loadable_elements Number of elements the reader loads
+         */
+        [[nodiscard]] static Percentage is_loadable( std::string_view filename,
+            absl::FunctionRef< std::size_t( const OMFFile& ) >
+                nb_loadable_elements );
+
+        /*!
+         * Number of project elements present in the file
+         */
+        [[nodiscard]] std::size_t nb_elements() const;
 
         [[nodiscard]] std::string_view project_name() const;
 

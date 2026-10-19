@@ -25,6 +25,8 @@
 
 #include <cmath>
 
+#include <absl/algorithm/container.h>
+
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/identifier_builder.hpp>
 #include <geode/basic/logger.hpp>
@@ -45,22 +47,24 @@ namespace
     /*
      * LightRegularGrid only supports a constant cell size along each axis
      */
+    bool omf_is_uniform( const std::vector< double >& tensor )
+    {
+        const auto length = tensor.front();
+        return absl::c_all_of( tensor, [length]( double cell_length ) {
+            return std::fabs( cell_length - length ) <= geode::GLOBAL_EPSILON;
+        } );
+    }
+
     double omf_uniform_cell_length( const nlohmann::json& element,
         const std::vector< double >& tensor,
         std::string_view key )
     {
-        const auto length = tensor.front();
-        for( const auto cell_length : tensor )
-        {
-            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
-                std::fabs( cell_length - length ) <= geode::GLOBAL_EPSILON,
-                nullptr, geode::OpenGeodeException::TYPE::data,
-                "[OMFInput] Volume \"",
-                geode::internal::OMFFile::name( element ),
-                "\" has a non uniform ", key,
-                ", which cannot be represented by a LightRegularGrid" );
-        }
-        return length;
+        geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+            omf_is_uniform( tensor ), nullptr,
+            geode::OpenGeodeException::TYPE::data, "[OMFInput] Volume \"",
+            geode::internal::OMFFile::name( element ), "\" has a non uniform ",
+            key, ", which cannot be represented by a LightRegularGrid" );
+        return tensor.front();
     }
 
     /*
@@ -135,8 +139,25 @@ namespace geode::internal
 
     Percentage OMFLightRegularGridInput::is_loadable() const
     {
-        return OMFFile::is_loadable( filename(),
-            OMF_LIGHT_REGULAR_GRID_ELEMENT_CLASS,
-            OMF_LIGHT_REGULAR_GRID_GEOMETRY_CLASS );
+        // Only the first volume is loaded, if its cells are uniform
+        return OMFFile::is_loadable( filename(), []( const OMFFile& file ) {
+            const auto elements =
+                file.elements( OMF_LIGHT_REGULAR_GRID_ELEMENT_CLASS,
+                    OMF_LIGHT_REGULAR_GRID_GEOMETRY_CLASS );
+            if( elements.empty() )
+            {
+                return std::size_t{ 0 };
+            }
+            const auto& element = *elements.front();
+            const auto& geometry = file.geometry( element );
+            for( const auto& key : OMF_TENSOR_KEYS )
+            {
+                if( !omf_is_uniform( OMFFile::read_tensor( geometry, key ) ) )
+                {
+                    return std::size_t{ 0 };
+                }
+            }
+            return std::size_t{ 1 };
+        } );
     }
 } // namespace geode::internal
