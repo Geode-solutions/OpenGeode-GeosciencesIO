@@ -57,6 +57,41 @@
 
 namespace
 {
+    const absl::flat_hash_map< std::string, geode::Fault3D::FAULT_TYPE >&
+        fault_types()
+    {
+        static const absl::flat_hash_map< std::string,
+            geode::Fault3D::FAULT_TYPE >
+            types = { { "fault", geode::Fault3D::FAULT_TYPE::no_type },
+                { "reverse_fault", geode::Fault3D::FAULT_TYPE::reverse },
+                { "normal_fault", geode::Fault3D::FAULT_TYPE::normal } };
+        return types;
+    }
+
+    const absl::flat_hash_map< std::string, geode::Horizon3D::CONTACT_TYPE >&
+        horizon_types()
+    {
+        static const absl::flat_hash_map< std::string,
+            geode::Horizon3D::CONTACT_TYPE >
+            types = { { "top", geode::Horizon3D::CONTACT_TYPE::conformal },
+                { "none", geode::Horizon3D::CONTACT_TYPE::conformal },
+                { "topographic", geode::Horizon3D::CONTACT_TYPE::topography },
+                { "intrusive", geode::Horizon3D::CONTACT_TYPE::intrusion },
+                { "unconformity",
+                    geode::Horizon3D::CONTACT_TYPE::discontinuity } };
+        return types;
+    }
+
+    bool is_known_feature( const std::string& feature )
+    {
+        if( feature.find( "fault" ) != std::string::npos )
+        {
+            return fault_types().contains( feature );
+        }
+        return feature == "boundary" || feature == "lease"
+               || horizon_types().contains( feature );
+    }
+
     std::tuple< geode::PolygonEdge, bool > find_edge(
         const geode::SurfaceMesh3D& mesh, geode::index_t v0, geode::index_t v1 )
     {
@@ -728,7 +763,7 @@ namespace
                 if( tsurf.feature.find( "fault" ) != std::string::npos )
                 {
                     const auto& fault_uuid =
-                        builder_.add_fault( fault_map_.at( tsurf.feature ) );
+                        builder_.add_fault( fault_types().at( tsurf.feature ) );
                     const auto& fault = model_.fault( fault_uuid );
                     builder_.set_fault_name( fault, tsurf.name );
                     for( const auto& uuid : tsurf.tfaces )
@@ -756,7 +791,7 @@ namespace
                 else
                 {
                     const auto& horizon_uuid = builder_.add_horizon(
-                        horizon_map_.at( tsurf.feature ) );
+                        horizon_types().at( tsurf.feature ) );
                     const auto& horizon = model_.horizon( horizon_uuid );
                     builder_.set_horizon_name( horizon, tsurf.name );
                     for( const auto& uuid : tsurf.tfaces )
@@ -1028,18 +1063,6 @@ namespace
         std::vector< std::reference_wrapper< const geode::uuid > > blocks_;
         absl::flat_hash_set< geode::uuid > universe_;
         double epsilon_;
-        const absl::flat_hash_map< std::string, geode::Fault3D::FAULT_TYPE >
-            fault_map_ = { { "fault", geode::Fault3D::FAULT_TYPE::no_type },
-                { "reverse_fault", geode::Fault3D::FAULT_TYPE::reverse },
-                { "normal_fault", geode::Fault3D::FAULT_TYPE::normal } };
-        const absl::flat_hash_map< std::string, geode::Horizon3D::CONTACT_TYPE >
-            horizon_map_ = { { "top",
-                                 geode::Horizon3D::CONTACT_TYPE::conformal },
-                { "none", geode::Horizon3D::CONTACT_TYPE::conformal },
-                { "topographic", geode::Horizon3D::CONTACT_TYPE::topography },
-                { "intrusive", geode::Horizon3D::CONTACT_TYPE::intrusion },
-                { "unconformity",
-                    geode::Horizon3D::CONTACT_TYPE::discontinuity } };
     };
 } // namespace
 
@@ -1056,10 +1079,85 @@ namespace geode::internal
     Percentage MLInput::is_loadable() const
     {
         std::ifstream file{ to_string( this->filename() ) };
-        if( goto_keyword_if_it_exists( file, "GOCAD Model3d" ) )
+        if( !goto_keyword_if_it_exists( file, "GOCAD Model3d" ) )
+        {
+            return Percentage{ 0 };
+        }
+        // Check the Model3d section: every TFACE must refer to a declared
+        // TSURF with a known geological type
+        absl::flat_hash_map< std::string, std::string > tsurf_features;
+        std::string line;
+        bool end_found{ false };
+        while( std::getline( file, line ) )
+        {
+            if( string_starts_with( line, "END" ) )
+            {
+                end_found = true;
+                break;
+            }
+            const auto tokens = string_split( line );
+            if( tokens.empty() )
+            {
+                continue;
+            }
+            if( tokens.front() == "TSURF" )
+            {
+                tsurf_features.emplace(
+                    internal::read_name(
+                        absl::MakeConstSpan( tokens ).subspan( 1 ) ),
+                    "" );
+            }
+            else if( tokens.front() == "TFACE" )
+            {
+                if( tokens.size() < 4 )
+                {
+                    return Percentage{ 0 };
+                }
+                const auto name = internal::read_name(
+                    absl::MakeConstSpan( tokens ).subspan( 3 ) );
+                const auto it = tsurf_features.find( name );
+                if( it == tsurf_features.end() )
+                {
+                    return Percentage{ 0 };
+                }
+                it->second = to_string( tokens[2] );
+                if( !is_known_feature( it->second ) )
+                {
+                    return Percentage{ 0 };
+                }
+            }
+        }
+        if( !end_found )
+        {
+            return Percentage{ 0 };
+        }
+        // Each declared TSURF needs a GOCAD TSurf section
+        index_t nb_tsurf_sections{ 0 };
+        while( std::getline( file, line ) )
+        {
+            if( string_starts_with( line, "GOCAD TSurf" ) )
+            {
+                nb_tsurf_sections++;
+            }
+        }
+        if( nb_tsurf_sections < tsurf_features.size() )
+        {
+            return Percentage{ 0 };
+        }
+        if( tsurf_features.empty() )
         {
             return Percentage{ 1 };
         }
-        return Percentage{ 0 };
+        // A TSURF without TFACE is not loaded
+        index_t nb_loadable_tsurfs{ 0 };
+        for( const auto& tsurf : tsurf_features )
+        {
+            if( !tsurf.second.empty() )
+            {
+                nb_loadable_tsurfs++;
+            }
+        }
+        return Percentage{ static_cast< double >( nb_loadable_tsurfs )
+                           / static_cast< double >( tsurf_features.size() ) };
     }
 } // namespace geode::internal

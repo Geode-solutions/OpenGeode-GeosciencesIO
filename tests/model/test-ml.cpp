@@ -23,6 +23,8 @@
 
 #include <geode/tests_config.hpp>
 
+#include <fstream>
+
 #include <geode/basic/assert.hpp>
 #include <geode/basic/logger.hpp>
 
@@ -127,12 +129,60 @@ void test_modelA4()
     geode::save_brep( reload_brep, "modelA4_saved_from_brep.ml" );
 }
 
+void write_file( std::string_view filename, std::string_view content )
+{
+    std::ofstream file{ geode::to_string( filename ) };
+    file << content;
+}
+
+void test_is_loadable()
+{
+    const auto model_a4 = absl::StrCat(
+        geode::DATA_PATH, "/modelA4.", geode::internal::MLInput::extension() );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::internal::MLInput{ model_a4 }.is_loadable().value() == 1,
+        "modelA4 should be fully loadable" );
+
+    write_file( "undeclared_tsurf.ml", "GOCAD Model3d 1\n"
+                                       "TSURF A\n"
+                                       "TFACE 1 top B\n"
+                                       "END\n"
+                                       "GOCAD TSurf 1\n" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::internal::MLInput{ "undeclared_tsurf.ml" }.is_loadable().value()
+            == 0,
+        "A TFACE referring to an undeclared TSURF should not be loadable" );
+
+    write_file( "unknown_type.ml", "GOCAD Model3d 1\n"
+                                   "TSURF A\n"
+                                   "TFACE 1 erosion A\n"
+                                   "END\n"
+                                   "GOCAD TSurf 1\n" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::internal::MLInput{ "unknown_type.ml" }.is_loadable().value()
+            == 0,
+        "A TFACE with an unknown type should not be loadable" );
+
+    write_file( "empty_tsurf.ml", "GOCAD Model3d 1\n"
+                                  "TSURF A\n"
+                                  "TSURF B\n"
+                                  "TFACE 1 top A\n"
+                                  "END\n"
+                                  "GOCAD TSurf 1\n"
+                                  "GOCAD TSurf 1\n" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::internal::MLInput{ "empty_tsurf.ml" }.is_loadable().value()
+            == 0.5,
+        "A TSURF without TFACE should not be counted as loadable" );
+}
+
 int main()
 {
     try
     {
         geode::OpenGeodeGeosciencesIOModelLibrary::initialize();
         test_modelA4();
+        test_is_loadable();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
