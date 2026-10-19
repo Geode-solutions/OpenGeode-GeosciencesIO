@@ -156,16 +156,20 @@ void test_shared_surfaces_and_contact_types()
     auto reload = geode::load_structural_model( "modelA4_shared_surfaces.ml" );
     // The topographic Horizon has no Surface of its own: not exported
     check_model( reload, 52, 98, 55, 8, 2, 3, 6 );
+    bool eroded_found{ false };
     for( const auto& horizon : reload.horizons() )
     {
         if( horizon.name() == eroded_name )
         {
+            eroded_found = true;
             geode::OpenGeodeGeosciencesIOModelException::test(
                 horizon.contact_type()
                     == geode::Horizon3D::CONTACT_TYPE::discontinuity,
                 "Erosion Horizon should be reloaded as a discontinuity" );
         }
     }
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        eroded_found, "Erosion Horizon should be found after reload" );
 }
 
 int main()
