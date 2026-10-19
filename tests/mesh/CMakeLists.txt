@@ -58,6 +58,15 @@ add_geode_test(
     ESSENTIAL
 )
 add_geode_test(
+    SOURCE "test-omf.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::geometry
+        OpenGeode::image
+        OpenGeode::mesh
+        ${PROJECT_NAME}::mesh
+)
+add_geode_test(
     SOURCE "test-pl.cpp"
     DEPENDENCIES
         OpenGeode::basic
