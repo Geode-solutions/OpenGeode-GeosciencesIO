@@ -417,26 +417,11 @@ namespace geode::internal
             }
         }
 
-        void find_boundary_corners_and_line_starts(
-            const ModelBoundary3D& surface_collection,
+        void find_corners_and_line_starts( const OwnedSurfaces& surfaces,
             std::vector< std::array< index_t, 2 > >& line_starts ) const
         {
             index_t current_offset{ OFFSET_START };
-            for( const auto& surface :
-                model_.model_boundary_items( surface_collection ) )
-            {
-                add_corners_and_line_starts(
-                    surface, current_offset, line_starts );
-                current_offset += surface.mesh().nb_vertices();
-            }
-        }
-
-        template < typename ItemRange >
-        void find_corners_and_line_starts( const ItemRange& item_range,
-            std::vector< std::array< index_t, 2 > >& line_starts ) const
-        {
-            index_t current_offset{ OFFSET_START };
-            for( const Surface3D& surface : item_range )
+            for( const Surface3D& surface : surfaces )
             {
                 add_corners_and_line_starts(
                     surface, current_offset, line_starts );
