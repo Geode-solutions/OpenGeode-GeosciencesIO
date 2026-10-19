@@ -824,7 +824,12 @@ namespace
             absl::Span< const std::string_view > tokens )
         {
             auto name = geode::internal::read_name( tokens );
-            tsurf_names2index_.emplace( name, tsurfs_.size() );
+            const auto inserted =
+                tsurf_names2index_.emplace( name, tsurfs_.size() ).second;
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                inserted, nullptr, geode::OpenGeodeException::TYPE::data,
+                "[MLInput] Several TSURF are named ", name,
+                ": their TFACE cannot be told apart" );
             tsurfs_.emplace_back( std::move( name ) );
         }
 

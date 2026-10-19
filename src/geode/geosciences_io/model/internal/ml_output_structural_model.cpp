@@ -69,12 +69,12 @@ namespace
             for( const auto& fault : model_.faults() )
             {
                 write_collection_tfaces( owned_surfaces( fault.id() ),
-                    fault_type( fault ), component_name( fault ) );
+                    fault_type( fault ), tsurf_name( fault ) );
             }
             for( const auto& horizon : model_.horizons() )
             {
                 write_collection_tfaces( owned_surfaces( horizon.id() ),
-                    horizon_type( horizon ), component_name( horizon ) );
+                    horizon_type( horizon ), tsurf_name( horizon ) );
             }
         }
 
@@ -84,14 +84,14 @@ namespace
             {
                 if( !owned_surfaces( fault.id() ).empty() )
                 {
-                    file() << "TSURF " << component_name( fault ) << EOL;
+                    file() << "TSURF " << tsurf_name( fault ) << EOL;
                 }
             }
             for( const auto& horizon : model_.horizons() )
             {
                 if( !owned_surfaces( horizon.id() ).empty() )
                 {
-                    file() << "TSURF " << component_name( horizon ) << EOL;
+                    file() << "TSURF " << tsurf_name( horizon ) << EOL;
                 }
             }
         }
@@ -153,12 +153,12 @@ namespace
             for( const auto& fault : model_.faults() )
             {
                 write_collection_surface( owned_surfaces( fault.id() ),
-                    fault_type( fault ), component_name( fault ) );
+                    fault_type( fault ), tsurf_name( fault ) );
             }
             for( const auto& horizon : model_.horizons() )
             {
                 write_collection_surface( owned_surfaces( horizon.id() ),
-                    horizon_type( horizon ), component_name( horizon ) );
+                    horizon_type( horizon ), tsurf_name( horizon ) );
             }
         }
 

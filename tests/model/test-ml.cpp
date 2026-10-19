@@ -23,6 +23,10 @@
 
 #include <geode/tests_config.hpp>
 
+#include <string>
+
+#include <absl/container/flat_hash_set.h>
+
 #include <geode/basic/assert.hpp>
 #include <geode/basic/logger.hpp>
 
@@ -127,6 +131,17 @@ void test_modelA4()
     geode::save_brep( model, "modelA4_saved.og_brep" );
     auto reload_brep = geode::load_brep( "modelA4_saved.og_brep" );
     geode::save_brep( reload_brep, "modelA4_saved_from_brep.ml" );
+    // Unclassified Surfaces share their names: TSURF names made unique
+    auto reload_from_brep =
+        geode::load_structural_model( "modelA4_saved_from_brep.ml" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        reload_from_brep.nb_surfaces() == 55,
+        "Number of Surfaces in the StructuralModel reloaded from BRep "
+        "export is not correct" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        reload_from_brep.nb_blocks() == 8,
+        "Number of Blocks in the StructuralModel reloaded from BRep "
+        "export is not correct" );
 }
 
 void test_shared_surfaces_and_contact_types()
@@ -207,6 +222,32 @@ void test_shared_model_boundary_surfaces()
     geode::save_brep( model, "modelA4_shared_boundary_surfaces_brep.ml" );
 }
 
+void test_duplicate_tsurf_names()
+{
+    auto model = geode::load_structural_model( absl::StrCat( geode::DATA_PATH,
+        "/modelA4.", geode::internal::MLInput::extension() ) );
+    geode::StructuralModelBuilder builder{ model };
+
+    // Same name, and a name only differing by a space
+    auto horizon_it = model.horizons().begin();
+    builder.set_horizon_name( *horizon_it, "same_name" );
+    ++horizon_it;
+    builder.set_horizon_name( *horizon_it, "same_name" );
+    ++horizon_it;
+    builder.set_horizon_name( *horizon_it, "same name" );
+
+    geode::save_structural_model( model, "modelA4_duplicate_names.ml" );
+    auto reload = geode::load_structural_model( "modelA4_duplicate_names.ml" );
+    check_model( reload, 52, 98, 55, 8, 2, 3, 6 );
+    absl::flat_hash_set< std::string > names;
+    for( const auto& horizon : reload.horizons() )
+    {
+        names.insert( horizon.name().value() );
+    }
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        names.size() == 3, "Reloaded Horizon names should be unique" );
+}
+
 int main()
 {
     try
@@ -215,6 +256,7 @@ int main()
         test_modelA4();
         test_shared_surfaces_and_contact_types();
         test_shared_model_boundary_surfaces();
+        test_duplicate_tsurf_names();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
