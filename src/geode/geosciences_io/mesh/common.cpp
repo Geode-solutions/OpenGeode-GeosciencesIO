@@ -32,6 +32,11 @@
 #include <geode/geosciences_io/mesh/internal/geotiff_input.hpp>
 #include <geode/geosciences_io/mesh/internal/grdecl_input.hpp>
 #include <geode/geosciences_io/mesh/internal/json_grid_input.hpp>
+#include <geode/geosciences_io/mesh/internal/omf_edged_curve_input.hpp>
+#include <geode/geosciences_io/mesh/internal/omf_light_regular_grid_input.hpp>
+#include <geode/geosciences_io/mesh/internal/omf_point_set_input.hpp>
+#include <geode/geosciences_io/mesh/internal/omf_polygonal_surface_input.hpp>
+#include <geode/geosciences_io/mesh/internal/omf_triangulated_surface_input.hpp>
 #include <geode/geosciences_io/mesh/internal/pl_input.hpp>
 #include <geode/geosciences_io/mesh/internal/pl_output.hpp>
 #include <geode/geosciences_io/mesh/internal/polytiff_input.hpp>
@@ -52,6 +57,9 @@ namespace
         geode::TriangulatedSurfaceInputFactory3D::register_creator<
             geode::internal::TSInput >(
             geode::internal::TSInput::extension().data() );
+        geode::TriangulatedSurfaceInputFactory3D::register_creator<
+            geode::internal::OMFTriangulatedSurfaceInput >(
+            geode::internal::OMFTriangulatedSurfaceInput::extension().data() );
     }
 
     void register_triangulated_surface_output()
@@ -72,6 +80,9 @@ namespace
             geode::PolygonalSurfaceInputFactory3D::register_creator<
                 geode::internal::PolyTIFFInput >( tif_ext );
         }
+        geode::PolygonalSurfaceInputFactory3D::register_creator<
+            geode::internal::OMFPolygonalSurfaceInput >(
+            geode::internal::OMFPolygonalSurfaceInput::extension().data() );
     }
 
     void register_tetrahedral_solid_output()
@@ -105,6 +116,9 @@ namespace
         geode::EdgedCurveInputFactory3D::register_creator<
             geode::internal::PLInput >(
             geode::internal::PLInput::extension().data() );
+        geode::EdgedCurveInputFactory3D::register_creator<
+            geode::internal::OMFEdgedCurveInput >(
+            geode::internal::OMFEdgedCurveInput::extension().data() );
     }
 
     void register_light_regular_grid_input()
@@ -117,6 +131,9 @@ namespace
         geode::LightRegularGridInputFactory3D::register_creator<
             geode::internal::JSONGridInput >(
             geode::internal::JSONGridInput::extension().data() );
+        geode::LightRegularGridInputFactory3D::register_creator<
+            geode::internal::OMFLightRegularGridInput >(
+            geode::internal::OMFLightRegularGridInput::extension().data() );
     }
 
     void register_regular_grid_input()
@@ -138,6 +155,9 @@ namespace
         geode::PointSetInputFactory3D::register_creator<
             geode::internal::VSInput >(
             geode::internal::VSInput::extension().data() );
+        geode::PointSetInputFactory3D::register_creator<
+            geode::internal::OMFPointSetInput >(
+            geode::internal::OMFPointSetInput::extension().data() );
     }
 
     void register_point_set_output()
