@@ -121,12 +121,12 @@ namespace
 
         [[nodiscard]] bool has_fluid() const
         {
-            return problem_.has_flow() && problem_.flow().fluid;
+            return problem_.has_flow() && problem_.flow().has_fluid();
         }
 
         [[nodiscard]] const geode::FluidModel& fluid() const
         {
-            return *problem_.flow().fluid;
+            return problem_.fluid();
         }
 
         [[nodiscard]] bool is_multiphase() const
@@ -175,7 +175,7 @@ namespace
                     dynamic_cast< const geode::TableRelativePermeability* >(
                         &relperm ) )
             {
-                if( table->tables.size() != 1 )
+                if( table->tables().size() != 1 )
                 {
                     add_issue( "The GEOS writer only supports two-phase "
                                "relative permeability tables" );
@@ -196,7 +196,7 @@ namespace
                     dynamic_cast< const geode::TableCapillaryPressure* >(
                         &capillary ) )
             {
-                if( table->tables.size() != 1 )
+                if( table->tables().size() != 1 )
                 {
                     add_issue( "The GEOS writer only supports two-phase "
                                "capillary pressure tables" );
@@ -341,7 +341,7 @@ namespace
             const geode::internal::GeosDeckContext& context )
         {
             std::vector< bool > has_fraction(
-                fluid().components.size(), false );
+                fluid().components().size(), false );
             for( const auto phase : context.boundary_fraction_phases )
             {
                 const auto component = geode::phase_component( fluid(), phase );
@@ -361,7 +361,7 @@ namespace
                 {
                     add_issue( "GEOS boundary conditions need a fluid "
                                "fraction for every component: ",
-                        fluid().components[component].name, " is missing" );
+                        fluid().components()[component].name, " is missing" );
                 }
             }
         }
@@ -524,7 +524,7 @@ namespace geode::internal
             Range{ problem.nb_initial_conditions() } )
         {
             condition_regions.emplace_back(
-                problem.initial_condition( condition_id ).regions );
+                problem.initial_condition( condition_id ).regions() );
         }
         return assign_geos_regions(
             context, condition_regions, "initial condition" );
@@ -540,14 +540,14 @@ namespace geode::internal
             const auto* condition =
                 dynamic_cast< const UniformInitialCondition* >(
                     &problem.initial_condition( condition_id ) );
-            if( condition == nullptr || !condition->temperature
+            if( condition == nullptr || !condition->temperature()
                 || ( temperature
                      && temperature.value()
-                            != condition->temperature.value() ) )
+                            != condition->temperature().value() ) )
             {
                 return std::nullopt;
             }
-            temperature = condition->temperature;
+            temperature = condition->temperature();
         }
         return temperature;
     }

@@ -96,7 +96,7 @@ namespace
     std::vector< std::string > component_names( const geode::FluidModel& fluid )
     {
         std::vector< std::string > names;
-        for( const auto& component : fluid.components )
+        for( const auto& component : fluid.components() )
         {
             names.push_back( component.name );
         }
@@ -107,7 +107,7 @@ namespace
         const geode::FluidModel& fluid )
     {
         std::vector< double > weights;
-        for( const auto& component : fluid.components )
+        for( const auto& component : fluid.components() )
         {
             weights.push_back( component.molar_weight );
         }
@@ -303,7 +303,7 @@ namespace geode::internal
         [[nodiscard]] index_t component_index(
             std::string_view component_name ) const
         {
-            const auto& components = fluid().components;
+            const auto& components = fluid().components();
             return static_cast< index_t >( std::distance( components.begin(),
                 absl::c_find_if( components,
                     [component_name]( const FluidComponent& component ) {
@@ -372,8 +372,8 @@ namespace geode::internal
                 const auto components =
                     context_.permeability_array
                         ? material.permeability.value_or(
-                              context_.mean_permeability.value_or(
-                                  std::array< double, 3 >{ 0, 0, 0 } ) )
+                            context_.mean_permeability.value_or(
+                                std::array< double, 3 >{ 0, 0, 0 } ) )
                         : material.permeability.value();
                 material_permeability_group_.push_back(
                     permeability_group( components ) );
@@ -441,9 +441,9 @@ namespace geode::internal
 
         void build_dead_oil_tables( const DeadOilFluid& fluid_model )
         {
-            for( const auto phase : fluid_model.phases )
+            for( const auto phase : fluid_model.phases() )
             {
-                for( const auto& table : fluid_model.hydrocarbon_pvt )
+                for( const auto& table : fluid_model.hydrocarbon_pvt() )
                 {
                     if( table.phase != phase )
                     {
@@ -463,7 +463,7 @@ namespace geode::internal
                     dynamic_cast< const TableRelativePermeability* >(
                         material.relative_permeability.get() ) )
             {
-                const auto& table = relperm->tables.front();
+                const auto& table = relperm->tables().front();
                 tables_.push_back( { absl::StrCat( "relperm_", material.name,
                                          "_wetting" ),
                     table.wetting_kr.saturations, table.wetting_kr.values } );
@@ -472,11 +472,15 @@ namespace geode::internal
                         table.non_wetting_kr.saturations,
                         table.non_wetting_kr.values } );
             }
+            if( !material.capillary_pressure )
+            {
+                return;
+            }
             if( const auto* capillary =
                     dynamic_cast< const TableCapillaryPressure* >(
                         material.capillary_pressure.get() ) )
             {
-                const auto& table = capillary->tables.front();
+                const auto& table = capillary->tables().front();
                 tables_.push_back(
                     { absl::StrCat( "cappres_", material.name, "_pc" ),
                         table.pressure.saturations, table.pressure.values } );
@@ -515,7 +519,8 @@ namespace geode::internal
                     dynamic_cast< const MultiphaseFlow* >( &problem_.flow() ) )
             {
                 set_attribute( solver, "useMass",
-                    multiphase->basis == COMPOSITION_BASIS::mass ? "1" : "0" );
+                    multiphase->basis() == COMPOSITION_BASIS::mass ? "1"
+                                                                   : "0" );
             }
             if( is_thermal() )
             {
@@ -626,22 +631,22 @@ namespace geode::internal
                              : "CompressibleSinglePhaseFluid",
                 FLUID_MODEL_NAME );
             set_real_attribute(
-                node, "defaultDensity", fluid_model.reference_density );
+                node, "defaultDensity", fluid_model.reference_density() );
             set_real_attribute(
-                node, "defaultViscosity", fluid_model.reference_viscosity );
+                node, "defaultViscosity", fluid_model.reference_viscosity() );
             set_real_attribute(
-                node, "referenceDensity", fluid_model.reference_density );
+                node, "referenceDensity", fluid_model.reference_density() );
             set_real_attribute(
-                node, "referenceViscosity", fluid_model.reference_viscosity );
+                node, "referenceViscosity", fluid_model.reference_viscosity() );
             set_real_attribute(
-                node, "referencePressure", fluid_model.reference_pressure );
+                node, "referencePressure", fluid_model.reference_pressure() );
             set_real_attribute(
-                node, "compressibility", fluid_model.compressibility );
+                node, "compressibility", fluid_model.compressibility() );
             set_real_attribute(
-                node, "viscosibility", fluid_model.viscosibility );
-            if( is_thermal() && fluid_model.thermal )
+                node, "viscosibility", fluid_model.viscosibility() );
+            if( is_thermal() && fluid_model.thermal() )
             {
-                const auto& thermal = fluid_model.thermal.value();
+                const auto& thermal = fluid_model.thermal().value();
                 set_real_attribute( node, "referenceTemperature",
                     problem_.thermal()->reference_temperature );
                 set_real_attribute( node, "specificHeatCapacity",
@@ -659,16 +664,16 @@ namespace geode::internal
             auto node = add_named_child(
                 constitutive, "DeadOilFluid", FLUID_MODEL_NAME );
             set_attribute( node, "phaseNames",
-                geos_names( geos_phase_names( fluid_model.phases ) ) );
+                geos_names( geos_phase_names( fluid_model.phases() ) ) );
             set_attribute( node, "componentNames",
                 geos_names( component_names( fluid_model ) ) );
             set_attribute( node, "componentMolarWeight",
                 geos_array( component_molar_weights( fluid_model ) ) );
             set_attribute( node, "surfaceDensities",
-                geos_array( fluid_model.surface_densities ) );
+                geos_array( fluid_model.surface_densities() ) );
             std::vector< std::string > fvf_tables;
             std::vector< std::string > viscosity_tables;
-            for( const auto phase : fluid_model.phases )
+            for( const auto phase : fluid_model.phases() )
             {
                 if( phase == PHASE::water )
                 {
@@ -681,9 +686,9 @@ namespace geode::internal
                 geos_names( fvf_tables ) );
             set_attribute( node, "hydrocarbonViscosityTableNames",
                 geos_names( viscosity_tables ) );
-            if( fluid_model.water_pvt )
+            if( fluid_model.water_pvt() )
             {
-                write_water_pvt( node, fluid_model.water_pvt.value() );
+                write_water_pvt( node, fluid_model.water_pvt().value() );
             }
         }
 
@@ -703,37 +708,38 @@ namespace geode::internal
             const Co2BrineFluid& fluid_model ) const
         {
             const auto is_ezrokhi =
-                fluid_model.correlation == CO2_BRINE_CORRELATION::ezrokhi;
+                fluid_model.correlation() == CO2_BRINE_CORRELATION::ezrokhi;
             auto node = add_named_child( constitutive,
                 absl::StrCat( "CO2Brine", is_ezrokhi ? "Ezrokhi" : "Phillips",
                     is_thermal() ? "Thermal" : "", "Fluid" ),
                 FLUID_MODEL_NAME );
             set_attribute( node, "phaseNames",
-                geos_names( geos_phase_names( fluid_model.phases ) ) );
+                geos_names( geos_phase_names( fluid_model.phases() ) ) );
             set_attribute( node, "componentNames",
                 geos_names( component_names( fluid_model ) ) );
             set_attribute( node, "componentMolarWeight",
                 geos_array( component_molar_weights( fluid_model ) ) );
-            const auto& pressure = fluid_model.pressure_range;
+            const auto& pressure = fluid_model.pressure_range();
             set_attribute( node, "pressureCoordinates",
                 geos_array( { pressure.min, pressure.max } ) );
             set_real_attribute( node, "pressureInterval", pressure.step );
-            const auto& temperature = fluid_model.temperature_range;
+            const auto& temperature = fluid_model.temperature_range();
             set_attribute( node, "temperatureCoordinates",
                 geos_array( { temperature.min, temperature.max } ) );
             set_real_attribute( node, "temperatureInterval", temperature.step );
-            set_real_attribute( node, "salinity", fluid_model.salinity );
+            set_real_attribute( node, "salinity", fluid_model.salinity() );
             if( is_ezrokhi
-                && !fluid_model.ezrokhi_density_coefficients.empty() )
+                && !fluid_model.ezrokhi_density_coefficients().empty() )
             {
                 set_attribute( node, "ezrokhiDensityCoefficients",
-                    geos_array( fluid_model.ezrokhi_density_coefficients ) );
+                    geos_array( fluid_model.ezrokhi_density_coefficients() ) );
             }
             if( is_ezrokhi
-                && !fluid_model.ezrokhi_viscosity_coefficients.empty() )
+                && !fluid_model.ezrokhi_viscosity_coefficients().empty() )
             {
                 set_attribute( node, "ezrokhiViscosityCoefficients",
-                    geos_array( fluid_model.ezrokhi_viscosity_coefficients ) );
+                    geos_array(
+                        fluid_model.ezrokhi_viscosity_coefficients() ) );
             }
         }
 
@@ -811,7 +817,7 @@ namespace geode::internal
                     "MultiPhaseConstantThermalConductivity",
                     conductivity_name );
                 set_attribute( conductivity, "phaseNames",
-                    geos_names( geos_phase_names( fluid().phases ) ) );
+                    geos_names( geos_phase_names( fluid().phases() ) ) );
                 set_attribute( conductivity, "thermalConductivityComponents",
                     geos_array( thermal.thermal_conductivity ) );
                 return;
@@ -826,25 +832,26 @@ namespace geode::internal
             pugi::xml_node& constitutive, const Material& material ) const
         {
             const auto name = absl::StrCat( "relperm_", material.name );
-            const auto& fluid_phases = fluid().phases;
+            const auto& fluid_phases = fluid().phases();
             if( const auto* brooks_corey =
                     dynamic_cast< const BrooksCoreyRelativePermeability* >(
                         material.relative_permeability.get() ) )
             {
-                const auto& phases = brooks_corey->phases;
+                const auto& phases = brooks_corey->phases();
                 auto node = add_named_child(
                     constitutive, "BrooksCoreyRelativePermeability", name );
                 set_attribute( node, "phaseNames",
                     geos_names( geos_phase_names( fluid_phases ) ) );
                 set_attribute( node, "phaseMinVolumeFraction",
                     geos_array( in_fluid_phase_order( phases,
-                        brooks_corey->residual_saturations, fluid_phases ) ) );
+                        brooks_corey->residual_saturations(),
+                        fluid_phases ) ) );
                 set_attribute( node, "phaseRelPermExponent",
                     geos_array( in_fluid_phase_order(
-                        phases, brooks_corey->exponents, fluid_phases ) ) );
+                        phases, brooks_corey->exponents(), fluid_phases ) ) );
                 set_attribute( node, "phaseRelPermMaxValue",
                     geos_array( in_fluid_phase_order(
-                        phases, brooks_corey->max_values, fluid_phases ) ) );
+                        phases, brooks_corey->max_values(), fluid_phases ) ) );
                 return;
             }
             auto node = add_named_child(
@@ -864,25 +871,26 @@ namespace geode::internal
                 return;
             }
             const auto name = absl::StrCat( "cappres_", material.name );
-            const auto& fluid_phases = fluid().phases;
+            const auto& fluid_phases = fluid().phases();
             if( const auto* brooks_corey =
                     dynamic_cast< const BrooksCoreyCapillaryPressure* >(
                         material.capillary_pressure.get() ) )
             {
-                const auto& phases = brooks_corey->phases;
+                const auto& phases = brooks_corey->phases();
                 auto node = add_named_child(
                     constitutive, "BrooksCoreyCapillaryPressure", name );
                 set_attribute( node, "phaseNames",
                     geos_names( geos_phase_names( fluid_phases ) ) );
                 set_attribute( node, "phaseMinVolumeFraction",
                     geos_array( in_fluid_phase_order( phases,
-                        brooks_corey->residual_saturations, fluid_phases ) ) );
+                        brooks_corey->residual_saturations(),
+                        fluid_phases ) ) );
                 set_attribute( node, "phaseEntryPressure",
                     geos_array( in_fluid_phase_order( phases,
-                        brooks_corey->entry_pressures, fluid_phases ) ) );
+                        brooks_corey->entry_pressures(), fluid_phases ) ) );
                 set_attribute( node, "phaseCapPressureExponentInv",
                     geos_array( in_fluid_phase_order( phases,
-                        brooks_corey->pore_size_distribution_indices,
+                        brooks_corey->pore_size_distribution_indices(),
                         fluid_phases ) ) );
                 return;
             }
@@ -901,32 +909,32 @@ namespace geode::internal
             auto pressure = add_field_specification( field_specifications,
                 absl::StrCat( "initialPressure_", region_name ), region_name,
                 "pressure" );
-            set_real_attribute( pressure, "scale", condition.pressure );
-            if( condition.temperature )
+            set_real_attribute( pressure, "scale", condition.pressure() );
+            if( condition.temperature() )
             {
                 auto temperature =
                     add_field_specification( field_specifications,
                         absl::StrCat( "initialTemperature_", region_name ),
                         region_name, "temperature" );
                 set_real_attribute(
-                    temperature, "scale", condition.temperature.value() );
+                    temperature, "scale", condition.temperature().value() );
             }
             if( !is_multiphase() )
             {
                 return;
             }
-            for( const auto component_id : Indices{ condition.composition } )
+            for( const auto component_id : Indices{ condition.composition() } )
             {
                 auto composition =
                     add_field_specification( field_specifications,
                         absl::StrCat( "initialComposition_",
-                            fluid().components[component_id].name, "_",
+                            fluid().components()[component_id].name, "_",
                             region_name ),
                         region_name, "globalCompFraction" );
                 set_attribute(
                     composition, "component", absl::StrCat( component_id ) );
-                set_real_attribute(
-                    composition, "scale", condition.composition[component_id] );
+                set_real_attribute( composition, "scale",
+                    condition.composition()[component_id] );
             }
         }
 

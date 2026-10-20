@@ -181,8 +181,8 @@ geode::index_t count_occurrences(
 {
     geode::index_t nb_occurrences{ 0 };
     for( auto position = content.find( pattern );
-        position != std::string_view::npos;
-        position = content.find( pattern, position + pattern.size() ) )
+         position != std::string_view::npos;
+         position = content.find( pattern, position + pattern.size() ) )
     {
         nb_occurrences++;
     }
@@ -383,12 +383,6 @@ void add_spe10_wells( geode::BRepGeosExporter& exporter )
 
 std::shared_ptr< geode::DeadOilFluid > three_phase_dead_oil()
 {
-    auto fluid = std::make_shared< geode::DeadOilFluid >();
-    fluid->phases = { geode::PHASE::oil, geode::PHASE::gas,
-        geode::PHASE::water };
-    fluid->components = { { "oil", 114e-3 }, { "gas", 16e-3 },
-        { "water", 18e-3 } };
-    fluid->surface_densities = { 800.0, 0.9907, 1022.0 };
     geode::HydrocarbonPvtTable oil_table;
     oil_table.phase = geode::PHASE::oil;
     oil_table.pressures = { 1e5, 2e7, 6e7 };
@@ -399,19 +393,24 @@ std::shared_ptr< geode::DeadOilFluid > three_phase_dead_oil()
     gas_table.pressures = { 1e5, 2e7, 6e7 };
     gas_table.formation_volume_factors = { 0.9, 0.006, 0.0025 };
     gas_table.viscosities = { 1e-5, 1.5e-5, 2.5e-5 };
-    fluid->hydrocarbon_pvt = { oil_table, gas_table };
-    fluid->water_pvt = geode::WaterPvt{ 30600000.1, 1.03, 4.1e-10, 3e-4 };
-    return fluid;
+    return std::make_shared< geode::DeadOilFluid >(
+        std::vector< geode::PHASE >{
+            geode::PHASE::oil, geode::PHASE::gas, geode::PHASE::water },
+        std::vector< geode::FluidComponent >{
+            { "oil", 114e-3 }, { "gas", 16e-3 }, { "water", 18e-3 } },
+        std::vector< double >{ 800.0, 0.9907, 1022.0 },
+        std::vector< geode::HydrocarbonPvtTable >{ oil_table, gas_table },
+        geode::WaterPvt{ 30600000.1, 1.03, 4.1e-10, 3e-4 } );
 }
 
 geode::Material spe10_material( std::string name, double compressibility )
 {
-    auto relperm = std::make_shared< geode::BrooksCoreyRelativePermeability >();
-    relperm->phases = { geode::PHASE::oil, geode::PHASE::gas,
-        geode::PHASE::water };
-    relperm->residual_saturations = { 0., 0., 0. };
-    relperm->exponents = { 2., 2., 2. };
-    relperm->max_values = { 1., 1., 1. };
+    auto relperm = std::make_shared< geode::BrooksCoreyRelativePermeability >(
+        std::vector< geode::PHASE >{
+            geode::PHASE::oil, geode::PHASE::gas, geode::PHASE::water },
+        std::vector< double >{ 0., 0., 0. },
+        std::vector< double >{ 2., 2., 2. },
+        std::vector< double >{ 1., 1., 1. } );
     geode::Material material;
     material.name = std::move( name );
     material.pore_compressibility = compressibility;
@@ -426,16 +425,15 @@ geode::PhysicalProblem spe10_problem( const geode::BRep& model )
     geode::PhysicalProblemBuilder builder{ problem };
     builder.set_name( "spe10" );
     builder.set_model_id( model.id() );
-    auto flow = std::make_shared< geode::MultiphaseFlow >();
-    flow->fluid = three_phase_dead_oil();
-    flow->basis = geode::COMPOSITION_BASIS::mass;
+    auto flow = std::make_shared< geode::MultiphaseFlow >(
+        geode::COMPOSITION_BASIS::mass );
+    flow->set_fluid( three_phase_dead_oil() );
     builder.set_flow( flow );
     builder.add_material( spe10_material( "reservoir", 1e-10 ) );
-    auto condition = std::make_shared< geode::UniformInitialCondition >();
-    condition->pressure = 4.1369e7;
-    condition->temperature = 300.;
-    condition->composition = { 0.9995, 0., 0.0005 };
-    builder.add_initial_condition( condition );
+    builder.add_initial_condition(
+        std::make_shared< geode::UniformInitialCondition >(
+            std::vector< geode::uuid >{}, 4.1369e7, 300.,
+            std::vector< double >{ 0.9995, 0., 0.0005 } ) );
     builder.set_schedule( { 0., 2e6, 1e3, 5e5 } );
     geode::OutputSettings output;
     output.frequency = 5e5;
@@ -480,28 +478,27 @@ void add_spe10_gas_fraction( geode::BRep& model )
 // deadOilSpe10Layers84_85_base_iterative.xml, without its wells
 std::shared_ptr< geode::DeadOilFluid > spe10_reference_fluid()
 {
-    auto fluid = std::make_shared< geode::DeadOilFluid >();
-    fluid->phases = { geode::PHASE::oil, geode::PHASE::water };
-    fluid->components = { { "oil", 114e-3 }, { "water", 18e-3 } };
-    fluid->surface_densities = { 800.0, 1022.0 };
     // pres_pvdo.txt, B_o_pvdo.txt and visc_pvdo.txt
     geode::HydrocarbonPvtTable oil_table;
     oil_table.phase = geode::PHASE::oil;
     oil_table.pressures = { 2.068e6, 5.516e6, 5.516e7 };
     oil_table.formation_volume_factors = { 1.05, 1.02, 1.01 };
     oil_table.viscosities = { 0.00285, 0.00299, 0.003 };
-    fluid->hydrocarbon_pvt = { oil_table };
-    fluid->water_pvt = geode::WaterPvt{ 30600000.1, 1.03, 4.1e-10, 3e-4 };
-    return fluid;
+    return std::make_shared< geode::DeadOilFluid >(
+        std::vector< geode::PHASE >{ geode::PHASE::oil, geode::PHASE::water },
+        std::vector< geode::FluidComponent >{
+            { "oil", 114e-3 }, { "water", 18e-3 } },
+        std::vector< double >{ 800.0, 1022.0 },
+        std::vector< geode::HydrocarbonPvtTable >{ oil_table },
+        geode::WaterPvt{ 30600000.1, 1.03, 4.1e-10, 3e-4 } );
 }
 
 geode::Material spe10_reference_material()
 {
-    auto relperm = std::make_shared< geode::BrooksCoreyRelativePermeability >();
-    relperm->phases = { geode::PHASE::oil, geode::PHASE::water };
-    relperm->residual_saturations = { 0., 0. };
-    relperm->exponents = { 2., 2. };
-    relperm->max_values = { 1., 1. };
+    auto relperm = std::make_shared< geode::BrooksCoreyRelativePermeability >(
+        std::vector< geode::PHASE >{ geode::PHASE::oil, geode::PHASE::water },
+        std::vector< double >{ 0., 0. }, std::vector< double >{ 2., 2. },
+        std::vector< double >{ 1., 1. } );
     geode::Material material;
     material.name = "rock";
     material.pore_compressibility = 1e-10;
@@ -518,16 +515,15 @@ geode::PhysicalProblem spe10_reference_problem( const geode::BRep& model )
     geode::PhysicalProblemBuilder builder{ problem };
     builder.set_name( "spe10_reference" );
     builder.set_model_id( model.id() );
-    auto flow = std::make_shared< geode::MultiphaseFlow >();
-    flow->fluid = spe10_reference_fluid();
-    flow->basis = geode::COMPOSITION_BASIS::mass;
+    auto flow = std::make_shared< geode::MultiphaseFlow >(
+        geode::COMPOSITION_BASIS::mass );
+    flow->set_fluid( spe10_reference_fluid() );
     builder.set_flow( flow );
     builder.add_material( spe10_reference_material() );
-    auto condition = std::make_shared< geode::UniformInitialCondition >();
-    condition->pressure = 4.1369e7;
-    condition->temperature = 300.;
-    condition->composition = { 0.9995, 0.0005 };
-    builder.add_initial_condition( condition );
+    builder.add_initial_condition(
+        std::make_shared< geode::UniformInitialCondition >(
+            std::vector< geode::uuid >{}, 4.1369e7, 300.,
+            std::vector< double >{ 0.9995, 0.0005 } ) );
     builder.set_schedule( { 0., 2e6, 1e3, 5e5 } );
     geode::OutputSettings output;
     output.frequency = 5e5;
@@ -625,16 +621,12 @@ void test_toy_model_thermal()
 
     geode::PhysicalProblem problem;
     geode::PhysicalProblemBuilder builder{ problem };
-    auto fluid = std::make_shared< geode::SinglePhaseFluid >();
-    fluid->phases = { geode::PHASE::water };
-    fluid->components = { { "water", 18e-3 } };
-    fluid->reference_density = 1000.;
-    fluid->reference_viscosity = 1e-3;
-    fluid->reference_pressure = 1e7;
-    fluid->compressibility = 5e-10;
-    fluid->thermal = geode::FluidThermalProperties{ 4180., 2e-4, 0. };
+    auto fluid = std::make_shared< geode::SinglePhaseFluid >(
+        std::vector< geode::PHASE >{ geode::PHASE::water },
+        std::vector< geode::FluidComponent >{ { "water", 18e-3 } }, 1000., 1e-3,
+        5e-10, 0., 1e7, geode::FluidThermalProperties{ 4180., 2e-4, 0. } );
     auto flow = std::make_shared< geode::SinglePhaseFlow >();
-    flow->fluid = fluid;
+    flow->set_fluid( fluid );
     builder.set_flow( flow );
     builder.set_thermal( geode::ThermalParameters{ 300. } );
     geode::Material rock;
@@ -645,10 +637,9 @@ void test_toy_model_thermal()
     rock.permeability = std::array< double, 3 >{ 1e-13, 1e-13, 1e-14 };
     rock.thermal = geode::RockThermalProperties{ 2e6, { 2.5, 2.5, 2.5 } };
     builder.add_material( rock );
-    auto condition = std::make_shared< geode::UniformInitialCondition >();
-    condition->pressure = 1e7;
-    condition->temperature = 300.;
-    builder.add_initial_condition( condition );
+    builder.add_initial_condition(
+        std::make_shared< geode::UniformInitialCondition >(
+            std::vector< geode::uuid >{}, 1e7, 300. ) );
     // Small first step: the boundary temperature jump is stiff on small cells
     builder.set_schedule( { 0., 1e5, 10., 1e4 } );
 
@@ -694,6 +685,12 @@ void check_export_failure( const geode::BRep& model,
 class TestFluid final : public geode::FluidModel
 {
 public:
+    TestFluid( std::vector< geode::PHASE > phases,
+        std::vector< geode::FluidComponent > components )
+        : geode::FluidModel( std::move( phases ), std::move( components ) )
+    {
+    }
+
     [[nodiscard]] std::string_view type_name() const final
     {
         return "TestFluid";
@@ -709,12 +706,12 @@ void test_geos_rules()
     {
         auto problem = spe10_problem( model );
         auto flow = std::make_shared< geode::MultiphaseFlow >();
-        auto fluid = std::make_shared< TestFluid >();
-        fluid->phases = { geode::PHASE::oil, geode::PHASE::gas,
-            geode::PHASE::water };
-        fluid->components = { { "oil", 0.1 }, { "gas", 0.01 },
-            { "water", 0.018 } };
-        flow->fluid = fluid;
+        auto fluid = std::make_shared< TestFluid >(
+            std::vector< geode::PHASE >{
+                geode::PHASE::oil, geode::PHASE::gas, geode::PHASE::water },
+            std::vector< geode::FluidComponent >{
+                { "oil", 0.1 }, { "gas", 0.01 }, { "water", 0.018 } } );
+        flow->set_fluid( fluid );
         geode::PhysicalProblemBuilder{ problem }.set_flow( flow );
         check_export_failure( model, problem, "TestFluid is not supported" );
     }
