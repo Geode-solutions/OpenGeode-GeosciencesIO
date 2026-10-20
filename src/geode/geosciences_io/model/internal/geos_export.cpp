@@ -884,7 +884,7 @@ namespace geode::internal
             specification_node.append_attribute( "setNames" )
                 .set_value( absl::StrCat(
                     "{ ", absl::StrJoin( condition.region_ids, ", " ), " }" )
-                                .c_str() );
+                        .c_str() );
         }
     }
 
@@ -907,7 +907,7 @@ namespace geode::internal
                             absl::StrAppend( out, "./", file );
                         } ),
                     " }" )
-                                .c_str() );
+                        .c_str() );
             function_node.append_attribute( "voxelFile" )
                 .set_value( absl::StrCat( "./", table.voxel_file ).c_str() );
             function_node.append_attribute( "interpolation" )
@@ -922,9 +922,9 @@ namespace geode::internal
         for( const auto& block : model_.blocks() )
         {
             if( !block.mesh()
-                     .polyhedron_attribute_manager()
-                     .attribute_ids_matching_name( property_name )
-                     .has_value() )
+                    .polyhedron_attribute_manager()
+                    .attribute_ids_matching_name( property_name )
+                    .has_value() )
             {
                 Logger::info( "The property ", property_name,
                     " will not be exported because it is not defined on "
