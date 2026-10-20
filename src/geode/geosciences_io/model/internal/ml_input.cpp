@@ -1135,9 +1135,9 @@ namespace geode::internal
             return Percentage{ 0 };
         }
         // Check the Model3d section: every TFACE must refer to a declared
-        // TSURF with a known geological type. The value tells if the TSURF is
-        // referred to by at least one TFACE.
-        absl::flat_hash_map< std::string, bool > tsurf_has_tface;
+        // TSURF with a known geological type. A TSURF without TFACE is
+        // ignored by the reader and does not prevent loading.
+        absl::flat_hash_set< std::string > tsurf_names;
         std::string line;
         bool end_found{ false };
         while( std::getline( file, line ) )
@@ -1157,11 +1157,9 @@ namespace geode::internal
             if( tokens.front() == "TSURF" )
             {
                 const auto inserted =
-                    tsurf_has_tface
-                        .emplace(
-                            internal::read_name(
-                                absl::MakeConstSpan( tokens ).subspan( 1 ) ),
-                            false )
+                    tsurf_names
+                        .emplace( internal::read_name(
+                            absl::MakeConstSpan( tokens ).subspan( 1 ) ) )
                         .second;
                 // The reader rejects duplicate TSURF names
                 if( !inserted )
@@ -1177,8 +1175,7 @@ namespace geode::internal
                 }
                 const auto name = internal::read_name(
                     absl::MakeConstSpan( tokens ).subspan( 3 ) );
-                const auto it = tsurf_has_tface.find( name );
-                if( it == tsurf_has_tface.end() )
+                if( !tsurf_names.contains( name ) )
                 {
                     return Percentage{ 0 };
                 }
@@ -1187,14 +1184,13 @@ namespace geode::internal
                 {
                     return Percentage{ 0 };
                 }
-                it->second = true;
             }
         }
         if( !end_found )
         {
             return Percentage{ 0 };
         }
-        if( tsurf_has_tface.empty() )
+        if( tsurf_names.empty() )
         {
             return Percentage{ 1 };
         }
@@ -1204,16 +1200,6 @@ namespace geode::internal
         {
             return Percentage{ 0 };
         }
-        // A TSURF without TFACE is not loaded
-        index_t nb_loadable_tsurfs{ 0 };
-        for( const auto& [name, has_tface] : tsurf_has_tface )
-        {
-            if( has_tface )
-            {
-                nb_loadable_tsurfs++;
-            }
-        }
-        return Percentage{ static_cast< double >( nb_loadable_tsurfs )
-                           / static_cast< double >( tsurf_has_tface.size() ) };
+        return Percentage{ 1 };
     }
 } // namespace geode::internal

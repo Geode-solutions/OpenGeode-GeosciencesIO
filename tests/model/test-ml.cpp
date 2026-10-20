@@ -314,8 +314,9 @@ void test_is_loadable()
                                   "GOCAD TSurf 1\n"
                                   "GOCAD TSurf 1\n" );
     geode::OpenGeodeGeosciencesIOModelException::test(
-        geode::is_structural_model_loadable( "empty_tsurf.ml" ).value() == 0.5,
-        "A TSURF without TFACE should not be counted as loadable" );
+        geode::is_structural_model_loadable( "empty_tsurf.ml" ).value() == 1,
+        "A TSURF without TFACE is ignored by the reader: the file should be "
+        "loadable" );
 
     write_file( "duplicate_tsurf.ml", "GOCAD Model3d 1\n"
                                       "TSURF A\n"
