@@ -82,6 +82,13 @@ namespace
         return types;
     }
 
+    const absl::flat_hash_set< std::string >& model_boundary_types()
+    {
+        static const absl::flat_hash_set< std::string > types = { "boundary",
+            "lease" };
+        return types;
+    }
+
     enum struct FEATURE_KIND
     {
         fault,
@@ -97,7 +104,7 @@ namespace
         {
             return FEATURE_KIND::fault;
         }
-        if( feature == "boundary" || feature == "lease" )
+        if( model_boundary_types().contains( feature ) )
         {
             return FEATURE_KIND::model_boundary;
         }
