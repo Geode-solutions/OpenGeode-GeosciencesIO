@@ -260,7 +260,7 @@ void test_is_loadable()
     const auto model_a4 = absl::StrCat(
         geode::DATA_PATH, "/modelA4.", geode::internal::MLInput::extension() );
     geode::OpenGeodeGeosciencesIOModelException::test(
-        geode::internal::MLInput{ model_a4 }.is_loadable().value() == 1,
+        geode::is_structural_model_loadable( model_a4 ).value() == 1,
         "modelA4 should be fully loadable" );
 
     write_file( "undeclared_tsurf.ml", "GOCAD Model3d 1\n"
@@ -269,7 +269,7 @@ void test_is_loadable()
                                        "END\n"
                                        "GOCAD TSurf 1\n" );
     geode::OpenGeodeGeosciencesIOModelException::test(
-        geode::internal::MLInput{ "undeclared_tsurf.ml" }.is_loadable().value()
+        geode::is_structural_model_loadable( "undeclared_tsurf.ml" ).value()
             == 0,
         "A TFACE referring to an undeclared TSURF should not be loadable" );
 
@@ -279,8 +279,7 @@ void test_is_loadable()
                                    "END\n"
                                    "GOCAD TSurf 1\n" );
     geode::OpenGeodeGeosciencesIOModelException::test(
-        geode::internal::MLInput{ "unknown_type.ml" }.is_loadable().value()
-            == 0,
+        geode::is_structural_model_loadable( "unknown_type.ml" ).value() == 0,
         "A TFACE with an unknown type should not be loadable" );
 
     write_file( "crs_unknown_type.ml", "GOCAD Model3d 1\n"
@@ -292,7 +291,7 @@ void test_is_loadable()
                                        "END\n"
                                        "GOCAD TSurf 1\n" );
     geode::OpenGeodeGeosciencesIOModelException::test(
-        geode::internal::MLInput{ "crs_unknown_type.ml" }.is_loadable().value()
+        geode::is_structural_model_loadable( "crs_unknown_type.ml" ).value()
             == 0,
         "The Model3d section should be checked after a coordinate system "
         "block" );
@@ -302,8 +301,7 @@ void test_is_loadable()
                                             "TFACE 1 top A\n"
                                             "END\n" );
     geode::OpenGeodeGeosciencesIOModelException::test(
-        geode::internal::MLInput{ "missing_tsurf_section.ml" }
-                .is_loadable()
+        geode::is_structural_model_loadable( "missing_tsurf_section.ml" )
                 .value()
             == 0,
         "A Model3d without TSurf section should not be loadable" );
@@ -316,8 +314,7 @@ void test_is_loadable()
                                   "GOCAD TSurf 1\n"
                                   "GOCAD TSurf 1\n" );
     geode::OpenGeodeGeosciencesIOModelException::test(
-        geode::internal::MLInput{ "empty_tsurf.ml" }.is_loadable().value()
-            == 0.5,
+        geode::is_structural_model_loadable( "empty_tsurf.ml" ).value() == 0.5,
         "A TSURF without TFACE should not be counted as loadable" );
 
     write_file( "duplicate_tsurf.ml", "GOCAD Model3d 1\n"
@@ -327,7 +324,7 @@ void test_is_loadable()
                                       "END\n"
                                       "GOCAD TSurf 1\n" );
     geode::OpenGeodeGeosciencesIOModelException::test(
-        geode::internal::MLInput{ "duplicate_tsurf.ml" }.is_loadable().value()
+        geode::is_structural_model_loadable( "duplicate_tsurf.ml" ).value()
             == 0,
         "Duplicate TSURF names should not be loadable" );
 }
