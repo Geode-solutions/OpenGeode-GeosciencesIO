@@ -23,6 +23,7 @@
 
 #include <geode/tests_config.hpp>
 
+#include <fstream>
 #include <string>
 
 #include <absl/container/flat_hash_set.h>
@@ -248,6 +249,87 @@ void test_duplicate_tsurf_names()
         names.size() == 3, "Reloaded Horizon names should be unique" );
 }
 
+void write_file( std::string_view filename, std::string_view content )
+{
+    std::ofstream file{ geode::to_string( filename ) };
+    file << content;
+}
+
+void test_is_loadable()
+{
+    const auto model_a4 = absl::StrCat(
+        geode::DATA_PATH, "/modelA4.", geode::internal::MLInput::extension() );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::is_structural_model_loadable( model_a4 ).value() == 1,
+        "modelA4 should be fully loadable" );
+
+    write_file( "undeclared_tsurf.ml", "GOCAD Model3d 1\n"
+                                       "TSURF A\n"
+                                       "TFACE 1 top B\n"
+                                       "END\n"
+                                       "GOCAD TSurf 1\n" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::is_structural_model_loadable( "undeclared_tsurf.ml" ).value()
+            == 0,
+        "A TFACE referring to an undeclared TSURF should not be loadable" );
+
+    write_file( "unknown_type.ml", "GOCAD Model3d 1\n"
+                                   "TSURF A\n"
+                                   "TFACE 1 erosion A\n"
+                                   "END\n"
+                                   "GOCAD TSurf 1\n" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::is_structural_model_loadable( "unknown_type.ml" ).value() == 0,
+        "A TFACE with an unknown type should not be loadable" );
+
+    write_file( "crs_unknown_type.ml", "GOCAD Model3d 1\n"
+                                       "GOCAD_ORIGINAL_COORDINATE_SYSTEM\n"
+                                       "NAME Default\n"
+                                       "END_ORIGINAL_COORDINATE_SYSTEM\n"
+                                       "TSURF A\n"
+                                       "TFACE 1 erosion A\n"
+                                       "END\n"
+                                       "GOCAD TSurf 1\n" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::is_structural_model_loadable( "crs_unknown_type.ml" ).value()
+            == 0,
+        "The Model3d section should be checked after a coordinate system "
+        "block" );
+
+    write_file( "missing_tsurf_section.ml", "GOCAD Model3d 1\n"
+                                            "TSURF A\n"
+                                            "TFACE 1 top A\n"
+                                            "END\n" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::is_structural_model_loadable( "missing_tsurf_section.ml" )
+                .value()
+            == 0,
+        "A Model3d without TSurf section should not be loadable" );
+
+    write_file( "empty_tsurf.ml", "GOCAD Model3d 1\n"
+                                  "TSURF A\n"
+                                  "TSURF B\n"
+                                  "TFACE 1 top A\n"
+                                  "END\n"
+                                  "GOCAD TSurf 1\n"
+                                  "GOCAD TSurf 1\n" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::is_structural_model_loadable( "empty_tsurf.ml" ).value() == 1,
+        "A TSURF without TFACE is ignored by the reader: the file should be "
+        "loadable" );
+
+    write_file( "duplicate_tsurf.ml", "GOCAD Model3d 1\n"
+                                      "TSURF A\n"
+                                      "TSURF A\n"
+                                      "TFACE 1 top A\n"
+                                      "END\n"
+                                      "GOCAD TSurf 1\n" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::is_structural_model_loadable( "duplicate_tsurf.ml" ).value()
+            == 0,
+        "Duplicate TSURF names should not be loadable" );
+}
+
 int main()
 {
     try
@@ -257,6 +339,7 @@ int main()
         test_shared_surfaces_and_contact_types();
         test_shared_model_boundary_surfaces();
         test_duplicate_tsurf_names();
+        test_is_loadable();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
