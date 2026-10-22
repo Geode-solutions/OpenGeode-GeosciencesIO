@@ -204,6 +204,25 @@ void test_collapsed_pillar()
             ZCORN_2X1X1 ) );
 }
 
+void test_inactive_cells()
+{
+    check_file( write_grdecl(
+                    "grdecl_actnum", absl::StrCat( SPECGRID_2X1X1, COORD_2X1X1,
+                                         ZCORN_2X1X1, "ACTNUM\n1 0 /\n" ) ),
+        1, 8 );
+    check_file( write_grdecl( "grdecl_actnum_repeat",
+                    absl::StrCat( SPECGRID_2X1X1, COORD_2X1X1, ZCORN_2X1X1,
+                        "ACTNUM\n2*1 /\n" ) ),
+        2, 12 );
+    check_file( write_grdecl( "grdecl_collapsed_cell",
+                    absl::StrCat( SPECGRID_2X1X1, COORD_2X1X1,
+                        "ZCORN\n"
+                        "1000 1000 1010 1010 1000 1000 1010 1010\n"
+                        "1010 1010 1010 1010 1010 1010 1010 1010\n"
+                        "/\n" ) ),
+        1, 8 );
+}
+
 int main()
 {
     try
@@ -225,6 +244,7 @@ int main()
         test_keyword_order();
         test_include();
         test_collapsed_pillar();
+        test_inactive_cells();
         geode::Logger::info( "[TEST SUCCESS]" );
 
         return 0;

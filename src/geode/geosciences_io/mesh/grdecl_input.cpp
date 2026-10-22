@@ -314,6 +314,10 @@ namespace
                 {
                     read_depths( file, std::move( rest ) );
                 }
+                else if( keyword == "ACTNUM" )
+                {
+                    read_active_cells( file, std::move( rest ) );
+                }
                 else if( keyword == "INCLUDE" )
                 {
                     const std::filesystem::path include_path{ read_include_path(
@@ -386,6 +390,44 @@ namespace
             }
         }
 
+        void read_active_cells( std::istream& file, std::string line )
+        {
+            check_dimensions_are_read( "ACTNUM" );
+            active_cells_.clear();
+            active_cells_.reserve( nb_cells_ );
+            bool extra_values{ false };
+            read_keyword_data( file, "ACTNUM", std::move( line ),
+                [this, &extra_values](
+                    std::string_view token, std::uint64_t count ) {
+                    int value{ 1 };
+                    geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                        token.empty() || absl::SimpleAtoi( token, &value ),
+                        nullptr, geode::OpenGeodeException::TYPE::data,
+                        "[GRDECLInput] Invalid ACTNUM value \"", token, "\"" );
+                    const auto remaining = nb_cells_ - active_cells_.size();
+                    if( count > remaining )
+                    {
+                        extra_values = true;
+                        count = remaining;
+                    }
+                    active_cells_.insert( active_cells_.end(), count,
+                        static_cast< std::uint8_t >( value != 0 ) );
+                } );
+            if( extra_values )
+            {
+                geode::Logger::warning( "[GRDECLInput] Keyword ACTNUM has "
+                                        "more values than cells, extra values "
+                                        "are ignored" );
+            }
+            if( active_cells_.size() != nb_cells_ )
+            {
+                geode::Logger::warning( "[GRDECLInput] Keyword ACTNUM has ",
+                    active_cells_.size(), " values instead of ", nb_cells_,
+                    ", missing cells are considered active" );
+                active_cells_.resize( nb_cells_, 1 );
+            }
+        }
+
         void read_depths( std::istream& file, std::string line )
         {
             check_dimensions_are_read( "ZCORN" );
@@ -440,28 +482,47 @@ namespace
             return points;
         }
 
-        geode::NNSearch3D::ColocatedInfo create_points(
-            absl::Span< const Pillar > pillars,
+        bool is_cell_active( geode::index_t cell_id ) const
+        {
+            return active_cells_.empty() || active_cells_[cell_id];
+        }
+
+        void create_cells( absl::Span< const Pillar > pillars,
             absl::Span< const double > depths )
         {
             std::vector< geode::Point3D > points;
             points.reserve( 8 * nb_cells_ );
+            geode::index_t cell_id{ 0 };
+            geode::index_t nb_collapsed_cells{ 0 };
             for( const auto k : geode::Range{ nz_ } )
             {
                 for( const auto j : geode::Range{ ny_ } )
                 {
                     for( const auto i : geode::Range{ nx_ } )
                     {
-                        const std::array< geode::index_t, 3 > grid_coordinates{
-                            i, j, 2 * k
-                        };
-                        for( const auto point :
-                            cell_points( grid_coordinates, pillars, depths ) )
+                        if( !is_cell_active( cell_id++ ) )
                         {
-                            points.push_back( point );
+                            continue;
                         }
+                        const auto corners =
+                            cell_points( { i, j, 2 * k }, pillars, depths );
+                        if( corners[0].inexact_equal( corners[4] )
+                            && corners[1].inexact_equal( corners[5] )
+                            && corners[2].inexact_equal( corners[6] )
+                            && corners[3].inexact_equal( corners[7] ) )
+                        {
+                            nb_collapsed_cells++;
+                            continue;
+                        }
+                        points.insert(
+                            points.end(), corners.begin(), corners.end() );
                     }
                 }
+            }
+            if( nb_collapsed_cells != 0 )
+            {
+                geode::Logger::warning( "[GRDECLInput] ", nb_collapsed_cells,
+                    " active cells have no thickness and are skipped" );
             }
             const auto collocated_mapping =
                 geode::NNSearch3D{ points }.colocated_index_mapping(
@@ -470,25 +531,15 @@ namespace
             {
                 builder_->create_point( point );
             }
-            return collocated_mapping;
-        }
-
-        void create_cells( absl::Span< const Pillar > pillars,
-            absl::Span< const double > depths )
-        {
-            const auto collocated_mapping = create_points( pillars, depths );
-            for( const auto cell_id : geode::Range{ nb_cells_ } )
+            const auto& mapping = collocated_mapping.colocated_mapping;
+            for( const auto cell : geode::Range{ points.size() / 8 } )
             {
+                const auto offset = 8 * cell;
                 builder_->create_hexahedron(
-                    { collocated_mapping.colocated_mapping[0 + 8 * cell_id],
-                        collocated_mapping.colocated_mapping[1 + 8 * cell_id],
-                        collocated_mapping.colocated_mapping[2 + 8 * cell_id],
-                        collocated_mapping.colocated_mapping[3 + 8 * cell_id],
-                        collocated_mapping.colocated_mapping[4 + 8 * cell_id],
-                        collocated_mapping.colocated_mapping[5 + 8 * cell_id],
-                        collocated_mapping.colocated_mapping[6 + 8 * cell_id],
-                        collocated_mapping
-                            .colocated_mapping[7 + 8 * cell_id] } );
+                    { mapping[offset], mapping[offset + 1], mapping[offset + 2],
+                        mapping[offset + 3], mapping[offset + 4],
+                        mapping[offset + 5], mapping[offset + 6],
+                        mapping[offset + 7] } );
             }
             builder_->compute_polyhedron_adjacencies();
         }
@@ -523,6 +574,7 @@ namespace
         geode::index_t nb_cells_{ 0 };
         std::vector< Pillar > pillars_;
         std::vector< double > depths_;
+        std::vector< std::uint8_t > active_cells_;
         absl::flat_hash_set< std::string > parsed_files_;
     };
 } // namespace
