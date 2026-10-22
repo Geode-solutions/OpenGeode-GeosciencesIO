@@ -119,6 +119,44 @@ void test_is_loadable()
         "[TEST] File without column should not be loadable" );
 }
 
+void test_optional_attributes()
+{
+    write_file( "skua_no_base_names.xml", "<UserObjects>\n"
+                                          " <LocalStratigraphicColumn>\n"
+                                          "  <name>column</name>\n"
+                                          "  <units>\n"
+                                          "   <unit>\n"
+                                          "    <name>unit</name>\n"
+                                          "    <top><name>top</name></top>\n"
+                                          "    <base><name>base</name></base>\n"
+                                          "   </unit>\n"
+                                          "  </units>\n"
+                                          " </LocalStratigraphicColumn>\n"
+                                          "</UserObjects>\n" );
+    const auto horizons_stack =
+        geode::load_horizons_stack< 3 >( "skua_no_base_names.xml" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        horizons_stack.nb_horizons() == 2
+            && horizons_stack.nb_stratigraphic_units() >= 1,
+        "[TEST] Column without use_base_names should be loaded" );
+}
+
+void test_missing_column()
+{
+    write_file( "skua_missing_column.xml",
+        "<UserObjects>\n <Other/>\n</UserObjects>\n" );
+    try
+    {
+        geode::load_horizons_stack< 3 >( "skua_missing_column.xml" );
+    }
+    catch( const geode::OpenGeodeException& )
+    {
+        return;
+    }
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        false, "[TEST] File without column should throw" );
+}
+
 int main()
 {
     try
@@ -128,6 +166,8 @@ int main()
         geode::Logger::info( "Reading stratigraphic column file." );
         test_file();
         test_is_loadable();
+        test_optional_attributes();
+        test_missing_column();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

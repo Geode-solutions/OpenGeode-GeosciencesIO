@@ -61,13 +61,6 @@ namespace
             builder.set_name( absl::StripAsciiWhitespace(
                 root_.child( "name" ).child_value() ) );
             const auto& units = root_.child( "units" );
-            bool use_base_names;
-            const auto ok = absl::SimpleAtob(
-                units.attribute( "use_base_names" ).value(), &use_base_names );
-            geode::OpenGeodeGeosciencesIOModelException::check_exception( ok,
-                nullptr, geode::OpenGeodeException::TYPE::data,
-                "[HorizonStackSKUAInput::read_units] Failed to "
-                "read use_base_names attribute." );
             absl::flat_hash_map< std::string, geode::uuid > name_map;
             for( const auto& unit : units.children( "unit" ) )
             {
@@ -163,6 +156,11 @@ namespace
                 " while parsing file: ", filename_ );
             root_ = document_.child( "UserObjects" )
                         .child( "LocalStratigraphicColumn" );
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                !root_.empty(), nullptr, geode::OpenGeodeException::TYPE::data,
+                "[HorizonStackSKUAInput] Cannot find "
+                "UserObjects/LocalStratigraphicColumn element in file: ",
+                filename_ );
         }
 
     private:
