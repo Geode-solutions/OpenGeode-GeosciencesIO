@@ -64,7 +64,7 @@ namespace
         void build_surface( const geode::internal::TSurfData& tsurf )
         {
             const auto offset = surface_.nb_vertices();
-            if( tsurf.header.name )
+            if( tsurf.header.name && !surface_.name() )
             {
                 builder_->set_name( tsurf.header.name.value() );
             }

@@ -91,6 +91,8 @@ namespace
         geode::OpenGeodeGeosciencesIOMeshException::test(
             attribute->value( 0 ) == 1 && attribute->value( 2 ) == 3,
             "Wrong property values with several VSet" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            pointset->name() == "a", "The first VSet name should be used" );
     }
 
     template < typename T >

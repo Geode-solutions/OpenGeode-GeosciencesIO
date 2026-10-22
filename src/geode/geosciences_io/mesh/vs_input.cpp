@@ -62,7 +62,7 @@ namespace
         void build_point_set( const geode::internal::VSetData& vertex_set )
         {
             const auto offset = point_set_.nb_vertices();
-            if( vertex_set.header.name )
+            if( vertex_set.header.name && !point_set_.name() )
             {
                 builder_->set_name( vertex_set.header.name.value() );
             }

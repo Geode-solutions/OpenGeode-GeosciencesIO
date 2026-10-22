@@ -63,7 +63,7 @@ namespace
         void build_curve( const geode::internal::ECurveData& ecurve )
         {
             const auto offset = curve_.nb_vertices();
-            if( ecurve.header.name )
+            if( ecurve.header.name && !curve_.name() )
             {
                 builder_->set_name( ecurve.header.name.value() );
             }

@@ -174,6 +174,8 @@ namespace
             vertex_value( *surface, "p", 1 ) == 12
                 && vertex_value( *surface, "p", 4 ) == 22,
             "Wrong property values with several TSurf" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surface->name() == "s1", "The first TSurf name should be used" );
     }
 
     void test_vertex_lines_with_properties()
