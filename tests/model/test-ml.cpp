@@ -886,6 +886,16 @@ void test_invalid_bstone_border_indices()
     check_model( model, 4, 6, 4, 1, 0, 0, 1 );
 }
 
+void test_no_surface()
+{
+    const auto model = load_ml( "no_surface.ml", "GOCAD Model3d 1\n"
+                                                 "HEADER {\n"
+                                                 "name: empty\n"
+                                                 "}\n"
+                                                 "END\n" );
+    check_model( model, 0, 0, 0, 0, 0, 0, 0 );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -992,6 +1002,7 @@ int main()
         test_bstone_without_line();
         test_triangle_outside_tface();
         test_invalid_bstone_border_indices();
+        test_no_surface();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

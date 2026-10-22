@@ -203,6 +203,11 @@ namespace
                     tsurf.tfaces.size(), " TFACE for it" );
                 build_surfaces( tsurf );
             }
+            if( model_.nb_surfaces() == 0 )
+            {
+                geode::Logger::warning( "[MLInput] No Surface in the file" );
+                return;
+            }
             compute_epsilon();
             build_corners();
             build_lines();
