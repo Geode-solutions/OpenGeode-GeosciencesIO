@@ -122,6 +122,11 @@ void test_polygons()
         surface->nb_vertices() == 6 && surface->nb_polygons() == 2,
         "Wrong number of elements in raster DEM" );
     check_polygons( *surface );
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        surface->point( 0 ).inexact_equal( geode::Point3D{ { 105, 495, 1 } } )
+            && surface->point( 5 ).inexact_equal(
+                geode::Point3D{ { 125, 485, 6 } } ),
+        "DEM vertices should be at pixel centers" );
 }
 
 void test_huge_raster()

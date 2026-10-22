@@ -125,7 +125,7 @@ namespace
             for( const auto i : geode::Range{ height_ } )
             {
                 const auto i_contribution =
-                    coordinate_system_.direction( 1 ) * i;
+                    coordinate_system_.direction( 1 ) * ( i + 0.5 );
                 for( const auto j : geode::Range{ width_ } )
                 {
                     const auto vertex = i * width_ + j;
@@ -135,7 +135,7 @@ namespace
                         continue;
                     }
                     const auto j_contribution =
-                        coordinate_system_.direction( 0 ) * j;
+                        coordinate_system_.direction( 0 ) * ( j + 0.5 );
                     const auto point = coordinate_system_.origin()
                                        + i_contribution + j_contribution;
                     vertices[vertex] = builder_->create_point(
