@@ -79,22 +79,6 @@ namespace geode::internal
         return true;
     }
 
-    inline std::optional< PolygonEdge > get_one_border_edge(
-        const SurfaceMesh3D& mesh )
-    {
-        for( const auto p : Range{ mesh.nb_polygons() } )
-        {
-            for( const auto e : LRange{ 3 } )
-            {
-                if( mesh.is_edge_on_border( { p, e } ) )
-                {
-                    return PolygonEdge{ p, e };
-                }
-            }
-        }
-        return std::nullopt;
-    }
-
     template < typename Model >
     class MLOutputImpl
     {
@@ -415,22 +399,28 @@ namespace geode::internal
             const index_t current_offset,
             std::vector< std::array< index_t, 2 > >& line_starts ) const
         {
-            // todo several times to process all border edges
+            // Each border loop (outer border, holes) is walked once
             const auto& mesh = surface.mesh();
-            const auto first_on_border = get_one_border_edge( mesh );
-            if( !first_on_border )
+            std::vector< bool > visited( 3 * mesh.nb_polygons(), false );
+            for( const auto p : Range{ mesh.nb_polygons() } )
             {
-                return;
-            }
-            process_surface_edge(
-                surface, first_on_border.value(), current_offset, line_starts );
-
-            auto cur = mesh.previous_on_border( first_on_border.value() );
-            while( cur != first_on_border )
-            {
-                process_surface_edge(
-                    surface, cur, current_offset, line_starts );
-                cur = mesh.previous_on_border( cur );
+                for( const auto e : LRange{ 3 } )
+                {
+                    const PolygonEdge first_on_border{ p, e };
+                    if( !mesh.is_edge_on_border( first_on_border )
+                        || visited[3 * p + e] )
+                    {
+                        continue;
+                    }
+                    auto cur = first_on_border;
+                    do
+                    {
+                        visited[3 * cur.polygon_id + cur.edge_id] = true;
+                        process_surface_edge(
+                            surface, cur, current_offset, line_starts );
+                        cur = mesh.previous_on_border( cur );
+                    } while( cur != first_on_border );
+                }
             }
         }
 

@@ -738,6 +738,63 @@ void test_surface_collection_output()
         "Surfaces only in a SurfaceCollection should be exported" );
 }
 
+// Square with a square hole: 2 closed border Lines
+std::string annulus_ml()
+{
+    return "GOCAD Model3d 1\n"
+           "HEADER {\n"
+           "name: annulus\n"
+           "}\n"
+           "TSURF annulus\n"
+           "TFACE 1 boundary annulus\n"
+           "  0 0 0\n"
+           "  3 0 0\n"
+           "  2 1 1\n"
+           "REGION 2  Universe \n"
+           "  +1  0\n"
+           "END\n"
+           "GOCAD TSurf 1\n"
+           "HEADER {\n"
+           "name: annulus\n"
+           "}\n"
+           "TFACE\n"
+           "VRTX 1 0 0 0\n"
+           "VRTX 2 3 0 0\n"
+           "VRTX 3 3 3 0\n"
+           "VRTX 4 0 3 0\n"
+           "VRTX 5 1 1 1\n"
+           "VRTX 6 2 1 1\n"
+           "VRTX 7 2 2 1\n"
+           "VRTX 8 1 2 1\n"
+           "TRGL 1 2 6\nTRGL 1 6 5\nTRGL 2 3 7\nTRGL 2 7 6\n"
+           "TRGL 3 4 8\nTRGL 3 8 7\nTRGL 4 1 5\nTRGL 4 5 8\n"
+           "BSTONE 1\n"
+           "BSTONE 5\n"
+           "BORDER 9 1 2\n"
+           "BORDER 10 5 6\n"
+           "END\n";
+}
+
+void check_annulus( const geode::StructuralModel& model )
+{
+    check_model( model, 2, 2, 1, 0, 0, 0, 1 );
+    const auto& surface = *model.surfaces().begin();
+    for( const auto& line : model.lines() )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            model.is_boundary( line, surface ),
+            "Both Lines should be boundaries of the Surface" );
+    }
+}
+
+void test_several_border_loops_output()
+{
+    const auto model = load_ml( "annulus.ml", annulus_ml() );
+    check_annulus( model );
+    geode::save_structural_model( model, "annulus_saved.ml" );
+    check_annulus( geode::load_structural_model( "annulus_saved.ml" ) );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -837,6 +894,7 @@ int main()
         test_block_without_boundary_output();
         test_empty_line_output();
         test_surface_collection_output();
+        test_several_border_loops_output();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
