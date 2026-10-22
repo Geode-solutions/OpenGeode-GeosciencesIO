@@ -193,6 +193,17 @@ void test_include()
             "INCLUDE\n'grdecl_does_not_exist.inc' /\n" ) ) );
 }
 
+void test_collapsed_pillar()
+{
+    check_grid_2x1x1( "grdecl_collapsed_pillar",
+        absl::StrCat( SPECGRID_2X1X1,
+            "COORD\n"
+            "0 0 1000 0 0 1000\n10 0 1000 10 0 1100\n20 0 1000 20 0 1100\n"
+            "0 10 1000 0 10 1100\n10 10 1000 10 10 1100\n"
+            "20 10 1000 20 10 1000\n/\n",
+            ZCORN_2X1X1 ) );
+}
+
 int main()
 {
     try
@@ -213,6 +224,7 @@ int main()
         test_eclipse_syntax();
         test_keyword_order();
         test_include();
+        test_collapsed_pillar();
         geode::Logger::info( "[TEST SUCCESS]" );
 
         return 0;

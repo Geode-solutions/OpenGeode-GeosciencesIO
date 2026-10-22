@@ -23,6 +23,7 @@
 
 #include <geode/geosciences_io/mesh/internal/grdecl_input.hpp>
 
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -58,9 +59,13 @@ namespace
     geode::Point3D interpolate_on_pillar(
         const double depth, const Pillar& pillar )
     {
-        const auto lambda =
-            ( depth - pillar.top.value( 2 ) )
-            / ( pillar.bottom.value( 2 ) - pillar.top.value( 2 ) );
+        const auto height = pillar.bottom.value( 2 ) - pillar.top.value( 2 );
+        if( std::fabs( height ) <= geode::GLOBAL_EPSILON )
+        {
+            return geode::Point3D{ { pillar.top.value( 0 ),
+                pillar.top.value( 1 ), depth } };
+        }
+        const auto lambda = ( depth - pillar.top.value( 2 ) ) / height;
         return pillar.bottom * lambda + pillar.top * ( 1 - lambda );
     }
 
