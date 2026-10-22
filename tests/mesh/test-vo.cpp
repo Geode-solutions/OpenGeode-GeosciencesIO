@@ -119,6 +119,32 @@ namespace
             "[TEST] Wrong values with cells outside of the grid" );
     }
 
+    void test_data_file_format()
+    {
+        const auto grid = load_test_voxet( "test_vo_blank", SIMPLE_GEOMETRY,
+            "*\n\n# comment\n* I J K p\n*\n0 0 0 1\n\n1 1 1 5\n0 1\n"
+            "1 0 0 2\n\n\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            cell_value( *grid, 0, 0, 0 ) == 1
+                && cell_value( *grid, 1, 1, 1 ) == 5
+                && cell_value( *grid, 1, 0, 0 ) == 2,
+            "[TEST] Wrong values with blank lines in data file" );
+
+        auto has_thrown = false;
+        try
+        {
+            load_test_voxet(
+                "test_vo_no_columns", SIMPLE_GEOMETRY, "*\n*\n*\n0 0 0 1\n" );
+        }
+        catch( const geode::OpenGeodeException& exception )
+        {
+            geode::Logger::info( "Expected exception: ", exception.what() );
+            has_thrown = true;
+        }
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            has_thrown, "[TEST] Data file without column header should throw" );
+    }
+
     void test_geometry()
     {
         const auto grid = geode::load_regular_grid< 3 >(
@@ -159,6 +185,7 @@ int main()
         test_grid_input();
         test_cells_outside_grid();
         test_geometry();
+        test_data_file_format();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

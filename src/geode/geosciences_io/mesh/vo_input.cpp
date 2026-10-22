@@ -255,44 +255,39 @@ namespace
                 geode::OpenGeodeException::TYPE::data,
                 "[VOInput] Cannot open data file: ", data_file_path );
             std::string line;
-            std::getline( data_file, line );
-            std::getline( data_file, line );
-            auto tokens = geode::string_split( line );
-            absl::FixedArray<
-                std::shared_ptr< geode::VariableAttribute< double > > >
-                data_attributes( tokens.size() - 4 );
-            for( const auto attribute_index :
-                geode::Indices{ data_attributes } )
-            {
-                geode::AttributeValues< double > attribute_values;
-                attribute_values.default_value = 0;
-                attribute_values.no_value = 0;
-                geode::AttributeProperties attribute_properties;
-                attribute_properties.assignable = false;
-                attribute_properties.interpolable = false;
-                attribute_properties.transferable = true;
-                const auto attribute_id =
-                    grid_.cell_attribute_manager()
-                        .create_attribute< geode::VariableAttribute, double >(
-                            tokens[4 + attribute_index], attribute_values,
-                            attribute_properties );
-                data_attributes[attribute_index] =
-                    grid_.cell_attribute_manager()
-                        .find_attribute< geode::VariableAttribute, double >(
-                            attribute_id );
-            }
-            std::getline( data_file, line );
+            std::vector< std::shared_ptr< geode::VariableAttribute< double > > >
+                data_attributes;
+            auto has_column_header = false;
             geode::index_t nb_outside_cells{ 0 };
+            geode::index_t nb_wrong_lines{ 0 };
             while( std::getline( data_file, line ) )
             {
-                tokens = geode::string_split( line );
+                const auto tokens = geode::string_split( line );
+                if( tokens.empty() )
+                {
+                    continue;
+                }
+                if( tokens.front().front() == '*'
+                    || tokens.front().front() == '#' )
+                {
+                    if( !has_column_header && tokens.size() >= 4
+                        && tokens[1] == "I" )
+                    {
+                        has_column_header = true;
+                        data_attributes = create_data_attributes( tokens );
+                    }
+                    continue;
+                }
                 geode::OpenGeodeGeosciencesIOMeshException::check_exception(
-                    tokens.size() == data_attributes.size() + 3, nullptr,
+                    has_column_header, nullptr,
                     geode::OpenGeodeException::TYPE::data,
-                    "[VOInput::read_data_file] Wrong number of tokens in line, "
-                    "got",
-                    tokens.size(), ", should have ",
-                    data_attributes.size() + 3 );
+                    "[VOInput::read_data_file] Missing \"* I J K ...\" "
+                    "column header in data file" );
+                if( tokens.size() != data_attributes.size() + 3 )
+                {
+                    nb_wrong_lines++;
+                    continue;
+                }
                 const std::array< geode::index_t, 3 > cell{
                     geode::string_to_index( tokens[0] ),
                     geode::string_to_index( tokens[1] ),
@@ -311,6 +306,12 @@ namespace
                         geode::string_to_double( tokens[3 + attribute_id] ) );
                 }
             }
+            if( nb_wrong_lines > 0 )
+            {
+                geode::Logger::warning( "[VOInput::read_data_file] ",
+                    nb_wrong_lines, " data lines do not have ",
+                    data_attributes.size() + 3, " values, they are skipped" );
+            }
             if( nb_outside_cells > 0 )
             {
                 geode::Logger::warning( "[VOInput::read_data_file] ",
@@ -318,6 +319,33 @@ namespace
                     " data lines reference cells outside of the grid, they "
                     "are skipped" );
             }
+        }
+
+        std::vector< std::shared_ptr< geode::VariableAttribute< double > > >
+            create_data_attributes(
+                absl::Span< const std::string_view > tokens )
+        {
+            std::vector< std::shared_ptr< geode::VariableAttribute< double > > >
+                data_attributes;
+            for( const auto token_id : geode::Range{ 4, tokens.size() } )
+            {
+                geode::AttributeValues< double > attribute_values;
+                attribute_values.default_value = 0;
+                attribute_values.no_value = 0;
+                geode::AttributeProperties attribute_properties;
+                attribute_properties.assignable = false;
+                attribute_properties.interpolable = false;
+                attribute_properties.transferable = true;
+                const auto attribute_id =
+                    grid_.cell_attribute_manager()
+                        .create_attribute< geode::VariableAttribute, double >(
+                            tokens[token_id], attribute_values,
+                            attribute_properties );
+                data_attributes.push_back( grid_.cell_attribute_manager()
+                        .find_attribute< geode::VariableAttribute, double >(
+                            attribute_id ) );
+            }
+            return data_attributes;
         }
 
         bool is_cell_inside_grid(
