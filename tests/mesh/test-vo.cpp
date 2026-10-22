@@ -32,6 +32,8 @@
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/logger.hpp>
 
+#include <geode/geometry/point.hpp>
+
 #include <geode/mesh/core/regular_grid_solid.hpp>
 #include <geode/mesh/io/regular_grid_input.hpp>
 
@@ -116,6 +118,36 @@ namespace
                 && cell_value( *grid, 1, 1, 1 ) == 5,
             "[TEST] Wrong values with cells outside of the grid" );
     }
+
+    void test_geometry()
+    {
+        const auto grid = geode::load_regular_grid< 3 >(
+            absl::StrCat( geode::DATA_PATH, "test.vo" ) );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            grid->cell_barycenter( { 0, 0, 0 } )
+                    .inexact_equal( geode::Point3D{ { 0, 0, 0 } } )
+                && grid->cell_barycenter( { 9, 9, 9 } )
+                    .inexact_equal( geode::Point3D{ { 900, 900, 900 } } ),
+            "[TEST] Wrong test.vo geometry" );
+
+        const auto rotated = load_test_voxet( "test_vo_rotated",
+            "GOCAD_ORIGINAL_COORDINATE_SYSTEM\nZPOSITIVE Depth\n"
+            "END_ORIGINAL_COORDINATE_SYSTEM\nAXIS_O 10 20 30\nAXIS_U 0 4 0\n"
+            "AXIS_V -4 0 0\nAXIS_W 0 0 8\nAXIS_MIN 0 0 0.5\nAXIS_MAX 1 1 1\n"
+            "AXIS_N 3 5 2\n",
+            "*\n* I J K p\n*\n0 0 0 1\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            rotated->nb_cells_in_direction( 0 ) == 3
+                && rotated->nb_cells_in_direction( 1 ) == 5
+                && rotated->nb_cells_in_direction( 2 ) == 2,
+            "[TEST] Wrong rotated voxet size" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            rotated->cell_barycenter( { 0, 0, 0 } )
+                    .inexact_equal( geode::Point3D{ { 10, 20, -34 } } )
+                && rotated->cell_barycenter( { 2, 4, 1 } )
+                    .inexact_equal( geode::Point3D{ { 6, 24, -38 } } ),
+            "[TEST] Wrong rotated voxet geometry" );
+    }
 } // namespace
 
 int main()
@@ -126,6 +158,7 @@ int main()
         geode::Logger::set_level( geode::Logger::LEVEL::debug );
         test_grid_input();
         test_cells_outside_grid();
+        test_geometry();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
