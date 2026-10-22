@@ -31,6 +31,8 @@
 #include <geode/basic/assert.hpp>
 #include <geode/basic/logger.hpp>
 
+#include <geode/geometry/bounding_box.hpp>
+
 #include <geode/mesh/core/edged_curve.hpp>
 #include <geode/mesh/core/surface_mesh.hpp>
 
@@ -528,6 +530,102 @@ void test_missing_tsurf_section()
         replace( content, "REGION 5", "TFACE 7 top other\nREGION 5" ) );
 }
 
+using TetraPoints = std::array< std::array< double, 3 >, 4 >;
+
+std::string tsurf_section( std::string_view name, const TetraPoints& points )
+{
+    std::string section =
+        absl::StrCat( "GOCAD TSurf 1\nHEADER {\nname: ", name, "\n}\n" );
+    constexpr std::array< std::array< geode::index_t, 3 >, 4 > faces{ {
+        { 0, 1, 2 },
+        { 0, 1, 3 },
+        { 0, 2, 3 },
+        { 1, 2, 3 },
+    } };
+    geode::index_t vertex{ 1 };
+    for( const auto& face : faces )
+    {
+        absl::StrAppend( &section, "TFACE\n" );
+        for( const auto v : face )
+        {
+            absl::StrAppend( &section, "VRTX ", vertex++, " ", points[v][0],
+                " ", points[v][1], " ", points[v][2], "\n" );
+        }
+        absl::StrAppend( &section, "TRGL ", vertex - 3, " ", vertex - 2, " ",
+            vertex - 1, "\n" );
+    }
+    for( const auto v : geode::Range{ 1, 13 } )
+    {
+        absl::StrAppend( &section, "BSTONE ", v, "\n" );
+    }
+    for( const auto f : geode::Range{ 4 } )
+    {
+        const auto first = 3 * f + 1;
+        absl::StrAppend( &section, "BORDER ", 13 + 3 * f, " ", first, " ",
+            first + 1, "\n", "BORDER ", 14 + 3 * f, " ", first + 1, " ",
+            first + 2, "\n", "BORDER ", 15 + 3 * f, " ", first + 2, " ", first,
+            "\n" );
+    }
+    absl::StrAppend( &section, "END\n" );
+    return section;
+}
+
+// Small tetrahedron Block (inner) inside a tetrahedron Block (outer)
+std::string nested_tetra_ml( bool inner_section_first )
+{
+    std::string content = "GOCAD Model3d 1\n"
+                          "HEADER {\n"
+                          "name: nested\n"
+                          "}\n"
+                          "TSURF outer\n"
+                          "TSURF inner\n";
+    for( const auto f : geode::Range{ 1, 5 } )
+    {
+        absl::StrAppend( &content, "TFACE ", f,
+            " boundary outer\n  0 0 0\n  0 0 0\n  0 0 0\n" );
+    }
+    for( const auto f : geode::Range{ 5, 9 } )
+    {
+        absl::StrAppend(
+            &content, "TFACE ", f, " top inner\n  0 0 0\n  0 0 0\n  0 0 0\n" );
+    }
+    absl::StrAppend( &content, "REGION 9  Universe \n  +1  +2  +3  +4  0\n",
+        "REGION 10 outer_block\n  -1  -2  -3  -4  +5\n  +6  +7  +8  0\n",
+        "REGION 11 inner_block\n  -5  -6  -7  -8  0\n", "END\n" );
+    const auto outer = tsurf_section(
+        "outer", { { { 0, 0, 0 }, { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } } } );
+    const auto inner =
+        tsurf_section( "inner", { { { 0.2, 0.2, 0.2 }, { 0.3, 0.2, 0.2 },
+                                    { 0.2, 0.3, 0.2 }, { 0.2, 0.2, 0.3 } } } );
+    if( inner_section_first )
+    {
+        absl::StrAppend( &content, inner, outer );
+    }
+    else
+    {
+        absl::StrAppend( &content, outer, inner );
+    }
+    return content;
+}
+
+void test_tsurf_section_names()
+{
+    const auto model =
+        load_ml( "tsurf_section_names.ml", nested_tetra_ml( true ) );
+    check_model( model, 8, 12, 8, 2, 0, 1, 1 );
+    for( const auto& boundary : model.model_boundaries() )
+    {
+        for( const auto& surface : model.model_boundary_items( boundary ) )
+        {
+            const auto max = surface.mesh().bounding_box().max();
+            geode::OpenGeodeGeosciencesIOModelException::test(
+                std::max( { max.value( 0 ), max.value( 1 ), max.value( 2 ) } )
+                    > 0.5,
+                "ModelBoundary Surfaces should be the outer tetrahedron" );
+        }
+    }
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -622,6 +720,7 @@ int main()
         test_small_regions();
         test_single_line_surface();
         test_missing_tsurf_section();
+        test_tsurf_section_names();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

@@ -27,6 +27,7 @@
 #include <fstream>
 #include <functional>
 
+#include <absl/container/fixed_array.h>
 #include <absl/container/flat_hash_set.h>
 
 #include <geode/basic/string.hpp>
@@ -166,15 +167,20 @@ namespace
             }
             geode::internal::read_CRS( file_ );
             read_model_components();
-            for( auto& tsurf : tsurfs_ )
+            absl::FixedArray< bool > filled( tsurfs_.size(), false );
+            geode::index_t next_position{ 0 };
+            for( const auto section : geode::Indices{ tsurfs_ } )
             {
                 auto tsurf_data = geode::internal::read_tsurf( file_ );
                 geode::OpenGeodeGeosciencesIOModelException::check_exception(
                     tsurf_data.has_value(), nullptr,
-                    geode::OpenGeodeException::TYPE::data,
-                    "[MLInput] Missing GOCAD TSurf section for TSURF ",
-                    tsurf.name, ": the file declares ", tsurfs_.size(),
-                    " TSURF" );
+                    geode::OpenGeodeException::TYPE::data, "[MLInput] Found ",
+                    section, " GOCAD TSurf sections but the file declares ",
+                    tsurfs_.size(), " TSURF" );
+                const auto index = find_tsurf_index(
+                    tsurf_data->header, filled, next_position );
+                filled[index] = true;
+                auto& tsurf = tsurfs_[index];
                 tsurf.data = std::move( tsurf_data.value() );
                 if( tsurf.tfaces.empty() )
                 {
@@ -202,6 +208,38 @@ namespace
         }
 
     private:
+        /*!
+         * GOCAD TSurf sections are matched to TSURF declarations by their
+         * HEADER name, or by position if there is no matching name.
+         */
+        geode::index_t find_tsurf_index(
+            const geode::internal::HeaderData& header,
+            absl::Span< const bool > filled,
+            geode::index_t& next_position ) const
+        {
+            if( header.name )
+            {
+                const auto it = tsurf_names2index_.find( header.name.value() );
+                if( it != tsurf_names2index_.end() && !filled[it->second] )
+                {
+                    return it->second;
+                }
+            }
+            while( filled[next_position] )
+            {
+                next_position++;
+            }
+            if( header.name )
+            {
+                geode::Logger::warning( "[MLInput] GOCAD TSurf ",
+                    header.name.value(),
+                    " does not match any remaining TSURF. It has been "
+                    "matched by position to TSURF ",
+                    tsurfs_[next_position].name );
+            }
+            return next_position;
+        }
+
         struct TSurfMLData
         {
             TSurfMLData( std::string input_name )
