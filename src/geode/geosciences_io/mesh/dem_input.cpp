@@ -40,14 +40,14 @@
 
 namespace
 {
-    constexpr std::array< const char*, 1 > GDAL_DRIVERS{ "USGSDEM" };
+    constexpr std::array< const char*, 1 > DEM_DRIVERS{ "USGSDEM" };
 
     class DEMInputImpl : public geode::detail::GDALFile
     {
     public:
         DEMInputImpl(
             geode::PolygonalSurface3D& surface, std::string_view filename )
-            : geode::detail::GDALFile{ filename, GDAL_DRIVERS },
+            : geode::detail::GDALFile{ filename, DEM_DRIVERS },
               builder_{ geode::PolygonalSurfaceBuilder3D::create( surface ) }
         {
         }
@@ -159,13 +159,13 @@ namespace geode::internal
 
     auto DEMInput::additional_files() const -> AdditionalFiles
     {
-        detail::GDALFile reader{ this->filename(), GDAL_DRIVERS };
+        detail::GDALFile reader{ this->filename(), DEM_DRIVERS };
         return reader.additional_files< AdditionalFiles >();
     }
 
     Percentage DEMInput::is_loadable() const
     {
-        detail::GDALFile reader{ this->filename(), GDAL_DRIVERS };
+        detail::GDALFile reader{ this->filename(), DEM_DRIVERS };
         if( !reader.is_coordinate_system_loadable() )
         {
             return Percentage{ 0 };

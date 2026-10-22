@@ -50,13 +50,13 @@
 
 namespace
 {
-    constexpr std::array< const char*, 1 > GDAL_DRIVERS{ "ESRI Shapefile" };
+    constexpr std::array< const char*, 1 > SHP_DRIVERS{ "ESRI Shapefile" };
 
     class SHPInputImpl : public geode::detail::GDALFile
     {
     public:
         SHPInputImpl( geode::Section& section, std::string_view filename )
-            : geode::detail::GDALFile{ filename, GDAL_DRIVERS },
+            : geode::detail::GDALFile{ filename, SHP_DRIVERS },
               section_( section ),
               builder_{ section }
         {
@@ -294,7 +294,7 @@ namespace geode::internal
 
     Percentage SHPInput::is_loadable() const
     {
-        detail::GDALFile reader{ filename(), GDAL_DRIVERS };
+        detail::GDALFile reader{ filename(), SHP_DRIVERS };
         if( reader.dataset().GetLayerCount() == 0 )
         {
             return Percentage{ 0 };
