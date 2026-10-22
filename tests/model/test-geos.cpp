@@ -898,6 +898,32 @@ void test_constant_block_properties()
     }
 }
 
+void test_structural_model_block_without_unit()
+{
+    geode::StructuralModel model{ tetrahedra_brep(
+        3, geode::Point3D{ { 0., 0., 0. } } ) };
+    geode::StructuralModelBuilder builder{ model };
+    const auto& unit =
+        model.stratigraphic_unit( builder.add_stratigraphic_unit() );
+    std::vector< geode::uuid > block_ids;
+    for( const auto& block : model.blocks() )
+    {
+        block_ids.push_back( block.id() );
+    }
+    builder.add_block_in_stratigraphic_unit(
+        model.block( block_ids[0] ), unit );
+    builder.add_block_in_stratigraphic_unit(
+        model.block( block_ids[2] ), unit );
+    geode::StructuralModelGeosExporter exporter( model, "unit_regions" );
+    exporter.run();
+    const auto regions = vtu_cell_values< geode::index_t >(
+        "unit_regions/unit_regions.vtu", "attribute" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        regions == std::vector< geode::index_t >{ 0, 1, 0 },
+        "[Test] Wrong regions for a StructuralModel Block in no "
+        "StratigraphicUnit" );
+}
+
 int main()
 {
     try
@@ -906,6 +932,7 @@ int main()
         geode::OpenGeodeIOMeshLibrary::initialize();
         geode::OpenGeodeIOModelLibrary::initialize();
         test_constant_block_properties();
+        test_structural_model_block_without_unit();
         test_picasso();
         test_uniform_variable_boundary_condition();
         test_variable_boundary_condition();

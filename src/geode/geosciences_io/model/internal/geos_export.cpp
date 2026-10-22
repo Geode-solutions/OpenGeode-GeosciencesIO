@@ -791,17 +791,21 @@ namespace geode::internal
         region_definitions_ = create_region_definitions( model_ );
         add_block_collection_regions();
         const auto& block_regions = region_definitions_.block_regions;
-        for( const auto polyhedron_id : Range( model_solid_->nb_polyhedra() ) )
+        index_t block_index{ 0 };
+        for( const auto& block : model_.blocks() )
         {
-            const auto& block_id =
-                model2solid_.solid_polyhedra_mapping.out2in( polyhedron_id )
-                    .mesh_id;
-            const auto region = block_regions.find( block_id );
+            const auto region = block_regions.find( block.id() );
             OpenGeodeGeosciencesIOModelException::check_exception(
                 region != block_regions.end(), nullptr,
                 OpenGeodeException::TYPE::internal, "[GeosExporter] Block ",
-                block_id.string(), " belongs to no region." );
-            region_attribute_->set_value( polyhedron_id, region->second );
+                block.id().string(), " belongs to no region." );
+            for( const auto polyhedron_id :
+                Range{ block_polyhedra_offsets_[block_index],
+                    block_polyhedra_offsets_[block_index + 1] } )
+            {
+                region_attribute_->set_value( polyhedron_id, region->second );
+            }
+            block_index++;
         }
         return static_cast< index_t >( region_definitions_.regions.size() );
     }
