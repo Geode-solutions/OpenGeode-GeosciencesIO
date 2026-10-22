@@ -185,9 +185,14 @@ namespace geode::internal
     Percentage HorizonStackSKUAInput< dimension >::is_loadable() const
     {
         std::ifstream file{ geode::to_string( this->filename() ) };
-        if( goto_keyword_if_it_exists( file, " <LocalStratigraphicColumn" ) )
+        std::string line;
+        while( std::getline( file, line ) )
         {
-            return Percentage{ 1 };
+            // Any indentation, possibly on the same line as other elements
+            if( line.find( "<LocalStratigraphicColumn" ) != std::string::npos )
+            {
+                return Percentage{ 1 };
+            }
         }
         return Percentage{ 0 };
     }
