@@ -338,53 +338,6 @@ namespace
         file.clear();
     }
 
-    void read_ilines( std::ifstream& file, geode::internal::ECurveData& ecurve )
-    {
-        std::string line;
-        VertexIdMapping ids;
-        while( std::getline( file, line ) )
-        {
-            const auto tokens = geode::string_split( line );
-            if( is_empty_or_comment( tokens ) )
-            {
-                continue;
-            }
-            const auto& keyword = tokens.front();
-            if( is_object_end( file, line, keyword, "PLine" ) )
-            {
-                resolve_ecurve_indices( ecurve, ids );
-                return;
-            }
-            if( keyword == "VRTX" || keyword == "PVRTX" )
-            {
-                check_enough_tokens( tokens, 5, line );
-                if( ecurve.points.empty() )
-                {
-                    ecurve.OFFSET_START = geode::string_to_index( tokens[1] );
-                }
-                ids.add(
-                    geode::string_to_index( tokens[1] ), ecurve.points.size() );
-                ecurve.points.emplace_back( std::array< double, 3 >{
-                    geode::string_to_double( tokens[2] ),
-                    geode::string_to_double( tokens[3] ),
-                    geode::string_to_double( tokens[4] )
-                        * ( ecurve.crs.z_sign_positive ? 1. : -1. ) } );
-            }
-            else if( keyword == "SEG" )
-            {
-                if( !has_enough_tokens( tokens, 3, line ) )
-                {
-                    continue;
-                }
-                ecurve.edges.emplace_back( std::array< geode::index_t, 2 >{
-                    geode::string_to_index( tokens[1] ),
-                    geode::string_to_index( tokens[2] ) } );
-            }
-        }
-        warn_missing_end( file, "PLine" );
-        resolve_ecurve_indices( ecurve, ids );
-    }
-
     void end_tsurf(
         geode::internal::TSurfData& tsurf, const VertexIdMapping& ids )
     {
@@ -446,6 +399,59 @@ namespace
                 geode::string_to_double( tokens[4] )
                     * ( data.crs.z_sign_positive ? 1. : -1. ) } );
         read_vertex_properties( data, tokens, 5, state );
+    }
+
+    void read_ilines( std::ifstream& file, geode::internal::ECurveData& ecurve )
+    {
+        std::string line;
+        VertexReaderState state;
+        while( std::getline( file, line ) )
+        {
+            const auto tokens = geode::string_split( line );
+            if( is_empty_or_comment( tokens ) )
+            {
+                continue;
+            }
+            const auto& keyword = tokens.front();
+            if( is_object_end( file, line, keyword, "PLine" ) )
+            {
+                resolve_ecurve_indices( ecurve, state.ids );
+                return;
+            }
+            if( keyword == "VRTX" || keyword == "PVRTX" )
+            {
+                read_vertex_line( ecurve, tokens, line, state );
+            }
+            else if( keyword == "ATOM" || keyword == "PATOM" )
+            {
+                if( !has_enough_tokens( tokens, 3, line ) )
+                {
+                    continue;
+                }
+                const auto reference =
+                    state.ids.find( geode::string_to_index( tokens[2] ) );
+                if( !reference )
+                {
+                    geode::Logger::warning( "[PLInput] Line \"", line,
+                        "\" references an unknown vertex, it is skipped" );
+                    continue;
+                }
+                state.ids.add(
+                    geode::string_to_index( tokens[1] ), reference.value() );
+            }
+            else if( keyword == "SEG" )
+            {
+                if( !has_enough_tokens( tokens, 3, line ) )
+                {
+                    continue;
+                }
+                ecurve.edges.emplace_back( std::array< geode::index_t, 2 >{
+                    geode::string_to_index( tokens[1] ),
+                    geode::string_to_index( tokens[2] ) } );
+            }
+        }
+        warn_missing_end( file, "PLine" );
+        resolve_ecurve_indices( ecurve, state.ids );
     }
 
     void read_tfaces( std::ifstream& file, geode::internal::TSurfData& tsurf )
@@ -1162,6 +1168,10 @@ namespace geode::internal
         auto object_header = read_object_header( file );
         ecurve.header = std::move( object_header.header );
         ecurve.crs = std::move( object_header.crs );
+        ecurve.vertices_properties_header =
+            std::move( object_header.vertices_properties_header );
+        ecurve.vertices_attribute_values.resize(
+            ecurve.vertices_properties_header.names.size() );
         read_ilines( file, ecurve );
         return ecurve;
     }

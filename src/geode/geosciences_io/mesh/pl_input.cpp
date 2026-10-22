@@ -25,6 +25,8 @@
 
 #include <fstream>
 
+#include <absl/algorithm/container.h>
+
 #include <geode/basic/file.hpp>
 
 #include <geode/geometry/point.hpp>
@@ -77,6 +79,14 @@ namespace
                 }
                 builder_->create_edge( edge[0], edge[1] );
             }
+            std::vector< geode::index_t > inverse_vertex_mapping(
+                ecurve.points.size() );
+            absl::c_iota( inverse_vertex_mapping, 0 );
+            geode::internal::create_attributes(
+                ecurve.vertices_properties_header,
+                ecurve.vertices_attribute_values,
+                curve_.vertex_attribute_manager(), ecurve.points.size(),
+                inverse_vertex_mapping, offset );
         }
 
     private:

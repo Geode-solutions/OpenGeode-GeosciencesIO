@@ -155,8 +155,10 @@ namespace geode::internal
         index_t OFFSET_START{ 1 };
         HeaderData header;
         CRSData crs;
+        PropHeaderData vertices_properties_header;
         std::vector< Point3D > points;
         std::vector< std::array< index_t, 2 > > edges;
+        std::vector< std::vector< double > > vertices_attribute_values;
     };
     std::optional< ECurveData > opengeode_geosciencesio_mesh_api read_ecurve(
         std::ifstream& file );

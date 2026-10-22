@@ -112,6 +112,43 @@ namespace
             "Wrong curve with non contiguous ids" );
     }
 
+    double vertex_value( const geode::EdgedCurve3D& curve,
+        std::string_view name,
+        geode::index_t vertex )
+    {
+        const auto& manager = curve.vertex_attribute_manager();
+        const auto ids = manager.attribute_ids_matching_name( name );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            ids.has_value() && ids->size() == 1,
+            "Attribute should exist once: ", name );
+        return manager.find_read_only_attribute< double >( ids->front() )
+            ->value( vertex );
+    }
+
+    void test_properties_and_atoms()
+    {
+        const auto curve = load_test_file( "test_pl_properties.pl",
+            "GOCAD PLine 1\nHEADER {\nname: a\n}\nPROPERTIES p\nESIZES 1\n"
+            "ILINE\nPVRTX 1 0 0 0 1.5\nPVRTX 2 1 0 0 2.5\nSEG 1 2\nILINE\n"
+            "ATOM 3 2\nPVRTX 4 2 0 0 3.5\nSEG 3 4\nEND\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curve->nb_vertices() == 3 && curve->nb_edges() == 2
+                && curve->edge_vertices( 1 )[0] == 1
+                && curve->edge_vertices( 1 )[1] == 2,
+            "Wrong curve with ATOM" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            vertex_value( *curve, "p", 0 ) == 1.5
+                && vertex_value( *curve, "p", 2 ) == 3.5,
+            "Wrong property values in PLine" );
+
+        geode::save_edged_curve( *curve, "test_pl_properties_saved.pl" );
+        const auto reloaded =
+            geode::load_edged_curve< 3 >( "test_pl_properties_saved.pl" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            vertex_value( *reloaded, "p", 1 ) == 2.5,
+            "Wrong property values in saved PLine" );
+    }
+
     std::vector< std::array< geode::Point3D, 2 > > sorted_edge_points(
         const geode::EdgedCurve3D& curve )
     {
@@ -212,6 +249,7 @@ int main()
         test_output_precision();
         test_closed_loop_output();
         test_non_contiguous_ids();
+        test_properties_and_atoms();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }
