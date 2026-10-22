@@ -163,6 +163,38 @@ namespace
             "Wrong property values with several TSurf" );
     }
 
+    void test_vertex_lines_with_properties()
+    {
+        const auto surface = load_test_file( "test_ts_vrtx_atom.ts",
+            "GOCAD TSurf 1\nHEADER {\nname: s1\n}\nPROPERTIES p\n"
+            "NO_DATA_VALUES -5\nTFACE\nPVRTX 1 0 0 0 11\nVRTX 2 1 0 0\n"
+            "PVRTX 3 0 1 0 13\nTRGL 1 2 3\nTFACE\nATOM 4 1\nATOM 5 3\n"
+            "PVRTX 6 1 1 0 16\nTRGL 4 5 6\nEND\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surface->nb_vertices() == 6 && surface->nb_polygons() == 2,
+            "Wrong surface with VRTX and ATOM" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            vertex_value( *surface, "p", 1 ) == -5
+                && vertex_value( *surface, "p", 3 ) == 11
+                && vertex_value( *surface, "p", 4 ) == 13
+                && vertex_value( *surface, "p", 5 ) == 16,
+            "Wrong property values with VRTX and ATOM" );
+        auto has_thrown = false;
+        try
+        {
+            load_test_file( "test_ts_bad_atom.ts",
+                "GOCAD TSurf 1\nHEADER {\nname: s1\n}\nTFACE\n"
+                "VRTX 1 0 0 0\nATOM 2 7\nEND\n" );
+        }
+        catch( const geode::OpenGeodeException& exception )
+        {
+            geode::Logger::info( "Expected exception: ", exception.what() );
+            has_thrown = true;
+        }
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            has_thrown, "ATOM referencing an unknown vertex should throw" );
+    }
+
     void test_object_header_order()
     {
         const auto surface = load_test_file( "test_ts_header_order.ts",
@@ -256,6 +288,7 @@ int main()
         test_partial_property_header();
         test_object_header_order();
         test_multiple_tsurf_properties();
+        test_vertex_lines_with_properties();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

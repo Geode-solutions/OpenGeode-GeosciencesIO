@@ -331,10 +331,64 @@ namespace
         resolve_tsurf_indices( tsurf );
     }
 
+    template < typename Data >
+    void read_vertex_properties( Data& data,
+        absl::Span< const std::string_view > tokens,
+        geode::index_t position,
+        bool& missing_values_warned )
+    {
+        if( !geode::internal::read_properties( data.vertices_properties_header,
+                data.vertices_attribute_values, tokens, position )
+            && !missing_values_warned )
+        {
+            geode::Logger::warning(
+                "[GocadInput] Some vertices have less property values than "
+                "declared in PROPERTIES, missing values are set to "
+                "NO_DATA_VALUES" );
+            missing_values_warned = true;
+        }
+    }
+
+    template < typename Data >
+    void copy_vertex_properties( Data& data, geode::index_t from_vertex )
+    {
+        const auto& esizes = data.vertices_properties_header.esizes;
+        for( const auto attr_id : geode::Indices{ esizes } )
+        {
+            auto& values = data.vertices_attribute_values[attr_id];
+            const auto start = from_vertex * esizes[attr_id];
+            for( const auto item : geode::Range{ esizes[attr_id] } )
+            {
+                const auto value = values[start + item];
+                values.push_back( value );
+            }
+        }
+    }
+
+    template < typename Data >
+    void read_vertex_line( Data& data,
+        absl::Span< const std::string_view > tokens,
+        std::string_view line,
+        bool& missing_values_warned )
+    {
+        check_enough_tokens( tokens, 5, line );
+        if( data.points.empty() )
+        {
+            data.OFFSET_START = geode::string_to_index( tokens[1] );
+        }
+        data.points.emplace_back(
+            std::array< double, 3 >{ geode::string_to_double( tokens[2] ),
+                geode::string_to_double( tokens[3] ),
+                geode::string_to_double( tokens[4] )
+                    * ( data.crs.z_sign_positive ? 1. : -1. ) } );
+        read_vertex_properties( data, tokens, 5, missing_values_warned );
+    }
+
     void read_tfaces( std::ifstream& file, geode::internal::TSurfData& tsurf )
     {
         std::string line;
         auto tface_started = false;
+        auto missing_values_warned = false;
         while( std::getline( file, line ) )
         {
             const auto tokens = geode::string_split( line );
@@ -350,29 +404,28 @@ namespace
             }
             if( keyword == "VRTX" || keyword == "PVRTX" )
             {
-                check_enough_tokens( tokens, 5, line );
-                if( tsurf.points.empty() )
-                {
-                    tsurf.OFFSET_START = geode::string_to_index( tokens[1] );
-                }
-                tsurf.points.emplace_back( std::array< double, 3 >{
-                    geode::string_to_double( tokens[2] ),
-                    geode::string_to_double( tokens[3] ),
-                    geode::string_to_double( tokens[4] )
-                        * ( tsurf.crs.z_sign_positive ? 1. : -1. ) } );
-                geode::internal::read_properties(
-                    tsurf.vertices_properties_header,
-                    tsurf.vertices_attribute_values, tokens, 5 );
+                read_vertex_line( tsurf, tokens, line, missing_values_warned );
             }
             else if( keyword == "ATOM" || keyword == "PATOM" )
             {
                 check_enough_tokens( tokens, 3, line );
-                tsurf.points.push_back(
-                    tsurf.points.at( geode::string_to_index( tokens[2] )
-                                     - tsurf.OFFSET_START ) );
-                geode::internal::read_properties(
-                    tsurf.vertices_properties_header,
-                    tsurf.vertices_attribute_values, tokens, 3 );
+                const auto reference =
+                    vertex_index( geode::string_to_index( tokens[2] ),
+                        tsurf.OFFSET_START, tsurf.points.size() );
+                geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                    reference.has_value(), nullptr,
+                    geode::OpenGeodeException::TYPE::data, "[TSInput] Line \"",
+                    line, "\" references an unknown vertex" );
+                tsurf.points.push_back( tsurf.points[reference.value()] );
+                if( tokens.size() > 3 )
+                {
+                    read_vertex_properties(
+                        tsurf, tokens, 3, missing_values_warned );
+                }
+                else
+                {
+                    copy_vertex_properties( tsurf, reference.value() );
+                }
             }
             else if( keyword == "TRGL" )
             {
@@ -423,6 +476,7 @@ namespace
         std::ifstream& file, geode::internal::VSetData& vertex_set )
     {
         std::string line;
+        auto missing_values_warned = false;
         while( std::getline( file, line ) )
         {
             const auto tokens = geode::string_split( line );
@@ -439,19 +493,7 @@ namespace
             {
                 continue;
             }
-            check_enough_tokens( tokens, 5, line );
-            if( vertex_set.points.empty() )
-            {
-                vertex_set.OFFSET_START = geode::string_to_index( tokens[1] );
-            }
-            vertex_set.points.emplace_back(
-                std::array< double, 3 >{ geode::string_to_double( tokens[2] ),
-                    geode::string_to_double( tokens[3] ),
-                    geode::string_to_double( tokens[4] )
-                        * ( vertex_set.crs.z_sign_positive ? 1. : -1. ) } );
-            geode::internal::read_properties(
-                vertex_set.vertices_properties_header,
-                vertex_set.vertices_attribute_values, tokens, 5 );
+            read_vertex_line( vertex_set, tokens, line, missing_values_warned );
         }
         warn_missing_end( file, "VSet" );
     }
@@ -880,28 +922,34 @@ namespace geode::internal
         return header;
     }
 
-    void read_properties( const PropHeaderData& properties_header,
+    bool read_properties( const PropHeaderData& properties_header,
         std::vector< std::vector< double > >& attribute_values,
         absl::Span< const std::string_view > tokens,
         geode::index_t line_properties_position )
     {
+        auto all_values_read = true;
         for( const auto attr_id : geode::Indices{ properties_header.names } )
         {
             for( const auto item :
-                geode::LRange{ properties_header.esizes[attr_id] } )
+                geode::Range{ properties_header.esizes[attr_id] } )
             {
                 geode_unused( item );
-                OpenGeodeGeosciencesIOMeshException::check_exception(
-                    line_properties_position < tokens.size(), nullptr,
-                    geode::OpenGeodeException::TYPE::data,
-                    "[GocadInput::read_point_properties] Cannot read "
-                    "properties: number of property items is higher than "
-                    "number of tokens." );
-                attribute_values[attr_id].push_back( geode::string_to_double(
-                    tokens[line_properties_position] ) );
-                line_properties_position++;
+                if( line_properties_position < tokens.size() )
+                {
+                    attribute_values[attr_id].push_back(
+                        geode::string_to_double(
+                            tokens[line_properties_position] ) );
+                    line_properties_position++;
+                }
+                else
+                {
+                    attribute_values[attr_id].push_back(
+                        properties_header.no_data_values[attr_id] );
+                    all_values_read = false;
+                }
             }
         }
+        return all_values_read;
     }
 
     void create_attributes( const PropHeaderData& attributes_header,

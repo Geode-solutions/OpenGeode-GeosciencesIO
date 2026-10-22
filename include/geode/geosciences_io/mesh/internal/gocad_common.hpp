@@ -83,7 +83,11 @@ namespace geode::internal
     PropHeaderData opengeode_geosciencesio_mesh_api read_prop_header(
         std::ifstream& file, std::string_view prefix );
 
-    void opengeode_geosciencesio_mesh_api read_properties(
+    /*!
+     * Reads the property values of a vertex line. Missing values are set to
+     * NO_DATA_VALUES and false is returned.
+     */
+    bool opengeode_geosciencesio_mesh_api read_properties(
         const PropHeaderData& properties_header,
         std::vector< std::vector< double > >& attribute_values,
         absl::Span< const std::string_view > tokens,
