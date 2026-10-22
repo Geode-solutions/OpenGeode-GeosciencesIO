@@ -64,6 +64,7 @@
 #include <geode/mesh/core/hybrid_solid.hpp>
 #include <geode/mesh/core/point_set.hpp>
 #include <geode/mesh/core/polyhedral_solid.hpp>
+#include <geode/mesh/core/regular_grid_solid.hpp>
 #include <geode/mesh/core/solid_mesh.hpp>
 #include <geode/mesh/core/surface_mesh.hpp>
 #include <geode/mesh/core/tetrahedral_solid.hpp>
@@ -678,6 +679,20 @@ namespace geode::internal
     template < typename Model >
     void GeosExporterImpl< Model >::convert_model()
     {
+        bool all_regular_grids{ model_.nb_blocks() != 0 };
+        for( const auto& block : model_.blocks() )
+        {
+            if( block.mesh().type_name() != RegularGrid3D::type_name_static() )
+            {
+                all_regular_grids = false;
+                break;
+            }
+        }
+        OpenGeodeGeosciencesIOModelException::check_exception(
+            !all_regular_grids, nullptr, OpenGeodeException::TYPE::data,
+            "[GeosExporter] Cannot export a model whose Blocks are all "
+            "RegularGrids: convert the Block meshes into HybridSolids "
+            "first." );
         std::tie( model_solid_, model2solid_ ) =
             convert_brep_into_solid( model_ );
         compute_block_polyhedra_offsets();
@@ -1322,8 +1337,10 @@ namespace geode::internal
         {
             throw OpenGeodeGeosciencesIOModelException{ nullptr,
                 OpenGeodeException::TYPE::data,
-                "[Blocks::save_geos] Cannot find the explicit "
-                "SolidMesh type" };
+                "[GeosExporter] Cannot write the model solid of type ",
+                model_solid_->type_name().get(),
+                ": only TetrahedralSolid, HybridSolid and PolyhedralSolid are "
+                "supported." };
         }
         return filename;
     }

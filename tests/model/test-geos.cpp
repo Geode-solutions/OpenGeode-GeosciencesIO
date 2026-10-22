@@ -66,9 +66,12 @@
 
 #include <geode/geometry/bounding_box.hpp>
 #include <geode/geometry/point.hpp>
+#include <geode/geometry/vector.hpp>
 #include <geode/mesh/builder/point_set_builder.hpp>
+#include <geode/mesh/builder/regular_grid_solid_builder.hpp>
 #include <geode/mesh/builder/tetrahedral_solid_builder.hpp>
 #include <geode/mesh/builder/triangulated_surface_builder.hpp>
+#include <geode/mesh/core/geode/geode_regular_grid_solid.hpp>
 #include <geode/mesh/core/geode/geode_tetrahedral_solid.hpp>
 #include <geode/mesh/core/geode/geode_triangulated_surface.hpp>
 #include <geode/mesh/core/point_set.hpp>
@@ -1076,6 +1079,38 @@ void test_boundary_condition_scale_precision()
         "[Test] Boundary condition scale is not exact: ", scale );
 }
 
+void test_regular_grid_blocks()
+{
+    geode::BRep model;
+    geode::BRepBuilder builder{ model };
+    const auto& block = model.block( builder.add_block(
+        geode::OpenGeodeRegularGrid3D::impl_name_static() ) );
+    builder.block_mesh_builder< geode::RegularGrid3D >( block )
+        ->initialize_grid( geode::Point3D{ { 0., 0., 0. } }, { 1, 1, 1 }, 1. );
+    const auto nb_vertices = block.mesh().nb_vertices();
+    builder.create_unique_vertices( nb_vertices );
+    for( const auto vertex : geode::Range{ nb_vertices } )
+    {
+        builder.set_unique_vertex( { block.component_id(), vertex }, vertex );
+    }
+    try
+    {
+        geode::BRepGeosExporter exporter( model, "regular_grid" );
+        exporter.run();
+    }
+    catch( const geode::OpenGeodeException& exception )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            std::string_view{ exception.what() }.find( "[GeosExporter]" )
+                != std::string_view::npos,
+            "[Test] Wrong exception for RegularGrid Blocks: ",
+            exception.what() );
+        return;
+    }
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        false, "[Test] Export of RegularGrid Blocks should throw" );
+}
+
 int main()
 {
     try
@@ -1086,6 +1121,7 @@ int main()
         test_structural_model_block_without_unit();
         test_structural_model_block_in_two_units();
         test_boundary_condition_scale_precision();
+        test_regular_grid_blocks();
         test_picasso();
         test_uniform_variable_boundary_condition();
         test_variable_boundary_condition();
