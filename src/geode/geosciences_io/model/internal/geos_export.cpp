@@ -600,11 +600,33 @@ namespace geode::internal
             || ... );
     }
 
+    // The VTU writer renames the attributes sharing a name, which would not
+    // match the field names given to GEOS
+    std::string unique_attribute_name( const AttributeManager& manager,
+        std::string_view name,
+        std::string_view geos_name )
+    {
+        if( !manager.attribute_ids_matching_name( name ) )
+        {
+            return to_string( name );
+        }
+        auto unique_name = absl::StrCat( name, "_", geos_name );
+        for( index_t suffix{ 0 };
+            manager.attribute_ids_matching_name( unique_name ); suffix++ )
+        {
+            unique_name = absl::StrCat( name, "_", geos_name, "_", suffix );
+        }
+        Logger::warning( "[GeosExporter] Attribute name ", name,
+            " is already exported, it is exported as ", unique_name, "." );
+        return unique_name;
+    }
+
     template < typename Model >
     std::string transfer_block_attribute( const Model& model,
         SolidMesh3D& solid,
         absl::Span< const index_t > block_polyhedra_offsets,
-        const PhysicalProperties::Info& property_info )
+        const PhysicalProperties::Info& property_info,
+        std::string_view geos_name )
     {
         const auto& attribute_id = property_info.attribute_id;
         OpenGeodeGeosciencesIOModelException::check_exception(
@@ -644,15 +666,23 @@ namespace geode::internal
             attribute_name.has_value(), nullptr, OpenGeodeException::TYPE::data,
             "[GeosExporter] Physical property attribute ",
             attribute_id.string(), " has no name." );
+        auto& solid_manager = solid.polyhedron_attribute_manager();
+        if( const auto attribute =
+                solid_manager.find_generic_attribute( attribute_id ) )
+        {
+            // Attribute already exported for another physical property
+            return attribute->name().value();
+        }
+        const auto vtu_name = unique_attribute_name(
+            solid_manager, attribute_name.value(), geos_name );
         OpenGeodeGeosciencesIOModelException::check_exception(
             copy_block_attribute( model, block_polyhedra_offsets,
-                attribute_type.value(), attribute_name.value(), attribute_id,
-                solid.polyhedron_attribute_manager(),
+                attribute_type.value(), vtu_name, attribute_id, solid_manager,
                 SupportedBlockAttributeTypes{} ),
             nullptr, OpenGeodeException::TYPE::data,
             "[GeosExporter] Physical property attribute ",
             attribute_name.value(), " has an unsupported value type." );
-        return attribute_name.value();
+        return vtu_name;
     }
 
     template < typename Model >
@@ -1128,8 +1158,9 @@ namespace geode::internal
             }
             const auto& property_info =
                 model_.physical_property_info( property );
-            auto attribute_name = transfer_block_attribute( model_,
-                *model_solid_, block_polyhedra_offsets_, property_info );
+            auto attribute_name =
+                transfer_block_attribute( model_, *model_solid_,
+                    block_polyhedra_offsets_, property_info, geos_name );
             imported_fields_.emplace_back(
                 std::move( attribute_name ), to_string( geos_name ) );
             if( property == PHYSICAL_PROPERTY_NAME::porosity )
@@ -1381,6 +1412,12 @@ namespace geode::internal
                 "several times." );
             const auto source =
                 cell_attributes.find_read_only_attribute< double >( source_id );
+            OpenGeodeGeosciencesIOModelException::check_exception(
+                !cell_attributes.attribute_ids_matching_name( field.vtu_name ),
+                nullptr, OpenGeodeException::TYPE::data,
+                "[GeosExporter] Cannot import a copy of ", field.source.name,
+                " named ", field.vtu_name,
+                ": another exported attribute has this name." );
             AttributeValues< double > values;
             values.default_value = 0.;
             const auto copy_id =

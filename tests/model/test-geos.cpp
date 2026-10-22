@@ -64,6 +64,7 @@
 #include <geode/geosciences_io/model/helpers/brep_geos_export.hpp>
 #include <geode/geosciences_io/model/helpers/structural_model_geos_export.hpp>
 
+#include <absl/strings/str_split.h>
 #include <geode/geometry/bounding_box.hpp>
 #include <geode/geometry/point.hpp>
 #include <geode/geometry/vector.hpp>
@@ -1111,6 +1112,50 @@ void test_regular_grid_blocks()
         false, "[Test] Export of RegularGrid Blocks should throw" );
 }
 
+std::vector< std::string > xml_list(
+    std::string_view xml, std::string_view attribute )
+{
+    const auto start = xml.find( absl::StrCat( attribute, "=\"{ " ) );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        start != std::string_view::npos, "[Test] No ", attribute, " in XML" );
+    const auto first = start + attribute.size() + 4;
+    return absl::StrSplit(
+        xml.substr( first, xml.find( " }", first ) - first ), ", " );
+}
+
+void test_property_names_clash()
+{
+    auto model = tetrahedra_brep( 2, geode::Point3D{ { 0., 0., 0. } } );
+    const std::array< double, 2 > porosities{ 0.1, 0.2 };
+    const std::array< double, 2 > permeabilities{ 10., 20. };
+    add_block_property< geode::VariableAttribute, double >( model,
+        geode::PHYSICAL_PROPERTY_NAME::porosity, "attribute", porosities );
+    add_block_property< geode::VariableAttribute, double >( model,
+        geode::PHYSICAL_PROPERTY_NAME::permeability, "attribute",
+        permeabilities );
+    geode::BRepGeosExporter exporter( model, "names_clash" );
+    exporter.run();
+    const auto xml = read_file( "names_clash/names_clash_simulation.xml" );
+    const auto vtu_names = xml_list( xml, "fieldsToImport" );
+    const auto geos_names = xml_list( xml, "fieldNamesInGEOS" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        vtu_names.size() == 2 && geos_names.size() == 2,
+        "[Test] Wrong number of imported fields" );
+    for( const auto field : geode::LRange{ 2 } )
+    {
+        const auto values = vtu_cell_values< double >(
+            "names_clash/names_clash.vtu", vtu_names[field] );
+        const auto& expected =
+            geos_names[field] == "rockPorosity_referencePorosity"
+                ? porosities
+                : permeabilities;
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            values.size() == 2 && values[0] == expected[0]
+                && values[1] == expected[1],
+            "[Test] Wrong values for field ", vtu_names[field] );
+    }
+}
+
 int main()
 {
     try
@@ -1122,6 +1167,7 @@ int main()
         test_structural_model_block_in_two_units();
         test_boundary_condition_scale_precision();
         test_regular_grid_blocks();
+        test_property_names_clash();
         test_picasso();
         test_uniform_variable_boundary_condition();
         test_variable_boundary_condition();
