@@ -122,7 +122,7 @@ void test_unordered_records()
     constexpr auto filename = "unordered_grid.json";
     write_file( filename, R"({
         "grid_df": [
-            { "x": 2, "y": 1, "z": 6, "value": 112 },
+            { "x": 2, "y": 1, "z": 6, "value": 112, "label": "a" },
             { "x": 0, "y": 0, "z": 5, "value": 0 },
             { "x": 0, "y": 1, "z": 6, "value": 110 },
             { "x": 2, "y": 0, "z": 5, "value": 2 },
@@ -141,6 +141,11 @@ void test_unordered_records()
         "Wrong number of cells for unordered grid" );
     geode::OpenGeodeGeosciencesIOMeshException::test(
         grid.name() == "unordered", "Wrong name for unordered grid" );
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        !grid.grid_vertex_attribute_manager()
+            .attribute_ids_matching_name( "label" )
+            .has_value(),
+        "String values should be ignored" );
     const auto attribute = find_attribute< double >( grid, "value" );
     for( const auto vertex : geode::Range{ grid.nb_grid_vertices() } )
     {

@@ -134,6 +134,14 @@ namespace
             {
                 top_level_strings_[current_key_] = std::move( value );
             }
+            else if( in_record()
+                     && ignored_string_keys_.insert( current_key_ ).second )
+            {
+                geode::Logger::warning(
+                    "[JSONGridInput] String values of key \"", current_key_,
+                    "\" in ", GRID_KEY,
+                    " records are not supported and are ignored" );
+            }
             return true;
         }
 
@@ -306,6 +314,7 @@ namespace
         std::vector< std::pair< std::string, SparseColumn > > attributes_;
         absl::flat_hash_map< std::string, geode::index_t > attribute_ids_;
         absl::flat_hash_map< std::string, std::string > top_level_strings_;
+        absl::flat_hash_set< std::string > ignored_string_keys_;
         std::string error_;
     };
 
