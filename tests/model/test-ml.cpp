@@ -816,6 +816,38 @@ void test_empty_surface_output()
     check_model( reload, 4, 6, 4, 1, 0, 0, 1 );
 }
 
+void test_coordinates_precision()
+{
+    constexpr auto COORDINATE = "0.12345678901234567";
+    auto content = tetra_ml();
+    for( const auto vertex : { "VRTX 2 1 0 ", "VRTX 5 1 0 ", "VRTX 10 1 0 " } )
+    {
+        content = replace( content, absl::StrCat( vertex, "0\n" ),
+            absl::StrCat( vertex, COORDINATE, "\n" ) );
+    }
+    const auto model = load_ml( "precision.ml", content );
+    geode::save_structural_model( model, "precision_saved.ml" );
+    const auto reload = geode::load_structural_model( "precision_saved.ml" );
+    const auto expected = geode::string_to_double( COORDINATE );
+    geode::index_t nb_found{ 0 };
+    for( const auto& surface : reload.surfaces() )
+    {
+        const auto& mesh = surface.mesh();
+        for( const auto v : geode::Range{ mesh.nb_vertices() } )
+        {
+            if( mesh.point( v ).value( 0 ) == 1 )
+            {
+                nb_found++;
+                geode::OpenGeodeGeosciencesIOModelException::test(
+                    mesh.point( v ).value( 2 ) == expected,
+                    "Coordinates should be exported without precision loss" );
+            }
+        }
+    }
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        nb_found == 3, "Modified vertices not found" );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -917,6 +949,7 @@ int main()
         test_surface_collection_output();
         test_several_border_loops_output();
         test_empty_surface_output();
+        test_coordinates_precision();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

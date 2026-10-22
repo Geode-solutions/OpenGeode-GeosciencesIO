@@ -25,6 +25,8 @@
 
 #include <fstream>
 #include <functional>
+#include <limits>
+#include <locale>
 #include <optional>
 #include <string>
 #include <vector>
@@ -120,6 +122,9 @@ namespace geode::internal
             OpenGeodeGeosciencesIOModelException::check_exception( file_.good(),
                 nullptr, OpenGeodeException::TYPE::data,
                 "[MLOutput] Error while opening file: ", filename );
+            // Exact round-trip of coordinates
+            file_.imbue( std::locale::classic() );
+            file_.precision( std::numeric_limits< double >::max_digits10 );
         }
 
         index_t& component_id()
@@ -200,15 +205,21 @@ namespace geode::internal
             return owned_surfaces_.at( collection_id );
         }
 
+        void write_point( const Point3D& point )
+        {
+            file_ << point.value( 0 ) << SPACE << point.value( 1 ) << SPACE
+                  << point.value( 2 );
+        }
+
         template < typename Component >
         void write_key_triangle( const Component& component )
         {
             const auto& mesh = component.mesh();
             for( const auto v : LRange{ 3 } )
             {
-                file_ << SPACE << SPACE
-                      << mesh.point( mesh.polygon_vertex( { 0, v } ) ).string()
-                      << EOL;
+                file_ << SPACE << SPACE;
+                write_point( mesh.point( mesh.polygon_vertex( { 0, v } ) ) );
+                file_ << EOL;
             }
         }
 
@@ -382,8 +393,9 @@ namespace geode::internal
             const auto& mesh = surface.mesh();
             for( const auto v : Range{ mesh.nb_vertices() } )
             {
-                file_ << "VRTX " << current_offset + v << SPACE
-                      << mesh.point( v ).string() << EOL;
+                file_ << "VRTX " << current_offset + v << SPACE;
+                write_point( mesh.point( v ) );
+                file_ << EOL;
             }
             for( const auto t : Range{ mesh.nb_polygons() } )
             {
