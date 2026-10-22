@@ -934,6 +934,7 @@ namespace geode::internal
         initialize_surface_cells( nb_solid_regions );
         transfer_physical_properties();
         transfer_boundary_conditions();
+        compute_well_boxes();
         if( problem_ != nullptr )
         {
             prepare_simulation();
@@ -1059,9 +1060,13 @@ namespace geode::internal
     }
 
     template < typename Model >
-    void GeosExporterImpl< Model >::write_well_perforations_boxes(
-        pugi::xml_node& root ) const
+    void GeosExporterImpl< Model >::compute_well_boxes()
     {
+        well_boxes_.clear();
+        if( well_perforations_.empty() )
+        {
+            return;
+        }
         const auto aabb = create_aabb_tree( *model_solid_ );
         for( const auto well_id : Indices{ well_perforations_ } )
         {
@@ -1092,10 +1097,27 @@ namespace geode::internal
                 Logger::warning( "[GeosExporter] No perforation of well ",
                     well_name,
                     " is inside the model, no perforation Box is exported." );
+                well_boxes_.emplace_back( std::nullopt );
+                continue;
+            }
+            well_boxes_.emplace_back( std::move( perf_box ) );
+        }
+    }
+
+    template < typename Model >
+    void GeosExporterImpl< Model >::write_well_perforations_boxes(
+        pugi::xml_node& root ) const
+    {
+        for( const auto well_id : Indices{ well_boxes_ } )
+        {
+            const auto& perf_box = well_boxes_[well_id];
+            if( !perf_box )
+            {
                 continue;
             }
             auto box_node = root.append_child( "Box" );
-            box_node.append_attribute( "name" ).set_value( well_name.c_str() );
+            box_node.append_attribute( "name" ).set_value(
+                well_names_[well_id].c_str() );
             static constexpr auto SAFETY_OFFSET = 100. * GLOBAL_EPSILON;
             const auto box_corner = []( const Point3D& corner, double offset ) {
                 return absl::StrCat( "{",
@@ -1104,9 +1126,9 @@ namespace geode::internal
                     geos_real( corner.value( 2 ) + offset ), "}" );
             };
             box_node.append_attribute( "xMin" ).set_value(
-                box_corner( perf_box.min(), -SAFETY_OFFSET ).c_str() );
+                box_corner( perf_box->min(), -SAFETY_OFFSET ).c_str() );
             box_node.append_attribute( "xMax" ).set_value(
-                box_corner( perf_box.max(), SAFETY_OFFSET ).c_str() );
+                box_corner( perf_box->max(), SAFETY_OFFSET ).c_str() );
         }
     }
 
@@ -1578,7 +1600,14 @@ namespace geode::internal
             PHYSICAL_PROPERTY_NAME::boundary_pressure );
         context.has_boundary_temperature = model_.has_physical_property(
             PHYSICAL_PROPERTY_NAME::boundary_temperature );
-        context.well_names = well_names_;
+        // Only the wells perforating the model define a GEOS set
+        for( const auto well_id : Indices{ well_boxes_ } )
+        {
+            if( well_boxes_[well_id] )
+            {
+                context.well_names.push_back( well_names_[well_id] );
+            }
+        }
         return context;
     }
 

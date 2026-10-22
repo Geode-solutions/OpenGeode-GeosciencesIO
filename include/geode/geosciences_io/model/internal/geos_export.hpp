@@ -37,6 +37,8 @@
 #include <geode/basic/uuid.hpp>
 #include <geode/basic/variable_attribute.hpp>
 
+#include <geode/geometry/bounding_box.hpp>
+
 #include <geode/mesh/core/surface_mesh.hpp>
 
 #include <geode/model/helpers/convert_to_mesh.hpp>
@@ -119,6 +121,7 @@ namespace geode::internal
         [[nodiscard]] virtual RegionDefinitions create_region_definitions(
             const Model& model ) const = 0;
 
+        void compute_well_boxes();
         void write_well_perforations_boxes( pugi::xml_node& root ) const;
         [[nodiscard]] index_t containing_cell(
             const AABBTree3D& aabb, const Point3D& point ) const;
@@ -205,6 +208,8 @@ namespace geode::internal
 
         std::vector< std::unique_ptr< PointSet3D > > well_perforations_{};
         std::vector< std::string > well_names_{};
+        // Perforated cells box of each well, none if outside the model
+        std::vector< std::optional< BoundingBox3D > > well_boxes_{};
 
         RegionDefinitions region_definitions_{};
         std::optional< uuid > porosity_attribute_id_{};

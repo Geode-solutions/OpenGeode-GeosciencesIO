@@ -1367,6 +1367,28 @@ void test_names_in_geos_lists()
         "[Test] Wrong values for a property with separators" );
 }
 
+void test_source_well_outside_model()
+{
+    auto model = geode::load_brep( absl::StrCat(
+        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+    add_spe10_reference_boundary_conditions( model );
+    const auto problem = spe10_reference_problem( model );
+    geode::BRepGeosExporter exporter( model, "source_outside" );
+    exporter.set_physical_problem( problem );
+    // The source term well has no perforation inside the model
+    add_vertical_well( exporter, "source", -1000., -1000. );
+    add_vertical_well( exporter, "sink1", 3.048, 1.524 );
+    exporter.run();
+    const auto deck =
+        read_file( "source_outside/source_outside_simulation.xml" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        !absl::StrContains( deck, "{ source }" )
+            && !absl::StrContains( deck, "<SourceFlux" )
+            && count_occurrences( deck, "<Box" ) == 1,
+        "[Test] The source term of a well outside the model should be "
+        "skipped" );
+}
+
 int main()
 {
     try
@@ -1385,6 +1407,7 @@ int main()
         test_boundary_table_face_centers();
         test_property_missing_on_block();
         test_names_in_geos_lists();
+        test_source_well_outside_model();
         test_picasso();
         test_uniform_variable_boundary_condition();
         test_variable_boundary_condition();
