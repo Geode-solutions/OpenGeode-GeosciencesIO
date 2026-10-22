@@ -29,6 +29,7 @@
 #include <absl/strings/str_join.h>
 #include <absl/strings/str_split.h>
 
+#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <functional>
@@ -46,6 +47,7 @@
 #include <geode/geometry/point.hpp>
 
 #include <geode/mesh/core/solid_mesh.hpp>
+#include <geode/mesh/core/surface_mesh.hpp>
 #include <geode/mesh/core/tetrahedral_solid.hpp>
 #include <geode/mesh/io/tetrahedral_solid_input.hpp>
 #include <geode/mesh/io/tetrahedral_solid_output.hpp>
@@ -414,6 +416,61 @@ void test_vertex_ids()
         } ) );
 }
 
+geode::index_t count_triangles( const geode::StructuralModel& model )
+{
+    geode::index_t count{ 0 };
+    for( const auto& surface : model.surfaces() )
+    {
+        count += surface.mesh().nb_polygons();
+    }
+    return count;
+}
+
+void test_model_section()
+{
+    const auto nb_triangles = count_triangles( geode::load_structural_model(
+        absl::StrCat( geode::DATA_PATH, "vri.lso" ) ) );
+    const auto without_keyvertices =
+        geode::load_structural_model( write_modified_vri(
+            "lso_without_keyvertices", []( std::vector< std::string >& lines ) {
+                lines.erase( std::remove_if( lines.begin(), lines.end(),
+                                 []( const std::string& line ) {
+                                     return absl::StartsWith(
+                                         line, "KEYVERTICES" );
+                                 } ),
+                    lines.end() );
+            } ) );
+    check_vri_model( without_keyvertices );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        count_triangles( without_keyvertices ) == nb_triangles,
+        "Wrong number of triangles without KEYVERTICES" );
+    const auto with_unknown_lines =
+        geode::load_structural_model( write_modified_vri(
+            "lso_with_unknown_lines", []( std::vector< std::string >& lines ) {
+                lines.insert( lines.begin() + find_line( lines, "MODEL" ) + 1,
+                    "UNKNOWN 1" );
+                lines.insert( lines.begin() + find_line( lines, "SURFACE" ) + 1,
+                    "UNKNOWN 2" );
+                lines.insert( lines.begin()
+                                  + find_line( lines, "SURFACE",
+                                      find_line( lines, "SURFACE" ) + 1 ),
+                    "UNKNOWN 3" );
+                lines.insert(
+                    lines.begin() + find_line( lines, "MODEL_REGION" ) + 1,
+                    "UNKNOWN 4" );
+            } ) );
+    check_vri_model( with_unknown_lines );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        count_triangles( with_unknown_lines ) == nb_triangles,
+        "Wrong number of triangles with unknown lines" );
+    const auto unnamed_surface =
+        geode::load_structural_model( write_modified_vri(
+            "lso_unnamed_surface", []( std::vector< std::string >& lines ) {
+                lines[find_line( lines, "SURFACE" )] = "SURFACE";
+            } ) );
+    check_vri_model( unnamed_surface );
+}
+
 void test_tetra_properties()
 {
     const auto model = geode::load_structural_model(
@@ -475,6 +532,7 @@ int main()
         test_malformed_tokens();
         test_shared_vertices();
         test_vertex_ids();
+        test_model_section();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

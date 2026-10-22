@@ -299,34 +299,85 @@ namespace
             {
                 geode::goto_keyword( file_, "MODEL" );
             }
-            std::getline( file_, line_ );
-            while( geode::string_starts_with( line_, "SURFACE" ) )
+            next_line();
+            while( !file_.eof() || !line_.empty() )
             {
-                const auto tokens = geode::string_split( line_ );
-                absl::Span< const std::string_view > remaining_tokens(
-                    &tokens[1], tokens.size() - 1 );
-                const auto h_id = builder_.add_horizon();
-                const auto& horizon = model_.horizon( h_id );
-                builder_.set_horizon_name(
-                    horizon, geode::internal::read_name( remaining_tokens ) );
-                read_tfaces( horizon );
+                if( geode::string_starts_with( line_, "SURFACE" ) )
+                {
+                    const auto tokens = get_tokens();
+                    const auto h_id = builder_.add_horizon();
+                    const auto& horizon = model_.horizon( h_id );
+                    auto name = geode::internal::read_name(
+                        absl::MakeConstSpan( tokens ).subspan( 1 ) );
+                    if( name.empty() )
+                    {
+                        name = h_id.string();
+                    }
+                    builder_.set_horizon_name( horizon, name );
+                    next_line();
+                    read_tfaces( horizon, name );
+                    continue;
+                }
+                if( is_model_section_end() )
+                {
+                    return;
+                }
+                skip_unknown_line();
             }
         }
 
-        void read_tfaces( const geode::Horizon3D& horizon )
+        bool is_model_section_end() const
         {
-            std::getline( file_, line_ );
-            while( geode::string_starts_with( line_, "TFACE" ) )
+            return geode::string_starts_with( line_, "SURFACE" )
+                   || geode::string_starts_with( line_, "MODEL_REGION" )
+                   || geode::string_starts_with( line_, "END" );
+        }
+
+        void read_tfaces(
+            const geode::Horizon3D& horizon, std::string_view name )
+        {
+            while( !file_.eof() || !line_.empty() )
             {
+                if( is_model_section_end() )
+                {
+                    return;
+                }
+                if( !geode::string_starts_with( line_, "TFACE" ) )
+                {
+                    skip_unknown_line();
+                    continue;
+                }
                 const auto id =
                     builder_.add_surface( geode::MeshFactory::default_impl(
                         geode::TriangulatedSurface3D::type_name_static() ) );
                 const auto& surface = model_.surface( id );
                 builder_.add_surface_in_horizon( surface, horizon );
-                builder_.set_surface_name( surface, horizon.name().value() );
-                std::getline( file_, line_ );
+                builder_.set_surface_name( surface, name );
+                next_line();
+                if( geode::string_starts_with( line_, "KEYVERTICES" ) )
+                {
+                    next_line();
+                }
                 read_triangles( id );
             }
+        }
+
+        void next_line()
+        {
+            if( !std::getline( file_, line_ ) )
+            {
+                line_.clear();
+            }
+        }
+
+        void skip_unknown_line()
+        {
+            if( !get_tokens().empty() )
+            {
+                geode::Logger::warning(
+                    "[LSOInput] Skipping unexpected line \"", line_, "\"" );
+            }
+            next_line();
         }
 
         void read_triangles( const geode::uuid& surface_id )
@@ -338,8 +389,7 @@ namespace
                 builder_.surface_mesh_builder< geode::TriangulatedSurface3D >(
                     surface );
             const auto component_id = surface.component_id();
-            while( std::getline( file_, line_ )
-                   && geode::string_starts_with( line_, "TRGL" ) )
+            for( ; geode::string_starts_with( line_, "TRGL" ); next_line() )
             {
                 const auto tokens = get_tokens();
                 std::array< geode::index_t, 3 > facet_vertices;
@@ -414,8 +464,17 @@ namespace
 
         void read_blocks()
         {
-            while( geode::string_starts_with( line_, "MODEL_REGION" ) )
+            while( !file_.eof() || !line_.empty() )
             {
+                if( geode::string_starts_with( line_, "END" ) )
+                {
+                    return;
+                }
+                if( !geode::string_starts_with( line_, "MODEL_REGION" ) )
+                {
+                    skip_unknown_line();
+                    continue;
+                }
                 const auto tokens = get_tokens();
                 const auto block_id =
                     builder_.add_block( geode::MeshFactory::default_impl(
@@ -424,7 +483,7 @@ namespace
                     model_.block( block_id ), token( tokens, 1 ) );
                 build_block_mesh( block_id );
                 build_block_relations( block_id );
-                std::getline( file_, line_ );
+                next_line();
             }
         }
 
