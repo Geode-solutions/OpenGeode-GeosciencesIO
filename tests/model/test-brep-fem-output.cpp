@@ -297,6 +297,38 @@ namespace
             "[Test] Wrong number of permeability values" );
     }
 
+    void test_features_on_any_component()
+    {
+        auto brep = geode::load_brep(
+            absl::StrCat( geode::DATA_PATH, "remeshed_yom-faults.og_brep" ) );
+        std::vector< std::reference_wrapper< const geode::Surface3D > >
+            surfaces;
+        for( const auto& surface : brep.surfaces() )
+        {
+            surfaces.emplace_back( surface );
+        }
+        const auto& surface = surfaces.at( 1 ).get();
+        add_constant_attribute( surface.mesh().polygon_attribute_manager(),
+            "diagres_discontinuity_aperture", 0.5 );
+        std::vector< std::reference_wrapper< const geode::Line3D > > lines3d;
+        for( const auto& line : brep.lines() )
+        {
+            lines3d.emplace_back( line );
+        }
+        const auto& line = lines3d.at( 1 ).get();
+        add_constant_attribute( line.mesh().edge_attribute_manager(),
+            "diagres_conduit_area", 0.25 );
+        geode::save_brep( brep, "test_brep_features.fem" );
+        const auto lines = read_lines( "test_brep_features.fem" );
+        const auto nb_features =
+            surface.mesh().nb_polygons() + line.mesh().nb_edges();
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            find_line(
+                lines, absl::StrCat( "    <fep count=\"", nb_features, "\">" ) )
+                .has_value(),
+            "[Test] Wrong number of discrete features" );
+    }
+
     void test_non_tetrahedral_brep()
     {
         geode::BRep empty_brep;
@@ -343,6 +375,7 @@ int main()
         test_non_tetrahedral_brep();
         test_unmapped_surface_and_line_elements();
         test_block_attributes();
+        test_features_on_any_component();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }

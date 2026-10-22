@@ -200,15 +200,15 @@ namespace
         {
             for( const auto& surface : brep_.surfaces() )
             {
-                const auto& mesh = surface.mesh();
-                if( mesh.polygon_attribute_manager()
+                if( surface.mesh()
+                        .polygon_attribute_manager()
                         .attribute_ids_matching_name( APERTURE_ATTRIBUTE_NAME )
                         .has_value() )
                 {
                     paint_facets_attribute( tet_solid, model_to_mesh_mapping,
                         APERTURE_ATTRIBUTE_NAME, -1.0 );
+                    break;
                 }
-                break;
             }
             paint_facets_attribute( tet_solid, model_to_mesh_mapping,
                 CONDUCTIVITY_ATTRIBUTE_NAME, -1.0 );
@@ -301,16 +301,16 @@ namespace
         {
             for( const auto& line : brep_.lines() )
             {
-                const auto& mesh = line.mesh();
-                if( mesh.edge_attribute_manager()
+                if( line.mesh()
+                        .edge_attribute_manager()
                         .attribute_ids_matching_name(
                             CONDUIT_AREA_ATTRIBUTE_NAME )
                         .has_value() )
                 {
                     paint_line_attribute( tet_solid, model_to_mesh_mapping,
                         CONDUIT_AREA_ATTRIBUTE_NAME, -1.0 );
+                    break;
                 }
-                break;
             }
             paint_line_attribute( tet_solid, model_to_mesh_mapping,
                 CONDUCTIVITY_ATTRIBUTE_NAME, -1.0 );
