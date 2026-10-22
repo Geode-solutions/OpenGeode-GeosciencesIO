@@ -896,6 +896,13 @@ void test_no_surface()
     check_model( model, 0, 0, 0, 0, 0, 0, 0 );
 }
 
+void test_tface_type_mismatch()
+{
+    const auto model = load_ml( "tface_type_mismatch.ml",
+        replace( tetra_ml(), "TFACE 4 boundary bnd", "TFACE 4 top bnd" ) );
+    check_model( model, 4, 6, 4, 1, 0, 0, 1 );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -1003,6 +1010,7 @@ int main()
         test_triangle_outside_tface();
         test_invalid_bstone_border_indices();
         test_no_surface();
+        test_tface_type_mismatch();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

@@ -1057,7 +1057,17 @@ namespace
                 geode::OpenGeodeTriangulatedSurface3D::impl_name_static() );
             builder_.set_surface_name( model_.surface( surface_id ), name );
             auto& tsurf = tsurfs_[tsurf_it->second];
-            tsurf.feature = geode::to_string( tokens[1] );
+            if( tsurf.tfaces.empty() )
+            {
+                tsurf.feature = geode::to_string( tokens[1] );
+            }
+            else if( tsurf.feature != tokens[1] )
+            {
+                geode::Logger::warning( "[MLInput] TFACE ", tokens[0],
+                    " of TSURF ", name, " has type ", tokens[1],
+                    " while previous TFACE have type ", tsurf.feature,
+                    ". Type ", tsurf.feature, " has been kept" );
+            }
             tsurf.tfaces.emplace_back( surface_id );
             surfaces_.emplace_back( surface_id );
         }
