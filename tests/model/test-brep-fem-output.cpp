@@ -26,19 +26,27 @@
 #include <geode/basic/assert.hpp>
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/logger.hpp>
+#include <geode/basic/variable_attribute.hpp>
 
 #include <geode/geometry/point.hpp>
 
+#include <geode/mesh/builder/edged_curve_builder.hpp>
 #include <geode/mesh/builder/hybrid_solid_builder.hpp>
+#include <geode/mesh/builder/surface_mesh_builder.hpp>
+#include <geode/mesh/core/edged_curve.hpp>
 #include <geode/mesh/core/geode/geode_hybrid_solid.hpp>
 #include <geode/mesh/core/hybrid_solid.hpp>
+#include <geode/mesh/core/surface_mesh.hpp>
 #include <geode/mesh/core/tetrahedral_solid.hpp>
 
 #include <geode/geosciences_io/model/internal/brep_fem_output.hpp>
 
 #include <geode/mesh/io/tetrahedral_solid_input.hpp>
 
+#include <geode/model/helpers/convert_to_mesh.hpp>
 #include <geode/model/mixin/core/block.hpp>
+#include <geode/model/mixin/core/line.hpp>
+#include <geode/model/mixin/core/surface.hpp>
 #include <geode/model/representation/builder/brep_builder.hpp>
 #include <geode/model/representation/io/brep_input.hpp>
 #include <geode/model/representation/io/brep_output.hpp>
@@ -64,6 +72,77 @@ namespace
             return true;
         }
         return false;
+    }
+
+    void add_constant_attribute(
+        geode::AttributeManager& manager, std::string_view name, double value )
+    {
+        geode::AttributeValues< double > values;
+        values.default_value = value;
+        const auto id =
+            manager.create_attribute< geode::VariableAttribute, double >(
+                name, values, geode::AttributeProperties{} );
+        geode_unused( id );
+    }
+
+    void test_unmapped_surface_and_line_elements()
+    {
+        auto brep = geode::load_brep(
+            absl::StrCat( geode::DATA_PATH, "remeshed_yom-faults.og_brep" ) );
+        geode::BRepBuilder builder{ brep };
+        const auto& block = *brep.blocks().begin();
+        const auto nb_block_vertices = block.mesh().nb_vertices();
+        const std::array< geode::index_t, 3 > block_vertices{ 0,
+            nb_block_vertices / 2, nb_block_vertices - 1 };
+        const auto& surface = brep.surface( builder.add_surface() );
+        auto surface_builder = builder.surface_mesh_builder( surface );
+        for( const auto v : geode::LRange{ 3 } )
+        {
+            surface_builder->create_point(
+                block.mesh().point( block_vertices[v] ) );
+            builder.set_unique_vertex( { surface.component_id(), v },
+                brep.unique_vertex(
+                    { block.component_id(), block_vertices[v] } ) );
+        }
+        surface_builder->create_polygon( { 0, 1, 2 } );
+        add_constant_attribute( surface.mesh().polygon_attribute_manager(),
+            "diagres_conductivity", 2.5 );
+        const auto& line = brep.line( builder.add_line() );
+        auto line_builder = builder.line_mesh_builder( line );
+        for( const auto v : geode::LRange{ 2 } )
+        {
+            line_builder->create_point(
+                block.mesh().point( block_vertices[v] ) );
+            builder.set_unique_vertex( { line.component_id(), v },
+                brep.unique_vertex(
+                    { block.component_id(), block_vertices[v] } ) );
+        }
+        line_builder->create_edge( 0, 1 );
+        add_constant_attribute(
+            line.mesh().edge_attribute_manager(), "diagres_conductivity", 2.5 );
+        std::optional< geode::ModelToMeshMappings > converted_mappings;
+        try
+        {
+            converted_mappings.emplace(
+                std::get< 1 >( geode::convert_brep_into_solid( brep ) ) );
+        }
+        catch( const std::exception& )
+        {
+            // Older OpenGeode versions cannot convert BReps with Surface
+            // polygons or Line edges that are not in the converted Solid
+            geode::Logger::warning( "[Test] Skipping unmapped elements test: "
+                                    "BRep conversion not supported" );
+            return;
+        }
+        const auto& mappings = converted_mappings.value();
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            !mappings.surface_polygons_mapping.has_mapping_input(
+                { surface.id(), 0 } ),
+            "[Test] New polygon should not be a solid facet" );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            !mappings.line_edges_mapping.has_mapping_input( { line.id(), 0 } ),
+            "[Test] New edge should not be a solid edge" );
+        geode::save_brep( brep, "test_brep_unmapped.fem" );
     }
 
     void test_non_tetrahedral_brep()
@@ -110,6 +189,7 @@ int main()
         geode::OpenGeodeGeosciencesIOModelLibrary::initialize();
         test_brep_fem_output();
         test_non_tetrahedral_brep();
+        test_unmapped_surface_and_line_elements();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }

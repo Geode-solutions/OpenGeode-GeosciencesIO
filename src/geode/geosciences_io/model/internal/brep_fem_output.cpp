@@ -160,11 +160,19 @@ namespace
                 const auto& surface_attribute =
                     mesh.polygon_attribute_manager().find_generic_attribute(
                         attribute_ids.value().front() );
+                geode::index_t nb_skipped{ 0 };
                 for( const auto polygon : geode::Range{ mesh.nb_polygons() } )
                 {
+                    const geode::MeshElement element{ surface.id(), polygon };
+                    if( !model_to_mesh_mapping.surface_polygons_mapping
+                            .has_mapping_input( element ) )
+                    {
+                        nb_skipped++;
+                        continue;
+                    }
                     const auto facet_in_solid =
                         model_to_mesh_mapping.surface_polygons_mapping.in2out(
-                            { surface.id(), polygon } );
+                            element );
                     solid_attribute->set_value( facet_in_solid,
                         surface_attribute->generic_value( polygon ) );
                     if( const auto name = surface.name() )
@@ -172,6 +180,14 @@ namespace
                         solid_surface_name_attribute->set_value(
                             facet_in_solid, name.value() );
                     }
+                }
+                if( nb_skipped != 0 )
+                {
+                    geode::Logger::warning( "[BRepFemOutput::write] ",
+                        nb_skipped, " polygons of Surface ",
+                        surface.id().string(),
+                        " are not facets of the tetrahedral mesh, their ",
+                        attribute_name, " values are ignored" );
                 }
             }
         }
@@ -246,11 +262,19 @@ namespace
                 const auto& line_attribute =
                     mesh.edge_attribute_manager().find_generic_attribute(
                         attribute_ids.value().front() );
+                geode::index_t nb_skipped{ 0 };
                 for( const auto edge : geode::Range{ mesh.nb_edges() } )
                 {
+                    const geode::MeshElement element{ line.id(), edge };
+                    if( !model_to_mesh_mapping.line_edges_mapping
+                            .has_mapping_input( element ) )
+                    {
+                        nb_skipped++;
+                        continue;
+                    }
                     const auto edge_in_solid =
                         model_to_mesh_mapping.line_edges_mapping.in2out(
-                            { line.component_id().id, edge } );
+                            element );
                     solid_attribute->set_value(
                         edge_in_solid, line_attribute->generic_value( edge ) );
                     if( const auto name = line.name() )
@@ -258,6 +282,13 @@ namespace
                         solid_line_name_attribute->set_value(
                             edge_in_solid, name.value() );
                     }
+                }
+                if( nb_skipped != 0 )
+                {
+                    geode::Logger::warning( "[BRepFemOutput::write] ",
+                        nb_skipped, " edges of Line ", line.id().string(),
+                        " are not edges of the tetrahedral mesh, their ",
+                        attribute_name, " values are ignored" );
                 }
             }
         }
