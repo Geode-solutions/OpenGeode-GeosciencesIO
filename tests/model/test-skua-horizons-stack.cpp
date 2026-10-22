@@ -157,6 +157,39 @@ void test_missing_column()
         false, "[TEST] File without column should throw" );
 }
 
+void test_unnamed_horizons()
+{
+    write_file( "skua_unnamed_horizons.xml",
+        "<UserObjects>\n"
+        " <LocalStratigraphicColumn>\n"
+        "  <name>column</name>\n"
+        "  <units>\n"
+        "   <unit>\n"
+        "    <name>unit1</name>\n"
+        "    <top><name></name></top>\n"
+        "    <base><name>middle</name></base>\n"
+        "   </unit>\n"
+        "   <unit>\n"
+        "    <name>unit2</name>\n"
+        "    <top><name>middle</name></top>\n"
+        "    <base><name> </name></base>\n"
+        "   </unit>\n"
+        "  </units>\n"
+        " </LocalStratigraphicColumn>\n"
+        "</UserObjects>\n" );
+    const auto horizons_stack =
+        geode::load_horizons_stack< 3 >( "skua_unnamed_horizons.xml" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        horizons_stack.nb_horizons() == 3,
+        "[TEST] Unnamed horizons should not be merged" );
+    for( const auto& horizon : horizons_stack.horizons() )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            !horizon.name().value().empty(),
+            "[TEST] Unnamed horizons should be given a name" );
+    }
+}
+
 int main()
 {
     try
@@ -168,6 +201,7 @@ int main()
         test_is_loadable();
         test_optional_attributes();
         test_missing_column();
+        test_unnamed_horizons();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
