@@ -25,6 +25,8 @@
 
 #include <ogrsf_frmts.h>
 
+#include <absl/strings/ascii.h>
+
 #include <geode/basic/file.hpp>
 #include <geode/basic/filename.hpp>
 #include <geode/basic/logger.hpp>
@@ -333,11 +335,16 @@ namespace geode::internal
 
     auto SHPInput::additional_files() const -> AdditionalFiles
     {
+        AdditionalFiles missing;
+        if( absl::AsciiStrToLower( extension_from_filename( filename() ) )
+            == "shz" )
+        {
+            return missing;
+        }
         const auto file_path = filepath_without_extension( filename() );
         const auto shx_file = absl::StrCat( file_path.string(), ".shx" );
-        AdditionalFiles missing;
         missing.mandatory_files.emplace_back(
-            shx_file, file_exists( shx_file ) );
+            shx_file, !file_exists( shx_file ) );
         return missing;
     }
 

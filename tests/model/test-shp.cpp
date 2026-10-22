@@ -220,6 +220,20 @@ namespace
             mesh.nb_vertices() == 4 && mesh.nb_polygons() == 1,
             "Polygon hole should not create overlapping polygons" );
     }
+    void test_additional_files()
+    {
+        const auto shz_files = geode::section_additional_files(
+            absl::StrCat( geode::DATA_PATH, "toulouse.shz" ) );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            shz_files.mandatory_files.empty(),
+            "No additional file should be required for .shz" );
+        const auto shp_files = geode::section_additional_files(
+            absl::StrCat( geode::DATA_PATH, "test.shp" ) );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            shp_files.mandatory_files.size() == 1
+                && shp_files.mandatory_files.front().is_missing == false,
+            "Wrong additional files for .shp" );
+    }
 } // namespace
 
 int main()
@@ -250,6 +264,7 @@ int main()
         test_geometry_variants();
         test_null_geometries();
         test_polygon_holes();
+        test_additional_files();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
