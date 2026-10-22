@@ -121,6 +121,8 @@ namespace geode::internal
      */
     class opengeode_geosciencesio_mesh_api GocadVertexProperties
     {
+        OPENGEODE_DISABLE_COPY_AND_MOVE( GocadVertexProperties );
+
     public:
         explicit GocadVertexProperties(
             const AttributeManager& attribute_manager );
