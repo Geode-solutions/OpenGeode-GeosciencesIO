@@ -58,14 +58,23 @@ namespace
     private:
         void create_polygons( absl::Span< const geode::index_t > vertices )
         {
+            const auto& column_direction = coordinate_system_.direction( 0 );
+            const auto& row_direction = coordinate_system_.direction( 1 );
+            const auto is_direct =
+                column_direction.value( 0 ) * row_direction.value( 1 )
+                    - column_direction.value( 1 ) * row_direction.value( 0 )
+                > 0;
             for( const auto i : geode::Range{ height_ - 1 } )
             {
                 const auto i_offset = i * width_;
                 for( const auto j : geode::Range{ width_ - 1 } )
                 {
-                    const auto j_offset = j + width_;
-                    std::array polygon{ i_offset + j, i_offset + j + 1,
-                        i_offset + j_offset, i_offset + j_offset + 1 };
+                    const auto pixel = i_offset + j;
+                    auto polygon =
+                        is_direct ? std::array{ pixel, pixel + 1,
+                            pixel + width_ + 1, pixel + width_ }
+                                  : std::array{ pixel, pixel + width_,
+                                        pixel + width_ + 1, pixel + 1 };
                     bool found{ true };
                     for( auto& vertex : polygon )
                     {
