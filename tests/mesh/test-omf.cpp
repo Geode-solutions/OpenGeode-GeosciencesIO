@@ -28,6 +28,8 @@
 #include <fstream>
 #include <sstream>
 
+#include <absl/strings/match.h>
+
 #include <geode/basic/assert.hpp>
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/logger.hpp>
@@ -609,6 +611,30 @@ namespace
         check_doubles(
             point_set->vertex_attribute_manager(), "scalar", { 1, 2, 3 } );
     }
+    void test_missing_keys()
+    {
+        constexpr auto filename = "omf_missing_keys.omf";
+        write_omf( filename, R"({
+            "p": { "__class__": "Project", "elements": [ "e" ] },
+            "e": { "__class__": "PointSetElement", "name": "points",
+                "geometry": "g" },
+            "g": { "__class__": "PointSetGeometry" }
+        })" );
+        try
+        {
+            const auto point_set = geode::load_point_set< 3 >( filename );
+        }
+        catch( const geode::OpenGeodeException& exception )
+        {
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                absl::StrContains( exception.what(),
+                    "Missing key \"vertices\" in PointSetGeometry" ),
+                "Missing key error should be explicit: ", exception.what() );
+            return;
+        }
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            false, "Geometry without vertices should not be loaded" );
+    }
 } // namespace
 
 int main()
@@ -631,6 +657,7 @@ int main()
         test_huge_numbers();
         test_missing_vector_and_color_values();
         test_binary_arrays();
+        test_missing_keys();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

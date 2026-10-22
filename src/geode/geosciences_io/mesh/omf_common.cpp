@@ -103,6 +103,20 @@ namespace
         return it->get_ref< const std::string& >();
     }
 
+    /*
+     * Value of a required key, with a clear error if it is missing
+     */
+    const nlohmann::json& omf_member(
+        const nlohmann::json& object, std::string_view key )
+    {
+        const auto it = object.find( key );
+        geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+            it != object.end(), nullptr, geode::OpenGeodeException::TYPE::data,
+            "[OMFInput] Missing key \"", key, "\" in ",
+            omf_class_name( object ), " object" );
+        return *it;
+    }
+
     geode::Vector3D omf_vector( const nlohmann::json& object,
         std::string_view key,
         const geode::Vector3D& default_value )
@@ -400,7 +414,7 @@ namespace
     private:
         const nlohmann::json& array() const
         {
-            return file_.object( data_.at( ARRAY_KEY ) );
+            return file_.object( omf_member( data_, ARRAY_KEY ) );
         }
 
         template < typename T >
@@ -517,7 +531,8 @@ namespace
             {
                 legend_name = name_;
             }
-            const auto& legend_values = file_.object( legend.at( "values" ) );
+            const auto& legend_values =
+                file_.object( omf_member( legend, "values" ) );
             const auto legend_class = omf_class_name( legend_values );
             if( legend_class == "StringArray"
                 || legend_class == "DateTimeArray" )
@@ -731,7 +746,7 @@ namespace geode::internal
     const nlohmann::json& OMFFile::geometry(
         const nlohmann::json& element ) const
     {
-        return object( element.at( "geometry" ) );
+        return object( omf_member( element, "geometry" ) );
     }
 
     std::string_view OMFFile::name( const nlohmann::json& object )
@@ -797,7 +812,8 @@ namespace geode::internal
     std::vector< Point3D > OMFFile::read_points(
         const nlohmann::json& geometry, std::string_view key ) const
     {
-        const auto coordinates = read_scalars( object( geometry.at( key ) ) );
+        const auto coordinates =
+            read_scalars( object( omf_member( geometry, key ) ) );
         OpenGeodeGeosciencesIOMeshException::check_exception(
             coordinates.size() % 3 == 0, nullptr,
             OpenGeodeException::TYPE::data, "[OMFInput] Number of ", key,
@@ -823,7 +839,8 @@ namespace geode::internal
             std::string_view key,
             index_t nb_vertices ) const
     {
-        const auto indices = read_integers( object( geometry.at( key ) ) );
+        const auto indices =
+            read_integers( object( omf_member( geometry, key ) ) );
         OpenGeodeGeosciencesIOMeshException::check_exception(
             indices.size() % nb_vertices_per_element == 0, nullptr,
             OpenGeodeException::TYPE::data, "[OMFInput] Number of ", key,
@@ -927,7 +944,7 @@ namespace geode::internal
     std::vector< double > OMFFile::read_scalars(
         const nlohmann::json& array, uint64_t max_values ) const
     {
-        const auto& content = array.at( ARRAY_KEY );
+        const auto& content = omf_member( array, ARRAY_KEY );
         if( content.is_array() )
         {
             std::vector< double > values;
@@ -961,7 +978,7 @@ namespace geode::internal
     std::vector< int64_t > OMFFile::read_integers(
         const nlohmann::json& array, uint64_t max_values ) const
     {
-        const auto& content = array.at( ARRAY_KEY );
+        const auto& content = omf_member( array, ARRAY_KEY );
         if( content.is_array() )
         {
             std::vector< int64_t > values;
