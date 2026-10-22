@@ -132,6 +132,35 @@ namespace
         return manager.find_attribute< geode::VariableAttribute, T >( id );
     }
 
+    // Values of the lines following the line named header, in file order
+    std::vector< double > read_distribution_values(
+        absl::Span< const std::string > lines,
+        std::string_view section,
+        std::string_view header )
+    {
+        const auto section_line = find_line( lines, section );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            section_line.has_value(), "[Test] Missing section ", section );
+        const auto header_line =
+            find_line( lines, header, section_line.value() );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            header_line.has_value(), "[Test] Missing header ", header );
+        std::vector< double > values;
+        for( const auto l :
+            geode::Range{ header_line.value() + 1, lines.size() } )
+        {
+            const std::vector< std::string_view > tokens =
+                absl::StrSplit( lines[l], ' ', absl::SkipEmpty() );
+            double value;
+            if( tokens.empty() || !absl::SimpleAtod( tokens[0], &value ) )
+            {
+                break;
+            }
+            values.push_back( value );
+        }
+        return values;
+    }
+
     std::unique_ptr< geode::TetrahedralSolid3D > create_solid()
     {
         auto solid = geode::TetrahedralSolid3D::create();
@@ -171,6 +200,37 @@ namespace
         }
     }
 
+    void test_nan_attribute_values()
+    {
+        auto solid = create_solid();
+        const auto nan = std::numeric_limits< double >::quiet_NaN();
+        auto vertex_attribute = create_attribute< double >(
+            solid->vertex_attribute_manager(), "vertex_nan", nan );
+        vertex_attribute->set_value( 1, 2. );
+        vertex_attribute->set_value( 3, 1. );
+        auto polyhedron_attribute = create_attribute< double >(
+            solid->polyhedron_attribute_manager(), "polyhedron_nan", nan );
+        polyhedron_attribute->set_value( 1, 3. );
+        geode::save_tetrahedral_solid( *solid, "test_nan_attribute.fem" );
+        const auto lines = read_lines( "test_nan_attribute.fem" );
+        const auto vertex_distribution =
+            read_distribution( lines, "REF_DIS_I", "vertex_nan" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            vertex_distribution.size() == 2 && vertex_distribution.at( 2 ) == 2.
+                && vertex_distribution.at( 4 ) == 1.,
+            "[Test] Wrong vertex_nan distribution" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            read_distribution_values( lines, "REF_DIS_I", "vertex_nan" )
+                == std::vector< double >{ 1., 2. },
+            "[Test] vertex_nan values should be sorted" );
+        const auto polyhedron_distribution =
+            read_distribution( lines, "REF_DISE_I", "polyhedron_nan" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            polyhedron_distribution.size() == 1
+                && polyhedron_distribution.at( 2 ) == 3.,
+            "[Test] Wrong polyhedron_nan distribution" );
+    }
+
     void test_solid_fem_output()
     {
         auto tet_solid = geode::load_tetrahedral_solid< 3 >(
@@ -203,6 +263,7 @@ int main()
         geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
         test_solid_fem_output();
         test_vertex_attribute_distribution();
+        test_nan_attribute_values();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }

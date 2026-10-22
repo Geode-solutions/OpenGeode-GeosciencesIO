@@ -20,6 +20,7 @@
  * SOFTWARE.
  *
  */
+#include <cmath>
 #include <fstream>
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/filename.hpp>
@@ -254,9 +255,15 @@ namespace
         {
             absl::flat_hash_map< double, std::vector< geode::index_t > >
                 att_dist;
+            geode::index_t nb_nan_values{ 0 };
             for( const auto elem : geode::Range{ nb_elements } )
             {
                 const auto value = attribute.generic_value( elem );
+                if( std::isnan( value ) )
+                {
+                    nb_nan_values++;
+                    continue;
+                }
                 if( att_dist.contains( value ) )
                 {
                     att_dist[value].push_back( elem + 1 );
@@ -265,6 +272,12 @@ namespace
                 {
                     att_dist[value] = { elem + 1 };
                 }
+            }
+            if( nb_nan_values != 0 )
+            {
+                geode::Logger::warning( "[SolidFemOutput::write] ",
+                    nb_nan_values, " NaN values of attribute ",
+                    attribute.name().value(), " are not exported" );
             }
             return att_dist;
         }
