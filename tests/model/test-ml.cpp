@@ -856,6 +856,14 @@ void test_border_without_bstone()
     check_model( no_bstone, 0, 0, 1, 0, 0, 0, 1 );
 }
 
+void test_bstone_without_line()
+{
+    // BORDER ignored: the BSTONE ends no Line
+    const auto model = load_ml( "bstone_without_line.ml",
+        replace( square_ml(), "BORDER 5 1 2", "BORDER 5 2 3" ) );
+    check_model( model, 1, 0, 1, 0, 0, 0, 1 );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -959,6 +967,7 @@ int main()
         test_empty_surface_output();
         test_coordinates_precision();
         test_border_without_bstone();
+        test_bstone_without_line();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

@@ -42,6 +42,7 @@
 #include <geode/mesh/builder/point_set_builder.hpp>
 #include <geode/mesh/builder/triangulated_surface_builder.hpp>
 #include <geode/mesh/core/edged_curve.hpp>
+#include <geode/mesh/core/point_set.hpp>
 #include <geode/mesh/core/geode/geode_triangulated_surface.hpp>
 
 #include <geode/model/helpers/detail/split_along_surface_mesh_borders.hpp>
@@ -523,9 +524,15 @@ namespace
             std::vector< geode::Point3D > points( model_.nb_unique_vertices() );
             for( const auto v : geode::Range{ model_.nb_unique_vertices() } )
             {
-                [[maybe_unused]] bool done{ false };
+                std::optional< geode::uuid > orphan_corner;
+                bool done{ false };
                 for( const auto& cmv : model_.component_mesh_vertices( v ) )
                 {
+                    if( cmv.component_id.type
+                        == geode::Corner3D::component_type_static() )
+                    {
+                        orphan_corner = cmv.component_id.id;
+                    }
                     if( cmv.component_id.type
                         != geode::Line3D::component_type_static() )
                     {
@@ -536,10 +543,21 @@ namespace
                     done = true;
                     break;
                 }
+                if( done )
+                {
+                    continue;
+                }
                 geode::OpenGeodeGeosciencesIOModelException::check_exception(
-                    done, nullptr, geode::OpenGeodeException::TYPE::data,
+                    orphan_corner.has_value(), nullptr,
+                    geode::OpenGeodeException::TYPE::internal,
                     "[MLInput] All current unique vertices should be "
-                    "associated to at least one Line" );
+                    "associated to at least one Line or Corner" );
+                const auto& corner = model_.corner( orphan_corner.value() );
+                points[v] = corner.mesh().point( 0 );
+                geode::Logger::warning( "[MLInput] BSTONE at ",
+                    points[v].string(),
+                    " is not the end of any BORDER. Its Corner bounds no "
+                    "Line" );
             }
             return geode::NNSearch3D{ std::move( points ) };
         }
