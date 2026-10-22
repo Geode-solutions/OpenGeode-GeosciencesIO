@@ -129,8 +129,10 @@ namespace
 
         void write_vrtx( const geode::index_t vertex_id )
         {
+            const auto& point = surface_.point( vertex_id );
             file_ << VRTX_KEYWORD << SPACE << vertex_id + OFFSET_START << SPACE
-                  << surface_.point( vertex_id ).string();
+                  << point.value( 0 ) << SPACE << point.value( 1 ) << SPACE
+                  << point.value( 2 );
             properties_.write_values( file_, vertex_id );
             file_ << EOL;
         }

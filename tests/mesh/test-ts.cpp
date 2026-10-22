@@ -272,6 +272,20 @@ namespace
         check_surface( *reloaded, 3, 1, "triangle" );
     }
 
+    void test_output_precision()
+    {
+        auto surface = create_triangle();
+        auto builder = geode::TriangulatedSurfaceBuilder3D::create( *surface );
+        const geode::Point3D point{ { 1. / 3., 1056340.123456789, -2e-7 } };
+        builder->set_point( 2, point );
+        geode::save_triangulated_surface( *surface, "test_ts_precision.ts" );
+        const auto reloaded =
+            geode::load_triangulated_surface< 3 >( "test_ts_precision.ts" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            reloaded->point( 2 ) == point,
+            "TSurf coordinates are not saved with full precision" );
+    }
+
     void test_header_formats()
     {
         constexpr auto body = "TFACE\nVRTX 1 0 0 0\nVRTX 2 1 0 0\n"
@@ -383,6 +397,7 @@ int main()
         test_non_contiguous_ids();
         test_output_without_generic_attribute();
         test_header_formats();
+        test_output_precision();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
