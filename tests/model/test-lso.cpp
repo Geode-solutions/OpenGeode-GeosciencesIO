@@ -23,8 +23,11 @@
 
 #include <geode/tests_config.hpp>
 
+#include <absl/container/flat_hash_map.h>
 #include <absl/strings/match.h>
 #include <absl/strings/str_cat.h>
+#include <absl/strings/str_join.h>
+#include <absl/strings/str_split.h>
 
 #include <cmath>
 #include <fstream>
@@ -258,6 +261,142 @@ void test_malformed_tokens()
         "Wrong number of tetrahedra with missing CTETRA line" );
 }
 
+std::vector< std::string > split( std::string_view line )
+{
+    return absl::StrSplit( line, ' ', absl::SkipEmpty() );
+}
+
+void renumber_vertices( std::vector< std::string >& lines,
+    const std::function< geode::index_t( geode::index_t ) >& renumber )
+{
+    for( auto& line : lines )
+    {
+        auto tokens = split( line );
+        if( tokens.empty() )
+        {
+            continue;
+        }
+        geode::index_t nb_ids{ 0 };
+        if( tokens[0] == "PVRTX" )
+        {
+            nb_ids = 1;
+        }
+        else if( tokens[0] == "SHAREDPVRTX" )
+        {
+            nb_ids = 2;
+        }
+        else if( tokens[0] == "TETRA" )
+        {
+            nb_ids = 4;
+        }
+        else if( tokens[0] == "TRGL" || tokens[0] == "KEYVERTICES" )
+        {
+            nb_ids = 3;
+        }
+        for( const auto i : geode::Range{ 1, nb_ids + 1 } )
+        {
+            tokens[i] =
+                absl::StrCat( renumber( geode::string_to_index( tokens[i] ) ) );
+        }
+        line = absl::StrJoin( tokens, " " );
+    }
+}
+
+void check_vri_model( const geode::StructuralModel& model )
+{
+    check_model( model, 12, 20, 11, 2, 7, 0, 9 );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        count_tetrahedra( model ) == 292, "Wrong number of tetrahedra" );
+}
+
+void add_shared_vertex( std::vector< std::string >& lines,
+    std::string_view id,
+    std::string_view reference )
+{
+    const auto shared = split( lines[find_line( lines, "SHAREDPVRTX 104 " )] );
+    std::vector< std::string > new_line{ "SHAREDPVRTX", geode::to_string( id ),
+        geode::to_string( reference ) };
+    new_line.insert( new_line.end(), shared.begin() + 3, shared.end() );
+    lines.insert(
+        lines.begin() + find_line( lines, "BEGIN_VERTEX_REGION_INDICATORS" ),
+        absl::StrJoin( new_line, " " ) );
+}
+
+void test_shared_vertices()
+{
+    check_load_throws( write_modified_vri(
+        "lso_shared_out_of_range", []( std::vector< std::string >& lines ) {
+            add_shared_vertex( lines, "124", "999" );
+        } ) );
+    check_load_throws( write_modified_vri(
+        "lso_shared_zero", []( std::vector< std::string >& lines ) {
+            add_shared_vertex( lines, "124", "0" );
+        } ) );
+    check_load_throws( write_modified_vri(
+        "lso_tetra_out_of_range", []( std::vector< std::string >& lines ) {
+            lines[find_line( lines, "TETRA " )] = "TETRA 1 2 3 999";
+        } ) );
+    check_load_throws( write_modified_vri(
+        "lso_triangle_zero", []( std::vector< std::string >& lines ) {
+            lines[find_line( lines, "TRGL" )] = "TRGL 0 1 2";
+        } ) );
+    // A shared vertex referring to another shared vertex
+    check_vri_model( geode::load_structural_model( write_modified_vri(
+        "lso_shared_chain", []( std::vector< std::string >& lines ) {
+            add_shared_vertex( lines, "124", "104" );
+        } ) ) );
+    // Shared vertex 104 (copy of 13) moved right after vertex 13
+    check_vri_model( geode::load_structural_model( write_modified_vri(
+        "lso_shared_interleaved", []( std::vector< std::string >& lines ) {
+            renumber_vertices( lines, []( geode::index_t id ) {
+                if( id == 104 )
+                {
+                    return geode::index_t{ 14 };
+                }
+                if( id >= 14 && id <= 103 )
+                {
+                    return id + 1;
+                }
+                return id;
+            } );
+            const auto shared = find_line( lines, "SHAREDPVRTX 14 " );
+            auto line = lines[shared];
+            lines.erase( lines.begin() + shared );
+            lines.insert(
+                lines.begin() + find_line( lines, "PVRTX 15 " ), line );
+        } ) ) );
+    // Triangles referring to shared vertices instead of original ones
+    check_vri_model( geode::load_structural_model( write_modified_vri(
+        "lso_triangle_on_shared", []( std::vector< std::string >& lines ) {
+            absl::flat_hash_map< std::string, std::string > copies;
+            for( const auto& line : lines )
+            {
+                const auto tokens = split( line );
+                if( !tokens.empty() && tokens[0] == "SHAREDPVRTX" )
+                {
+                    copies.emplace( tokens[2], tokens[1] );
+                }
+            }
+            for( auto& line : lines )
+            {
+                auto tokens = split( line );
+                if( tokens.empty() || tokens[0] != "TRGL" )
+                {
+                    continue;
+                }
+                for( const auto i : geode::LRange{ 1, 4 } )
+                {
+                    const auto it = copies.find( tokens[i] );
+                    if( it != copies.end() )
+                    {
+                        tokens[i] = it->second;
+                    }
+                }
+                line = absl::StrJoin( tokens, " " );
+            }
+        } ) ) );
+}
+
 void test_tetra_properties()
 {
     const auto model = geode::load_structural_model(
@@ -317,6 +456,7 @@ int main()
             12, 20, 11, 2, 7, 0, 9 );
         test_tetra_properties();
         test_malformed_tokens();
+        test_shared_vertices();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

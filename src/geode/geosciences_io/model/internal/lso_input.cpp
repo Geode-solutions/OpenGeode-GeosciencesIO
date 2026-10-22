@@ -207,9 +207,8 @@ namespace
         std::tuple< geode::Point3D, geode::index_t > read_shared_point() const
         {
             const auto tokens = get_tokens();
-            const auto unique_id =
-                geode::string_to_index( token( tokens, 2 ) ) - OFFSET_START;
-            return { solid_->point( unique_id ), unique_id };
+            const auto vertex = solid_vertex( token( tokens, 2 ) );
+            return { solid_->point( vertex ), vertex_id_->value( vertex ) };
         }
 
         geode::Point3D read_point() const
@@ -245,9 +244,7 @@ namespace
                 std::array< geode::index_t, 4 > vertices;
                 for( const auto i : geode::LRange{ 4 } )
                 {
-                    vertices[i] =
-                        geode::string_to_index( token( tokens, i + 1 ) )
-                        - OFFSET_START;
+                    vertices[i] = solid_vertex( token( tokens, i + 1 ) );
                 }
                 const auto tetra_id =
                     solid_builder_->create_tetrahedron( vertices );
@@ -347,11 +344,10 @@ namespace
                 std::array< geode::index_t, 3 > vertices;
                 for( const auto i : geode::LRange{ 3 } )
                 {
-                    const auto value =
-                        geode::string_to_index( token( tokens, i + 1 ) )
-                        - OFFSET_START;
+                    const auto value = solid_vertex( token( tokens, i + 1 ) );
                     facet_vertices[i] = value;
-                    const auto it = vertex_mapping.find( value );
+                    const auto unique_vertex = vertex_id_->value( value );
+                    const auto it = vertex_mapping.find( unique_vertex );
                     if( it != vertex_mapping.end() )
                     {
                         vertices[i] = it->second;
@@ -360,10 +356,10 @@ namespace
                     {
                         const auto vertex_id =
                             builder->create_point( solid_->point( value ) );
-                        vertex_mapping.emplace( value, vertex_id );
+                        vertex_mapping.emplace( unique_vertex, vertex_id );
                         vertices[i] = vertex_id;
-                        builder_.set_unique_vertex( { component_id, vertex_id },
-                            vertex_id_->value( value ) );
+                        builder_.set_unique_vertex(
+                            { component_id, vertex_id }, unique_vertex );
                     }
                 }
                 builder->create_triangle( vertices );
@@ -390,11 +386,17 @@ namespace
             const std::array< geode::index_t, 3 >& vertices ) const
         {
             std::vector< geode::index_t > facets;
-            for( const auto v0 : vertex_mapping_[vertices[0]] )
+            const auto& copies0 =
+                vertex_mapping_[vertex_id_->value( vertices[0] )];
+            const auto& copies1 =
+                vertex_mapping_[vertex_id_->value( vertices[1] )];
+            const auto& copies2 =
+                vertex_mapping_[vertex_id_->value( vertices[2] )];
+            for( const auto v0 : copies0 )
             {
-                for( const auto v1 : vertex_mapping_[vertices[1]] )
+                for( const auto v1 : copies1 )
                 {
-                    for( const auto v2 : vertex_mapping_[vertices[2]] )
+                    for( const auto v2 : copies2 )
                     {
                         if( const auto facet_id =
                                 solid_->facets().facet_from_vertices(
@@ -642,6 +644,18 @@ namespace
         std::vector< std::string_view > get_tokens() const
         {
             return geode::string_split( line_ );
+        }
+
+        geode::index_t solid_vertex( std::string_view vertex_token ) const
+        {
+            const auto vertex = geode::string_to_index( vertex_token );
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                vertex >= OFFSET_START
+                    && vertex - OFFSET_START < solid_->nb_vertices(),
+                nullptr, geode::OpenGeodeException::TYPE::data,
+                "[LSOInput] Unknown vertex ", vertex_token, " in line \"",
+                line_, "\"" );
+            return vertex - OFFSET_START;
         }
 
         std::string_view token( absl::Span< const std::string_view > tokens,
