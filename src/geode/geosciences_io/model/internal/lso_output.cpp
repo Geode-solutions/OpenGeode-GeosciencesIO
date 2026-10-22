@@ -256,18 +256,21 @@ namespace
             for( const auto& block : model_.blocks() )
             {
                 const auto name = region_name( block );
-                const auto& id = block.component_id();
                 const auto& mesh = block.mesh();
+                const auto& output_ids = block_vertices_.at( block.id() );
                 for( const auto p : geode::Range{ mesh.nb_polyhedra() } )
                 {
                     file_ << "TETRA";
                     for( const auto v : geode::LRange{ 4 } )
                     {
-                        const auto vertex = mesh.polyhedron_vertex( { p, v } );
-                        const auto unique =
-                            model_.unique_vertex( { id, vertex } );
-                        file_ << " "
-                              << vertices_.at( unique ).at( { id, vertex } );
+                        const auto output_id =
+                            output_ids[mesh.polyhedron_vertex( { p, v } )];
+                        geode::OpenGeodeGeosciencesIOModelException::
+                            check_exception( output_id != geode::NO_ID, nullptr,
+                                geode::OpenGeodeException::TYPE::data,
+                                "[LSOOutput] Vertex of Block ", name,
+                                " is not linked to a unique vertex" );
+                        file_ << " " << output_id;
                     }
                     file_ << EOL;
                     file_ << "# CTETRA " << name << " none none none none"
@@ -280,12 +283,18 @@ namespace
         {
             geode::index_t count{ 1 };
             auto nb_vertices = model_.nb_unique_vertices();
-            vertices_.resize( nb_vertices );
+            for( const auto& block : model_.blocks() )
+            {
+                block_vertices_.emplace( block.id(),
+                    std::vector< geode::index_t >(
+                        block.mesh().nb_vertices(), geode::NO_ID ) );
+            }
             std::vector< geode::index_t > atoms;
+            std::vector< geode::ComponentMeshVertex > block_vertices;
             for( const auto v : geode::Range{ nb_vertices } )
             {
-                std::vector< geode::ComponentMeshVertex > block_vertices;
-                const auto cmv = model_.component_mesh_vertices( v );
+                block_vertices.clear();
+                const auto& cmv = model_.component_mesh_vertices( v );
                 for( const auto& mv : cmv )
                 {
                     if( mv.component_id.type
@@ -306,11 +315,11 @@ namespace
                     write_point( component_point( cmv.front() ) );
                     continue;
                 }
-                auto& cmvs = vertices_[v];
-                cmvs.reserve( block_vertices.size() );
                 const auto first = first_block( block_vertices );
                 const auto& first_vertex = block_vertices[first];
-                cmvs.emplace( first_vertex, v + OFFSET_START );
+                block_vertices_.at(
+                    first_vertex.component_id.id )[first_vertex.vertex] =
+                    v + OFFSET_START;
                 const auto& block =
                     model_.block( first_vertex.component_id.id );
                 const auto& mesh = block.mesh();
@@ -323,8 +332,9 @@ namespace
                         continue;
                     }
                     atoms.push_back( v + OFFSET_START );
-                    cmvs.emplace(
-                        block_vertices[i], nb_vertices + OFFSET_START );
+                    block_vertices_.at( block_vertices[i]
+                            .component_id.id )[block_vertices[i].vertex] =
+                        nb_vertices + OFFSET_START;
                     nb_vertices++;
                 }
             }
@@ -382,9 +392,8 @@ namespace
         std::ofstream file_;
         const geode::StructuralModel& model_;
         const geode::internal::RegionSurfaceSide sides_;
-        std::vector<
-            absl::flat_hash_map< geode::ComponentMeshVertex, geode::index_t > >
-            vertices_;
+        absl::flat_hash_map< geode::uuid, std::vector< geode::index_t > >
+            block_vertices_;
         absl::flat_hash_map< geode::uuid, geode::index_t > exported_surfaces_;
     };
 } // namespace
