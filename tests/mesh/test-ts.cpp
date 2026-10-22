@@ -107,6 +107,42 @@ namespace
                 && tsurf.tface_id( 5 ) == 1,
             "Wrong TFACE id" );
     }
+
+    double vertex_value( const geode::SurfaceMesh3D& surface,
+        std::string_view name,
+        geode::index_t vertex )
+    {
+        const auto& manager = surface.vertex_attribute_manager();
+        const auto ids = manager.attribute_ids_matching_name( name );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            ids.has_value() && ids->size() == 1,
+            "Attribute should exist once: ", name );
+        return manager.find_read_only_attribute< double >( ids->front() )
+            ->value( vertex );
+    }
+
+    void test_partial_property_header()
+    {
+        const auto surface = load_test_file( "test_ts_partial_properties.ts",
+            "GOCAD TSurf 1\nHEADER {\nname: s1\n}\nPROPERTIES p\n"
+            "PROP_LEGAL_RANGES **none** **none**\nNO_DATA_VALUES -99999\n"
+            "PROPERTY_CLASSES p\nPROPERTY_KINDS \"Real Number\"\nESIZES 1\n"
+            "UNITS none\nTFACE\nPVRTX 1 0 0 1 11\nPVRTX 2 1 0 1 12\n"
+            "PVRTX 3 0 1 1 13\nTRGL 1 2 3\nEND\n"
+            "GOCAD TSurf 1\nHEADER {\nname: s2\n}\nPROPERTIES a b\n"
+            "UNITS m\nNO_DATA_VALUES -1 -2 -3\nESIZES 1\n\nTFACE\n"
+            "PVRTX 1 0 0 2 21 31\nPVRTX 2 1 0 2 22 32\nPVRTX 3 0 1 2 23 33\n"
+            "TRGL 1 2 3\nEND\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surface->nb_vertices() == 6,
+            "Wrong number of vertices with partial property header" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surface->nb_polygons() == 2,
+            "Wrong number of triangles with partial property header" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            vertex_value( *surface, "p", 2 ) == 13,
+            "Wrong property value with partial property header" );
+    }
 } // namespace
 
 void check_surface( const geode::SurfaceMesh3D& surface,
@@ -175,6 +211,7 @@ int main()
             4, 2, "test" );
         test_blank_lines();
         test_invalid_indices();
+        test_partial_property_header();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

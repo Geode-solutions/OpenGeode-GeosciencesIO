@@ -30,6 +30,7 @@
 #include <absl/strings/match.h>
 #include <absl/strings/str_join.h>
 #include <absl/strings/str_replace.h>
+#include <absl/strings/strip.h>
 
 #include <geode/basic/file.hpp>
 #include <geode/basic/logger.hpp>
@@ -420,70 +421,165 @@ namespace
             "[read_tfaces] Cannot find the end of VSet section" };
     }
 
-    void read_property_keyword_with_one_string( std::ifstream& file,
-        std::string_view keyword,
-        std::vector< std::string >& keyword_data,
-        geode::index_t nb_attributes )
+    std::vector< std::string > read_property_strings( std::string_view line )
     {
-        auto line = geode::goto_keyword( file, keyword );
-        const auto split_line = split_string_considering_quotes( line );
-        keyword_data.resize( nb_attributes );
-        for( const auto attr_id : geode::Range{ nb_attributes } )
-        {
-            keyword_data[attr_id] = geode::to_string( split_line[attr_id + 1] );
-        }
+        auto tokens = split_string_considering_quotes( line );
+        tokens.erase( tokens.begin() );
+        return tokens;
     }
 
-    void read_property_keyword_with_two_strings( std::ifstream& file,
-        std::string_view keyword,
-        std::vector< std::pair< std::string, std::string > >& keyword_data,
-        geode::index_t nb_attributes )
+    std::vector< std::pair< std::string, std::string > >
+        read_property_string_pairs( std::string_view line )
     {
-        auto line = geode::goto_keyword( file, keyword );
-        const auto split_line = geode::string_split( line );
-        keyword_data.resize( nb_attributes );
-        geode::index_t counter{ 0 };
-        for( const auto attr_id : geode::Range{ nb_attributes } )
+        const auto tokens = geode::string_split( line );
+        std::vector< std::pair< std::string, std::string > > values;
+        for( geode::index_t token_id = 1; token_id + 1 < tokens.size();
+            token_id += 2 )
         {
-            keyword_data[attr_id] = {
-                geode::to_string( split_line[2 * attr_id + 1 + counter] ),
-                geode::to_string( split_line[2 * attr_id + 2 + counter] )
-            };
-            if( keyword_data[attr_id].first == "LINEARFUNCTION" )
+            values.emplace_back( geode::to_string( tokens[token_id] ),
+                geode::to_string( tokens[token_id + 1] ) );
+            if( values.back().first == "LINEARFUNCTION" )
             {
-                counter += 2;
+                token_id += 2;
             }
         }
+        return values;
     }
 
-    void read_property_keyword_with_one_double( std::ifstream& file,
-        std::string_view keyword,
-        std::vector< double >& keyword_data,
-        geode::index_t nb_attributes )
+    template < typename T, typename Converter >
+    std::vector< T > read_property_numbers(
+        std::string_view line, Converter converter )
     {
-        auto line = geode::goto_keyword( file, keyword );
-        const auto split_line = geode::string_split( line );
-        keyword_data.resize( nb_attributes );
-        for( const auto attr_id : geode::Range{ nb_attributes } )
+        const auto tokens = geode::string_split( line );
+        std::vector< T > values;
+        values.reserve( tokens.size() - 1 );
+        for( const auto token_id : geode::Range{ 1, tokens.size() } )
         {
-            keyword_data[attr_id] =
-                geode::string_to_double( split_line[attr_id + 1] );
+            values.push_back( converter( tokens[token_id] ) );
         }
+        return values;
     }
 
-    void read_property_keyword_with_one_index_t( std::ifstream& file,
+    template < typename T >
+    void complete_property_values( std::vector< T >& values,
+        geode::index_t nb_properties,
         std::string_view keyword,
-        std::vector< geode::index_t >& keyword_data,
-        geode::index_t nb_attributes )
+        const T& default_value )
     {
-        auto line = geode::goto_keyword( file, keyword );
-        const auto split_line = geode::string_split( line );
-        keyword_data.resize( nb_attributes );
-        for( const auto attr_id : geode::Range{ nb_attributes } )
+        if( values.size() == nb_properties )
         {
-            keyword_data[attr_id] =
-                geode::string_to_index( split_line[attr_id + 1] );
+            return;
         }
+        geode::Logger::warning( "[GocadInput] ", keyword, " has ",
+            values.size(), " values for ", nb_properties,
+            " properties, missing values are set to default" );
+        values.resize( nb_properties, default_value );
+    }
+
+    void complete_prop_header( geode::internal::PropHeaderData& header )
+    {
+        const auto nb_properties = header.names.size();
+        for( const auto property : geode::Indices{ header.names } )
+        {
+            auto& name = header.names[property];
+            if( name.empty() )
+            {
+                name = absl::StrCat( "property_", property );
+                geode::Logger::warning(
+                    "[GocadInput] Empty property name renamed to ", name );
+            }
+        }
+        complete_property_values( header.prop_legal_ranges, nb_properties,
+            "PROP_LEGAL_RANGES",
+            std::pair< std::string, std::string >{ "**none**", "**none**" } );
+        complete_property_values(
+            header.no_data_values, nb_properties, "NO_DATA_VALUES", -99999. );
+        if( header.property_classes.size() < nb_properties )
+        {
+            geode::Logger::warning( "[GocadInput] PROPERTY_CLASSES has ",
+                header.property_classes.size(), " values for ", nb_properties,
+                " properties, missing values are set to property names" );
+            for( const auto property :
+                geode::Range{ header.property_classes.size(), nb_properties } )
+            {
+                header.property_classes.push_back( header.names[property] );
+            }
+        }
+        complete_property_values( header.property_classes, nb_properties,
+            "PROPERTY_CLASSES", std::string{} );
+        complete_property_values( header.kinds, nb_properties, "PROPERTY_KINDS",
+            std::string{ "Real Number" } );
+        complete_property_values( header.property_subclass, nb_properties,
+            "PROPERTY_SUBCLASSES",
+            std::pair< std::string, std::string >{ "QUANTITY", "Float" } );
+        complete_property_values(
+            header.esizes, nb_properties, "ESIZES", geode::index_t{ 1 } );
+        for( auto& esize : header.esizes )
+        {
+            if( esize == 0 )
+            {
+                geode::Logger::warning(
+                    "[GocadInput] ESIZES of 0 replaced by 1" );
+                esize = 1;
+            }
+        }
+        complete_property_values(
+            header.units, nb_properties, "UNITS", std::string{ "unitless" } );
+    }
+
+    bool read_prop_header_line( geode::internal::PropHeaderData& header,
+        std::string_view line,
+        std::string_view prefix )
+    {
+        const auto tokens = geode::string_split( line );
+        if( tokens.empty() )
+        {
+            return false;
+        }
+        auto keyword = tokens.front();
+        if( !absl::ConsumePrefix( &keyword, prefix ) )
+        {
+            return false;
+        }
+        if( keyword == "PROPERTIES" )
+        {
+            header.names = read_property_strings( line );
+        }
+        else if( keyword == "PROP_LEGAL_RANGES" )
+        {
+            header.prop_legal_ranges = read_property_string_pairs( line );
+        }
+        else if( keyword == "NO_DATA_VALUES" )
+        {
+            header.no_data_values = read_property_numbers< double >(
+                line, geode::string_to_double );
+        }
+        else if( keyword == "PROPERTY_CLASSES" )
+        {
+            header.property_classes = read_property_strings( line );
+        }
+        else if( keyword == "PROPERTY_KINDS" )
+        {
+            header.kinds = read_property_strings( line );
+        }
+        else if( keyword == "PROPERTY_SUBCLASSES" )
+        {
+            header.property_subclass = read_property_string_pairs( line );
+        }
+        else if( keyword == "ESIZES" )
+        {
+            header.esizes = read_property_numbers< geode::index_t >(
+                line, geode::string_to_index );
+        }
+        else if( keyword == "UNITS" )
+        {
+            header.units = read_property_strings( line );
+        }
+        else
+        {
+            return false;
+        }
+        return true;
     }
 
     template < typename Container >
@@ -625,37 +721,21 @@ namespace geode::internal
         {
             return header;
         }
-        const auto split_line =
-            split_string_considering_quotes( opt_line.value() );
-        const auto nb_attributes = split_line.size() - 1;
-        if( nb_attributes == 0 )
+        read_prop_header_line( header, opt_line.value(), prefix );
+        std::string line;
+        auto position = file.tellg();
+        while( std::getline( file, line ) )
         {
-            return header;
+            if( !read_prop_header_line( header, line, prefix )
+                && !is_empty_or_comment( geode::string_split( line ) ) )
+            {
+                file.seekg( position );
+                break;
+            }
+            position = file.tellg();
         }
-        header.names.resize( nb_attributes );
-        for( const auto attr_id : geode::Range{ nb_attributes } )
-        {
-            header.names[attr_id] = geode::to_string( split_line[attr_id + 1] );
-        }
-        read_property_keyword_with_two_strings( file,
-            absl::StrCat( prefix, "PROP_LEGAL_RANGES" ),
-            header.prop_legal_ranges, nb_attributes );
-        read_property_keyword_with_one_double( file,
-            absl::StrCat( prefix, "NO_DATA_VALUES" ), header.no_data_values,
-            nb_attributes );
-        read_property_keyword_with_one_string( file,
-            absl::StrCat( prefix, "PROPERTY_CLASSES" ), header.property_classes,
-            nb_attributes );
-        read_property_keyword_with_one_string( file,
-            absl::StrCat( prefix, "PROPERTY_KINDS" ), header.kinds,
-            nb_attributes );
-        read_property_keyword_with_two_strings( file,
-            absl::StrCat( prefix, "PROPERTY_SUBCLASSES" ),
-            header.property_subclass, nb_attributes );
-        read_property_keyword_with_one_index_t( file,
-            absl::StrCat( prefix, "ESIZES" ), header.esizes, nb_attributes );
-        read_property_keyword_with_one_string( file,
-            absl::StrCat( prefix, "UNITS" ), header.units, nb_attributes );
+        file.clear();
+        complete_prop_header( header );
         return header;
     }
 

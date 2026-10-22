@@ -79,16 +79,15 @@ namespace
         geode::OpenGeodeGeosciencesIOMeshException::test(
             crs.projection.empty(), "Wrong CRS projection: ", crs.projection );
 
-        try
-        {
-            load_test_file( "test_vs_unclosed_quote.vs",
-                "GOCAD VSet 1\nHEADER {\nname: a\n}\nPROPERTIES \"\n"
-                "VRTX 1 0 0 0\nEND\n" );
-        }
-        catch( const geode::OpenGeodeException& exception )
-        {
-            geode::Logger::info( "Unclosed quote: ", exception.what() );
-        }
+        const auto pointset = load_test_file( "test_vs_unclosed_quote.vs",
+            "GOCAD VSet 1\nHEADER {\nname: a\n}\nPROPERTIES \"\n"
+            "PVRTX 1 0 0 0 4\nEND\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            pointset->nb_vertices() == 1
+                && pointset->vertex_attribute_manager()
+                    .attribute_ids_matching_name( "property_0" )
+                    .has_value(),
+            "Wrong point set with unclosed quote" );
     }
 } // namespace
 
