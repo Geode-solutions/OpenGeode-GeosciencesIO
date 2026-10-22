@@ -25,9 +25,17 @@
 
 #include <fstream>
 
+#include <absl/strings/match.h>
+
 #include <geode/basic/assert.hpp>
 #include <geode/basic/logger.hpp>
 
+#include <geode/basic/attribute_manager.hpp>
+#include <geode/basic/variable_attribute.hpp>
+
+#include <geode/geometry/point.hpp>
+
+#include <geode/mesh/builder/triangulated_surface_builder.hpp>
 #include <geode/mesh/core/geode/geode_triangulated_surface.hpp>
 #include <geode/mesh/core/triangulated_surface.hpp>
 #include <geode/mesh/io/triangulated_surface_input.hpp>
@@ -35,6 +43,11 @@
 
 #include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
 #include <geode/geosciences_io/mesh/internal/ts_input.hpp>
+
+void check_surface( const geode::SurfaceMesh3D& surface,
+    geode::index_t nb_vertices,
+    geode::index_t nb_polygons,
+    std::string name );
 
 namespace
 {
@@ -210,6 +223,48 @@ namespace
             "Wrong triangle with non contiguous ids" );
     }
 
+    std::string read_whole_file( std::string_view filename )
+    {
+        std::ifstream file{ geode::to_string( filename ) };
+        return { std::istreambuf_iterator< char >{ file },
+            std::istreambuf_iterator< char >{} };
+    }
+
+    std::unique_ptr< geode::TriangulatedSurface3D > create_triangle()
+    {
+        auto surface = geode::TriangulatedSurface3D::create();
+        auto builder = geode::TriangulatedSurfaceBuilder3D::create( *surface );
+        builder->set_name( "triangle" );
+        builder->create_point( geode::Point3D{ { 0, 0, 0 } } );
+        builder->create_point( geode::Point3D{ { 1, 0, 0 } } );
+        builder->create_point( geode::Point3D{ { 0, 1, 0 } } );
+        builder->create_triangle( { 0, 1, 2 } );
+        return surface;
+    }
+
+    void test_output_without_generic_attribute()
+    {
+        auto surface = create_triangle();
+        geode::AttributeValues< std::string > values;
+        values.default_value = "none";
+        values.no_value = "none";
+        geode::AttributeProperties properties;
+        properties.transferable = true;
+        const auto attribute_id =
+            surface->vertex_attribute_manager()
+                .create_attribute< geode::VariableAttribute, std::string >(
+                    "label", values, properties );
+        geode_unused( attribute_id );
+        geode::save_triangulated_surface( *surface, "test_ts_no_generic.ts" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            !absl::StrContains(
+                read_whole_file( "test_ts_no_generic.ts" ), "PVRTX" ),
+            "PVRTX written without PROPERTIES" );
+        const auto reloaded =
+            geode::load_triangulated_surface< 3 >( "test_ts_no_generic.ts" );
+        check_surface( *reloaded, 3, 1, "triangle" );
+    }
+
     void test_object_header_order()
     {
         const auto surface = load_test_file( "test_ts_header_order.ts",
@@ -305,6 +360,7 @@ int main()
         test_multiple_tsurf_properties();
         test_vertex_lines_with_properties();
         test_non_contiguous_ids();
+        test_output_without_generic_attribute();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

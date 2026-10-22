@@ -82,7 +82,6 @@ namespace
 
             for( const auto& attribute_id : vertex_attribute_ids )
             {
-                VRTX_KEYWORD = "PVRTX";
                 const auto attribute =
                     surface_.vertex_attribute_manager().find_generic_attribute(
                         attribute_id );
@@ -113,6 +112,7 @@ namespace
             }
             if( !prop_header.empty() )
             {
+                VRTX_KEYWORD = "PVRTX";
                 geode::internal::write_prop_header( file_, prop_header );
             }
             write_xyz_prop_class_header();

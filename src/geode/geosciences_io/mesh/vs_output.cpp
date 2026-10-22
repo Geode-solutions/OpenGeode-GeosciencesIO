@@ -79,10 +79,6 @@ namespace
                 header_properties_data;
             header_properties_data.reserve( vertex_attribute_ids.size() );
             generic_att_.reserve( vertex_attribute_ids.size() );
-            if( !vertex_attribute_ids.empty() )
-            {
-                VRTX_KEYWORD = "PVRTX";
-            }
 
             for( const auto& attribute_id : vertex_attribute_ids )
             {
@@ -116,6 +112,7 @@ namespace
             }
             if( !prop_header.empty() )
             {
+                VRTX_KEYWORD = "PVRTX";
                 geode::internal::write_prop_header( file_, prop_header );
             }
             write_xyz_prop_class_header();
