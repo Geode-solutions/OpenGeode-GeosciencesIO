@@ -31,6 +31,7 @@
 
 #include <zlib.h>
 
+#include <absl/algorithm/container.h>
 #include <absl/strings/str_cat.h>
 
 #include <geode/basic/attribute_manager.hpp>
@@ -752,6 +753,7 @@ namespace geode::internal
         std::vector< std::array< index_t, nb_vertices_per_element > > elements;
         elements.reserve( indices.size() / nb_vertices_per_element );
         index_t nb_invalid{ 0 };
+        index_t nb_degenerate{ 0 };
         for( std::size_t first = 0; first < indices.size();
             first += nb_vertices_per_element )
         {
@@ -766,6 +768,15 @@ namespace geode::internal
                     break;
                 }
                 element[vertex] = static_cast< index_t >( index );
+                if( absl::c_count(
+                        absl::MakeConstSpan( element.data(), vertex ),
+                        element[vertex] )
+                    != 0 )
+                {
+                    element.fill( NO_ID );
+                    nb_degenerate++;
+                    break;
+                }
             }
         }
         if( nb_invalid > 0 )
@@ -773,6 +784,11 @@ namespace geode::internal
             Logger::warning( "[OMFInput] ", nb_invalid, " ", key,
                 " referencing vertices outside [0, ", nb_vertices,
                 ") are skipped" );
+        }
+        if( nb_degenerate > 0 )
+        {
+            Logger::warning( "[OMFInput] ", nb_degenerate, " ", key,
+                " with repeated vertices are skipped" );
         }
         return elements;
     }

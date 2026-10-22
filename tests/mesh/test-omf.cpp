@@ -112,6 +112,31 @@ namespace
         }
     }
 
+    /*
+     * Write an OMF v1 file made of a header, binary blocks starting at byte
+     * 60 and the JSON index
+     */
+    void write_omf( std::string_view filename,
+        std::string_view json,
+        std::string_view binary = {} )
+    {
+        std::string header( 60, '\0' );
+        const std::array< unsigned char, 4 > magic{ 0x84, 0x83, 0x82, 0x81 };
+        for( const auto byte : geode::LRange{ 4 } )
+        {
+            header[byte] = static_cast< char >( magic[byte] );
+        }
+        header.replace( 4, 10, "OMF-v0.9.0" );
+        const auto json_start = static_cast< uint64_t >( 60 + binary.size() );
+        for( const auto byte : geode::LRange{ 8 } )
+        {
+            header[52 + byte] =
+                static_cast< char >( ( json_start >> ( 8 * byte ) ) & 0xFF );
+        }
+        std::ofstream file{ geode::to_string( filename ), std::ios::binary };
+        file << header << binary << json;
+    }
+
     void check_point( const geode::Point3D& point,
         const geode::Point3D& expected,
         std::string_view message )
@@ -381,6 +406,36 @@ namespace
         geode::OpenGeodeGeosciencesIOMeshException::test(
             false, "OMF file with invalid JSON start should not be loaded" );
     }
+    void test_degenerate_elements()
+    {
+        constexpr auto filename = "omf_degenerate_elements.omf";
+        write_omf( filename, R"({
+            "p": { "__class__": "Project", "elements": [ "l", "s" ] },
+            "l": { "__class__": "LineSetElement", "name": "lines",
+                "geometry": "lg" },
+            "lg": { "__class__": "LineSetGeometry", "vertices": "lv",
+                "segments": "ls" },
+            "lv": { "__class__": "Vector3Array",
+                "array": [ 0, 0, 0, 1, 0, 0, 2, 0, 0, 3, 0, 0 ] },
+            "ls": { "__class__": "Int2Array",
+                "array": [ [ 0, 1 ], [ 3, 3 ], [ 1, 2 ] ] },
+            "s": { "__class__": "SurfaceElement", "name": "surface",
+                "geometry": "sg" },
+            "sg": { "__class__": "SurfaceGeometry", "vertices": "sv",
+                "triangles": "st" },
+            "sv": { "__class__": "Vector3Array",
+                "array": [ 0, 0, 0, 1, 0, 0, 0, 1, 0 ] },
+            "st": { "__class__": "Int3Array",
+                "array": [ [ 0, 1, 2 ], [ 0, 0, 1 ] ] }
+        })" );
+        const auto curve = geode::load_edged_curve< 3 >( filename );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curve->nb_edges() == 2, "Degenerate segment should be skipped" );
+        const auto surface = geode::load_triangulated_surface< 3 >( filename );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surface->nb_polygons() == 1,
+            "Degenerate triangle should be skipped" );
+    }
 } // namespace
 
 int main()
@@ -398,6 +453,7 @@ int main()
         test_non_uniform_grid();
         test_invalid_json_start();
         test_mixed_loadability();
+        test_degenerate_elements();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
