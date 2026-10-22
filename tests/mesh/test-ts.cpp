@@ -195,6 +195,21 @@ namespace
             has_thrown, "ATOM referencing an unknown vertex should throw" );
     }
 
+    void test_non_contiguous_ids()
+    {
+        const auto surface = load_test_file( "test_ts_sparse_ids.ts",
+            "GOCAD TSurf 1\nHEADER {\nname: s1\n}\nTFACE\nVRTX 10 0 0 0\n"
+            "VRTX 30 1 0 0\nVRTX 20 0 1 0\nVRTX 5 1 1 0\nTRGL 10 30 20\n"
+            "TRGL 30 5 20\nEND\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surface->nb_vertices() == 4 && surface->nb_polygons() == 2,
+            "Wrong surface with non contiguous ids" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surface->polygon_vertex( { 1, 1 } ) == 3
+                && surface->polygon_vertex( { 1, 2 } ) == 2,
+            "Wrong triangle with non contiguous ids" );
+    }
+
     void test_object_header_order()
     {
         const auto surface = load_test_file( "test_ts_header_order.ts",
@@ -289,6 +304,7 @@ int main()
         test_object_header_order();
         test_multiple_tsurf_properties();
         test_vertex_lines_with_properties();
+        test_non_contiguous_ids();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

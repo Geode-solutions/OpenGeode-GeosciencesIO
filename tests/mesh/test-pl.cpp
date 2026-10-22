@@ -100,6 +100,18 @@ namespace
             "Coordinates are not saved with full precision" );
     }
 
+    void test_non_contiguous_ids()
+    {
+        const auto curve = load_test_file( "test_pl_sparse_ids.pl",
+            "GOCAD PLine 1\nHEADER {\nname: a\n}\nILINE\nVRTX 5 0 0 0\n"
+            "VRTX 3 1 0 0\nVRTX 8 2 0 0\nSEG 5 3\nSEG 3 8\nEND\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curve->nb_vertices() == 3 && curve->nb_edges() == 2
+                && curve->edge_vertices( 1 )[0] == 1
+                && curve->edge_vertices( 1 )[1] == 2,
+            "Wrong curve with non contiguous ids" );
+    }
+
     std::vector< std::array< geode::Point3D, 2 > > sorted_edge_points(
         const geode::EdgedCurve3D& curve )
     {
@@ -199,6 +211,7 @@ int main()
         test_invalid_segments();
         test_output_precision();
         test_closed_loop_output();
+        test_non_contiguous_ids();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }

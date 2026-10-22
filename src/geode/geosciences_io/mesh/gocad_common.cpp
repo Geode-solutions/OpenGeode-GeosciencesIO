@@ -28,6 +28,7 @@
 #include <string>
 
 #include <absl/algorithm/container.h>
+#include <absl/container/flat_hash_map.h>
 #include <absl/strings/match.h>
 #include <absl/strings/str_join.h>
 #include <absl/strings/str_replace.h>
@@ -135,26 +136,86 @@ namespace
             "\" should have at least ", nb_tokens, " tokens" );
     }
 
-    std::optional< geode::index_t > vertex_index( geode::index_t file_id,
-        geode::index_t offset_start,
-        geode::index_t nb_points )
+    /*!
+     * Maps the vertex ids of a GOCAD object to the indices of its points.
+     * Ids are usually contiguous: a hash map is only used otherwise.
+     */
+    class VertexIdMapping
     {
-        if( file_id < offset_start || file_id - offset_start >= nb_points )
+    public:
+        void add( geode::index_t file_id, geode::index_t index )
         {
-            return std::nullopt;
+            if( is_dense_ )
+            {
+                if( size_ == 0 )
+                {
+                    offset_ = file_id;
+                }
+                if( file_id >= offset_ && file_id - offset_ == size_
+                    && index == size_ )
+                {
+                    size_++;
+                    return;
+                }
+                to_sparse();
+            }
+            if( !sparse_.try_emplace( file_id, index ).second )
+            {
+                geode::Logger::warning( "[GocadInput] Vertex id ", file_id,
+                    " is defined several times, the first one is used" );
+            }
         }
-        return file_id - offset_start;
-    }
 
-    void resolve_ecurve_indices( geode::internal::ECurveData& ecurve )
+        std::optional< geode::index_t > find( geode::index_t file_id ) const
+        {
+            if( is_dense_ )
+            {
+                if( file_id < offset_ || file_id - offset_ >= size_ )
+                {
+                    return std::nullopt;
+                }
+                return file_id - offset_;
+            }
+            const auto it = sparse_.find( file_id );
+            if( it == sparse_.end() )
+            {
+                return std::nullopt;
+            }
+            return it->second;
+        }
+
+    private:
+        void to_sparse()
+        {
+            is_dense_ = false;
+            sparse_.reserve( 2 * size_ );
+            for( const auto index : geode::Range{ size_ } )
+            {
+                sparse_.emplace( offset_ + index, index );
+            }
+        }
+
+    private:
+        bool is_dense_{ true };
+        geode::index_t offset_{ 0 };
+        geode::index_t size_{ 0 };
+        absl::flat_hash_map< geode::index_t, geode::index_t > sparse_;
+    };
+
+    struct VertexReaderState
+    {
+        VertexIdMapping ids;
+        bool missing_values_warned{ false };
+    };
+
+    void resolve_ecurve_indices(
+        geode::internal::ECurveData& ecurve, const VertexIdMapping& ids )
     {
         geode::index_t nb_valid{ 0 };
         for( auto edge : ecurve.edges )
         {
-            const auto v0 = vertex_index(
-                edge[0], ecurve.OFFSET_START, ecurve.points.size() );
-            const auto v1 = vertex_index(
-                edge[1], ecurve.OFFSET_START, ecurve.points.size() );
+            const auto v0 = ids.find( edge[0] );
+            const auto v1 = ids.find( edge[1] );
             if( !v0 || !v1 || v0 == v1 )
             {
                 geode::Logger::warning( "[PLInput] SEG ", edge[0], " ", edge[1],
@@ -167,7 +228,8 @@ namespace
         ecurve.edges.resize( nb_valid );
     }
 
-    void resolve_tsurf_triangles( geode::internal::TSurfData& tsurf )
+    void resolve_tsurf_triangles(
+        geode::internal::TSurfData& tsurf, const VertexIdMapping& ids )
     {
         geode::index_t nb_valid{ 0 };
         geode::index_t nb_invalid{ 0 };
@@ -177,8 +239,7 @@ namespace
             const auto begin = tsurf.tface_triangles_offset[tface];
             const auto end = tsurf.tface_triangles_offset[tface + 1];
             const auto first_vertex = tsurf.tface_vertices_offset[tface];
-            const auto nb_tface_vertices =
-                tsurf.tface_vertices_offset[tface + 1] - first_vertex;
+            const auto end_vertex = tsurf.tface_vertices_offset[tface + 1];
             tsurf.tface_triangles_offset[tface] = nb_valid;
             for( const auto triangle_id : geode::Range{ begin, end } )
             {
@@ -186,14 +247,14 @@ namespace
                 auto is_valid = true;
                 for( auto& vertex : triangle )
                 {
-                    const auto index = vertex_index( vertex,
-                        tsurf.OFFSET_START + first_vertex, nb_tface_vertices );
-                    if( !index )
+                    const auto index = ids.find( vertex );
+                    if( !index || index.value() < first_vertex
+                        || index.value() >= end_vertex )
                     {
                         is_valid = false;
                         break;
                     }
-                    vertex = index.value() + first_vertex;
+                    vertex = index.value();
                 }
                 if( !is_valid )
                 {
@@ -213,15 +274,14 @@ namespace
         }
     }
 
-    void resolve_tsurf_indices( geode::internal::TSurfData& tsurf )
+    void resolve_tsurf_indices(
+        geode::internal::TSurfData& tsurf, const VertexIdMapping& ids )
     {
-        resolve_tsurf_triangles( tsurf );
-        const auto nb_points = tsurf.points.size();
+        resolve_tsurf_triangles( tsurf, ids );
         geode::index_t nb_valid{ 0 };
         for( const auto bstone : tsurf.bstones )
         {
-            const auto index =
-                vertex_index( bstone, tsurf.OFFSET_START, nb_points );
+            const auto index = ids.find( bstone );
             if( !index )
             {
                 geode::Logger::warning( "[TSInput] BSTONE ", bstone,
@@ -234,10 +294,8 @@ namespace
         nb_valid = 0;
         for( const auto& border : tsurf.borders )
         {
-            const auto corner =
-                vertex_index( border.corner_id, tsurf.OFFSET_START, nb_points );
-            const auto next =
-                vertex_index( border.next_id, tsurf.OFFSET_START, nb_points );
+            const auto corner = ids.find( border.corner_id );
+            const auto next = ids.find( border.next_id );
             if( !corner || !next
                 || tsurf.tface_id( corner.value() )
                        != tsurf.tface_id( next.value() ) )
@@ -283,6 +341,7 @@ namespace
     void read_ilines( std::ifstream& file, geode::internal::ECurveData& ecurve )
     {
         std::string line;
+        VertexIdMapping ids;
         while( std::getline( file, line ) )
         {
             const auto tokens = geode::string_split( line );
@@ -293,7 +352,7 @@ namespace
             const auto& keyword = tokens.front();
             if( is_object_end( file, line, keyword, "PLine" ) )
             {
-                resolve_ecurve_indices( ecurve );
+                resolve_ecurve_indices( ecurve, ids );
                 return;
             }
             if( keyword == "VRTX" || keyword == "PVRTX" )
@@ -303,6 +362,8 @@ namespace
                 {
                     ecurve.OFFSET_START = geode::string_to_index( tokens[1] );
                 }
+                ids.add(
+                    geode::string_to_index( tokens[1] ), ecurve.points.size() );
                 ecurve.points.emplace_back( std::array< double, 3 >{
                     geode::string_to_double( tokens[2] ),
                     geode::string_to_double( tokens[3] ),
@@ -321,31 +382,32 @@ namespace
             }
         }
         warn_missing_end( file, "PLine" );
-        resolve_ecurve_indices( ecurve );
+        resolve_ecurve_indices( ecurve, ids );
     }
 
-    void end_tsurf( geode::internal::TSurfData& tsurf )
+    void end_tsurf(
+        geode::internal::TSurfData& tsurf, const VertexIdMapping& ids )
     {
         tsurf.tface_triangles_offset.push_back( tsurf.triangles.size() );
         tsurf.tface_vertices_offset.push_back( tsurf.points.size() );
-        resolve_tsurf_indices( tsurf );
+        resolve_tsurf_indices( tsurf, ids );
     }
 
     template < typename Data >
     void read_vertex_properties( Data& data,
         absl::Span< const std::string_view > tokens,
         geode::index_t position,
-        bool& missing_values_warned )
+        VertexReaderState& state )
     {
         if( !geode::internal::read_properties( data.vertices_properties_header,
                 data.vertices_attribute_values, tokens, position )
-            && !missing_values_warned )
+            && !state.missing_values_warned )
         {
             geode::Logger::warning(
                 "[GocadInput] Some vertices have less property values than "
                 "declared in PROPERTIES, missing values are set to "
                 "NO_DATA_VALUES" );
-            missing_values_warned = true;
+            state.missing_values_warned = true;
         }
     }
 
@@ -369,26 +431,28 @@ namespace
     void read_vertex_line( Data& data,
         absl::Span< const std::string_view > tokens,
         std::string_view line,
-        bool& missing_values_warned )
+        VertexReaderState& state )
     {
         check_enough_tokens( tokens, 5, line );
+        const auto file_id = geode::string_to_index( tokens[1] );
         if( data.points.empty() )
         {
-            data.OFFSET_START = geode::string_to_index( tokens[1] );
+            data.OFFSET_START = file_id;
         }
+        state.ids.add( file_id, data.points.size() );
         data.points.emplace_back(
             std::array< double, 3 >{ geode::string_to_double( tokens[2] ),
                 geode::string_to_double( tokens[3] ),
                 geode::string_to_double( tokens[4] )
                     * ( data.crs.z_sign_positive ? 1. : -1. ) } );
-        read_vertex_properties( data, tokens, 5, missing_values_warned );
+        read_vertex_properties( data, tokens, 5, state );
     }
 
     void read_tfaces( std::ifstream& file, geode::internal::TSurfData& tsurf )
     {
         std::string line;
         auto tface_started = false;
-        auto missing_values_warned = false;
+        VertexReaderState state;
         while( std::getline( file, line ) )
         {
             const auto tokens = geode::string_split( line );
@@ -399,28 +463,28 @@ namespace
             const auto& keyword = tokens.front();
             if( is_object_end( file, line, keyword, "TSurf" ) )
             {
-                end_tsurf( tsurf );
+                end_tsurf( tsurf, state.ids );
                 return;
             }
             if( keyword == "VRTX" || keyword == "PVRTX" )
             {
-                read_vertex_line( tsurf, tokens, line, missing_values_warned );
+                read_vertex_line( tsurf, tokens, line, state );
             }
             else if( keyword == "ATOM" || keyword == "PATOM" )
             {
                 check_enough_tokens( tokens, 3, line );
                 const auto reference =
-                    vertex_index( geode::string_to_index( tokens[2] ),
-                        tsurf.OFFSET_START, tsurf.points.size() );
+                    state.ids.find( geode::string_to_index( tokens[2] ) );
                 geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                     reference.has_value(), nullptr,
                     geode::OpenGeodeException::TYPE::data, "[TSInput] Line \"",
                     line, "\" references an unknown vertex" );
+                state.ids.add(
+                    geode::string_to_index( tokens[1] ), tsurf.points.size() );
                 tsurf.points.push_back( tsurf.points[reference.value()] );
                 if( tokens.size() > 3 )
                 {
-                    read_vertex_properties(
-                        tsurf, tokens, 3, missing_values_warned );
+                    read_vertex_properties( tsurf, tokens, 3, state );
                 }
                 else
                 {
@@ -469,14 +533,14 @@ namespace
             }
         }
         warn_missing_end( file, "TSurf" );
-        end_tsurf( tsurf );
+        end_tsurf( tsurf, state.ids );
     }
 
     void read_VSet_vertices(
         std::ifstream& file, geode::internal::VSetData& vertex_set )
     {
         std::string line;
-        auto missing_values_warned = false;
+        VertexReaderState state;
         while( std::getline( file, line ) )
         {
             const auto tokens = geode::string_split( line );
@@ -493,7 +557,7 @@ namespace
             {
                 continue;
             }
-            read_vertex_line( vertex_set, tokens, line, missing_values_warned );
+            read_vertex_line( vertex_set, tokens, line, state );
         }
         warn_missing_end( file, "VSet" );
     }
