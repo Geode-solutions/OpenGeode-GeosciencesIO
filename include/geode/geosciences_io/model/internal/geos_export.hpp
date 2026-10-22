@@ -42,6 +42,7 @@
 #include <geode/model/helpers/convert_to_mesh.hpp>
 
 #include <geode/geosciences_io/model/common.hpp>
+#include <geode/geosciences_io/model/internal/geos_deck_context.hpp>
 
 namespace pugi
 {
@@ -59,7 +60,14 @@ namespace geode
     FORWARD_DECLARATION_DIMENSION_CLASS( Surface );
     ALIAS_3D( Surface );
     struct ModelToMeshMappings;
+    class AttributeManager;
+    class PhysicalProblem;
 } // namespace geode
+
+namespace geode::internal
+{
+    class GeosSimulationWriter;
+} // namespace geode::internal
 
 namespace geode::internal
 {
@@ -72,7 +80,7 @@ namespace geode::internal
         GeosExporterImpl() = delete;
         GeosExporterImpl(
             std::string_view files_directory, const Model& model );
-        virtual ~GeosExporterImpl() = default;
+        virtual ~GeosExporterImpl();
 
         void prepare_export();
         void write_files() const;
@@ -80,14 +88,32 @@ namespace geode::internal
         void add_well_perforations(
             const PointSet3D& perforations, std::string_view name );
 
+        /// Writes a full simulation deck instead of the mesh and boundary
+        /// conditions only. The problem must outlive the export.
+        void set_physical_problem( const PhysicalProblem& problem );
+
     protected:
         std::string_view files_directory() const;
         std::string_view prefix() const;
 
+        void convert_model();
         index_t initialize_solid_region_attribute();
+        void add_block_collection_regions();
         void initialize_surface_cells( index_t first_surface_region_id );
-        virtual absl::flat_hash_map< uuid, index_t >
-            create_region_attribute_map( const Model& model ) const = 0;
+        struct RegionDefinitions
+        {
+            /// Region id of each Block
+            absl::flat_hash_map< uuid, index_t > block_regions;
+            /// Regions indexed by id
+            std::vector< GeosRegion > regions;
+            /// Regions covered by each Block, StratigraphicUnit or collection
+            absl::flat_hash_map< uuid, std::vector< index_t > > regions_by_uuid;
+            /// Blocks merged with other Blocks into one region -> that region
+            absl::flat_hash_map< uuid, index_t > merged_blocks;
+        };
+
+        [[nodiscard]] virtual RegionDefinitions create_region_definitions(
+            const Model& model ) const = 0;
 
         void write_well_perforations_boxes( pugi::xml_node& root ) const;
         void write_mesh_files( pugi::xml_node& root ) const;
@@ -104,6 +130,14 @@ namespace geode::internal
         void delete_mapping_attributes();
 
         std::string write_solid_file() const;
+        void duplicate_imported_fields(
+            AttributeManager& cell_attributes ) const;
+        void validate_problem() const;
+        void prepare_simulation();
+
+        void add_isothermal_boundary_temperature( double temperature );
+        [[nodiscard]] GeosDeckContext build_deck_context() const;
+        void write_simulation_sections( pugi::xml_node& problem_node ) const;
         void write_well_perforation_file() const;
         void write_boundary_table_files() const;
 
@@ -165,5 +199,13 @@ namespace geode::internal
 
         std::vector< std::unique_ptr< PointSet3D > > well_perforations_{};
         std::vector< std::string > well_names_{};
+
+        RegionDefinitions region_definitions_{};
+        std::optional< uuid > porosity_attribute_id_{};
+        std::optional< uuid > permeability_attribute_id_{};
+        std::vector< PHASE > boundary_fraction_phases_{};
+        const PhysicalProblem* problem_{ nullptr };
+        GeosDeckContext context_{};
+        std::unique_ptr< GeosSimulationWriter > writer_{};
     };
 } // namespace geode::internal

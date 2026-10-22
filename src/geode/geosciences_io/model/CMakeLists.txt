@@ -27,6 +27,9 @@ add_geode_library(
         "helpers/structural_model_geos_export.cpp"
         "internal/brep_fem_output.cpp"
         "internal/geos_export.cpp"
+        "internal/geos_simulation_validation.cpp"
+        "internal/geos_simulation_writer.cpp"
+        "internal/geos_xml.cpp"
         "internal/gocad_common.cpp"
         "internal/horizons_stack_skua_input.cpp"
         "internal/lso_input.cpp"
@@ -42,7 +45,11 @@ add_geode_library(
         "helpers/brep_geos_export.hpp"
         "helpers/structural_model_geos_export.hpp"
         "internal/brep_fem_output.hpp"
+        "internal/geos_deck_context.hpp"
         "internal/geos_export.hpp"
+        "internal/geos_simulation_validation.hpp"
+        "internal/geos_simulation_writer.hpp"
+        "internal/geos_xml.hpp"
         "internal/gocad_common.hpp"
         "internal/horizons_stack_skua_input.hpp"
         "internal/lso_input.hpp"
@@ -61,6 +68,7 @@ add_geode_library(
         OpenGeode::model
         OpenGeode-Geosciences::explicit
         OpenGeode-Geosciences::implicit
+        OpenGeode-Geosciences::simulation
         OpenGeode-IO::image
         OpenGeode-IO::mesh
         GDAL::GDAL

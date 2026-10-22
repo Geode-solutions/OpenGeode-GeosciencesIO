@@ -33,6 +33,7 @@ namespace geode
 {
     FORWARD_DECLARATION_DIMENSION_CLASS( PointSet );
     ALIAS_3D( PointSet );
+    class PhysicalProblem;
     class BRep;
 } // namespace geode
 
@@ -49,6 +50,14 @@ namespace geode
 
         void add_well_perforations(
             const PointSet3D& well_perforations, std::string_view name );
+
+        /*!
+         * Writes a full simulation deck (solvers, fluid, rock, initial
+         * conditions, events) described by the problem. Without it, only the
+         * mesh, wells and boundary conditions are written.
+         * The problem must outlive run().
+         */
+        void set_physical_problem( const PhysicalProblem& problem );
 
         void run();
 
