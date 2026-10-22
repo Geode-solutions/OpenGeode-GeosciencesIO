@@ -60,6 +60,10 @@ namespace geode
     FORWARD_DECLARATION_DIMENSION_CLASS( Surface );
     ALIAS_3D( Surface );
     struct ModelToMeshMappings;
+    FORWARD_DECLARATION_DIMENSION_CLASS( AABBTree );
+    FORWARD_DECLARATION_DIMENSION_CLASS( Point );
+    ALIAS_3D( AABBTree );
+    ALIAS_3D( Point );
     class AttributeManager;
     class PhysicalProblem;
 } // namespace geode
@@ -117,6 +121,8 @@ namespace geode::internal
             const Model& model ) const = 0;
 
         void write_well_perforations_boxes( pugi::xml_node& root ) const;
+        [[nodiscard]] index_t containing_cell(
+            const AABBTree3D& aabb, const Point3D& point ) const;
         void write_mesh_files( pugi::xml_node& root ) const;
         void write_boundary_conditions( pugi::xml_node& root ) const;
         void write_boundary_functions( pugi::xml_node& root ) const;

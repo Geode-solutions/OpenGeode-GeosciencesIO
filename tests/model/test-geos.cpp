@@ -600,8 +600,8 @@ void test_spe10_reference()
     // Perforation boxes of the reference grid_geos_simulation.xml
     for( const auto* pattern : { "name=\"source\"", "name=\"sink1\"",
              "name=\"sink2\"", "name=\"sink3\"", "name=\"sink4\"",
-             "xMin=\"{182.88, 335.28, -0.0001}\"",
-             "xMax=\"{188.976, 338.328, 1.2201}\"" } )
+             "xMin=\"{182.8799, 335.2799, -0.0001}\"",
+             "xMax=\"{188.9761, 338.3281, 1.2201}\"" } )
     {
         geode::OpenGeodeGeosciencesIOModelException::test(
             absl::StrContains( deck, pattern ), "[Test] ", pattern,
@@ -960,6 +960,72 @@ void test_structural_model_block_in_two_units()
         "[Test] Wrong regions for a Block in two StratigraphicUnits" );
 }
 
+std::unique_ptr< geode::PointSet3D > well_points(
+    absl::Span< const geode::Point3D > points )
+{
+    auto point_set = geode::PointSet3D::create(
+        geode::OpenGeodePointSet3D::impl_name_static() );
+    auto builder = geode::PointSetBuilder3D::create( *point_set );
+    for( const auto& point : points )
+    {
+        builder->create_point( point );
+    }
+    return point_set;
+}
+
+std::array< double, 3 > box_corner(
+    std::string_view xml, std::string_view well, std::string_view corner )
+{
+    const auto box = xml.find( absl::StrCat( "name=\"", well, "\"" ) );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        box != std::string_view::npos, "[Test] No Box for well ", well );
+    const auto start =
+        xml.find( absl::StrCat( corner, "=\"{" ), box ) + corner.size() + 3;
+    std::string values{ xml.substr( start, xml.find( '}', start ) - start ) };
+    absl::c_replace( values, ',', ' ' );
+    std::istringstream stream{ values };
+    std::array< double, 3 > coordinates;
+    for( auto& coordinate : coordinates )
+    {
+        stream >> coordinate;
+    }
+    return coordinates;
+}
+
+void test_well_perforation_boxes()
+{
+    static constexpr double BOX_TOLERANCE{ 1e-3 };
+    const geode::Point3D origin{ { 512345.67, 6234567.89, -2000. } };
+    auto model = tetrahedra_brep( 2, origin );
+    geode::BRepGeosExporter exporter( model, "large_coordinates" );
+    exporter.add_well_perforations(
+        *well_points( { origin + geode::Point3D{ { 2.2, 0.2, 0.2 } } } ),
+        "inside" );
+    // In the bounding box of the first tetrahedron but outside of it
+    exporter.add_well_perforations(
+        *well_points( { origin + geode::Point3D{ { 0.9, 0.9, 0.9 } } } ),
+        "outside" );
+    exporter.run();
+    const auto xml =
+        read_file( "large_coordinates/large_coordinates_simulation.xml" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        count_occurrences( xml, "<Box" ) == 1,
+        "[Test] Only the well inside the model should have a Box" );
+    const auto min = box_corner( xml, "inside", "xMin" );
+    const auto max = box_corner( xml, "inside", "xMax" );
+    const std::array< double, 3 > expected_min{ origin.value( 0 ) + 2.,
+        origin.value( 1 ), origin.value( 2 ) };
+    for( const auto axis : geode::LRange{ 3 } )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            std::fabs( min[axis] - expected_min[axis] ) < BOX_TOLERANCE
+                && std::fabs( max[axis] - expected_min[axis] - 1. )
+                       < BOX_TOLERANCE,
+            "[Test] Wrong well Box coordinate along axis ", axis, ": ",
+            min[axis], " ", max[axis] );
+    }
+}
+
 int main()
 {
     try
@@ -970,6 +1036,7 @@ int main()
         test_constant_block_properties();
         test_structural_model_block_without_unit();
         test_structural_model_block_in_two_units();
+        test_well_perforation_boxes();
         test_picasso();
         test_uniform_variable_boundary_condition();
         test_variable_boundary_condition();

@@ -51,10 +51,13 @@
 #include <geode/basic/variable_attribute.hpp>
 
 #include <geode/geometry/aabb.hpp>
+#include <geode/geometry/basic_objects/tetrahedron.hpp>
 #include <geode/geometry/bounding_box.hpp>
 #include <geode/geometry/distance.hpp>
+#include <geode/geometry/information.hpp>
 #include <geode/geometry/nn_search.hpp>
 #include <geode/geometry/point.hpp>
+#include <geode/geometry/position.hpp>
 
 #include <geode/geosciences_io/model/common.hpp>
 
@@ -458,6 +461,36 @@ namespace
             sum += attribute.generic_item_value( element, item );
         }
         return nb_elements == 0 ? 0. : sum / nb_elements;
+    }
+
+    // The polyhedron is split in tetrahedra joining its barycenter to a fan
+    // triangulation of its facets
+    bool is_point_in_polyhedron( const geode::SolidMesh3D& solid,
+        geode::index_t polyhedron_id,
+        const geode::Point3D& point )
+    {
+        const auto barycenter = solid.polyhedron_barycenter( polyhedron_id );
+        for( const auto facet :
+            geode::LRange{ solid.nb_polyhedron_facets( polyhedron_id ) } )
+        {
+            const auto vertices =
+                solid.polyhedron_facet_vertices( { polyhedron_id, facet } );
+            const auto& first = solid.point( vertices[0] );
+            for( const auto vertex : geode::LRange{ 1, vertices.size() - 1 } )
+            {
+                const geode::Tetrahedron tetrahedron{ first,
+                    solid.point( vertices[vertex] ),
+                    solid.point( vertices[vertex + 1] ), barycenter };
+                const auto position =
+                    geode::point_tetrahedron_position( point, tetrahedron );
+                if( position != geode::POSITION::outside
+                    && position != geode::POSITION::parallel )
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     template < typename Model >
@@ -864,56 +897,77 @@ namespace geode::internal
     void GeosExporterImpl< Model >::write_well_perforations_boxes(
         pugi::xml_node& root ) const
     {
-        auto aabb = create_aabb_tree( *model_solid_ );
+        const auto aabb = create_aabb_tree( *model_solid_ );
         for( const auto well_id : Indices{ well_perforations_ } )
         {
             const auto& well = well_perforations_[well_id];
+            const auto& well_name = well_names_[well_id];
             BoundingBox3D perf_box;
-            for( const auto point : Range( well->nb_vertices() ) )
+            bool has_perforated_cell{ false };
+            for( const auto point_id : Range( well->nb_vertices() ) )
             {
-                const auto neigh_cells =
-                    aabb.containing_boxes( well->point( point ) );
-                if( neigh_cells.empty() )
+                const auto& point = well->point( point_id );
+                const auto cell_id = containing_cell( aabb, point );
+                if( cell_id == NO_ID )
                 {
+                    Logger::warning( "[GeosExporter] Perforation ", point_id,
+                        " of well ", well_name, " (", point.string(),
+                        ") is not inside the model, it is ignored." );
                     continue;
                 }
-                double distance_to_nearest_cell_center{
-                    std::numeric_limits< double >::max()
-                };
-                index_t selected_cell_id{ NO_ID };
-                for( const auto cell_id : neigh_cells )
-                {
-                    const auto tmp_dist =
-                        point_point_distance< 3 >( well->point( point ),
-                            model_solid_->polyhedron_barycenter( cell_id ) );
-                    if( distance_to_nearest_cell_center < tmp_dist )
-                    {
-                        continue;
-                    }
-                    distance_to_nearest_cell_center = tmp_dist;
-                    selected_cell_id = cell_id;
-                }
-                for( auto& vertex_id :
-                    model_solid_->polyhedron_vertices( selected_cell_id ) )
+                has_perforated_cell = true;
+                for( const auto vertex_id :
+                    model_solid_->polyhedron_vertices( cell_id ) )
                 {
                     perf_box.add_point( model_solid_->point( vertex_id ) );
                 }
             }
+            if( !has_perforated_cell )
+            {
+                Logger::warning( "[GeosExporter] No perforation of well ",
+                    well_name,
+                    " is inside the model, no perforation Box is exported." );
+                continue;
+            }
             auto box_node = root.append_child( "Box" );
-            box_node.append_attribute( "name" ).set_value(
-                well_names_[well_id].c_str() );
+            box_node.append_attribute( "name" ).set_value( well_name.c_str() );
             static constexpr auto SAFETY_OFFSET = 100. * GLOBAL_EPSILON;
+            const auto box_corner = []( const Point3D& corner, double offset ) {
+                return absl::StrCat( "{",
+                    geos_real( corner.value( 0 ) + offset ), ", ",
+                    geos_real( corner.value( 1 ) + offset ), ", ",
+                    geos_real( corner.value( 2 ) + offset ), "}" );
+            };
             box_node.append_attribute( "xMin" ).set_value(
-                absl::StrCat( "{", perf_box.min().value( 0 ) - SAFETY_OFFSET,
-                    ", ", perf_box.min().value( 1 ) - SAFETY_OFFSET, ", ",
-                    perf_box.min().value( 2 ) - SAFETY_OFFSET, "}" )
-                    .c_str() );
+                box_corner( perf_box.min(), -SAFETY_OFFSET ).c_str() );
             box_node.append_attribute( "xMax" ).set_value(
-                absl::StrCat( "{", perf_box.max().value( 0 ) + SAFETY_OFFSET,
-                    ", ", perf_box.max().value( 1 ) + SAFETY_OFFSET, ", ",
-                    perf_box.max().value( 2 ) + SAFETY_OFFSET, "}" )
-                    .c_str() );
+                box_corner( perf_box.max(), SAFETY_OFFSET ).c_str() );
         }
+    }
+
+    template < typename Model >
+    index_t GeosExporterImpl< Model >::containing_cell(
+        const AABBTree3D& aabb, const Point3D& point ) const
+    {
+        double distance_to_nearest_cell_center{
+            std::numeric_limits< double >::max()
+        };
+        index_t selected_cell_id{ NO_ID };
+        for( const auto cell_id : aabb.containing_boxes( point ) )
+        {
+            if( !is_point_in_polyhedron( *model_solid_, cell_id, point ) )
+            {
+                continue;
+            }
+            const auto distance = point_point_distance< 3 >(
+                point, model_solid_->polyhedron_barycenter( cell_id ) );
+            if( distance < distance_to_nearest_cell_center )
+            {
+                distance_to_nearest_cell_center = distance;
+                selected_cell_id = cell_id;
+            }
+        }
+        return selected_cell_id;
     }
 
     template < typename Model >
