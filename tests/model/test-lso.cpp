@@ -23,6 +23,7 @@
 
 #include <geode/tests_config.hpp>
 
+#include <absl/algorithm/container.h>
 #include <absl/container/flat_hash_map.h>
 #include <absl/strings/match.h>
 #include <absl/strings/str_cat.h>
@@ -31,6 +32,7 @@
 #include <absl/strings/str_split.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <fstream>
 #include <functional>
@@ -656,6 +658,35 @@ void test_border_loop_without_corner()
     }
 }
 
+std::vector< std::array< double, 3 > > sorted_block_points(
+    const geode::StructuralModel& model )
+{
+    std::vector< std::array< double, 3 > > points;
+    for( const auto& block : model.blocks() )
+    {
+        const auto& mesh = block.mesh();
+        for( const auto v : geode::Range{ mesh.nb_vertices() } )
+        {
+            const auto& point = mesh.point( v );
+            points.push_back(
+                { point.value( 0 ), point.value( 1 ), point.value( 2 ) } );
+        }
+    }
+    absl::c_sort( points );
+    return points;
+}
+
+void test_output_precision()
+{
+    const auto model = geode::load_structural_model(
+        absl::StrCat( geode::DATA_PATH, "vri.lso" ) );
+    geode::save_structural_model( model, "lso_precision.lso" );
+    const auto reloaded = geode::load_structural_model( "lso_precision.lso" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        sorted_block_points( model ) == sorted_block_points( reloaded ),
+        "Coordinates are not exactly preserved by LSO output" );
+}
+
 void test_tetra_properties()
 {
     const auto model = geode::load_structural_model(
@@ -724,6 +755,7 @@ int main()
         test_border_without_corner();
         test_partial_conformity();
         test_border_loop_without_corner();
+        test_output_precision();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

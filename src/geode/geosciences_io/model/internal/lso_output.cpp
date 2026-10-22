@@ -24,6 +24,7 @@
 #include <geode/geosciences_io/model/internal/lso_output.hpp>
 
 #include <fstream>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -69,6 +70,7 @@ namespace
             geode::OpenGeodeGeosciencesIOModelException::check_exception(
                 file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "[LSOOutput] Error while opening file: ", file );
+            file_.precision( std::numeric_limits< double >::max_digits10 );
             for( const auto& block : model_.blocks() )
             {
                 geode::OpenGeodeGeosciencesIOModelException::check_exception(
@@ -300,8 +302,8 @@ namespace
                             geode::OpenGeodeException::TYPE::data,
                             "[LSOOutput] Unique vertex ", v,
                             " is not linked to any component mesh vertex" );
-                    file_ << "VRTX " << count++ << " "
-                          << component_point( cmv.front() ).string() << EOL;
+                    file_ << "VRTX " << count++;
+                    write_point( component_point( cmv.front() ) );
                     continue;
                 }
                 auto& cmvs = vertices_[v];
@@ -312,8 +314,8 @@ namespace
                 const auto& block =
                     model_.block( first_vertex.component_id.id );
                 const auto& mesh = block.mesh();
-                file_ << "VRTX " << count++ << " "
-                      << mesh.point( first_vertex.vertex ).string() << EOL;
+                file_ << "VRTX " << count++;
+                write_point( mesh.point( first_vertex.vertex ) );
                 for( const auto i : geode::Indices{ block_vertices } )
                 {
                     if( i == first )
@@ -330,6 +332,12 @@ namespace
             {
                 file_ << "SHAREDVRTX " << count++ << " " << a << EOL;
             }
+        }
+
+        void write_point( const geode::Point3D& point )
+        {
+            file_ << " " << point.value( 0 ) << " " << point.value( 1 ) << " "
+                  << point.value( 2 ) << EOL;
         }
 
         const geode::Point3D& component_point(
