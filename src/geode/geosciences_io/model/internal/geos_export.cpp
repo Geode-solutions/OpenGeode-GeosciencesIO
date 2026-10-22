@@ -444,10 +444,16 @@ namespace
         geode::OpenGeodeGeosciencesIOModelException::check_exception(
             file.good(), nullptr, geode::OpenGeodeException::TYPE::data,
             "[GeosExporter] Cannot open file ", filename );
+        std::string content;
         for( const auto value : values )
         {
-            file << absl::StrFormat( "%.17g", value ) << "\n";
+            absl::StrAppendFormat( &content, "%.17g\n", value );
         }
+        file << content;
+        file.close();
+        geode::OpenGeodeGeosciencesIOModelException::check_exception(
+            !file.fail(), nullptr, geode::OpenGeodeException::TYPE::data,
+            "[GeosExporter] Cannot write file ", filename );
     }
 
     // Mean of one item of a numeric attribute over the first elements
