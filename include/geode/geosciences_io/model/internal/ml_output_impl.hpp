@@ -211,7 +211,22 @@ namespace geode::internal
 
         virtual void write_geological_tsurfs() = 0;
 
-        virtual std::vector< uuid > unclassified_tsurfs() const = 0;
+        /*!
+         * Surfaces not owned by any exported collection: each one is
+         * exported as its own TSURF
+         */
+        std::vector< uuid > unclassified_tsurfs() const
+        {
+            std::vector< uuid > result;
+            for( const auto& surface : model_.surfaces() )
+            {
+                if( !assigned_surfaces_.contains( surface.id() ) )
+                {
+                    result.push_back( surface.id() );
+                }
+            }
+            return result;
+        }
 
         void write_tsurfs()
         {

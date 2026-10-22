@@ -41,6 +41,7 @@
 #include <geode/model/mixin/core/line.hpp>
 #include <geode/model/mixin/core/model_boundary.hpp>
 #include <geode/model/mixin/core/surface.hpp>
+#include <geode/model/mixin/core/surface_collection.hpp>
 
 #include <geode/geosciences/explicit/mixin/core/fault_block.hpp>
 #include <geode/geosciences/explicit/mixin/core/horizon.hpp>
@@ -715,6 +716,28 @@ void test_empty_line_output()
     check_model( reload, 4, 6, 4, 1, 0, 0, 1 );
 }
 
+void test_surface_collection_output()
+{
+    auto model = load_ml( "surface_collection.ml", nested_tetra_ml( false ) );
+    geode::StructuralModelBuilder builder{ model };
+    builder.remove_horizon( *model.horizons().begin() );
+    const auto& collection_id = builder.add_surface_collection();
+    const auto& collection = model.surface_collection( collection_id );
+    for( const auto& surface : model.surfaces() )
+    {
+        if( model.nb_collections( surface.id() ) == 0 )
+        {
+            builder.add_surface_in_surface_collection( surface, collection );
+        }
+    }
+    geode::save_structural_model( model, "surface_collection_saved.ml" );
+    const auto reload =
+        geode::load_structural_model( "surface_collection_saved.ml" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        reload.nb_surfaces() == 8 && reload.nb_blocks() == 2,
+        "Surfaces only in a SurfaceCollection should be exported" );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -813,6 +836,7 @@ int main()
         test_nested_blocks_output();
         test_block_without_boundary_output();
         test_empty_line_output();
+        test_surface_collection_output();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
