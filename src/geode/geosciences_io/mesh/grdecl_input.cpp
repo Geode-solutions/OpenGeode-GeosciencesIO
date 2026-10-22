@@ -29,6 +29,7 @@
 #include <fstream>
 #include <string>
 
+#include <absl/algorithm/container.h>
 #include <absl/container/flat_hash_set.h>
 #include <absl/strings/ascii.h>
 #include <absl/strings/match.h>
@@ -40,7 +41,7 @@
 #include <geode/basic/logger.hpp>
 #include <geode/basic/string.hpp>
 
-#include <geode/geometry/nn_search.hpp>
+#include <geode/geometry/point.hpp>
 
 #include <geode/mesh/builder/hybrid_solid_builder.hpp>
 #include <geode/mesh/core/hybrid_solid.hpp>
@@ -487,12 +488,13 @@ namespace
             return active_cells_.empty() || active_cells_[cell_id];
         }
 
-        void create_cells( absl::Span< const Pillar > pillars,
-            absl::Span< const double > depths )
+        std::vector< geode::index_t > compute_kept_cells(
+            absl::Span< const Pillar > pillars,
+            absl::Span< const double > depths ) const
         {
-            std::vector< geode::Point3D > points;
-            points.reserve( 8 * nb_cells_ );
+            std::vector< geode::index_t > kept_cells( nb_cells_, geode::NO_ID );
             geode::index_t cell_id{ 0 };
+            geode::index_t nb_kept_cells{ 0 };
             geode::index_t nb_collapsed_cells{ 0 };
             for( const auto k : geode::Range{ nz_ } )
             {
@@ -500,7 +502,8 @@ namespace
                 {
                     for( const auto i : geode::Range{ nx_ } )
                     {
-                        if( !is_cell_active( cell_id++ ) )
+                        const auto cell = cell_id++;
+                        if( !is_cell_active( cell ) )
                         {
                             continue;
                         }
@@ -514,8 +517,7 @@ namespace
                             nb_collapsed_cells++;
                             continue;
                         }
-                        points.insert(
-                            points.end(), corners.begin(), corners.end() );
+                        kept_cells[cell] = nb_kept_cells++;
                     }
                 }
             }
@@ -524,22 +526,113 @@ namespace
                 geode::Logger::warning( "[GRDECLInput] ", nb_collapsed_cells,
                     " active cells have no thickness and are skipped" );
             }
-            const auto collocated_mapping =
-                geode::NNSearch3D{ points }.colocated_index_mapping(
-                    geode::GLOBAL_EPSILON );
-            for( const auto& point : collocated_mapping.unique_points )
+            return kept_cells;
+        }
+
+        /*!
+         * Corners can only be colocated if they lie on the same pillar:
+         * unique vertices are computed pillar by pillar by sorting the
+         * corner depths.
+         * Returns the vertex of each corner of each kept cell.
+         */
+        std::vector< geode::index_t > create_vertices(
+            absl::Span< const Pillar > pillars,
+            absl::Span< const double > depths,
+            absl::Span< const geode::index_t > kept_cells,
+            geode::index_t nb_kept_cells )
+        {
+            // Local hexahedron corner index from 4 * di + 2 * dj + dk
+            static constexpr std::array< geode::local_index_t, 8 >
+                LOCAL_CORNERS{ 7, 3, 4, 0, 6, 2, 5, 1 };
+            std::vector< geode::index_t > corner_vertices(
+                8 * static_cast< std::size_t >( nb_kept_cells ) );
+            std::vector< geode::Point3D > points;
+            std::vector< std::pair< double, geode::index_t > > pillar_corners;
+            pillar_corners.reserve( 8 * nz_ );
+            for( const auto pj : geode::Range{ ny_ + 1 } )
             {
-                builder_->create_point( point );
+                for( const auto pi : geode::Range{ nx_ + 1 } )
+                {
+                    pillar_corners.clear();
+                    for( const auto dj : geode::LRange{ 2 } )
+                    {
+                        if( pj < dj || pj - dj >= ny_ )
+                        {
+                            continue;
+                        }
+                        const auto j = pj - dj;
+                        for( const auto di : geode::LRange{ 2 } )
+                        {
+                            if( pi < di || pi - di >= nx_ )
+                            {
+                                continue;
+                            }
+                            const auto i = pi - di;
+                            for( const auto k : geode::Range{ nz_ } )
+                            {
+                                const auto kept_cell =
+                                    kept_cells[i + nx_ * ( j + ny_ * k )];
+                                if( kept_cell == geode::NO_ID )
+                                {
+                                    continue;
+                                }
+                                for( const auto dk : geode::LRange{ 2 } )
+                                {
+                                    const auto depth_id =
+                                        2 * i + di + 2 * nx_ * ( 2 * j + dj )
+                                        + 4 * nx_ * ny_ * ( 2 * k + dk );
+                                    pillar_corners.emplace_back(
+                                        depths[depth_id],
+                                        8 * kept_cell
+                                            + LOCAL_CORNERS[4 * di + 2 * dj
+                                                            + dk] );
+                                }
+                            }
+                        }
+                    }
+                    absl::c_sort( pillar_corners );
+                    const auto& pillar = pillars[pi + ( nx_ + 1 ) * pj];
+                    bool first{ true };
+                    for( const auto& [depth, corner] : pillar_corners )
+                    {
+                        auto point = interpolate_on_pillar( depth, pillar );
+                        if( first || !point.inexact_equal( points.back() ) )
+                        {
+                            points.emplace_back( std::move( point ) );
+                            first = false;
+                        }
+                        corner_vertices[corner] =
+                            static_cast< geode::index_t >( points.size() - 1 );
+                    }
+                }
             }
-            const auto& mapping = collocated_mapping.colocated_mapping;
-            for( const auto cell : geode::Range{ points.size() / 8 } )
+            builder_->create_vertices(
+                static_cast< geode::index_t >( points.size() ) );
+            for( const auto v : geode::Indices{ points } )
+            {
+                builder_->set_point( v, points[v] );
+            }
+            return corner_vertices;
+        }
+
+        void create_cells( absl::Span< const Pillar > pillars,
+            absl::Span< const double > depths )
+        {
+            const auto kept_cells = compute_kept_cells( pillars, depths );
+            const auto nb_kept_cells = static_cast< geode::index_t >(
+                kept_cells.size()
+                - static_cast< std::size_t >(
+                    absl::c_count( kept_cells, geode::NO_ID ) ) );
+            const auto corner_vertices =
+                create_vertices( pillars, depths, kept_cells, nb_kept_cells );
+            for( const auto cell : geode::Range{ nb_kept_cells } )
             {
                 const auto offset = 8 * cell;
-                builder_->create_hexahedron(
-                    { mapping[offset], mapping[offset + 1], mapping[offset + 2],
-                        mapping[offset + 3], mapping[offset + 4],
-                        mapping[offset + 5], mapping[offset + 6],
-                        mapping[offset + 7] } );
+                builder_->create_hexahedron( { corner_vertices[offset],
+                    corner_vertices[offset + 1], corner_vertices[offset + 2],
+                    corner_vertices[offset + 3], corner_vertices[offset + 4],
+                    corner_vertices[offset + 5], corner_vertices[offset + 6],
+                    corner_vertices[offset + 7] } );
             }
             builder_->compute_polyhedron_adjacencies();
         }
