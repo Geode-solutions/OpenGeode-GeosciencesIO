@@ -705,6 +705,16 @@ void test_block_without_boundary_output()
     check_model( reload, 4, 6, 4, 2, 0, 0, 1 );
 }
 
+void test_empty_line_output()
+{
+    auto model = load_ml( "empty_line.ml", tetra_ml() );
+    geode::StructuralModelBuilder builder{ model };
+    builder.add_line();
+    geode::save_structural_model( model, "empty_line_saved.ml" );
+    const auto reload = geode::load_structural_model( "empty_line_saved.ml" );
+    check_model( reload, 4, 6, 4, 1, 0, 0, 1 );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -802,6 +812,7 @@ int main()
         test_tsurf_section_names();
         test_nested_blocks_output();
         test_block_without_boundary_output();
+        test_empty_line_output();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

@@ -57,6 +57,10 @@ namespace
         for( const auto& line : brep.lines() )
         {
             const auto& mesh = line.mesh();
+            if( mesh.nb_edges() == 0 )
+            {
+                continue;
+            }
             const auto uid0 = brep.unique_vertex(
                 { line.component_id(), mesh.edge_vertex( { 0, 0 } ) } );
             const auto uid1 = brep.unique_vertex(
