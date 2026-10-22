@@ -28,6 +28,12 @@
 #include <geode/basic/assert.hpp>
 #include <geode/basic/logger.hpp>
 
+#include <geode/basic/attribute_manager.hpp>
+#include <geode/basic/variable_attribute.hpp>
+
+#include <geode/geometry/point.hpp>
+
+#include <geode/mesh/builder/point_set_builder.hpp>
 #include <geode/mesh/core/point_set.hpp>
 #include <geode/mesh/io/point_set_input.hpp>
 #include <geode/mesh/io/point_set_output.hpp>
@@ -85,6 +91,60 @@ namespace
         geode::OpenGeodeGeosciencesIOMeshException::test(
             attribute->value( 0 ) == 1 && attribute->value( 2 ) == 3,
             "Wrong property values with several VSet" );
+    }
+
+    template < typename T >
+    std::shared_ptr< geode::VariableAttribute< T > > create_attribute(
+        geode::PointSet3D& pointset, std::string_view name, T default_value )
+    {
+        auto& manager = pointset.vertex_attribute_manager();
+        geode::AttributeValues< T > values;
+        values.default_value = default_value;
+        values.no_value = default_value;
+        geode::AttributeProperties properties;
+        properties.transferable = true;
+        return manager.find_attribute< geode::VariableAttribute, T >(
+            manager.create_attribute< geode::VariableAttribute, T >(
+                name, values, properties ) );
+    }
+
+    template < typename T >
+    T read_attribute_value( const geode::PointSet3D& pointset,
+        std::string_view name,
+        geode::index_t vertex )
+    {
+        const auto& manager = pointset.vertex_attribute_manager();
+        const auto ids = manager.attribute_ids_matching_name( name );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            ids.has_value() && ids->size() == 1,
+            "Attribute should exist once: ", name );
+        return manager.find_read_only_attribute< T >( ids->front() )
+            ->value( vertex );
+    }
+
+    void test_output_properties()
+    {
+        auto pointset = geode::PointSet3D::create();
+        auto builder = geode::PointSetBuilder3D::create( *pointset );
+        builder->create_point( geode::Point3D{ { 1, 2, 3 } } );
+        builder->create_point( geode::Point3D{ { 4, 5, 6 } } );
+        const std::array< double, 3 > normal{ 0.1, 1e-9, 123456.789012345 };
+        create_attribute< std::array< double, 3 > >(
+            *pointset, "normal", { 0, 0, 0 } )
+            ->set_value( 1, normal );
+        create_attribute< double >( *pointset, "third", 0 )
+            ->set_value( 0, 1. / 3. );
+        geode::save_point_set( *pointset, "test_vs_properties.vs" );
+        const auto reloaded =
+            geode::load_point_set< 3 >( "test_vs_properties.vs" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            read_attribute_value< std::array< double, 3 > >(
+                *reloaded, "normal", 1 )
+                == normal,
+            "Wrong saved vector property" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            read_attribute_value< double >( *reloaded, "third", 0 ) == 1. / 3.,
+            "Wrong saved double property" );
     }
 
     void test_blank_lines()
@@ -166,6 +226,7 @@ int main()
         test_blank_lines();
         test_points_normal();
         test_multiple_vset_properties();
+        test_output_properties();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

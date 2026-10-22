@@ -114,6 +114,47 @@ namespace geode::internal
     void opengeode_geosciencesio_mesh_api write_property_class_header(
         std::ofstream& file, const PropClassHeaderData& data );
 
+    /*!
+     * Vertex attributes written as GOCAD properties: transferable and
+     * genericable attributes, with all their items and full precision for
+     * double based attributes.
+     */
+    class opengeode_geosciencesio_mesh_api GocadVertexProperties
+    {
+    public:
+        explicit GocadVertexProperties(
+            const AttributeManager& attribute_manager );
+        ~GocadVertexProperties();
+
+        [[nodiscard]] bool empty() const
+        {
+            return header_.empty();
+        }
+
+        [[nodiscard]] const PropHeaderData& header() const
+        {
+            return header_;
+        }
+
+        [[nodiscard]] const std::vector< PropClassHeaderData >&
+            class_headers() const
+        {
+            return class_headers_;
+        }
+
+        /*!
+         * Writes the property values of the given vertex, each one preceded
+         * by a space.
+         */
+        void write_values( std::ostream& file, index_t vertex ) const;
+
+    private:
+        struct Property;
+        PropHeaderData header_;
+        std::vector< PropClassHeaderData > class_headers_;
+        std::vector< Property > properties_;
+    };
+
     struct TSurfBorderData
     {
         TSurfBorderData( index_t corner_id_in, index_t next_id_in )

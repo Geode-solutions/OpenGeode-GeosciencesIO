@@ -34,6 +34,7 @@
 #include <absl/strings/str_replace.h>
 #include <absl/strings/strip.h>
 
+#include <geode/basic/attribute.hpp>
 #include <geode/basic/file.hpp>
 #include <geode/basic/logger.hpp>
 #include <geode/basic/string.hpp>
@@ -1118,6 +1119,98 @@ namespace geode::internal
         }
         file << EOL;
     }
+    struct GocadVertexProperties::Property
+    {
+        explicit Property( std::shared_ptr< AttributeBase > attribute_in )
+            : attribute( std::move( attribute_in ) ),
+              scalar( std::dynamic_pointer_cast< ReadOnlyAttribute< double > >(
+                  attribute ) ),
+              vector2( std::dynamic_pointer_cast<
+                  ReadOnlyAttribute< std::array< double, 2 > > >( attribute ) ),
+              vector3( std::dynamic_pointer_cast<
+                  ReadOnlyAttribute< std::array< double, 3 > > >( attribute ) )
+        {
+        }
+
+        template < typename Container >
+        static void write_container(
+            std::ostream& file, const Container& values )
+        {
+            for( const auto value : values )
+            {
+                file << SPACE << value;
+            }
+        }
+
+        void write( std::ostream& file, index_t vertex ) const
+        {
+            if( scalar )
+            {
+                file << SPACE << scalar->value( vertex );
+            }
+            else if( vector2 )
+            {
+                write_container( file, vector2->value( vertex ) );
+            }
+            else if( vector3 )
+            {
+                write_container( file, vector3->value( vertex ) );
+            }
+            else
+            {
+                for( const auto item : LRange{ attribute->nb_items() } )
+                {
+                    file << SPACE
+                         << attribute->generic_item_value( vertex, item );
+                }
+            }
+        }
+
+        std::shared_ptr< AttributeBase > attribute;
+        std::shared_ptr< ReadOnlyAttribute< double > > scalar;
+        std::shared_ptr< ReadOnlyAttribute< std::array< double, 2 > > > vector2;
+        std::shared_ptr< ReadOnlyAttribute< std::array< double, 3 > > > vector3;
+    };
+
+    GocadVertexProperties::GocadVertexProperties(
+        const AttributeManager& attribute_manager )
+    {
+        for( const auto& attribute_id : attribute_manager.attribute_ids() )
+        {
+            auto attribute =
+                attribute_manager.find_generic_attribute( attribute_id );
+            if( !attribute || !attribute->is_genericable()
+                || !attribute->properties().transferable )
+            {
+                continue;
+            }
+            const auto name = to_string( attribute->name().value() );
+            header_.names.push_back( name );
+            header_.prop_legal_ranges.emplace_back( "**none**", "**none**" );
+            header_.no_data_values.push_back( -99999. );
+            header_.property_classes.push_back( name );
+            header_.kinds.emplace_back( "Real Number" );
+            header_.property_subclass.emplace_back( "QUANTITY", "Float" );
+            header_.esizes.push_back( attribute->nb_items() );
+            header_.units.emplace_back( "unitless" );
+            PropClassHeaderData class_header;
+            class_header.name = name;
+            class_headers_.push_back( std::move( class_header ) );
+            properties_.emplace_back( std::move( attribute ) );
+        }
+    }
+
+    GocadVertexProperties::~GocadVertexProperties() = default;
+
+    void GocadVertexProperties::write_values(
+        std::ostream& file, index_t vertex ) const
+    {
+        for( const auto& property : properties_ )
+        {
+            property.write( file, vertex );
+        }
+    }
+
     void write_property_class_header(
         std::ofstream& file, const PropClassHeaderData& data )
     {

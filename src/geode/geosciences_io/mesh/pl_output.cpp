@@ -49,6 +49,7 @@ namespace
             std::string_view filename, const geode::EdgedCurve3D& edged_curve )
             : file_{ geode::to_string( filename ) },
               edged_curve_( edged_curve ),
+              properties_( edged_curve.vertex_attribute_manager() ),
               edge_done_( edged_curve.nb_edges(), false )
         {
             geode::OpenGeodeGeosciencesIOMeshException::check_exception(
@@ -59,52 +60,16 @@ namespace
 
         void write_prop_header()
         {
-            const auto vertex_attribute_ids =
-                edged_curve_.vertex_attribute_manager().attribute_ids();
-            geode::internal::PropHeaderData prop_header;
-            std::vector< geode::internal::PropClassHeaderData >
-                prop_class_header;
-            prop_class_header.reserve( vertex_attribute_ids.size() );
-
-            for( const auto& attribute_id : vertex_attribute_ids )
-            {
-                const auto attribute =
-                    edged_curve_.vertex_attribute_manager()
-                        .find_generic_attribute( attribute_id );
-                if( !attribute || !attribute->is_genericable()
-                    || !attribute->properties().transferable )
-                {
-                    continue;
-                }
-                generic_att_.push_back( attribute );
-                prop_header.names.emplace_back(
-                    geode::to_string( attribute->name().value() ) );
-                prop_header.prop_legal_ranges.push_back(
-                    { "**none**", "**none**" } );
-                prop_header.no_data_values.push_back( -99999. );
-                prop_header.property_classes.emplace_back(
-                    geode::to_string( attribute->name().value() ) );
-                prop_header.kinds.push_back( "Real Number" );
-                prop_header.property_subclass.push_back(
-                    { "QUANTITY", "Float" } );
-                prop_header.esizes.push_back( 1 );
-                prop_header.units.push_back( "unitless" );
-
-                geode::internal::PropClassHeaderData tmp_prop_class_header;
-                tmp_prop_class_header.name =
-                    geode::to_string( attribute->name().value() );
-
-                prop_class_header.push_back( tmp_prop_class_header );
-            }
-            if( !prop_header.empty() )
+            if( !properties_.empty() )
             {
                 VRTX_KEYWORD = "PVRTX";
-                geode::internal::write_prop_header( file_, prop_header );
+                geode::internal::write_prop_header(
+                    file_, properties_.header() );
             }
             write_XYZ_prop_class_header();
-            for( const auto& ch : prop_class_header )
+            for( const auto& class_header : properties_.class_headers() )
             {
-                write_property_class_header( file_, ch );
+                write_property_class_header( file_, class_header );
             }
         }
 
@@ -139,10 +104,7 @@ namespace
                   << edged_curve_.point( v ).value( 0 ) << SPACE
                   << edged_curve_.point( v ).value( 1 ) << SPACE
                   << edged_curve_.point( v ).value( 2 );
-            for( const auto& att : generic_att_ )
-            {
-                file_ << SPACE << att->generic_value( v );
-            }
+            properties_.write_values( file_, v );
             file_ << EOL;
         }
         std::vector< geode::EdgeVertex > get_edged_vertex_on_iline(
@@ -274,7 +236,7 @@ namespace
     private:
         std::ofstream file_;
         const geode::EdgedCurve3D& edged_curve_;
-        std::vector< std::shared_ptr< geode::AttributeBase > > generic_att_;
+        geode::internal::GocadVertexProperties properties_;
         std::vector< bool > edge_done_;
         std::string VRTX_KEYWORD{ "VRTX" };
     };
