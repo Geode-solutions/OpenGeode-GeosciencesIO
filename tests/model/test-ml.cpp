@@ -35,7 +35,9 @@
 #include <geode/model/mixin/core/model_boundary.hpp>
 #include <geode/model/mixin/core/surface.hpp>
 
+#include <geode/geosciences/explicit/mixin/core/fault_block.hpp>
 #include <geode/geosciences/explicit/mixin/core/horizon.hpp>
+#include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.hpp>
 #include <geode/geosciences/explicit/representation/builder/structural_model_builder.hpp>
 #include <geode/geosciences/explicit/representation/core/structural_model.hpp>
 #include <geode/geosciences/explicit/representation/io/structural_model_output.hpp>
@@ -401,6 +403,48 @@ void test_invalid_tfaces()
             tetra_ml(), "TFACE 2 boundary bnd", "TFACE 2 boundary other" ) );
 }
 
+void test_region_ids()
+{
+    auto content = tetra_ml();
+    for( const auto tface : { "1", "2", "3", "4" } )
+    {
+        content = replace( content, absl::StrCat( "TFACE ", tface, " " ),
+            absl::StrCat( "TFACE 1", tface, " " ) );
+    }
+    // Universe not first, unknown TFACE and REGION ids
+    content = replace( content,
+        "REGION 5  Universe \n"
+        "  +1  +2  +3  +4  0\n"
+        "REGION 6 block\n"
+        "  -1  -2  -3  -4  0\n",
+        "REGION 22 block\n"
+        "  -11  -12  -13  -14  -9  0\n"
+        "REGION 21  Universe \n"
+        "  +11  +12  +13  +14  +7  0\n"
+        "LAYER layer\n"
+        "  22  21  0\n"
+        "FAULT_BLOCK fault_block\n"
+        "  22  30  0\n" );
+    const auto model = load_ml( "region_ids.ml", content );
+    check_model( model, 4, 6, 4, 1, 0, 0, 1 );
+    const auto& block = *model.blocks().begin();
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        model.nb_boundaries( block.id() ) == 4,
+        "Block should have 4 boundary Surfaces" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        model.nb_stratigraphic_units() == 1
+            && model.nb_items( ( *model.stratigraphic_units().begin() ).id() )
+                   == 1,
+        "StratigraphicUnit should contain the Block" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        model.nb_fault_blocks() == 1
+            && model.nb_items( ( *model.fault_blocks().begin() ).id() ) == 1,
+        "FaultBlock should contain the Block" );
+
+    check_load_throws(
+        "duplicate_tface_ids.ml", replace( tetra_ml(), "TFACE 2", "TFACE 1" ) );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -491,6 +535,7 @@ int main()
         test_empty_lines();
         test_end_prefixed_keyword();
         test_invalid_tfaces();
+        test_region_ids();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

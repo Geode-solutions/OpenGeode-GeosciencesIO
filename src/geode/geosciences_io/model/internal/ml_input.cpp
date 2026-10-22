@@ -918,6 +918,11 @@ namespace
                 tsurf_it != tsurf_names2index_.end(), nullptr,
                 geode::OpenGeodeException::TYPE::data, "[MLInput] TFACE ",
                 tokens[0], " refers to undeclared TSURF ", name );
+            const auto tface_id = geode::string_to_index( tokens[0] );
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                tface_ids_.emplace( tface_id, surfaces_.size() ).second,
+                nullptr, geode::OpenGeodeException::TYPE::data,
+                "[MLInput] Several TFACE have id ", tface_id );
             const auto& surface_id = builder_.add_surface(
                 geode::OpenGeodeTriangulatedSurface3D::impl_name_static() );
             builder_.set_surface_name( model_.surface( surface_id ), name );
@@ -930,19 +935,27 @@ namespace
         void process_REGION_keyword(
             absl::Span< const std::string_view > tokens )
         {
-            absl::Span< const std::string_view > remaining_tokens(
-                &tokens[1], tokens.size() - 1 );
-            auto name = geode::internal::read_name( remaining_tokens );
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                tokens.size() >= 2, nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[MLInput] REGION line should contain an id and a name" );
+            const auto region_id = geode::string_to_index( tokens[0] );
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                region_id != universe_id_ && !region_ids_.contains( region_id ),
+                nullptr, geode::OpenGeodeException::TYPE::data,
+                "[MLInput] Several REGION have id ", region_id );
+            auto name = geode::internal::read_name( tokens.subspan( 1 ) );
             if( name == "Universe" )
             {
+                universe_id_ = region_id;
                 read_universe();
                 return;
             }
             const auto& block_id = builder_.add_block();
             builder_.set_block_name(
                 model_.block( block_id ), std::move( name ) );
+            region_ids_.emplace( region_id, block_id );
             create_block_topology( block_id );
-            blocks_.emplace_back( block_id );
         }
 
         void process_LAYER_keyword(
@@ -989,24 +1002,48 @@ namespace
                 "[MLInput] Unexpected end of file in ", keyword, " ", name };
         }
 
+        std::optional< geode::index_t > find_tface(
+            int surface_info, std::string_view region_name ) const
+        {
+            const auto tface_id =
+                static_cast< geode::index_t >( std::abs( surface_info ) );
+            const auto it = tface_ids_.find( tface_id );
+            if( it == tface_ids_.end() )
+            {
+                geode::Logger::warning( "[MLInput] REGION ", region_name,
+                    " refers to unknown TFACE id ", tface_id,
+                    ". It has been ignored" );
+                return std::nullopt;
+            }
+            return it->second;
+        }
+
         void read_universe()
         {
             for( const auto surface_info :
                 read_region_items( "REGION", "Universe" ) )
             {
-                const auto surface_id = std::abs( surface_info ) - OFFSET_START;
-                universe_.emplace( surfaces_.at( surface_id ) );
+                if( const auto surface =
+                        find_tface( surface_info, "Universe" ) )
+                {
+                    universe_.emplace( surfaces_[surface.value()] );
+                }
             }
         }
 
         void create_block_topology( const geode::uuid& block_id )
         {
             const auto& block = model_.block( block_id );
+            const auto& block_name = block.name().value();
             std::vector< geode::index_t > surfaces;
             for( const auto surface_info :
-                read_region_items( "REGION", block.name().value() ) )
+                read_region_items( "REGION", block_name ) )
             {
-                surfaces.push_back( std::abs( surface_info ) - OFFSET_START );
+                if( const auto surface =
+                        find_tface( surface_info, block_name ) )
+                {
+                    surfaces.push_back( surface.value() );
+                }
             }
             std::sort( surfaces.begin(), surfaces.end() );
             for( size_t s = 1; s < surfaces.size(); s++ )
@@ -1031,62 +1068,49 @@ namespace
             }
         }
 
+        template < typename Action >
+        void read_region_blocks( std::string_view keyword,
+            std::string_view name,
+            const Action& action )
+        {
+            for( const auto item : read_region_items( keyword, name ) )
+            {
+                const auto region_id = static_cast< geode::index_t >( item );
+                if( region_id == universe_id_ )
+                {
+                    continue;
+                }
+                const auto it = region_ids_.find( region_id );
+                if( it == region_ids_.end() )
+                {
+                    geode::Logger::warning( "[MLInput] Stated in ", keyword,
+                        " ", name, ", REGION id ", item,
+                        " does not match an existing REGION" );
+                    continue;
+                }
+                action( model_.block( it->second ) );
+            }
+        }
+
         void create_stratigraphic_unit_topology(
             const geode::uuid& stratigraphic_unit_id )
         {
             const auto& stratigraphic_unit =
                 model_.stratigraphic_unit( stratigraphic_unit_id );
-            const auto blocks_offset = OFFSET_START + surfaces_.size();
-            for( const auto block_id : read_region_items(
-                     "LAYER", stratigraphic_unit.name().value() ) )
-            {
-                const auto b =
-                    static_cast< geode::index_t >( block_id - blocks_offset );
-                if( b == 0 )
-                {
-                    continue; // Universe
-                }
-                if( b - OFFSET_START < blocks_.size() )
-                {
+            read_region_blocks( "LAYER", stratigraphic_unit.name().value(),
+                [&]( const geode::Block3D& block ) {
                     builder_.add_block_in_stratigraphic_unit(
-                        model_.block( blocks_[b - OFFSET_START] ),
-                        stratigraphic_unit );
-                }
-                else
-                {
-                    geode::Logger::warning( "[MLInput] Stated in LAYER ",
-                        stratigraphic_unit.name().value(), ", Block id ",
-                        block_id, " does not match an existing REGION" );
-                }
-            }
+                        block, stratigraphic_unit );
+                } );
         }
 
         void create_fault_block_topology( const geode::uuid& fault_block_id )
         {
             const auto& fault_block = model_.fault_block( fault_block_id );
-            const auto blocks_offset = OFFSET_START + surfaces_.size();
-            for( const auto block_id :
-                read_region_items( "FAULT_BLOCK", fault_block.name().value() ) )
-            {
-                const auto b =
-                    static_cast< geode::index_t >( block_id - blocks_offset );
-                if( b == 0 )
-                {
-                    continue; // Universe
-                }
-                if( b - OFFSET_START < blocks_.size() )
-                {
-                    builder_.add_block_in_fault_block(
-                        model_.block( blocks_[b - OFFSET_START] ),
-                        fault_block );
-                }
-                else
-                {
-                    geode::Logger::warning( "[MLInput] Stated in FAULT_BLOCK ",
-                        fault_block.name().value(), ", Block id ", block_id,
-                        " does not match an existing REGION" );
-                }
-            }
+            read_region_blocks( "FAULT_BLOCK", fault_block.name().value(),
+                [&]( const geode::Block3D& block ) {
+                    builder_.add_block_in_fault_block( block, fault_block );
+                } );
         }
 
     private:
@@ -1098,7 +1122,11 @@ namespace
         absl::flat_hash_map< std::pair< geode::uuid, geode::uuid >, LinesID >
             corners2line_;
         std::vector< std::reference_wrapper< const geode::uuid > > surfaces_;
-        std::vector< std::reference_wrapper< const geode::uuid > > blocks_;
+        absl::flat_hash_map< geode::index_t, geode::index_t > tface_ids_;
+        absl::flat_hash_map< geode::index_t,
+            std::reference_wrapper< const geode::uuid > >
+            region_ids_;
+        geode::index_t universe_id_{ geode::NO_ID };
         absl::flat_hash_set< geode::uuid > universe_;
         double epsilon_;
     };
