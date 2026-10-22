@@ -37,6 +37,7 @@
 
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/identifier_builder.hpp>
+#include <geode/basic/logger.hpp>
 #include <geode/basic/percentage.hpp>
 #include <geode/basic/range.hpp>
 #include <geode/basic/variable_attribute.hpp>
@@ -181,6 +182,7 @@ namespace
         {
             if( depth_ == 2 )
             {
+                grid_complete_ = grid_complete_ || in_grid_;
                 in_grid_ = false;
             }
             depth_--;
@@ -208,6 +210,11 @@ namespace
         [[nodiscard]] bool has_root_object() const
         {
             return has_root_object_;
+        }
+
+        [[nodiscard]] bool grid_complete() const
+        {
+            return grid_complete_;
         }
 
         [[nodiscard]] geode::index_t nb_records() const
@@ -292,6 +299,7 @@ namespace
         geode::index_t depth_{ 0 };
         bool has_root_object_{ false };
         bool in_grid_{ false };
+        bool grid_complete_{ false };
         std::string current_key_;
         geode::index_t nb_records_{ 0 };
         std::array< Column, 3 > coordinates_;
@@ -311,11 +319,20 @@ namespace
             "[JSONGridInput] Error while opening file: ", filename );
         JSONGridSax sax{ max_records };
         const auto success = nlohmann::json::sax_parse( file, &sax );
-        geode::OpenGeodeGeosciencesIOMeshException::check_exception(
-            success || sax.nb_records() == max_records, nullptr,
-            geode::OpenGeodeException::TYPE::data,
-            "[JSONGridInput] Error while parsing file ", filename, " ",
-            sax.error() );
+        if( !success && sax.nb_records() != max_records && sax.grid_complete() )
+        {
+            geode::Logger::warning( "[JSONGridInput] Error while parsing file ",
+                filename, " after the ", GRID_KEY, " array, ", sax.error(),
+                ": the rest of the file is ignored" );
+        }
+        else
+        {
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                success || sax.nb_records() == max_records, nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[JSONGridInput] Error while parsing file ", filename, " ",
+                sax.error() );
+        }
         sax.finalize();
         return sax;
     }

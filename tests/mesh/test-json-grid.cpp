@@ -259,6 +259,23 @@ void test_sparse_attributes()
     }
 }
 
+void test_truncated_after_grid()
+{
+    constexpr auto filename = "truncated_after_grid.json";
+    write_file( filename, R"({
+        "grid_df": [
+            { "x": 0, "y": 0, "z": 0 }, { "x": 1, "y": 0, "z": 0 },
+            { "x": 0, "y": 1, "z": 0 }, { "x": 1, "y": 1, "z": 0 },
+            { "x": 0, "y": 0, "z": 1 }, { "x": 1, "y": 0, "z": 1 },
+            { "x": 0, "y": 1, "z": 1 }, { "x": 1, "y": 1, "z": 1 }
+        ],
+        "name": )" );
+    const auto grid = geode::load_light_regular_grid< 3 >( filename );
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        grid.nb_grid_vertices() == 8,
+        "Grid before the parse error should be loaded" );
+}
+
 int main()
 {
     try
@@ -279,6 +296,7 @@ int main()
         test_invalid_grids();
         test_overflowing_grid();
         test_sparse_attributes();
+        test_truncated_after_grid();
 
         geode::Logger::info( "[TEST SUCCESS]" );
 
