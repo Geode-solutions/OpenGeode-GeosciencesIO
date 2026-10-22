@@ -520,6 +520,14 @@ void test_single_line_surface()
         "Surface should not have been split along its Line" );
 }
 
+void test_missing_tsurf_section()
+{
+    const auto content =
+        replace( tetra_ml(), "TSURF bnd\n", "TSURF bnd\nTSURF other\n" );
+    check_load_throws( "missing_tsurf_section_load.ml",
+        replace( content, "REGION 5", "TFACE 7 top other\nREGION 5" ) );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -613,6 +621,7 @@ int main()
         test_region_ids();
         test_small_regions();
         test_single_line_surface();
+        test_missing_tsurf_section();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

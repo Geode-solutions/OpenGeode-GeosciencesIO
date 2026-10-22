@@ -168,7 +168,14 @@ namespace
             read_model_components();
             for( auto& tsurf : tsurfs_ )
             {
-                tsurf.data = geode::internal::read_tsurf( file_ ).value();
+                auto tsurf_data = geode::internal::read_tsurf( file_ );
+                geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                    tsurf_data.has_value(), nullptr,
+                    geode::OpenGeodeException::TYPE::data,
+                    "[MLInput] Missing GOCAD TSurf section for TSURF ",
+                    tsurf.name, ": the file declares ", tsurfs_.size(),
+                    " TSURF" );
+                tsurf.data = std::move( tsurf_data.value() );
                 if( tsurf.tfaces.empty() )
                 {
                     // TSURF without TFACE in the Model3d section: its
