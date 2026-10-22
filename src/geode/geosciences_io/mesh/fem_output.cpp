@@ -656,70 +656,74 @@ namespace
 
             void build_discrete_features()
             {
-                if( must_build_2d_feature_groups() )
+                if( solid_.are_facets_enabled() )
                 {
-                    build_2d_feature_groups();
+                    const auto& manager =
+                        solid_.facets().facet_attribute_manager();
+                    if( const auto aperture_attribute = find_double_attribute(
+                            manager, APERTURE_ATTRIBUTE_NAME ) )
+                    {
+                        build_2d_feature_groups( *aperture_attribute,
+                            find_double_attribute(
+                                manager, CONDUCTIVITY_ATTRIBUTE_NAME )
+                                .get() );
+                    }
                 }
-                if( must_build_1d_feature_groups() )
+                if( solid_.are_edges_enabled() )
                 {
-                    build_1d_feature_groups();
+                    const auto& manager =
+                        solid_.edges().edge_attribute_manager();
+                    if( const auto conduit_area_attribute =
+                            find_double_attribute(
+                                manager, CONDUIT_AREA_ATTRIBUTE_NAME ) )
+                    {
+                        build_1d_feature_groups( *conduit_area_attribute,
+                            find_double_attribute(
+                                manager, CONDUCTIVITY_ATTRIBUTE_NAME )
+                                .get() );
+                    }
                 }
             }
 
         private:
-            bool must_build_2d_feature_groups() const
+            static std::shared_ptr< geode::ReadOnlyAttribute< double > >
+                find_double_attribute( const geode::AttributeManager& manager,
+                    std::string_view name )
             {
-                if( !solid_.are_facets_enabled() )
+                const auto attribute_ids =
+                    manager.attribute_ids_matching_name( name );
+                if( !attribute_ids )
                 {
-                    return false;
+                    return nullptr;
                 }
-                return solid_.facets()
-                    .facet_attribute_manager()
-                    .attribute_ids_matching_name( APERTURE_ATTRIBUTE_NAME )
-                    .has_value();
+                for( const auto& attribute_id : attribute_ids.value() )
+                {
+                    if( manager.attribute_type( attribute_id )
+                        == typeid( double ).name() )
+                    {
+                        return manager.find_read_only_attribute< double >(
+                            attribute_id );
+                    }
+                }
+                geode::Logger::warning( "[SolidFemOutput::write] Attribute ",
+                    name, " is ignored: its type should be double" );
+                return nullptr;
             }
 
-            void build_2d_feature_groups()
+            void build_2d_feature_groups(
+                const geode::ReadOnlyAttribute< double >& aperture_attribute,
+                const geode::ReadOnlyAttribute< double >*
+                    conductivity_attribute )
             {
                 auto& feature2D_group =
                     features_.features2D_groups.emplace_back(
                         FEATURE2D_GROUP_NAME );
-                const auto aperture_attribute_id =
-                    solid_.facets()
-                        .facet_attribute_manager()
-                        .attribute_ids_matching_name( APERTURE_ATTRIBUTE_NAME )
-                        .value()
-                        .at( 0 );
-                const auto aperture_attribute =
-                    solid_.facets()
-                        .facet_attribute_manager()
-                        .find_read_only_attribute< double >(
-                            aperture_attribute_id );
-                geode::AttributeValues< double > conductivity_attribute_values;
-                conductivity_attribute_values.default_value = -1.0;
-                conductivity_attribute_values.no_value = -1.0;
-                geode::AttributeProperties conductivity_attribute_properties;
-                conductivity_attribute_properties.assignable = false;
-                conductivity_attribute_properties.interpolable = false;
-                conductivity_attribute_properties.transferable = true;
-                const auto conductivity_attribute_id =
-                    solid_.facets()
-                        .facet_attribute_manager()
-                        .create_attribute< geode::VariableAttribute, double >(
-                            CONDUCTIVITY_ATTRIBUTE_NAME,
-                            conductivity_attribute_values,
-                            conductivity_attribute_properties );
-                const auto conductivity_attribute =
-                    solid_.facets()
-                        .facet_attribute_manager()
-                        .find_attribute< geode::VariableAttribute, double >(
-                            conductivity_attribute_id );
                 bool some_features_built{ false };
                 for( const auto facet :
                     geode::Range{ solid_.facets().nb_facets() } )
                 {
                     const auto aperture_value =
-                        aperture_attribute->value( facet );
+                        aperture_attribute.value( facet );
                     if( aperture_value < 0.0 )
                     {
                         continue;
@@ -754,7 +758,9 @@ namespace
                             .push_back( feature_id_ );
                     }
                     const auto conductivity_value =
-                        conductivity_attribute->value( facet );
+                        conductivity_attribute
+                            ? conductivity_attribute->value( facet )
+                            : -1.0;
                     if( conductivity_value > 0.0 )
                     {
                         auto conductivity_property =
@@ -792,60 +798,21 @@ namespace
                     "property." );
             }
 
-            bool must_build_1d_feature_groups() const
-            {
-                if( !solid_.are_edges_enabled() )
-                {
-                    return false;
-                }
-                return solid_.edges()
-                    .edge_attribute_manager()
-                    .attribute_ids_matching_name( CONDUIT_AREA_ATTRIBUTE_NAME )
-                    .has_value();
-            }
-
-            void build_1d_feature_groups()
+            void build_1d_feature_groups(
+                const geode::ReadOnlyAttribute< double >&
+                    conduit_area_attribute,
+                const geode::ReadOnlyAttribute< double >*
+                    conductivity_attribute )
             {
                 auto& feature1D_group =
                     features_.features1D_groups.emplace_back(
                         FEATURE1D_GROUP_NAME );
-                const auto conduit_area_attribute_id =
-                    solid_.edges()
-                        .edge_attribute_manager()
-                        .attribute_ids_matching_name(
-                            CONDUIT_AREA_ATTRIBUTE_NAME )
-                        .value()
-                        .at( 0 );
-                const auto conduit_area_attribute =
-                    solid_.edges()
-                        .edge_attribute_manager()
-                        .find_read_only_attribute< double >(
-                            conduit_area_attribute_id );
-                geode::AttributeValues< double > conductivity_attribute_values;
-                conductivity_attribute_values.default_value = -1.0;
-                conductivity_attribute_values.no_value = -1.0;
-                geode::AttributeProperties conductivity_attribute_properties;
-                conductivity_attribute_properties.assignable = false;
-                conductivity_attribute_properties.interpolable = false;
-                conductivity_attribute_properties.transferable = true;
-                const auto conductivity_attribute_id =
-                    solid_.edges()
-                        .edge_attribute_manager()
-                        .create_attribute< geode::VariableAttribute, double >(
-                            CONDUCTIVITY_ATTRIBUTE_NAME,
-                            conductivity_attribute_values,
-                            conductivity_attribute_properties );
-                auto conductivity_attribute =
-                    solid_.edges()
-                        .edge_attribute_manager()
-                        .find_attribute< geode::VariableAttribute, double >(
-                            conductivity_attribute_id );
                 bool some_features_built{ false };
                 for( const auto edge :
                     geode::Range{ solid_.edges().nb_edges() } )
                 {
                     const auto conduit_area_value =
-                        conduit_area_attribute->value( edge );
+                        conduit_area_attribute.value( edge );
                     if( conduit_area_value < 0.0 )
                     {
                         continue;
@@ -881,7 +848,9 @@ namespace
                             .push_back( feature_id_ );
                     }
                     const auto conductivity_value =
-                        conductivity_attribute->value( edge );
+                        conductivity_attribute
+                            ? conductivity_attribute->value( edge )
+                            : -1.0;
                     if( conductivity_value > 0.0 )
                     {
                         auto conductivity_property =

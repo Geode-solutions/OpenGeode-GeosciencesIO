@@ -36,6 +36,8 @@
 #include <geode/geometry/point.hpp>
 
 #include <geode/mesh/builder/tetrahedral_solid_builder.hpp>
+#include <geode/mesh/core/solid_edges.hpp>
+#include <geode/mesh/core/solid_facets.hpp>
 #include <geode/mesh/core/tetrahedral_solid.hpp>
 
 #include <geode/geosciences_io/mesh/internal/fem_output.hpp>
@@ -161,6 +163,50 @@ namespace
         return values;
     }
 
+    // Reads the "value id id-id ..." lines of the given DFE material
+    absl::flat_hash_map< geode::index_t, double > read_material(
+        absl::Span< const std::string > lines, std::string_view material )
+    {
+        const auto material_line = find_line( lines,
+            absl::StrCat( "          <material id=\"", material, "\">" ) );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            material_line.has_value(), "[Test] Missing material ", material );
+        absl::flat_hash_map< geode::index_t, double > values;
+        for( const auto l :
+            geode::Range{ material_line.value() + 2, lines.size() } )
+        {
+            const std::vector< std::string_view > tokens =
+                absl::StrSplit( lines[l], ' ', absl::SkipEmpty() );
+            double value;
+            if( tokens.empty() || !absl::SimpleAtod( tokens[0], &value ) )
+            {
+                break;
+            }
+            for( const auto t : geode::Range{ 1, tokens.size() } )
+            {
+                if( tokens[t] == "]]>" )
+                {
+                    return values;
+                }
+                const std::vector< std::string_view > range =
+                    absl::StrSplit( tokens[t], '-' );
+                geode::index_t first;
+                geode::index_t last;
+                geode::OpenGeodeGeosciencesIOMeshException::test(
+                    absl::SimpleAtoi( range.front(), &first )
+                        && absl::SimpleAtoi( range.back(), &last ),
+                    "[Test] Wrong id token ", tokens[t] );
+                for( const auto id : geode::Range{ first, last + 1 } )
+                {
+                    geode::OpenGeodeGeosciencesIOMeshException::test(
+                        values.emplace( id, value ).second, "[Test] Feature ",
+                        id, " listed twice in ", material );
+                }
+            }
+        }
+        return values;
+    }
+
     std::unique_ptr< geode::TetrahedralSolid3D > create_solid()
     {
         auto solid = geode::TetrahedralSolid3D::create();
@@ -231,6 +277,57 @@ namespace
             "[Test] Wrong polyhedron_nan distribution" );
     }
 
+    void test_facet_conductivity()
+    {
+        auto solid = create_solid();
+        solid->enable_facets();
+        auto& facet_manager = solid->facets().facet_attribute_manager();
+        auto aperture = create_attribute< double >(
+            facet_manager, "diagres_discontinuity_aperture", -1 );
+        auto conductivity = create_attribute< double >(
+            facet_manager, "diagres_conductivity", -1 );
+        const auto facet0 =
+            solid->facets().facet_from_vertices( { 0, 1, 2 } ).value();
+        const auto facet1 =
+            solid->facets().facet_from_vertices( { 0, 1, 3 } ).value();
+        aperture->set_value( facet0, 0.5 );
+        aperture->set_value( facet1, 0.25 );
+        conductivity->set_value( facet0, 5 );
+        conductivity->set_value( facet1, 7 );
+        const auto nb_attributes = facet_manager.attribute_ids().size();
+        geode::save_tetrahedral_solid( *solid, "test_facet_conductivity.fem" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            facet_manager.attribute_ids().size() == nb_attributes,
+            "[Test] Saving should not create attributes on the solid" );
+        const auto lines = read_lines( "test_facet_conductivity.fem" );
+        const geode::index_t feature0 = facet0 < facet1 ? 1 : 2;
+        const geode::index_t feature1 = facet0 < facet1 ? 2 : 1;
+        const auto area = read_material( lines, "AREA" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            area.size() == 2 && area.at( feature0 ) == 0.5
+                && area.at( feature1 ) == 0.25,
+            "[Test] Wrong AREA material" );
+        const auto cond = read_material( lines, "COND" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            cond.size() == 2 && cond.at( feature0 ) == 5
+                && cond.at( feature1 ) == 7,
+            "[Test] Wrong COND material" );
+    }
+
+    void test_wrong_feature_attribute_type()
+    {
+        auto solid = create_solid();
+        solid->enable_edges();
+        auto conduit_area =
+            create_attribute< int >( solid->edges().edge_attribute_manager(),
+                "diagres_conduit_area", 1 );
+        geode::save_tetrahedral_solid( *solid, "test_wrong_type.fem" );
+        const auto lines = read_lines( "test_wrong_type.fem" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            !find_line( lines, "DFE" ),
+            "[Test] Non double conduit area should be ignored" );
+    }
+
     void test_solid_fem_output()
     {
         auto tet_solid = geode::load_tetrahedral_solid< 3 >(
@@ -264,6 +361,8 @@ int main()
         test_solid_fem_output();
         test_vertex_attribute_distribution();
         test_nan_attribute_values();
+        test_facet_conductivity();
+        test_wrong_feature_attribute_type();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }
