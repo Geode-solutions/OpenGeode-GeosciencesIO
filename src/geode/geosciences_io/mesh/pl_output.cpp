@@ -130,7 +130,7 @@ namespace
                 next_ev = { next_ev.edge_id,
                     static_cast< geode::local_index_t >(
                         ( next_ev.vertex_id + 1 ) % 2 ) };
-                auto edges_around = edged_curve_.edges_around_vertex(
+                const auto& edges_around = edged_curve_.edges_around_vertex(
                     edged_curve_.edge_vertex( next_ev ) );
                 propagate = edges_around.size() == 2
                             && ( !edge_done_[edges_around[0].edge_id]
@@ -182,6 +182,10 @@ namespace
             while( nb_edges_done != edged_curve_.nb_edges() )
             {
                 const auto start_edge = starting_edge();
+                if( start_edge == geode::NO_ID )
+                {
+                    break;
+                }
                 const auto loop_start = current_offset;
                 write_edge_and_vertex(
                     { start_edge, 0 }, current_offset, nb_edges_done );
@@ -212,16 +216,13 @@ namespace
 
         geode::index_t starting_edge()
         {
-            geode::index_t starting_edge{ 0 };
-            for( const auto& edge : geode::Range( edged_curve_.nb_edges() ) )
+            while( next_starting_edge_ < edge_done_.size()
+                   && edge_done_[next_starting_edge_] )
             {
-                if( !edge_done_[edge] )
-                {
-                    starting_edge = edge;
-                    break;
-                }
+                next_starting_edge_++;
             }
-            return starting_edge;
+            return next_starting_edge_ < edge_done_.size() ? next_starting_edge_
+                                                           : geode::NO_ID;
         }
 
         void write_edge_and_vertex( const geode::EdgeVertex& edge,
@@ -269,6 +270,7 @@ namespace
         geode::internal::GocadVertexProperties properties_;
         std::vector< bool > edge_done_;
         std::vector< geode::index_t > file_ids_;
+        geode::index_t next_starting_edge_{ 0 };
         std::string VRTX_KEYWORD{ "VRTX" };
     };
 } // namespace
