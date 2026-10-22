@@ -46,18 +46,24 @@ std::string write_raster( std::string_view name,
     const std::vector< float >& values,
     std::string_view no_data )
 {
+    auto filename = absl::StrCat( name, ".", extension );
+    std::ofstream vrt{ filename };
+    vrt << "<VRTDataset rasterXSize=\"" << width << "\" rasterYSize=\""
+        << height << "\">\n"
+        << "  <GeoTransform>100, 10, 0, 500, 0, -10</GeoTransform>\n";
+    if( values.empty() )
+    {
+        vrt << "  <VRTRasterBand dataType=\"Float32\" band=\"1\"/>\n"
+            << "</VRTDataset>\n";
+        return filename;
+    }
     const auto raw_filename = absl::StrCat( name, ".raw" );
     {
         std::ofstream raw{ raw_filename, std::ios::binary };
         raw.write( reinterpret_cast< const char* >( values.data() ),
             static_cast< std::streamsize >( values.size() * sizeof( float ) ) );
     }
-    auto filename = absl::StrCat( name, ".", extension );
-    std::ofstream vrt{ filename };
-    vrt << "<VRTDataset rasterXSize=\"" << width << "\" rasterYSize=\""
-        << height << "\">\n"
-        << "  <GeoTransform>100, 10, 0, 500, 0, -10</GeoTransform>\n"
-        << "  <VRTRasterBand dataType=\"Float32\" band=\"1\" "
+    vrt << "  <VRTRasterBand dataType=\"Float32\" band=\"1\" "
            "subClass=\"VRTRawRasterBand\">\n";
     if( !no_data.empty() )
     {
@@ -116,6 +122,23 @@ void test_polygons()
     check_polygons( *surface );
 }
 
+void test_huge_raster()
+{
+    const auto filename =
+        write_raster( "raster_dem_huge", "dem", 70000, 70000, {}, "" );
+    bool thrown{ false };
+    try
+    {
+        const auto surface = geode::load_polygonal_surface< 3 >( filename );
+    }
+    catch( const geode::OpenGeodeException& )
+    {
+        thrown = true;
+    }
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        thrown, "Loading a raster with too many pixels should throw" );
+}
+
 int main()
 {
     try
@@ -134,6 +157,7 @@ int main()
             *surface, "bathy_IrishSea_DEM.og_psf3d" );
         check_normals( *surface );
         test_polygons();
+        test_huge_raster();
 
         geode::Logger::info( "[TEST SUCCESS]" );
 

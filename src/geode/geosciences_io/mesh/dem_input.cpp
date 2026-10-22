@@ -140,8 +140,18 @@ namespace
         void read_metadata()
         {
             coordinate_system_ = read_coordinate_system();
-            width_ = dataset().GetRasterXSize();
-            height_ = dataset().GetRasterYSize();
+            const auto width = dataset().GetRasterXSize();
+            const auto height = dataset().GetRasterYSize();
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                width > 0 && height > 0
+                    && static_cast< std::uint64_t >( width )
+                               * static_cast< std::uint64_t >( height )
+                           < geode::NO_ID,
+                nullptr, geode::OpenGeodeException::TYPE::data,
+                "[DEMInput] Raster size ", width, "x", height,
+                " exceeds the maximum number of vertices" );
+            width_ = static_cast< geode::index_t >( width );
+            height_ = static_cast< geode::index_t >( height );
         }
 
     private:
