@@ -765,6 +765,10 @@ namespace
                 }
 
                 const auto tokens = geode::string_split( line );
+                if( tokens.empty() )
+                {
+                    continue;
+                }
                 const auto& component_type = tokens.front();
                 absl::Span< const std::string_view > remaining_tokens(
                     &tokens[1], tokens.size() - 1 );

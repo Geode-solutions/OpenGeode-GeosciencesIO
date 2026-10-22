@@ -374,6 +374,14 @@ void test_truncated_regions()
             tetra.substr( 0, end_of_model3d ), "FAULT_BLOCK fb\n  6" ) );
 }
 
+void test_empty_lines()
+{
+    auto content = replace( tetra_ml(), "TSURF bnd\n", "TSURF bnd\n\n" );
+    content = replace( content, "REGION 6", "   \nREGION 6" );
+    const auto model = load_ml( "empty_lines.ml", content );
+    check_model( model, 4, 6, 4, 1, 0, 0, 1 );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -461,6 +469,7 @@ int main()
         test_is_loadable();
         test_tetra();
         test_truncated_regions();
+        test_empty_lines();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
