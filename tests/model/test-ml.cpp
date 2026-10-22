@@ -382,6 +382,16 @@ void test_empty_lines()
     check_model( model, 4, 6, 4, 1, 0, 0, 1 );
 }
 
+void test_end_prefixed_keyword()
+{
+    // Not read by the Model3d section reader, which must not stop there
+    const auto content = replace( tetra_ml(), "TSURF bnd\n",
+        "TSURF bnd\n"
+        "END_UNKNOWN_KEYWORD\n" );
+    const auto model = load_ml( "end_prefixed_keyword.ml", content );
+    check_model( model, 4, 6, 4, 1, 0, 0, 1 );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -470,6 +480,7 @@ int main()
         test_tetra();
         test_truncated_regions();
         test_empty_lines();
+        test_end_prefixed_keyword();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

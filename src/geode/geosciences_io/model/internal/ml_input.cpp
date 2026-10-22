@@ -758,18 +758,19 @@ namespace
             std::string line;
             while( std::getline( file_, line ) )
             {
-                if( geode::string_starts_with( line, "END" ) )
-                {
-                    create_tsurfs();
-                    return;
-                }
-
                 const auto tokens = geode::string_split( line );
                 if( tokens.empty() )
                 {
                     continue;
                 }
                 const auto& component_type = tokens.front();
+                // Exact match: other keywords may start with END (e.g.
+                // END_ORIGINAL_COORDINATE_SYSTEM)
+                if( component_type == "END" )
+                {
+                    create_tsurfs();
+                    return;
+                }
                 absl::Span< const std::string_view > remaining_tokens(
                     &tokens[1], tokens.size() - 1 );
                 if( component_type == "TSURF" )
