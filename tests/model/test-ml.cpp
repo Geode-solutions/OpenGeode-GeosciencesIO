@@ -150,6 +150,10 @@ void test_modelA4()
         "Number of Surfaces in the StructuralModel reloaded from BRep "
         "export is not correct" );
     geode::OpenGeodeGeosciencesIOModelException::test(
+        reload_from_brep.nb_model_boundaries() == 6,
+        "Number of ModelBoundaries in the StructuralModel reloaded from BRep "
+        "export is not correct" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
         reload_from_brep.nb_blocks() == 8,
         "Number of Blocks in the StructuralModel reloaded from BRep "
         "export is not correct" );

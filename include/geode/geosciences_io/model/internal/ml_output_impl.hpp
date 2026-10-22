@@ -86,6 +86,10 @@ namespace geode::internal
         static constexpr index_t OFFSET_START{ 1 };
         static constexpr char EOL{ '\n' };
         static constexpr char SPACE{ ' ' };
+        // Unclassified Surfaces are not on the model boundary (ModelBoundaries
+        // are built before export if missing): exported with a neutral type
+        // so that they are not reloaded as ModelBoundaries
+        static constexpr auto UNCLASSIFIED_TYPE = "none";
 
         virtual ~MLOutputImpl() = default;
 
@@ -275,7 +279,7 @@ namespace geode::internal
             for( const auto& surface_id : unclassified_surfaces_ )
             {
                 const auto& surface = model_.surface( surface_id );
-                file_ << "TFACE " << component_id_ << SPACE << "boundary"
+                file_ << "TFACE " << component_id_ << SPACE << UNCLASSIFIED_TYPE
                       << SPACE << tsurf_name( surface ) << EOL;
                 write_key_triangle( surface );
                 components_.emplace( surface_id, component_id_++ );
@@ -539,7 +543,7 @@ namespace geode::internal
                 internal::write_header( file_, header );
                 internal::write_CRS( file_, {} );
                 file_ << "GEOLOGICAL_FEATURE " << tsurf_name( surface ) << EOL;
-                file_ << "GEOLOGICAL_TYPE " << "boundary" << EOL;
+                file_ << "GEOLOGICAL_TYPE " << UNCLASSIFIED_TYPE << EOL;
                 index_t current_offset{ OFFSET_START };
                 file_ << "TFACE" << EOL;
                 current_offset = write_surface( surface, current_offset );
