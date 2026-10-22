@@ -25,6 +25,7 @@
 
 #include <fstream>
 
+#include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
 #include <absl/strings/match.h>
 
@@ -197,6 +198,7 @@ namespace
                     nb_unique_vertices++;
                 }
                 const auto id = solid_builder_->create_point( point );
+                register_vertex_file_id( id );
                 vertex_id_->set_value( id, unique_id );
                 vertex_mapping_[unique_id].push_back( id );
             } while( std::getline( file_, line_ )
@@ -646,9 +648,41 @@ namespace
             return geode::string_split( line_ );
         }
 
+        void register_vertex_file_id( geode::index_t vertex )
+        {
+            const auto file_id =
+                geode::string_to_index( token( get_tokens(), 1 ) );
+            if( file_vertex_ids_.empty() && file_id == vertex + OFFSET_START )
+            {
+                return;
+            }
+            if( file_vertex_ids_.empty() )
+            {
+                for( const auto previous : geode::Range{ vertex } )
+                {
+                    file_vertex_ids_.emplace(
+                        previous + OFFSET_START, previous );
+                }
+            }
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                file_vertex_ids_.emplace( file_id, vertex ).second, nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[LSOInput] Duplicated vertex id in line \"", line_, "\"" );
+        }
+
         geode::index_t solid_vertex( std::string_view vertex_token ) const
         {
             const auto vertex = geode::string_to_index( vertex_token );
+            if( !file_vertex_ids_.empty() )
+            {
+                const auto it = file_vertex_ids_.find( vertex );
+                geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                    it != file_vertex_ids_.end(), nullptr,
+                    geode::OpenGeodeException::TYPE::data,
+                    "[LSOInput] Unknown vertex ", vertex_token, " in line \"",
+                    line_, "\"" );
+                return it->second;
+            }
             geode::OpenGeodeGeosciencesIOModelException::check_exception(
                 vertex >= OFFSET_START
                     && vertex - OFFSET_START < solid_->nb_vertices(),
@@ -866,6 +900,7 @@ namespace
         std::shared_ptr< geode::VariableAttribute< geode::uuid > > facet_id_;
         geode::uuid default_id_;
         std::vector< absl::InlinedVector< geode::index_t, 1 > > vertex_mapping_;
+        absl::flat_hash_map< geode::index_t, geode::index_t > file_vertex_ids_;
     };
 } // namespace
 

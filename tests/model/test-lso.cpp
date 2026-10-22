@@ -397,6 +397,23 @@ void test_shared_vertices()
         } ) ) );
 }
 
+void test_vertex_ids()
+{
+    check_vri_model( geode::load_structural_model( write_modified_vri(
+        "lso_vertex_ids_with_gaps", []( std::vector< std::string >& lines ) {
+            renumber_vertices( lines, []( geode::index_t id ) {
+                return 2 * id + 10;
+            } );
+        } ) ) );
+    check_load_throws( write_modified_vri(
+        "lso_duplicated_vertex_id", []( std::vector< std::string >& lines ) {
+            auto tokens = split( lines[find_line( lines, "PVRTX 5 " )] );
+            tokens[1] = "3";
+            lines[find_line( lines, "PVRTX 5 " )] =
+                absl::StrJoin( tokens, " " );
+        } ) );
+}
+
 void test_tetra_properties()
 {
     const auto model = geode::load_structural_model(
@@ -457,6 +474,7 @@ int main()
         test_tetra_properties();
         test_malformed_tokens();
         test_shared_vertices();
+        test_vertex_ids();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
