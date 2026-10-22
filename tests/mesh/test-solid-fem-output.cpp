@@ -321,11 +321,21 @@ namespace
         auto conduit_area =
             create_attribute< int >( solid->edges().edge_attribute_manager(),
                 "diagres_conduit_area", 1 );
+        auto vertex_block = create_attribute< int >(
+            solid->vertex_attribute_manager(), "Block_ID_vertex", 1 );
+        auto polyhedron_block = create_attribute< double >(
+            solid->polyhedron_attribute_manager(), "Block_ID_polyhedron", 1 );
         geode::save_tetrahedral_solid( *solid, "test_wrong_type.fem" );
         const auto lines = read_lines( "test_wrong_type.fem" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             !find_line( lines, "DFE" ),
             "[Test] Non double conduit area should be ignored" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            !find_line( lines, "NODALSETS" ),
+            "[Test] Non string vector Block_ID_vertex should be ignored" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            !find_line( lines, "ELEMENTALSETS" ),
+            "[Test] Non string Block_ID_polyhedron should be ignored" );
     }
 
     void test_solid_fem_output()

@@ -97,6 +97,27 @@ namespace
         return results;
     }
 
+    template < typename T >
+    std::shared_ptr< geode::ReadOnlyAttribute< T > > find_typed_attribute(
+        const geode::AttributeManager& manager, std::string_view name )
+    {
+        const auto attribute_ids = manager.attribute_ids_matching_name( name );
+        if( !attribute_ids )
+        {
+            return nullptr;
+        }
+        for( const auto& attribute_id : attribute_ids.value() )
+        {
+            if( manager.attribute_type( attribute_id ) == typeid( T ).name() )
+            {
+                return manager.find_read_only_attribute< T >( attribute_id );
+            }
+        }
+        geode::Logger::warning( "[SolidFemOutput::write] Attribute ", name,
+            " is ignored: its type is not the expected one" );
+        return nullptr;
+    }
+
     std::string add_spaces( geode::index_t n )
     {
         return std::string( n, SPACE );
@@ -455,51 +476,43 @@ namespace
 
         void write_nodal_sets()
         {
-            const auto block_id_vertex_attribute_ids =
-                solid_.vertex_attribute_manager().attribute_ids_matching_name(
-                    "Block_ID_vertex" );
-            if( block_id_vertex_attribute_ids.has_value() )
+            const auto attribute_v =
+                find_typed_attribute< std::vector< std::string > >(
+                    solid_.vertex_attribute_manager(), "Block_ID_vertex" );
+            if( !attribute_v )
             {
-                auto attribute_v =
-                    solid_.vertex_attribute_manager()
-                        .find_read_only_attribute< std::vector< std::string > >(
-                            block_id_vertex_attribute_ids.value().front() );
-                file_ << "NODALSETS" << EOL;
-                const auto vertex_regions =
-                    create_region_map( *attribute_v, false );
-                for( const auto& vertex_region : vertex_regions )
-                {
-                    write_chunks( vertex_region.second,
-                        std::string{ vertex_region.first }, CHUNK_SIZE );
-                }
+                return;
+            }
+            file_ << "NODALSETS" << EOL;
+            const auto vertex_regions =
+                create_region_map( *attribute_v, false );
+            for( const auto& vertex_region : vertex_regions )
+            {
+                write_chunks( vertex_region.second,
+                    std::string{ vertex_region.first }, CHUNK_SIZE );
             }
         }
 
         void write_element_sets()
         {
-            const auto block_id_polyhedron_attribute_ids =
-                solid_.polyhedron_attribute_manager()
-                    .attribute_ids_matching_name( "Block_ID_polyhedron" );
-            if( block_id_polyhedron_attribute_ids.has_value() )
+            const auto attribute_p = find_typed_attribute< std::string >(
+                solid_.polyhedron_attribute_manager(), "Block_ID_polyhedron" );
+            if( !attribute_p )
             {
-                file_ << "ELEMENTALSETS" << EOL;
-                auto attribute_p =
-                    solid_.polyhedron_attribute_manager()
-                        .find_read_only_attribute< std::string >(
-                            block_id_polyhedron_attribute_ids.value().front() );
-                const auto elem_regions =
-                    create_region_map( *attribute_p, true );
-                for( const auto& elem_region : elem_regions )
-                {
-                    write_chunks( elem_region.second,
-                        std::string{ elem_region.first }, CHUNK_SIZE );
-                }
+                return;
+            }
+            file_ << "ELEMENTALSETS" << EOL;
+            const auto elem_regions = create_region_map( *attribute_p, true );
+            for( const auto& elem_region : elem_regions )
+            {
+                write_chunks( elem_region.second,
+                    std::string{ elem_region.first }, CHUNK_SIZE );
             }
         }
 
         absl::flat_hash_map< std::string_view, std::vector< geode::index_t > >
             create_region_map(
-                geode::ReadOnlyAttribute< std::string >& attribute,
+                const geode::ReadOnlyAttribute< std::string >& attribute,
                 bool create_element_region )
         {
             absl::flat_hash_map< std::string_view,
@@ -525,7 +538,7 @@ namespace
 
         absl::flat_hash_map< std::string_view, std::vector< geode::index_t > >
             create_region_map(
-                geode::ReadOnlyAttribute< std::vector< std::string > >&
+                const geode::ReadOnlyAttribute< std::vector< std::string > >&
                     attribute,
                 bool create_element_region )
         {
@@ -660,11 +673,12 @@ namespace
                 {
                     const auto& manager =
                         solid_.facets().facet_attribute_manager();
-                    if( const auto aperture_attribute = find_double_attribute(
-                            manager, APERTURE_ATTRIBUTE_NAME ) )
+                    if( const auto aperture_attribute =
+                            find_typed_attribute< double >(
+                                manager, APERTURE_ATTRIBUTE_NAME ) )
                     {
                         build_2d_feature_groups( *aperture_attribute,
-                            find_double_attribute(
+                            find_typed_attribute< double >(
                                 manager, CONDUCTIVITY_ATTRIBUTE_NAME )
                                 .get() );
                     }
@@ -674,11 +688,11 @@ namespace
                     const auto& manager =
                         solid_.edges().edge_attribute_manager();
                     if( const auto conduit_area_attribute =
-                            find_double_attribute(
+                            find_typed_attribute< double >(
                                 manager, CONDUIT_AREA_ATTRIBUTE_NAME ) )
                     {
                         build_1d_feature_groups( *conduit_area_attribute,
-                            find_double_attribute(
+                            find_typed_attribute< double >(
                                 manager, CONDUCTIVITY_ATTRIBUTE_NAME )
                                 .get() );
                     }
@@ -686,30 +700,6 @@ namespace
             }
 
         private:
-            static std::shared_ptr< geode::ReadOnlyAttribute< double > >
-                find_double_attribute( const geode::AttributeManager& manager,
-                    std::string_view name )
-            {
-                const auto attribute_ids =
-                    manager.attribute_ids_matching_name( name );
-                if( !attribute_ids )
-                {
-                    return nullptr;
-                }
-                for( const auto& attribute_id : attribute_ids.value() )
-                {
-                    if( manager.attribute_type( attribute_id )
-                        == typeid( double ).name() )
-                    {
-                        return manager.find_read_only_attribute< double >(
-                            attribute_id );
-                    }
-                }
-                geode::Logger::warning( "[SolidFemOutput::write] Attribute ",
-                    name, " is ignored: its type should be double" );
-                return nullptr;
-            }
-
             void build_2d_feature_groups(
                 const geode::ReadOnlyAttribute< double >& aperture_attribute,
                 const geode::ReadOnlyAttribute< double >*
