@@ -24,6 +24,7 @@
 #pragma once
 
 #include <fstream>
+#include <memory>
 
 #include <absl/functional/function_ref.h>
 #include <absl/types/span.h>
@@ -192,12 +193,21 @@ namespace geode::internal
             const nlohmann::json& binary, uint64_t max_values ) const;
 
     private:
+        /*!
+         * Parsed file used by is_loadable, cached per thread while the file
+         * is unchanged since all OMF readers check the same file
+         */
+        [[nodiscard]] static std::shared_ptr< const OMFFile > loadability_file(
+            std::string_view filename );
+
+    private:
         std::string filename_;
         mutable std::ifstream file_;
         uint64_t json_start_{ 0 };
         nlohmann::json index_;
         const nlohmann::json* project_{ nullptr };
         Vector3D project_origin_;
+        bool warn_missing_elements_{ true };
     };
 
     /*!

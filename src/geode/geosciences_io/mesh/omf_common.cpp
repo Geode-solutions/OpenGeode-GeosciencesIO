@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <filesystem>
 #include <limits>
 #include <typeinfo>
 
@@ -649,27 +650,64 @@ namespace geode::internal
     {
         try
         {
+            const auto omf = loadability_file( filename );
+            if( !omf )
             {
-                std::ifstream file{ to_string( filename ), std::ios::binary };
-                if( !file.good() || !read_omf_header( file ) )
-                {
-                    return Percentage{ 0 };
-                }
+                return Percentage{ 0 };
             }
-            const OMFFile omf{ filename };
-            const auto nb_elements = omf.nb_elements();
+            const auto nb_elements = omf->nb_elements();
             if( nb_elements == 0 )
             {
                 return Percentage{ 0 };
             }
             return Percentage{ static_cast< double >(
-                                   nb_loadable_elements( omf ) )
+                                   nb_loadable_elements( *omf ) )
                                / static_cast< double >( nb_elements ) };
         }
         catch( ... )
         {
             return Percentage{ 0 };
         }
+    }
+
+    std::shared_ptr< const OMFFile > OMFFile::loadability_file(
+        std::string_view filename )
+    {
+        struct CachedFile
+        {
+            std::string path;
+            std::uintmax_t size{ 0 };
+            std::filesystem::file_time_type time;
+            std::shared_ptr< const OMFFile > file;
+        };
+        thread_local CachedFile cache;
+        auto path = to_string( filename );
+        std::error_code error;
+        const auto size = std::filesystem::file_size( path, error );
+        const auto time = error
+                              ? std::filesystem::file_time_type{}
+                              : std::filesystem::last_write_time( path, error );
+        if( !error && cache.file && cache.path == path && cache.size == size
+            && cache.time == time )
+        {
+            return cache.file;
+        }
+        cache.file.reset();
+        {
+            std::ifstream file{ path, std::ios::binary };
+            if( !file.good() || !read_omf_header( file ) )
+            {
+                return nullptr;
+            }
+        }
+        auto omf = std::make_shared< OMFFile >( filename );
+        omf->warn_missing_elements_ = false;
+        omf->file_.close();
+        if( !error )
+        {
+            cache = { std::move( path ), size, time, omf };
+        }
+        return omf;
     }
 
     std::size_t OMFFile::nb_elements() const
@@ -706,8 +744,11 @@ namespace geode::internal
                                 : index_.end();
             if( it == index_.end() || !it->is_object() )
             {
-                Logger::warning( "[OMFInput] Project element ", uid.dump(),
-                    " is missing from the file and is skipped" );
+                if( warn_missing_elements_ )
+                {
+                    Logger::warning( "[OMFInput] Project element ", uid.dump(),
+                        " is missing from the file and is skipped" );
+                }
                 continue;
             }
             if( omf_class_name( *it ) != element_class )

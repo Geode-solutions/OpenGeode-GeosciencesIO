@@ -635,6 +635,27 @@ namespace
         geode::OpenGeodeGeosciencesIOMeshException::test(
             false, "Geometry without vertices should not be loaded" );
     }
+    void test_loadability_of_modified_file()
+    {
+        constexpr auto filename = "omf_modified.omf";
+        write_omf( filename, R"({
+            "p": { "__class__": "Project", "elements": [ "e" ] },
+            "e": { "__class__": "PointSetElement", "geometry": "g" },
+            "g": { "__class__": "PointSetGeometry", "vertices": "v" },
+            "v": { "__class__": "Vector3Array", "array": [ 0, 0, 0 ] }
+        })" );
+        check_loadable( filename, 1, 0, 0, 0, 0 );
+        check_loadable( filename, 1, 0, 0, 0, 0 );
+        write_omf( filename, R"({
+            "p": { "__class__": "Project", "elements": [ "e", "missing" ] },
+            "e": { "__class__": "LineSetElement", "geometry": "g" },
+            "g": { "__class__": "LineSetGeometry", "vertices": "v",
+                "segments": "s" },
+            "v": { "__class__": "Vector3Array", "array": [ 0, 0, 0, 1, 0, 0 ] },
+            "s": { "__class__": "Int2Array", "array": [ [ 0, 1 ] ] }
+        })" );
+        check_loadable( filename, 0, 1, 0, 0, 0 );
+    }
 } // namespace
 
 int main()
@@ -658,6 +679,7 @@ int main()
         test_missing_vector_and_color_values();
         test_binary_arrays();
         test_missing_keys();
+        test_loadability_of_modified_file();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
