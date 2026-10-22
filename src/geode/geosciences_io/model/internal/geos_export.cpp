@@ -678,8 +678,6 @@ namespace geode::internal
     template < typename Model >
     void GeosExporterImpl< Model >::convert_model()
     {
-        auto curve_conversion = convert_brep_into_curve( model_ );
-        model_curve_ = std::move( std::get< 0 >( curve_conversion ) );
         std::tie( model_solid_, model2solid_ ) =
             convert_brep_into_solid( model_ );
         compute_block_polyhedra_offsets();

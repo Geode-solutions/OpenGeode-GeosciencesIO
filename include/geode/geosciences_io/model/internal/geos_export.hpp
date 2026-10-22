@@ -52,10 +52,8 @@ namespace pugi
 namespace geode
 {
     FORWARD_DECLARATION_DIMENSION_CLASS( PointSet );
-    FORWARD_DECLARATION_DIMENSION_CLASS( EdgedCurve );
     FORWARD_DECLARATION_DIMENSION_CLASS( SolidMesh );
     ALIAS_3D( PointSet );
-    ALIAS_3D( EdgedCurve );
     ALIAS_3D( SolidMesh );
     FORWARD_DECLARATION_DIMENSION_CLASS( Surface );
     ALIAS_3D( Surface );
@@ -185,7 +183,6 @@ namespace geode::internal
 
     private:
         const Model& model_;
-        std::unique_ptr< EdgedCurve3D > model_curve_{};
         std::unique_ptr< SolidMesh3D > model_solid_{};
         ModelToMeshMappings model2solid_;
         // First solid polyhedron of each Block, in the model Block order,
