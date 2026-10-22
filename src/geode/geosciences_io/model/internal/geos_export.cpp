@@ -922,11 +922,20 @@ namespace geode::internal
     void GeosExporterImpl< Model >::initialize_surface_cells(
         index_t first_surface_region_id )
     {
+        const auto& polygons_mapping = model2solid_.surface_polygons_mapping;
         auto region_id = first_surface_region_id;
         for( const auto& surface : model_.surfaces() )
         {
+            index_t nb_skipped_polygons{ 0 };
             for( const auto polygon_id : Range{ surface.mesh().nb_polygons() } )
             {
+                // Only polygons on a solid facet define GEOS faces
+                if( !polygons_mapping.has_mapping_input(
+                        { surface.id(), polygon_id } ) )
+                {
+                    nb_skipped_polygons++;
+                    continue;
+                }
                 auto vertices =
                     polygon_unique_vertices( model_, surface, polygon_id );
                 for( auto& vertex : vertices )
@@ -936,6 +945,13 @@ namespace geode::internal
                 }
                 surface_cells_.emplace_back( std::move( vertices ) );
                 surface_cells_region_.push_back( region_id );
+            }
+            if( nb_skipped_polygons != 0 )
+            {
+                Logger::warning( "[GeosExporter] ", nb_skipped_polygons,
+                    " polygons of Surface ", surface.id().string(),
+                    " are not on a Block polyhedron facet, they are not "
+                    "exported." );
             }
             surface_regions_.emplace( surface.id(), region_id );
             region_id++;

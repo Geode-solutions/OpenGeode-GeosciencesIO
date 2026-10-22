@@ -1156,6 +1156,29 @@ void test_property_names_clash()
     }
 }
 
+void check_nb_vtu_cells(
+    const geode::BRep& model, std::string_view name, geode::index_t nb_cells )
+{
+    geode::BRepGeosExporter exporter( model, name );
+    exporter.run();
+    const auto vtu = read_file( absl::StrCat( name, "/", name, ".vtu" ) );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        count_occurrences(
+            vtu, absl::StrCat( "NumberOfCells=\"", nb_cells, "\"" ) )
+            == 1,
+        "[Test] Wrong number of cells in ", name, ".vtu" );
+}
+
+void test_surface_polygons_not_on_solid_facets()
+{
+    auto model = tetrahedra_brep( 2, geode::Point3D{ { 0., 0., 0. } } );
+    add_triangle_surface( model, { { { 0, 0 }, { 0, 1 }, { 0, 2 } } } );
+    check_nb_vtu_cells( model, "surface_facet", 3 );
+    add_triangle_surface( model, { { { 0, 1 }, { 0, 2 }, { 1, 0 } } } );
+    // Only the Surface polygons on solid facets should be exported
+    check_nb_vtu_cells( model, "surface_not_facet", 3 );
+}
+
 int main()
 {
     try
@@ -1168,6 +1191,7 @@ int main()
         test_boundary_condition_scale_precision();
         test_regular_grid_blocks();
         test_property_names_clash();
+        test_surface_polygons_not_on_solid_facets();
         test_picasso();
         test_uniform_variable_boundary_condition();
         test_variable_boundary_condition();
