@@ -35,8 +35,10 @@
 #include <geode/basic/string.hpp>
 
 #include <geode/mesh/core/edged_curve.hpp>
+#include <geode/mesh/core/point_set.hpp>
 #include <geode/mesh/core/surface_mesh.hpp>
 
+#include <geode/model/mixin/core/corner.hpp>
 #include <geode/model/mixin/core/line.hpp>
 #include <geode/model/mixin/core/surface.hpp>
 #include <geode/model/representation/core/section.hpp>
@@ -149,6 +151,24 @@ namespace
         geode::OpenGeodeGeosciencesIOModelException::test( nb_polygons == 1,
             "Wrong number of polygons with degenerated polygons" );
     }
+    void test_points()
+    {
+        const auto section = geode::load_section( write_shapefile( "shp_points",
+            wkbPoint, { "POINT (0 0)", "POINT (1 0)", "POINT (2 3)" } ) );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            section.nb_corners() == 3, "Wrong number of corners" );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            section.nb_unique_vertices() == 3,
+            "Wrong number of unique vertices" );
+        for( const auto& corner : section.corners() )
+        {
+            geode::OpenGeodeGeosciencesIOModelException::test(
+                corner.mesh().nb_vertices() == 1
+                    && section.unique_vertex( { corner.component_id(), 0 } )
+                           != geode::NO_ID,
+                "Wrong Corner mesh" );
+        }
+    }
 } // namespace
 
 int main()
@@ -159,7 +179,7 @@ int main()
         const auto section = geode::load_section(
             absl::StrCat( geode::DATA_PATH, "toulouse.shz" ) );
         geode::OpenGeodeGeosciencesIOModelException::test(
-            section.nb_corners() == 7, "Wrong number of corners" );
+            section.nb_corners() == 51718, "Wrong number of corners" );
         geode::OpenGeodeGeosciencesIOModelException::test(
             section.nb_lines() == 10, "Wrong number of lines" );
         geode::OpenGeodeGeosciencesIOModelException::test(
@@ -175,6 +195,7 @@ int main()
             section2.nb_surfaces() == 1, "Wrong number of surfaces" );
 
         test_degenerated_parts();
+        test_points();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

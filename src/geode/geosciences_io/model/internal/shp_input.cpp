@@ -87,10 +87,6 @@ namespace
     private:
         void create_corner( OGRLayer& layer )
         {
-            const auto& id = builder_.add_corner();
-            const auto& corner = section_.corner( id );
-            builder_.set_corner_name( corner, layer.GetName() );
-            auto corner_builder = builder_.corner_mesh_builder( corner );
             for( const auto& feature : layer )
             {
                 const auto* geometry = feature->GetGeometryRef();
@@ -101,11 +97,7 @@ namespace
                 if( geometry->getGeometryType()
                     == OGRwkbGeometryType::wkbPoint )
                 {
-                    const auto* point = geometry->toPoint();
-                    corner_builder->create_point(
-                        geode::Point2D{ { point->getX(), point->getY() } } );
-                    builder_.set_unique_vertex( { corner.component_id(), 0 },
-                        builder_.create_unique_vertex() );
+                    read_point( *geometry->toPoint(), layer.GetName() );
                 }
                 else
                 {
@@ -114,6 +106,17 @@ namespace
                         geometry->getGeometryType() );
                 }
             }
+        }
+
+        void read_point( const OGRPoint& point, std::string_view name )
+        {
+            const auto& id = builder_.add_corner();
+            const auto& corner = section_.corner( id );
+            builder_.set_corner_name( corner, name );
+            builder_.corner_mesh_builder( corner )->create_point(
+                geode::Point2D{ { point.getX(), point.getY() } } );
+            builder_.set_unique_vertex(
+                { corner.component_id(), 0 }, builder_.create_unique_vertex() );
         }
 
         void create_line( OGRLayer& layer )
