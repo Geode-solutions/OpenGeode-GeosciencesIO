@@ -23,12 +23,15 @@
 
 #include <geode/geosciences_io/mesh/internal/grdecl_input.hpp>
 
+#include <cstdint>
+#include <filesystem>
 #include <fstream>
-#include <optional>
 #include <string>
 
+#include <absl/container/flat_hash_set.h>
+#include <absl/strings/ascii.h>
 #include <absl/strings/match.h>
-#include <absl/strings/str_split.h>
+#include <absl/strings/numbers.h>
 
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/file.hpp>
@@ -41,6 +44,7 @@
 #include <geode/mesh/builder/hybrid_solid_builder.hpp>
 #include <geode/mesh/core/hybrid_solid.hpp>
 
+#include <geode/geosciences_io/mesh/common.hpp>
 #include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
 
 namespace
@@ -60,15 +64,186 @@ namespace
         return pillar.bottom * lambda + pillar.top * ( 1 - lambda );
     }
 
+    std::string_view strip_comment( std::string_view line )
+    {
+        char quote{ 0 };
+        for( const auto c : geode::Indices{ line } )
+        {
+            const auto character = line[c];
+            if( quote != 0 )
+            {
+                if( character == quote )
+                {
+                    quote = 0;
+                }
+                continue;
+            }
+            if( character == '\'' || character == '"' )
+            {
+                quote = character;
+                continue;
+            }
+            if( character == '-' && c + 1 < line.size() && line[c + 1] == '-' )
+            {
+                return line.substr( 0, c );
+            }
+        }
+        return line;
+    }
+
+    std::uint64_t checked_product(
+        std::uint64_t lhs, std::uint64_t rhs, std::string_view what )
+    {
+        geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+            rhs == 0 || lhs < geode::NO_ID / rhs, nullptr,
+            geode::OpenGeodeException::TYPE::data,
+            "[GRDECLInput] Grid is too large: number of ", what,
+            " exceeds the maximum index" );
+        return lhs * rhs;
+    }
+
+    /*!
+     * Reads the values of a keyword block until the terminating '/'.
+     * Repeat counts (N*value, N*) are reported through the callback as
+     * (value, count), an empty value meaning the default value.
+     */
+    template < typename Callback >
+    void read_keyword_data( std::istream& file,
+        std::string_view keyword,
+        std::string first_line,
+        Callback&& on_value )
+    {
+        auto line = std::move( first_line );
+        while( true )
+        {
+            for( auto token : geode::string_split( strip_comment( line ) ) )
+            {
+                const auto slash = token.find( '/' );
+                const auto is_last = slash != std::string_view::npos;
+                if( is_last )
+                {
+                    token = token.substr( 0, slash );
+                }
+                if( !token.empty() )
+                {
+                    const auto star = token.find( '*' );
+                    if( star == std::string_view::npos )
+                    {
+                        on_value( token, std::uint64_t{ 1 } );
+                    }
+                    else
+                    {
+                        std::uint64_t count{ 0 };
+                        geode::OpenGeodeGeosciencesIOMeshException::
+                            check_exception(
+                                absl::SimpleAtoi(
+                                    token.substr( 0, star ), &count ),
+                                nullptr, geode::OpenGeodeException::TYPE::data,
+                                "[GRDECLInput] Invalid repeat count \"", token,
+                                "\" in keyword ", keyword );
+                        on_value( token.substr( star + 1 ), count );
+                    }
+                }
+                if( is_last )
+                {
+                    return;
+                }
+            }
+            if( !std::getline( file, line ) )
+            {
+                geode::Logger::warning( "[GRDECLInput] Keyword ", keyword,
+                    " is not terminated by '/'" );
+                return;
+            }
+        }
+    }
+
+    std::vector< double > read_doubles( std::istream& file,
+        std::string_view keyword,
+        std::string first_line,
+        std::uint64_t expected )
+    {
+        std::vector< double > values;
+        bool extra_values{ false };
+        read_keyword_data( file, keyword, std::move( first_line ),
+            [&]( std::string_view token, std::uint64_t count ) {
+                geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                    !token.empty(), nullptr,
+                    geode::OpenGeodeException::TYPE::data,
+                    "[GRDECLInput] Default values are not supported for "
+                    "keyword ",
+                    keyword );
+                const auto value = geode::string_to_double( token );
+                const auto remaining = expected - values.size();
+                if( count > remaining )
+                {
+                    extra_values = true;
+                    count = remaining;
+                }
+                values.insert( values.end(), count, value );
+            } );
+        if( extra_values )
+        {
+            geode::Logger::warning( "[GRDECLInput] Keyword ", keyword,
+                " has more than the ", expected,
+                " expected values, extra values are ignored" );
+        }
+        geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+            values.size() == expected, nullptr,
+            geode::OpenGeodeException::TYPE::data, "[GRDECLInput] Keyword ",
+            keyword, " has ", values.size(), " values instead of ", expected );
+        return values;
+    }
+
+    std::string read_include_path( std::istream& file, std::string first_line )
+    {
+        auto line = std::move( first_line );
+        auto text = absl::StripAsciiWhitespace( strip_comment( line ) );
+        while( text.empty() )
+        {
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                static_cast< bool >( std::getline( file, line ) ), nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[GRDECLInput] Missing file name after INCLUDE keyword" );
+            text = absl::StripAsciiWhitespace( strip_comment( line ) );
+        }
+        std::string path;
+        std::string_view remaining;
+        if( text.front() == '\'' || text.front() == '"' )
+        {
+            const auto end = text.find( text.front(), 1 );
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                end != std::string_view::npos, nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[GRDECLInput] Unterminated quoted INCLUDE file name: ", text );
+            path = text.substr( 1, end - 1 );
+            remaining = text.substr( end + 1 );
+        }
+        else
+        {
+            const auto end = text.find_first_of( " \t/" );
+            path = text.substr( 0, end );
+            remaining = end == std::string_view::npos ? "" : text.substr( end );
+        }
+        while( !absl::StrContains( remaining, '/' ) )
+        {
+            if( !std::getline( file, line ) )
+            {
+                geode::Logger::warning(
+                    "[GRDECLInput] Keyword INCLUDE is not terminated by '/'" );
+                break;
+            }
+            remaining = strip_comment( line );
+        }
+        return path;
+    }
+
     class GRDECLInputImpl
     {
     public:
         GRDECLInputImpl(
             std::string_view filename, geode::HybridSolid3D& solid )
-            : file_{ geode::to_string( filename ), std::ios::binary },
-              filepath_{
-                  geode::filepath_without_filename( filename ).string()
-              },
+            : filename_{ filename },
               solid_( solid ),
               builder_{ geode::HybridSolidBuilder< 3 >::create( solid_ ) }
         {
@@ -76,164 +251,141 @@ namespace
 
         void read_file()
         {
-            read_dimensions();
-            get_filenames_and_keywords();
-            const auto pillars = keyword_to_filename_map_.contains( "COORD" )
-                                     ? read_pillars_with_file()
-                                     : read_pillars();
-            const auto depths = keyword_to_filename_map_.contains( "ZCORN" )
-                                    ? read_depths_with_file()
-                                    : read_depths();
-            create_cells( pillars, depths );
+            parse_file(
+                std::filesystem::path{ geode::to_string( filename_ ) } );
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                nb_cells_ != 0, nullptr, geode::OpenGeodeException::TYPE::data,
+                "[GRDECLInput] Cannot find keyword SPECGRID" );
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                !pillars_.empty(), nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[GRDECLInput] Cannot find keyword COORD" );
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                !depths_.empty(), nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[GRDECLInput] Cannot find keyword ZCORN" );
+            create_cells( pillars_, depths_ );
         }
 
     private:
-        void get_filenames_and_keywords()
+        void parse_file( const std::filesystem::path& path )
         {
-            auto line = geode::goto_keyword_if_it_exists( file_, "INCLUDE" );
-            while( line != std::nullopt )
+            std::ifstream file{ path, std::ios::binary };
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                file.is_open(), nullptr, geode::OpenGeodeException::TYPE::data,
+                "[GRDECLInput] Cannot open file ", path.string() );
+            std::error_code error;
+            const auto canonical_path =
+                std::filesystem::weakly_canonical( path, error ).string();
+            if( !parsed_files_.insert( canonical_path ).second )
             {
-                std::getline( file_, line.value() );
-                const auto tokens = absl::StrSplit( line.value(), "_" );
-                for( const auto& token : tokens )
+                geode::Logger::warning( "[GRDECLInput] File ", path.string(),
+                    " is included recursively, skipping it" );
+                return;
+            }
+            std::string line;
+            while( std::getline( file, line ) )
+            {
+                const auto data = strip_comment( line );
+                const auto tokens = geode::string_split( data );
+                if( tokens.empty() )
                 {
-                    if( !absl::StrContains( token, "." ) )
+                    continue;
+                }
+                const auto keyword = tokens.front();
+                const auto keyword_end =
+                    static_cast< std::size_t >( keyword.data() - line.data() )
+                    + keyword.size();
+                auto rest = line.substr( keyword_end );
+                if( keyword == "SPECGRID" || keyword == "DIMENS" )
+                {
+                    read_dimensions( file, keyword, std::move( rest ) );
+                }
+                else if( keyword == "COORD" )
+                {
+                    read_pillars( file, std::move( rest ) );
+                }
+                else if( keyword == "ZCORN" )
+                {
+                    read_depths( file, std::move( rest ) );
+                }
+                else if( keyword == "INCLUDE" )
+                {
+                    const std::filesystem::path include_path{ read_include_path(
+                        file, std::move( rest ) ) };
+                    parse_file( include_path.is_absolute()
+                                    ? include_path
+                                    : path.parent_path() / include_path );
+                }
+            }
+        }
+
+        void read_dimensions(
+            std::istream& file, std::string_view keyword, std::string line )
+        {
+            std::vector< geode::index_t > dimensions;
+            read_keyword_data( file, keyword, std::move( line ),
+                [&dimensions, keyword](
+                    std::string_view token, std::uint64_t count ) {
+                    for( std::uint64_t c = 0;
+                        c < count && dimensions.size() < 3; c++ )
                     {
-                        continue;
+                        geode::index_t value{ 0 };
+                        geode::OpenGeodeGeosciencesIOMeshException::
+                            check_exception(
+                                absl::SimpleAtoi( token, &value ) && value > 0,
+                                nullptr, geode::OpenGeodeException::TYPE::data,
+                                "[GRDECLInput] Invalid grid dimension \"",
+                                token, "\" in keyword ", keyword );
+                        dimensions.push_back( value );
                     }
-                    const auto second_tokens = absl::StrSplit( token, "." );
-                    for( const auto& second_token : second_tokens )
-                    {
-                        auto string_without_spaces =
-                            geode::string_split( line.value() )[0];
-                        keyword_to_filename_map_[second_token] =
-                            std::string{ string_without_spaces.substr(
-                                1, string_without_spaces.size() - 2 ) };
-                        break;
-                    }
-                }
-
-                line = geode::goto_keyword_if_it_exists( file_, "INCLUDE" );
-            }
+                } );
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                dimensions.size() == 3, nullptr,
+                geode::OpenGeodeException::TYPE::data, "[GRDECLInput] Keyword ",
+                keyword, " should define 3 grid dimensions" );
+            nx_ = dimensions[0];
+            ny_ = dimensions[1];
+            nz_ = dimensions[2];
+            nb_cells_ = checked_product(
+                checked_product( nx_, ny_, "cells" ), nz_, "cells" );
+            checked_product( nb_cells_, 8, "ZCORN values" );
+            checked_product(
+                checked_product( std::uint64_t{ nx_ } + 1, ny_ + 1, "pillars" ),
+                6, "COORD values" );
         }
 
-        void read_dimensions()
+        void check_dimensions_are_read( std::string_view keyword ) const
         {
-            auto line = geode::goto_keyword( file_, "SPECGRID" );
-            while( !absl::StrContains( line, "F" ) )
-            {
-                std::getline( file_, line );
-            }
-            const auto tokens = geode::string_split( line );
-            nx_ = geode::string_to_index( tokens[0] );
-            ny_ = geode::string_to_index( tokens[1] );
-            nz_ = geode::string_to_index( tokens[2] );
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                nb_cells_ != 0, nullptr, geode::OpenGeodeException::TYPE::data,
+                "[GRDECLInput] Keyword ", keyword,
+                " found before grid dimensions (SPECGRID)" );
         }
 
-        absl::FixedArray< Pillar > read_pillars_from_file(
-            std::ifstream& file ) const
+        void read_pillars( std::istream& file, std::string line )
         {
-            absl::FixedArray< Pillar > pillars( ( nx_ + 1 ) * ( ny_ + 1 ) );
-            auto line = geode::goto_keyword( file, "COORD" );
-            std::getline( file, line );
-            geode::index_t pillar_number{ 0 };
-            while( !geode::string_starts_with( line, "/" ) )
-            {
-                if( auto pillar = read_pillar( file, line ) )
-                {
-                    pillars[pillar_number++] = std::move( pillar.value() );
-                }
-                std::getline( file, line );
-            }
-            return pillars;
-        }
-
-        std::optional< Pillar > read_pillar(
-            std::ifstream& file, std::string_view line ) const
-        {
-            const auto tokens = geode::string_split( line );
-            if( tokens.empty() )
-            {
-                return std::nullopt;
-            }
-            std::optional< Pillar > pillar{ std::in_place };
-            if( tokens.size() == 6 )
+            check_dimensions_are_read( "COORD" );
+            const auto nb_pillars =
+                static_cast< geode::index_t >( ( nx_ + 1 ) * ( ny_ + 1 ) );
+            const auto values = read_doubles(
+                file, "COORD", std::move( line ), 6 * nb_pillars );
+            pillars_.resize( nb_pillars );
+            for( const auto p : geode::Range{ nb_pillars } )
             {
                 for( const auto d : geode::LRange{ 3 } )
                 {
-                    pillar->top.set_value(
-                        d, geode::string_to_double( tokens[d] ) );
-                    pillar->bottom.set_value(
-                        d, geode::string_to_double( tokens[d + 3] ) );
+                    pillars_[p].top.set_value( d, values[6 * p + d] );
+                    pillars_[p].bottom.set_value( d, values[6 * p + 3 + d] );
                 }
             }
-            else if( tokens.size() == 3 )
-            {
-                for( const auto d : geode::LRange{ 3 } )
-                {
-                    pillar->top.set_value(
-                        d, geode::string_to_double( tokens[d] ) );
-                }
-                std::string second_line;
-                std::getline( file, second_line );
-                const auto second_tokens = geode::string_split( second_line );
-                for( const auto d : geode::LRange{ 3 } )
-                {
-                    pillar->bottom.set_value(
-                        d, geode::string_to_double( second_tokens[d] ) );
-                }
-            }
-            else
-            {
-                throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
-                    geode::OpenGeodeException::TYPE::data,
-                    "[GRDECLInput::read_pillars] Wrong number of coordinates" };
-            }
-            return pillar;
         }
 
-        absl::FixedArray< Pillar > read_pillars()
+        void read_depths( std::istream& file, std::string line )
         {
-            return read_pillars_from_file( file_ );
-        }
-
-        absl::FixedArray< Pillar > read_pillars_with_file()
-        {
-            std::ifstream file{ absl::StrCat(
-                filepath_, keyword_to_filename_map_["COORD"] ) };
-            return read_pillars_from_file( file );
-        }
-
-        absl::FixedArray< double > read_depths_from_file(
-            std::ifstream& file ) const
-        {
-            absl::FixedArray< double > depths( 8 * nx_ * ny_ * nz_ );
-            auto line = geode::goto_keyword( file, "ZCORN" );
-            geode::index_t depths_number{ 0 };
-            std::getline( file, line );
-            while( !geode::string_starts_with( line, "/" ) )
-            {
-                const auto tokens = geode::string_split( line );
-                for( const auto depths_id : geode::Indices{ tokens } )
-                {
-                    depths[depths_number++] =
-                        geode::string_to_double( tokens[depths_id] );
-                }
-                std::getline( file, line );
-            }
-            return depths;
-        }
-
-        absl::FixedArray< double > read_depths()
-        {
-            return read_depths_from_file( file_ );
-        }
-
-        absl::FixedArray< double > read_depths_with_file()
-        {
-            std::ifstream file{ absl::StrCat(
-                filepath_, keyword_to_filename_map_["ZCORN"] ) };
-            return read_depths_from_file( file );
+            check_dimensions_are_read( "ZCORN" );
+            depths_ =
+                read_doubles( file, "ZCORN", std::move( line ), 8 * nb_cells_ );
         }
 
         std::array< geode::Point3D, 8 > cell_points(
@@ -288,7 +440,7 @@ namespace
             absl::Span< const double > depths )
         {
             std::vector< geode::Point3D > points;
-            points.reserve( 8 * nx_ * ny_ * nz_ );
+            points.reserve( 8 * nb_cells_ );
             for( const auto k : geode::Range{ nz_ } )
             {
                 for( const auto j : geode::Range{ ny_ } )
@@ -320,7 +472,7 @@ namespace
             absl::Span< const double > depths )
         {
             const auto collocated_mapping = create_points( pillars, depths );
-            for( const auto cell_id : geode::Range{ nx_ * ny_ * nz_ } )
+            for( const auto cell_id : geode::Range{ nb_cells_ } )
             {
                 builder_->create_hexahedron(
                     { collocated_mapping.colocated_mapping[0 + 8 * cell_id],
@@ -357,15 +509,16 @@ namespace
         }
 
     private:
-        std::ifstream file_;
-        std::string filepath_;
+        std::string_view filename_;
         geode::HybridSolid3D& solid_;
         std::unique_ptr< geode::HybridSolidBuilder3D > builder_{ nullptr };
-        geode::index_t nx_{ geode::NO_ID };
-        geode::index_t ny_{ geode::NO_ID };
-        geode::index_t nz_{ geode::NO_ID };
-        absl::flat_hash_map< std::string, std::string >
-            keyword_to_filename_map_{};
+        geode::index_t nx_{ 0 };
+        geode::index_t ny_{ 0 };
+        geode::index_t nz_{ 0 };
+        geode::index_t nb_cells_{ 0 };
+        std::vector< Pillar > pillars_;
+        std::vector< double > depths_;
+        absl::flat_hash_set< std::string > parsed_files_;
     };
 } // namespace
 
