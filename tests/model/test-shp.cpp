@@ -190,6 +190,25 @@ namespace
                 && ( *polygons.surfaces().begin() ).mesh().nb_polygons() == 1,
             "Wrong Polygon M" );
     }
+    void test_null_geometries()
+    {
+        const auto points =
+            geode::load_section( write_shapefile( "shp_null_points", wkbPoint,
+                { "POINT (0 0)", "", "POINT (1 1)" } ) );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            points.nb_corners() == 2,
+            "Wrong number of corners with null geometry" );
+        const auto lines = geode::load_section( write_shapefile(
+            "shp_null_lines", wkbLineString, { "", "LINESTRING (0 0,1 1)" } ) );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            lines.nb_lines() == 1, "Wrong number of lines with null geometry" );
+        const auto polygons =
+            geode::load_section( write_shapefile( "shp_null_polygons",
+                wkbPolygon, { "", "POLYGON ((0 0,1 0,1 1,0 0))" } ) );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            polygons.nb_surfaces() == 1,
+            "Wrong number of surfaces with null geometry" );
+    }
 } // namespace
 
 int main()
@@ -218,6 +237,7 @@ int main()
         test_degenerated_parts();
         test_points();
         test_geometry_variants();
+        test_null_geometries();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
