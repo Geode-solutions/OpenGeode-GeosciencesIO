@@ -123,7 +123,7 @@ namespace
 
         void write_vrtx( const geode::index_t vertex_id )
         {
-            file_ << VRTX_KEYWORD << SPACE << vertex_id << SPACE
+            file_ << VRTX_KEYWORD << SPACE << vertex_id + OFFSET_START << SPACE
                   << pointset_.point( vertex_id ).string();
             properties_.write_values( file_, vertex_id );
             file_ << EOL;

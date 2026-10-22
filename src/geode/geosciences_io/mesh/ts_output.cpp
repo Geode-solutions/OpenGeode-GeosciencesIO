@@ -129,7 +129,7 @@ namespace
 
         void write_vrtx( const geode::index_t vertex_id )
         {
-            file_ << VRTX_KEYWORD << SPACE << vertex_id << SPACE
+            file_ << VRTX_KEYWORD << SPACE << vertex_id + OFFSET_START << SPACE
                   << surface_.point( vertex_id ).string();
             properties_.write_values( file_, vertex_id );
             file_ << EOL;
@@ -138,8 +138,9 @@ namespace
         void write_triangle( const geode::index_t triangle_id )
         {
             const auto& vertices = surface_.polygon_vertices( triangle_id );
-            file_ << "TRGL" << SPACE << vertices[0] << SPACE << vertices[1]
-                  << SPACE << vertices[2];
+            file_ << "TRGL" << SPACE << vertices[0] + OFFSET_START << SPACE
+                  << vertices[1] + OFFSET_START << SPACE
+                  << vertices[2] + OFFSET_START;
             file_ << EOL;
         }
 

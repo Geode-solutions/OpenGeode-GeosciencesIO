@@ -256,10 +256,15 @@ namespace
                     "label", values, properties );
         geode_unused( attribute_id );
         geode::save_triangulated_surface( *surface, "test_ts_no_generic.ts" );
+        const auto content = read_whole_file( "test_ts_no_generic.ts" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
-            !absl::StrContains(
-                read_whole_file( "test_ts_no_generic.ts" ), "PVRTX" ),
+            !absl::StrContains( content, "PVRTX" ),
             "PVRTX written without PROPERTIES" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            absl::StrContains( content, "\nVRTX 1 " )
+                && !absl::StrContains( content, "\nVRTX 0 " )
+                && absl::StrContains( content, "\nTRGL 1 2 3" ),
+            "TSurf vertex ids should start at 1" );
         const auto reloaded =
             geode::load_triangulated_surface< 3 >( "test_ts_no_generic.ts" );
         check_surface( *reloaded, 3, 1, "triangle" );
