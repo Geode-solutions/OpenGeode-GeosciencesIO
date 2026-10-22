@@ -53,10 +53,14 @@
 #include <geode/mesh/io/tetrahedral_solid_input.hpp>
 #include <geode/mesh/io/tetrahedral_solid_output.hpp>
 
+#include <geode/mesh/builder/point_set_builder.hpp>
+
 #include <geode/model/mixin/core/block.hpp>
+#include <geode/model/mixin/core/corner.hpp>
 #include <geode/model/mixin/core/model_boundary.hpp>
 #include <geode/model/mixin/core/surface.hpp>
 
+#include <geode/geosciences/explicit/representation/builder/structural_model_builder.hpp>
 #include <geode/geosciences/explicit/representation/core/structural_model.hpp>
 #include <geode/geosciences/explicit/representation/io/structural_model_output.hpp>
 #include <geode/geosciences_io/model/internal/lso_input.hpp>
@@ -515,6 +519,40 @@ void test_region_names()
         "Wrong number of tetrahedra with unknown region" );
 }
 
+void check_save_throws(
+    const geode::StructuralModel& model, std::string_view file )
+{
+    try
+    {
+        geode::save_structural_model( model, file );
+    }
+    catch( const geode::OpenGeodeException& exception )
+    {
+        geode::Logger::info( "Expected exception: ", exception.what() );
+        return;
+    }
+    throw geode::OpenGeodeGeosciencesIOModelException{ nullptr,
+        geode::OpenGeodeException::TYPE::data,
+        "Saving should have thrown an OpenGeodeException: ", file };
+}
+
+void test_output_vertices_outside_blocks()
+{
+    auto model = geode::load_structural_model(
+        absl::StrCat( geode::DATA_PATH, "vri.lso" ) );
+    geode::StructuralModelBuilder builder{ model };
+    const auto& corner = model.corner( builder.add_corner() );
+    builder.corner_mesh_builder( corner )->create_point(
+        geode::Point3D{ { 10, 10, 10 } } );
+    builder.set_unique_vertex(
+        { corner.component_id(), 0 }, builder.create_unique_vertex() );
+    geode::save_structural_model( model, "lso_free_corner.lso" );
+    check_vri_model( geode::load_structural_model( "lso_free_corner.lso" ), 0 );
+
+    builder.create_unique_vertex();
+    check_save_throws( model, "lso_orphan_unique_vertex.lso" );
+}
+
 void test_tetra_properties()
 {
     const auto model = geode::load_structural_model(
@@ -578,6 +616,7 @@ int main()
         test_vertex_ids();
         test_model_section();
         test_region_names();
+        test_output_vertices_outside_blocks();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

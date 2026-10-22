@@ -34,6 +34,7 @@
 
 #include <geode/mesh/core/edged_curve.hpp>
 #include <geode/mesh/core/mesh_factory.hpp>
+#include <geode/mesh/core/point_set.hpp>
 #include <geode/mesh/core/tetrahedral_solid.hpp>
 #include <geode/mesh/core/triangulated_surface.hpp>
 
@@ -233,6 +234,17 @@ namespace
                     }
                     block_vertices.push_back( mv );
                 }
+                if( block_vertices.empty() )
+                {
+                    geode::OpenGeodeGeosciencesIOModelException::
+                        check_exception( !cmv.empty(), nullptr,
+                            geode::OpenGeodeException::TYPE::data,
+                            "[LSOOutput] Unique vertex ", v,
+                            " is not linked to any component mesh vertex" );
+                    file_ << "VRTX " << count++ << " "
+                          << component_point( cmv.front() ).string() << EOL;
+                    continue;
+                }
                 auto& cmvs = vertices_[v];
                 cmvs.reserve( block_vertices.size() );
                 const auto first = first_block( block_vertices );
@@ -259,6 +271,26 @@ namespace
             {
                 file_ << "SHAREDVRTX " << count++ << " " << a << EOL;
             }
+        }
+
+        const geode::Point3D& component_point(
+            const geode::ComponentMeshVertex& cmv ) const
+        {
+            const auto& type = cmv.component_id.type;
+            const auto& id = cmv.component_id.id;
+            if( type == geode::Corner3D::component_type_static() )
+            {
+                return model_.corner( id ).mesh().point( cmv.vertex );
+            }
+            if( type == geode::Line3D::component_type_static() )
+            {
+                return model_.line( id ).mesh().point( cmv.vertex );
+            }
+            if( type == geode::Surface3D::component_type_static() )
+            {
+                return model_.surface( id ).mesh().point( cmv.vertex );
+            }
+            return model_.block( id ).mesh().point( cmv.vertex );
         }
 
         geode::index_t first_block(
@@ -317,6 +349,14 @@ namespace geode::internal
             const auto& mesh = block.mesh();
             if( mesh.nb_polyhedra() == 0
                 || mesh.type_name() != TetrahedralSolid3D::type_name_static() )
+            {
+                return false;
+            }
+        }
+        for( const auto v :
+            geode::Range{ structural_model.nb_unique_vertices() } )
+        {
+            if( structural_model.component_mesh_vertices( v ).empty() )
             {
                 return false;
             }
