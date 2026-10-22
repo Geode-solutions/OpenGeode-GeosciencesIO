@@ -140,15 +140,18 @@ namespace
                     ": missing offsets are set to 0" );
             }
             offsets.resize( nb_nodes(), 0 );
+            const auto first_vertex = builder_.create_vertices( nb_nodes() );
             for( const auto v : geode::Indices{ v_ } )
             {
                 for( const auto u : geode::Indices{ u_ } )
                 {
                     const auto offset = offsets[node( u, v )];
-                    builder_.create_point( geode::Point3D{
-                        origin + axis_u * u_[u] + axis_v * v_[v]
-                        + axis_w
-                              * ( std::isfinite( offset ) ? offset : 0. ) } );
+                    builder_.set_point( first_vertex + node( u, v ),
+                        geode::Point3D{
+                            origin + axis_u * u_[u] + axis_v * v_[v]
+                            + axis_w
+                                  * ( std::isfinite( offset ) ? offset
+                                                              : 0. ) } );
                 }
             }
         }
