@@ -23,7 +23,9 @@
 
 #include <geode/tests_config.hpp>
 
+#include <cmath>
 #include <fstream>
+#include <limits>
 #include <vector>
 
 #include <geode/basic/assert.hpp>
@@ -171,6 +173,36 @@ void test_logger_level_on_error()
         "Logger level should be restored after a loading error" );
 }
 
+void test_data_band()
+{
+    const auto nan = std::numeric_limits< float >::quiet_NaN();
+    const std::vector< float > values{ -5.5F, 2, 3, 400, 5, nan };
+    const auto filename =
+        write_raster( "raster_geotiff_data", "tif", 3, 2, values, "nan" );
+    const auto grid = geode::load_light_regular_grid< 2 >( filename );
+    const auto band = find_named_attribute< double >(
+        grid.cell_attribute_manager(), "band_1" );
+    for( const auto row : geode::Range{ 2 } )
+    {
+        for( const auto column : geode::Range{ 3 } )
+        {
+            const auto cell =
+                grid.cell_index( find_pixel_cell( grid, row, column ) );
+            const auto expected = values[row * 3 + column];
+            if( std::isnan( expected ) )
+            {
+                geode::OpenGeodeGeosciencesIOMeshException::test(
+                    !band->has_value( cell ), "No data pixel ", row, " ",
+                    column, " should have no value" );
+                continue;
+            }
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                band->value( cell ) == expected, "Wrong band value for pixel ",
+                row, " ", column );
+        }
+    }
+}
+
 int main()
 {
     try
@@ -185,6 +217,7 @@ int main()
 
         test_pixel_orientation();
         test_logger_level_on_error();
+        test_data_band();
 
         geode::Logger::info( "[TEST SUCCESS]" );
 
