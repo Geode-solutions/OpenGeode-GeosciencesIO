@@ -376,8 +376,7 @@ namespace
         void read_pillars( std::istream& file, std::string line )
         {
             check_dimensions_are_read( "COORD" );
-            const auto nb_pillars =
-                static_cast< geode::index_t >( ( nx_ + 1 ) * ( ny_ + 1 ) );
+            const geode::index_t nb_pillars = ( nx_ + 1 ) * ( ny_ + 1 );
             const auto values = read_doubles(
                 file, "COORD", std::move( line ), 6 * nb_pillars );
             pillars_.resize( nb_pillars );
