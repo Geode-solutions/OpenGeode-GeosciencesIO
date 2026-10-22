@@ -1330,6 +1330,43 @@ void test_property_missing_on_block()
         "[Test] A property missing on a Block should not be exported" );
 }
 
+void test_names_in_geos_lists()
+{
+    auto model = tetrahedra_brep( 1, geode::Point3D{ { 0., 0., 0. } } );
+    const std::array< double, 1 > porosities{ 0.1 };
+    add_block_property< geode::ConstantAttribute, double >( model,
+        geode::PHYSICAL_PROPERTY_NAME::porosity, "rock {poro, eff}",
+        porosities );
+    geode::BRepGeosExporter exporter( model, "list_names" );
+    try
+    {
+        exporter.add_well_perforations(
+            *well_points( { geode::Point3D{ { 0.1, 0.1, 0.1 } } } ),
+            "well, 1" );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            false, "[Test] A well name with a comma should be rejected" );
+    }
+    catch( const geode::OpenGeodeException& exception )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            std::string_view{ exception.what() }.find( "[GeosExporter]" )
+                != std::string_view::npos,
+            "[Test] Wrong exception for a well name with a comma: ",
+            exception.what() );
+    }
+    exporter.run();
+    const auto xml = read_file( "list_names/list_names_simulation.xml" );
+    const auto fields = xml_list( xml, "fieldsToImport" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        fields.size() == 1 && fields.front() == "rock__poro__eff_",
+        "[Test] Wrong exported name for a property with separators" );
+    const auto values = vtu_cell_values< double >(
+        "list_names/list_names.vtu", fields.front() );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        values.size() == 1 && values.front() == porosities.front(),
+        "[Test] Wrong values for a property with separators" );
+}
+
 int main()
 {
     try
@@ -1347,6 +1384,7 @@ int main()
         test_output_directories();
         test_boundary_table_face_centers();
         test_property_missing_on_block();
+        test_names_in_geos_lists();
         test_picasso();
         test_uniform_variable_boundary_condition();
         test_variable_boundary_condition();

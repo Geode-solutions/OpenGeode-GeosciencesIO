@@ -509,6 +509,16 @@ namespace
         return nb_elements == 0 ? 0. : sum / nb_elements;
     }
 
+    // Characters splitting the items of GEOS lists "{ a, b }"
+    constexpr std::string_view GEOS_LIST_SEPARATORS{ " \t\n\r,{}" };
+
+    bool is_valid_geos_list_item( std::string_view name )
+    {
+        return !name.empty()
+               && name.find_first_of( GEOS_LIST_SEPARATORS )
+                      == std::string_view::npos;
+    }
+
     // Directory without trailing separator nor dot segments
     std::filesystem::path normalized_directory( std::string_view directory )
     {
@@ -654,12 +664,32 @@ namespace geode::internal
     // The VTU writer renames the attributes sharing a name, which would not
     // match the field names given to GEOS
     std::string unique_attribute_name( const AttributeManager& manager,
-        std::string_view name,
+        std::string_view attribute_name,
         std::string_view geos_name )
     {
+        auto valid_name = to_string( attribute_name );
+        if( !is_valid_geos_list_item( valid_name ) )
+        {
+            absl::c_replace_if(
+                valid_name,
+                []( char character ) {
+                    return GEOS_LIST_SEPARATORS.find( character )
+                           != std::string_view::npos;
+                },
+                '_' );
+            if( valid_name.empty() )
+            {
+                valid_name = to_string( geos_name );
+            }
+            Logger::warning( "[GeosExporter] Attribute name \"", attribute_name,
+                "\" cannot be used in GEOS lists, it is "
+                "exported as ",
+                valid_name, "." );
+        }
+        const std::string_view name{ valid_name };
         if( !manager.attribute_ids_matching_name( name ) )
         {
-            return to_string( name );
+            return valid_name;
         }
         auto unique_name = absl::StrCat( name, "_", geos_name );
         for( index_t suffix{ 0 };
@@ -877,6 +907,11 @@ namespace geode::internal
     void GeosExporterImpl< Model >::add_well_perforations(
         const PointSet3D& perforations, std::string_view name )
     {
+        OpenGeodeGeosciencesIOModelException::check_exception(
+            is_valid_geos_list_item( name ), nullptr,
+            OpenGeodeException::TYPE::data,
+            "[GeosExporter] Well perforations name \"", name,
+            "\" must be non empty and contain no space, comma nor brace." );
         OpenGeodeGeosciencesIOModelException::check_exception(
             absl::c_find( well_names_, name ) == well_names_.end(), nullptr,
             OpenGeodeException::TYPE::data,
