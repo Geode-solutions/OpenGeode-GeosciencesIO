@@ -478,6 +478,38 @@ namespace
             return geode::load_light_regular_grid< 3 >( volume_file );
         } );
     }
+    void test_huge_numbers()
+    {
+        constexpr auto filename = "omf_huge_numbers.omf";
+        write_omf( filename, R"({
+            "p": { "__class__": "Project", "elements": [ "l" ] },
+            "l": { "__class__": "LineSetElement", "name": "lines",
+                "geometry": "lg" },
+            "lg": { "__class__": "LineSetGeometry", "vertices": "lv",
+                "segments": "ls" },
+            "lv": { "__class__": "Vector3Array",
+                "array": [ 0, 0, 0, 1, 0, 0, 2, 0, 0 ] },
+            "ls": { "__class__": "Int2Array",
+                "array": [ [ 0, 1 ], [ 1e30, 2 ], [ -1e30, 2 ],
+                    [ 18446744073709551615, 2 ], [ 1, 2 ] ] }
+        })" );
+        const auto curve = geode::load_edged_curve< 3 >( filename );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curve->nb_edges() == 2,
+            "Segments with huge indices should be skipped" );
+        constexpr auto block_file = "omf_huge_block_start.omf";
+        write_omf( block_file, R"({
+            "p": { "__class__": "Project", "elements": [ "l" ] },
+            "l": { "__class__": "PointSetElement", "name": "points",
+                "geometry": "lg" },
+            "lg": { "__class__": "PointSetGeometry", "vertices": "lv" },
+            "lv": { "__class__": "Vector3Array", "array": { "start": 1e30,
+                "length": 8, "dtype": "<f8" } }
+        })" );
+        check_load_throws( "Array block with invalid start should throw", [&] {
+            return geode::load_point_set< 3 >( block_file );
+        } );
+    }
 } // namespace
 
 int main()
@@ -497,6 +529,7 @@ int main()
         test_mixed_loadability();
         test_degenerate_elements();
         test_collinear_axes();
+        test_huge_numbers();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

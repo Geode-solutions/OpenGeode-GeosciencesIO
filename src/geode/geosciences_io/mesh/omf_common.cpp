@@ -224,6 +224,62 @@ namespace
         return strings;
     }
 
+    /*
+     * Integer value of a real, -1 if it is not finite or out of the int64_t
+     * range
+     */
+    int64_t omf_real_to_integer( double real )
+    {
+        // 2^63, exactly representable as a double
+        constexpr auto LIMIT =
+            -static_cast< double >( std::numeric_limits< int64_t >::min() );
+        if( !std::isfinite( real ) || real < -LIMIT || real >= LIMIT )
+        {
+            return -1;
+        }
+        return static_cast< int64_t >( real );
+    }
+
+    /*
+     * Integer value of a JSON number, -1 if it is not a number or out of the
+     * int64_t range
+     */
+    int64_t omf_json_integer( const nlohmann::json& value )
+    {
+        if( value.is_number_unsigned() )
+        {
+            const auto integer = value.get< uint64_t >();
+            return integer > static_cast< uint64_t >(
+                       std::numeric_limits< int64_t >::max() )
+                       ? -1
+                       : static_cast< int64_t >( integer );
+        }
+        if( value.is_number_integer() )
+        {
+            return value.get< int64_t >();
+        }
+        if( value.is_number_float() )
+        {
+            return omf_real_to_integer( value.get< double >() );
+        }
+        return -1;
+    }
+
+    uint64_t omf_json_offset(
+        const nlohmann::json& binary, std::string_view key )
+    {
+        const auto it = binary.find( key );
+        if( it == binary.end() )
+        {
+            return 0;
+        }
+        geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+            it->is_number_unsigned(), nullptr,
+            geode::OpenGeodeException::TYPE::data, "[OMFInput] Array block ",
+            key, " ", it->dump(), " is not a non negative integer" );
+        return it->get< uint64_t >();
+    }
+
     geode::RGBColor omf_color( int64_t red, int64_t green, int64_t blue )
     {
         const auto clamp = []( int64_t value ) {
@@ -251,8 +307,9 @@ namespace
                         return component.is_number();
                     } ) )
             {
-                colors.push_back( omf_color( value[0].get< int64_t >(),
-                    value[1].get< int64_t >(), value[2].get< int64_t >() ) );
+                colors.push_back( omf_color( omf_json_integer( value[0] ),
+                    omf_json_integer( value[1] ),
+                    omf_json_integer( value[2] ) ) );
             }
             else
             {
@@ -894,9 +951,7 @@ namespace geode::internal
                     value.is_array() ? value
                                      : nlohmann::json::array( { value } ) )
                 {
-                    values.push_back( component.is_number()
-                                          ? component.get< int64_t >()
-                                          : -1 );
+                    values.push_back( omf_json_integer( component ) );
                 }
             }
             return values;
@@ -916,8 +971,7 @@ namespace geode::internal
         {
             double real;
             std::memcpy( &real, bytes.data() + 8 * value, 8 );
-            values[value] =
-                std::isfinite( real ) ? static_cast< int64_t >( real ) : -1;
+            values[value] = omf_real_to_integer( real );
         }
         return values;
     }
@@ -925,8 +979,8 @@ namespace geode::internal
     std::vector< char > OMFFile::read_binary(
         const nlohmann::json& binary ) const
     {
-        const auto start = binary.value( "start", uint64_t{ 0 } );
-        const auto length = binary.value( "length", uint64_t{ 0 } );
+        const auto start = omf_json_offset( binary, "start" );
+        const auto length = omf_json_offset( binary, "length" );
         OpenGeodeGeosciencesIOMeshException::check_exception(
             start >= static_cast< uint64_t >( HEADER_SIZE )
                 && length <= json_start_ && start <= json_start_ - length
