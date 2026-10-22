@@ -255,6 +255,125 @@ void write_file( std::string_view filename, std::string_view content )
     file << content;
 }
 
+// Tetrahedron: 4 Corners, 6 Lines, 4 Surfaces, 1 Block, 1 ModelBoundary
+std::string tetra_ml()
+{
+    return "GOCAD Model3d 1\n"
+           "HEADER {\n"
+           "name: tetra\n"
+           "}\n"
+           "TSURF bnd\n"
+           "TFACE 1 boundary bnd\n"
+           "  0 0 0\n"
+           "  1 0 0\n"
+           "  0 1 0\n"
+           "TFACE 2 boundary bnd\n"
+           "  0 0 0\n"
+           "  1 0 0\n"
+           "  0 0 1\n"
+           "TFACE 3 boundary bnd\n"
+           "  0 0 0\n"
+           "  0 1 0\n"
+           "  0 0 1\n"
+           "TFACE 4 boundary bnd\n"
+           "  1 0 0\n"
+           "  0 1 0\n"
+           "  0 0 1\n"
+           "REGION 5  Universe \n"
+           "  +1  +2  +3  +4  0\n"
+           "REGION 6 block\n"
+           "  -1  -2  -3  -4  0\n"
+           "END\n"
+           "GOCAD TSurf 1\n"
+           "HEADER {\n"
+           "name: bnd\n"
+           "}\n"
+           "TFACE\n"
+           "VRTX 1 0 0 0\n"
+           "VRTX 2 1 0 0\n"
+           "VRTX 3 0 1 0\n"
+           "TRGL 1 2 3\n"
+           "TFACE\n"
+           "VRTX 4 0 0 0\n"
+           "VRTX 5 1 0 0\n"
+           "VRTX 6 0 0 1\n"
+           "TRGL 4 5 6\n"
+           "TFACE\n"
+           "VRTX 7 0 0 0\n"
+           "VRTX 8 0 1 0\n"
+           "VRTX 9 0 0 1\n"
+           "TRGL 7 8 9\n"
+           "TFACE\n"
+           "VRTX 10 1 0 0\n"
+           "VRTX 11 0 1 0\n"
+           "VRTX 12 0 0 1\n"
+           "TRGL 10 11 12\n"
+           "BSTONE 1\nBSTONE 2\nBSTONE 3\nBSTONE 4\nBSTONE 5\nBSTONE 6\n"
+           "BSTONE 7\nBSTONE 8\nBSTONE 9\nBSTONE 10\nBSTONE 11\nBSTONE 12\n"
+           "BORDER 13 1 2\nBORDER 14 2 3\nBORDER 15 3 1\n"
+           "BORDER 16 4 5\nBORDER 17 5 6\nBORDER 18 6 4\n"
+           "BORDER 19 7 8\nBORDER 20 8 9\nBORDER 21 9 7\n"
+           "BORDER 22 10 11\nBORDER 23 11 12\nBORDER 24 12 10\n"
+           "END\n";
+}
+
+std::string replace( std::string_view content,
+    std::string_view old_text,
+    std::string_view new_text )
+{
+    const auto position = content.find( old_text );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        position != std::string_view::npos,
+        "Text to replace not found: ", old_text );
+    return absl::StrCat( content.substr( 0, position ), new_text,
+        content.substr( position + old_text.size() ) );
+}
+
+geode::StructuralModel load_ml(
+    std::string_view filename, std::string_view content )
+{
+    write_file( filename, content );
+    return geode::load_structural_model( filename );
+}
+
+void check_load_throws( std::string_view filename, std::string_view content )
+{
+    write_file( filename, content );
+    try
+    {
+        geode::load_structural_model( filename );
+    }
+    catch( const geode::OpenGeodeException& exception )
+    {
+        geode::Logger::info( "Expected exception: ", exception.what() );
+        return;
+    }
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        false, "Loading ", filename, " should throw an OpenGeodeException" );
+}
+
+void test_tetra()
+{
+    const auto model = load_ml( "tetra.ml", tetra_ml() );
+    check_model( model, 4, 6, 4, 1, 0, 0, 1 );
+}
+
+void test_truncated_regions()
+{
+    const auto tetra = tetra_ml();
+    const auto end_of_model3d = tetra.find( "END\nGOCAD TSurf" );
+    // REGION boundary lists without their 0 terminator, up to end of file
+    check_load_throws( "truncated_region.ml",
+        replace( tetra.substr( 0, end_of_model3d ), "-4  0", "-4" ) );
+    check_load_throws( "truncated_universe.ml",
+        replace( tetra.substr( 0, tetra.find( "REGION 6" ) ), "+4  0", "+4" ) );
+    check_load_throws( "truncated_layer.ml",
+        absl::StrCat( tetra.substr( 0, end_of_model3d ), "LAYER layer\n  6" ) );
+    check_load_throws( "truncated_fault_block.ml",
+        absl::StrCat(
+            tetra.substr( 0, end_of_model3d ), "FAULT_BLOCK fb\n  6" ) );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -340,6 +459,8 @@ int main()
         test_shared_model_boundary_surfaces();
         test_duplicate_tsurf_names();
         test_is_loadable();
+        test_tetra();
+        test_truncated_regions();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

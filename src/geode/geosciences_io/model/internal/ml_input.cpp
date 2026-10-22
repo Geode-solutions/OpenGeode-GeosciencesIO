@@ -953,23 +953,35 @@ namespace
             create_fault_block_topology( fault_block_id );
         }
 
+        std::vector< int > read_region_items(
+            std::string_view keyword, std::string_view name )
+        {
+            std::vector< int > items;
+            std::string line;
+            while( std::getline( file_, line ) )
+            {
+                for( const auto string : geode::string_split( line ) )
+                {
+                    const auto item = geode::string_to_int( string );
+                    if( item == 0 )
+                    {
+                        return items;
+                    }
+                    items.push_back( item );
+                }
+            }
+            throw geode::OpenGeodeGeosciencesIOModelException{ nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[MLInput] Unexpected end of file in ", keyword, " ", name };
+        }
+
         void read_universe()
         {
-            while( true )
+            for( const auto surface_info :
+                read_region_items( "REGION", "Universe" ) )
             {
-                std::string boundary_line;
-                std::getline( file_, boundary_line );
-                for( const auto string : geode::string_split( boundary_line ) )
-                {
-                    const auto surface_info = geode::string_to_int( string );
-                    if( surface_info == 0 )
-                    {
-                        return;
-                    }
-                    const auto surface_id =
-                        std::abs( surface_info ) - OFFSET_START;
-                    universe_.emplace( surfaces_.at( surface_id ) );
-                }
+                const auto surface_id = std::abs( surface_info ) - OFFSET_START;
+                universe_.emplace( surfaces_.at( surface_id ) );
             }
         }
 
@@ -977,49 +989,31 @@ namespace
         {
             const auto& block = model_.block( block_id );
             std::vector< geode::index_t > surfaces;
-            while( true )
+            for( const auto surface_info :
+                read_region_items( "REGION", block.name().value() ) )
             {
-                std::string boundary_line;
-                std::getline( file_, boundary_line );
-                for( const auto string : geode::string_split( boundary_line ) )
+                surfaces.push_back( std::abs( surface_info ) - OFFSET_START );
+            }
+            std::sort( surfaces.begin(), surfaces.end() );
+            for( size_t s = 1; s < surfaces.size(); s++ )
+            {
+                if( surfaces[s - 1] != surfaces[s] )
                 {
-                    const auto surface_info = geode::string_to_int( string );
-                    if( surface_info == 0 )
-                    {
-                        std::sort( surfaces.begin(), surfaces.end() );
-                        for( size_t s = 1; s < surfaces.size(); s++ )
-                        {
-                            if( surfaces[s - 1] != surfaces[s] )
-                            {
-                                builder_
-                                    .add_surface_block_boundary_relationship(
-                                        model_.surface(
-                                            surfaces_[surfaces[s - 1]] ),
-                                        block );
-                            }
-                            else
-                            {
-                                builder_
-                                    .add_surface_block_internal_relationship(
-                                        model_.surface(
-                                            surfaces_[surfaces[s]] ),
-                                        block );
-                                s++;
-                            }
-                        }
-                        const auto last = surfaces.size() - 1;
-                        if( surfaces[last - 1] != surfaces[last] )
-                        {
-                            builder_.add_surface_block_boundary_relationship(
-                                model_.surface( surfaces_[surfaces[last]] ),
-                                block );
-                        }
-                        return;
-                    }
-                    const auto surface_id =
-                        std::abs( surface_info ) - OFFSET_START;
-                    surfaces.push_back( surface_id );
+                    builder_.add_surface_block_boundary_relationship(
+                        model_.surface( surfaces_[surfaces[s - 1]] ), block );
                 }
+                else
+                {
+                    builder_.add_surface_block_internal_relationship(
+                        model_.surface( surfaces_[surfaces[s]] ), block );
+                    s++;
+                }
+            }
+            const auto last = surfaces.size() - 1;
+            if( surfaces[last - 1] != surfaces[last] )
+            {
+                builder_.add_surface_block_boundary_relationship(
+                    model_.surface( surfaces_[surfaces[last]] ), block );
             }
         }
 
@@ -1028,41 +1022,27 @@ namespace
         {
             const auto& stratigraphic_unit =
                 model_.stratigraphic_unit( stratigraphic_unit_id );
-            std::vector< geode::index_t > blocks;
             const auto blocks_offset = OFFSET_START + surfaces_.size();
-            while( true )
+            for( const auto block_id : read_region_items(
+                     "LAYER", stratigraphic_unit.name().value() ) )
             {
-                std::string boundary_line;
-                std::getline( file_, boundary_line );
-                for( const auto string : geode::string_split( boundary_line ) )
+                const auto b =
+                    static_cast< geode::index_t >( block_id - blocks_offset );
+                if( b == 0 )
                 {
-                    const auto block_id = geode::string_to_index( string );
-                    if( block_id == 0 )
-                    {
-                        for( const auto b : blocks )
-                        {
-                            if( b == 0 )
-                            {
-                                continue; // Universe
-                            }
-                            if( b - OFFSET_START < blocks_.size() )
-                            {
-                                builder_.add_block_in_stratigraphic_unit(
-                                    model_.block( blocks_[b - OFFSET_START] ),
-                                    stratigraphic_unit );
-                            }
-                            else
-                            {
-                                geode::Logger::warning(
-                                    "[MLInput] Stated in LAYER ",
-                                    stratigraphic_unit.name().value(),
-                                    ", Block id ", b + blocks_offset,
-                                    " does not match an existing REGION" );
-                            }
-                        }
-                        return;
-                    }
-                    blocks.push_back( block_id - blocks_offset );
+                    continue; // Universe
+                }
+                if( b - OFFSET_START < blocks_.size() )
+                {
+                    builder_.add_block_in_stratigraphic_unit(
+                        model_.block( blocks_[b - OFFSET_START] ),
+                        stratigraphic_unit );
+                }
+                else
+                {
+                    geode::Logger::warning( "[MLInput] Stated in LAYER ",
+                        stratigraphic_unit.name().value(), ", Block id ",
+                        block_id, " does not match an existing REGION" );
                 }
             }
         }
@@ -1070,41 +1050,27 @@ namespace
         void create_fault_block_topology( const geode::uuid& fault_block_id )
         {
             const auto& fault_block = model_.fault_block( fault_block_id );
-            std::vector< geode::index_t > blocks;
             const auto blocks_offset = OFFSET_START + surfaces_.size();
-            while( true )
+            for( const auto block_id :
+                read_region_items( "FAULT_BLOCK", fault_block.name().value() ) )
             {
-                std::string boundary_line;
-                std::getline( file_, boundary_line );
-                for( const auto string : geode::string_split( boundary_line ) )
+                const auto b =
+                    static_cast< geode::index_t >( block_id - blocks_offset );
+                if( b == 0 )
                 {
-                    const auto block_id = geode::string_to_index( string );
-                    if( block_id == 0 )
-                    {
-                        for( const auto b : blocks )
-                        {
-                            if( b == 0 )
-                            {
-                                continue; // Universe
-                            }
-                            if( b - OFFSET_START < blocks_.size() )
-                            {
-                                builder_.add_block_in_fault_block(
-                                    model_.block( blocks_[b - OFFSET_START] ),
-                                    fault_block );
-                            }
-                            else
-                            {
-                                geode::Logger::warning(
-                                    "[MLInput] Stated in FAULT_BLOCK ",
-                                    fault_block.name().value(), ", Block id ",
-                                    b + blocks_offset,
-                                    " does not match an existing REGION" );
-                            }
-                        }
-                        return;
-                    }
-                    blocks.push_back( block_id - blocks_offset );
+                    continue; // Universe
+                }
+                if( b - OFFSET_START < blocks_.size() )
+                {
+                    builder_.add_block_in_fault_block(
+                        model_.block( blocks_[b - OFFSET_START] ),
+                        fault_block );
+                }
+                else
+                {
+                    geode::Logger::warning( "[MLInput] Stated in FAULT_BLOCK ",
+                        fault_block.name().value(), ", Block id ", block_id,
+                        " does not match an existing REGION" );
                 }
             }
         }
