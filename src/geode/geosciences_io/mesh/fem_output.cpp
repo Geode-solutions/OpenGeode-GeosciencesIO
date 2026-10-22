@@ -24,7 +24,7 @@
 #include <fstream>
 #include <limits>
 
-#include <absl/container/btree_map.h>
+#include <absl/algorithm/container.h>
 
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/io.hpp>
@@ -131,6 +131,32 @@ namespace
         const geode::AttributeBase& attribute, geode::index_t element )
     {
         return attribute.generic_value( element );
+    }
+
+    // Sorts the (value, id) pairs and calls func( value, ids ) for each value,
+    // ids being sorted
+    template < typename Value, typename Func >
+    void for_each_value_group(
+        std::vector< std::pair< Value, geode::index_t > >& values_ids,
+        const Func& func )
+    {
+        absl::c_sort( values_ids );
+        std::vector< geode::index_t > ids;
+        geode::index_t group_start{ 0 };
+        for( const auto i : geode::Indices{ values_ids } )
+        {
+            if( values_ids[i].first != values_ids[group_start].first )
+            {
+                func( values_ids[group_start].first, ids );
+                ids.clear();
+                group_start = i;
+            }
+            ids.push_back( values_ids[i].second );
+        }
+        if( !ids.empty() )
+        {
+            func( values_ids[group_start].first, ids );
+        }
     }
 
     std::string add_spaces( geode::index_t n )
@@ -256,62 +282,42 @@ namespace
             geode::AttributeBase& attribute, geode::index_t nb_elements )
         {
             file_ << attribute.name().value() << EOL;
-            absl::flat_hash_map< double, std::vector< geode::index_t > >
-                attribute_distribution =
-                    attribute.type() == typeid( double ).name()
-                        ? create_attribute_distribution(
-                              dynamic_cast<
-                                  const geode::ReadOnlyAttribute< double >& >(
-                                  attribute ),
-                              nb_elements )
-                        : create_attribute_distribution(
-                              attribute, nb_elements );
-            std::vector< double > values;
-            values.reserve( attribute_distribution.size() );
-            for( auto val : attribute_distribution )
-            {
-                values.push_back( val.first );
-            }
-            absl::c_sort( values );
-            for( const auto value : values )
-            {
-                write_chunks(
-                    attribute_distribution[value], value, CHUNK_SIZE );
-            }
+            auto values_ids =
+                attribute.type() == typeid( double ).name()
+                    ? attribute_values_ids(
+                          dynamic_cast<
+                              const geode::ReadOnlyAttribute< double >& >(
+                              attribute ),
+                          nb_elements )
+                    : attribute_values_ids( attribute, nb_elements );
+            for_each_value_group( values_ids,
+                [this]( double value, absl::Span< const geode::index_t > ids ) {
+                    write_chunks( ids, value, CHUNK_SIZE );
+                } );
         }
 
         template < typename Attribute >
-        absl::flat_hash_map< double, std::vector< geode::index_t > >
-            create_attribute_distribution(
-                const Attribute& attribute, geode::index_t nb_elements )
+        std::vector< std::pair< double, geode::index_t > > attribute_values_ids(
+            const Attribute& attribute, geode::index_t nb_elements )
         {
-            absl::flat_hash_map< double, std::vector< geode::index_t > >
-                att_dist;
-            geode::index_t nb_nan_values{ 0 };
+            std::vector< std::pair< double, geode::index_t > > values_ids;
+            values_ids.reserve( nb_elements );
             for( const auto elem : geode::Range{ nb_elements } )
             {
                 const auto value = attribute_value( attribute, elem );
-                if( std::isnan( value ) )
+                if( !std::isnan( value ) )
                 {
-                    nb_nan_values++;
-                    continue;
-                }
-                if( att_dist.contains( value ) )
-                {
-                    att_dist[value].push_back( elem + 1 );
-                }
-                else
-                {
-                    att_dist[value] = { elem + 1 };
+                    values_ids.emplace_back( value, elem + 1 );
                 }
             }
-            if( nb_nan_values != 0 )
+            if( const auto nb_nan_values = nb_elements - values_ids.size();
+                nb_nan_values != 0 )
             {
                 geode::Logger::warning( "[SolidFemOutput::write] ",
                     nb_nan_values, " NaN values of attribute ",
                     attribute.name().value(), " are not exported" );
             }
-            return att_dist;
+            return values_ids;
         }
 
         static std::vector< std::shared_ptr< geode::AttributeBase > >
@@ -419,51 +425,28 @@ namespace
         { // TODO: which properties to add?
         }
 
-        absl::flat_hash_map< double, std::vector< geode::index_t > >
-            create_coord_dist( int dim )
-        {
-            absl::flat_hash_map< double, std::vector< geode::index_t > >
-                coord_dist;
-            for( const auto vertex : geode::Range{ solid_.nb_vertices() } )
-            {
-                if( coord_dist.contains( solid_.point( vertex ).value( dim ) ) )
-                {
-                    coord_dist[solid_.point( vertex ).value( dim )].push_back(
-                        vertex );
-                }
-                else
-                {
-                    coord_dist[solid_.point( vertex ).value( dim )] = {
-                        vertex
-                    };
-                }
-            }
-            return coord_dist;
-        }
-
         void write_one_coord_component_dist(
-            const std::string& dim_name, const geode::index_t dim )
+            const std::string& dim_name, const geode::local_index_t dim )
         {
             file_ << dim_name << EOL;
-            absl::flat_hash_map< double, std::vector< geode::index_t > > dist =
-                create_coord_dist( dim );
-            std::vector< double > values;
-            values.reserve( dist.size() );
-            for( auto val = dist.begin(); val != dist.end(); ++val )
+            std::vector< std::pair< double, geode::index_t > > values_ids;
+            values_ids.reserve( solid_.nb_vertices() );
+            for( const auto vertex : geode::Range{ solid_.nb_vertices() } )
             {
-                values.push_back( val->first );
+                values_ids.emplace_back(
+                    solid_.point( vertex ).value( dim ), vertex + 1 );
             }
-            std::sort( values.begin(), values.end() );
-            for( const auto value : values )
-            {
-                std::string line = "";
-                for( const auto vertex : dist[value] )
-                {
-                    const auto vertex_id = vertex + 1;
-                    absl::StrAppend( &line, vertex_id, add_spaces( 1 ) );
-                }
-                file_ << "     " << value << "  " << line << EOL;
-            }
+            std::string line;
+            for_each_value_group(
+                values_ids, [this, &line]( double value,
+                                absl::Span< const geode::index_t > ids ) {
+                    line.clear();
+                    for( const auto vertex_id : ids )
+                    {
+                        absl::StrAppend( &line, vertex_id, add_spaces( 1 ) );
+                    }
+                    file_ << "     " << value << "  " << line << EOL;
+                } );
         }
 
         void write_xyz_dist()
@@ -497,13 +480,17 @@ namespace
                 return;
             }
             file_ << "NODALSETS" << EOL;
-            const auto vertex_regions =
-                create_region_map( *attribute_v, false );
-            for( const auto& vertex_region : vertex_regions )
+            std::vector< std::pair< std::string_view, geode::index_t > >
+                names_ids;
+            names_ids.reserve( solid_.nb_vertices() );
+            for( const auto vertex : geode::Range{ solid_.nb_vertices() } )
             {
-                write_chunks( vertex_region.second,
-                    std::string{ vertex_region.first }, CHUNK_SIZE );
+                for( const auto& name : attribute_v->value( vertex ) )
+                {
+                    names_ids.emplace_back( name, vertex + 1 );
+                }
             }
+            write_sets( names_ids );
         }
 
         void write_element_sets()
@@ -515,69 +502,26 @@ namespace
                 return;
             }
             file_ << "ELEMENTALSETS" << EOL;
-            const auto elem_regions = create_region_map( *attribute_p, true );
-            for( const auto& elem_region : elem_regions )
+            std::vector< std::pair< std::string_view, geode::index_t > >
+                names_ids;
+            names_ids.reserve( solid_.nb_polyhedra() );
+            for( const auto polyhedron : geode::Range{ solid_.nb_polyhedra() } )
             {
-                write_chunks( elem_region.second,
-                    std::string{ elem_region.first }, CHUNK_SIZE );
+                names_ids.emplace_back(
+                    attribute_p->value( polyhedron ), polyhedron + 1 );
             }
+            write_sets( names_ids );
         }
 
-        absl::btree_map< std::string_view, std::vector< geode::index_t > >
-            create_region_map(
-                const geode::ReadOnlyAttribute< std::string >& attribute,
-                bool create_element_region )
+        void write_sets(
+            std::vector< std::pair< std::string_view, geode::index_t > >&
+                names_ids )
         {
-            absl::btree_map< std::string_view, std::vector< geode::index_t > >
-                region_map;
-            geode::index_t nb_obj =
-                ( create_element_region ? solid_.nb_polyhedra()
-                                        : solid_.nb_vertices() );
-            for( const auto obj : geode::Range{ nb_obj } )
-            {
-                const auto& value = attribute.value( obj );
-                if( region_map.contains( value ) )
-                {
-                    region_map[value].push_back( obj + 1 );
-                }
-                else
-                {
-                    region_map[value] = { obj + 1 };
-                }
-            }
-            return region_map;
-        }
-
-        absl::btree_map< std::string_view, std::vector< geode::index_t > >
-            create_region_map(
-                const geode::ReadOnlyAttribute< std::vector< std::string > >&
-                    attribute,
-                bool create_element_region )
-        {
-            absl::btree_map< std::string_view, std::vector< geode::index_t > >
-                region_map;
-            int nb_obj = ( create_element_region ? solid_.nb_polyhedra()
-                                                 : solid_.nb_vertices() );
-            for( const auto obj : geode::Range{ nb_obj } )
-            {
-                const auto& values = attribute.value( obj );
-                if( values.empty() )
-                {
-                    continue;
-                }
-                for( const auto& value : values )
-                {
-                    if( region_map.contains( value ) )
-                    {
-                        region_map[value].push_back( obj + 1 );
-                    }
-                    else
-                    {
-                        region_map[value] = { obj + 1 };
-                    }
-                }
-            }
-            return region_map;
+            for_each_value_group(
+                names_ids, [this]( std::string_view name,
+                               absl::Span< const geode::index_t > ids ) {
+                    write_chunks( ids, name, CHUNK_SIZE );
+                } );
         }
 
         void write_gravity()
