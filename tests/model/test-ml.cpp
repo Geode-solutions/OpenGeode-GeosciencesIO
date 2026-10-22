@@ -848,6 +848,14 @@ void test_coordinates_precision()
         nb_found == 3, "Modified vertices not found" );
 }
 
+void test_border_without_bstone()
+{
+    // BORDER loop without any BSTONE
+    const auto no_bstone = load_ml(
+        "border_without_bstone.ml", replace( square_ml(), "BSTONE 1\n", "" ) );
+    check_model( no_bstone, 0, 0, 1, 0, 0, 0, 1 );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -950,6 +958,7 @@ int main()
         test_several_border_loops_output();
         test_empty_surface_output();
         test_coordinates_precision();
+        test_border_without_bstone();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

@@ -370,9 +370,13 @@ namespace
                 const auto& surface_id = line_start.first.component_id.id;
                 const auto& surface = model_.surface( surface_id );
                 auto line_data = compute_line( surface, line_start );
-                line_data.line = find_or_create_line( line_data );
+                if( !line_data )
+                {
+                    continue;
+                }
+                line_data->line = find_or_create_line( line_data.value() );
                 surface_lines[surface_id].emplace_back(
-                    std::move( line_data ) );
+                    std::move( line_data.value() ) );
             }
             for( auto& surface_line : surface_lines )
             {
@@ -731,23 +735,43 @@ namespace
             }
         }
 
-        LineData compute_line( const geode::Surface3D& surface,
-            const std::pair< geode::ComponentMeshVertex,
-                geode::ComponentMeshVertex >& line_start )
+        std::optional< geode::uuid > find_corner(
+            const geode::Surface3D& surface, geode::index_t vertex ) const
         {
-            LineData result;
-            result.surface = surface.id();
+            const auto unique_vertex =
+                model_.unique_vertex( { surface.component_id(), vertex } );
+            if( unique_vertex == geode::NO_ID )
+            {
+                return std::nullopt;
+            }
             for( const auto& cmv :
-                model_.component_mesh_vertices( model_.unique_vertex(
-                    { surface.component_id(), line_start.first.vertex } ) ) )
+                model_.component_mesh_vertices( unique_vertex ) )
             {
                 if( cmv.component_id.type
                     == geode::Corner3D::component_type_static() )
                 {
-                    result.corner0 = cmv.component_id.id;
-                    break;
+                    return cmv.component_id.id;
                 }
             }
+            return std::nullopt;
+        }
+
+        std::optional< LineData > compute_line( const geode::Surface3D& surface,
+            const std::pair< geode::ComponentMeshVertex,
+                geode::ComponentMeshVertex >& line_start )
+        {
+            const auto corner0 =
+                find_corner( surface, line_start.first.vertex );
+            if( !corner0 )
+            {
+                geode::Logger::warning( "[MLInput] BORDER of Surface ",
+                    surface.name().value_or( surface.id().string() ),
+                    " does not start on a BSTONE. It has been ignored" );
+                return std::nullopt;
+            }
+            LineData result;
+            result.surface = surface.id();
+            result.corner0 = corner0.value();
             const auto& mesh = surface.mesh();
             result.indices.push_back( line_start.first.vertex );
             result.points.emplace_back( mesh.point( result.indices.back() ) );
@@ -755,51 +779,42 @@ namespace
             geode::PolygonEdge edge;
             std::tie( edge, orientation ) = find_edge(
                 mesh, line_start.second.vertex, line_start.first.vertex );
-            if( orientation )
+            const auto edge_end = [&mesh, orientation](
+                                      const geode::PolygonEdge& current ) {
+                return orientation ? mesh.polygon_vertex(
+                                         geode::PolygonVertex{ current } )
+                                   : mesh.polygon_edge_vertex( current, 1 );
+            };
+            // A border walk visits each vertex at most once before reaching a
+            // BSTONE, otherwise the BORDER is corrupted
+            while( model_.unique_vertex(
+                       { surface.component_id(), edge_end( edge ) } )
+                   == geode::NO_ID )
             {
-                while(
-                    model_.unique_vertex( { surface.component_id(),
-                        mesh.polygon_vertex( geode::PolygonVertex{ edge } ) } )
-                    == geode::NO_ID )
+                if( result.indices.size() > mesh.nb_vertices() )
                 {
-                    result.indices.push_back(
-                        mesh.polygon_vertex( geode::PolygonVertex{ edge } ) );
-                    result.points.emplace_back(
-                        mesh.point( result.indices.back() ) );
-                    edge = mesh.previous_on_border( edge );
+                    geode::Logger::warning( "[MLInput] BORDER of Surface ",
+                        surface.name().value_or( surface.id().string() ),
+                        " does not end on a BSTONE. It has been ignored" );
+                    return std::nullopt;
                 }
-                result.indices.push_back(
-                    mesh.polygon_vertex( geode::PolygonVertex{ edge } ) );
+                result.indices.push_back( edge_end( edge ) );
                 result.points.emplace_back(
                     mesh.point( result.indices.back() ) );
+                edge = orientation ? mesh.previous_on_border( edge )
+                                   : mesh.next_on_border( edge );
             }
-            else
+            result.indices.push_back( edge_end( edge ) );
+            result.points.emplace_back( mesh.point( result.indices.back() ) );
+            const auto corner1 = find_corner( surface, result.indices.back() );
+            if( !corner1 )
             {
-                while( model_.unique_vertex( { surface.component_id(),
-                           mesh.polygon_edge_vertex( edge, 1 ) } )
-                       == geode::NO_ID )
-                {
-                    result.indices.push_back(
-                        mesh.polygon_edge_vertex( edge, 1 ) );
-                    result.points.emplace_back(
-                        mesh.point( result.indices.back() ) );
-                    edge = mesh.next_on_border( edge );
-                }
-                result.indices.push_back( mesh.polygon_edge_vertex( edge, 1 ) );
-                result.points.emplace_back(
-                    mesh.point( result.indices.back() ) );
+                geode::Logger::warning( "[MLInput] BORDER of Surface ",
+                    surface.name().value_or( surface.id().string() ),
+                    " does not end on a BSTONE. It has been ignored" );
+                return std::nullopt;
             }
-            for( const auto& cmv :
-                model_.component_mesh_vertices( model_.unique_vertex(
-                    { surface.component_id(), result.indices.back() } ) ) )
-            {
-                if( cmv.component_id.type
-                    == geode::Corner3D::component_type_static() )
-                {
-                    result.corner1 = cmv.component_id.id;
-                    break;
-                }
-            }
+            result.corner1 = corner1.value();
             return result;
         }
 
