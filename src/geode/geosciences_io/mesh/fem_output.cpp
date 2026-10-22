@@ -227,12 +227,13 @@ namespace
                 elements, std::to_string( attribute_value ), max_chunk_size );
         }
 
-        void write_property( geode::AttributeBase& attribute )
+        void write_property(
+            geode::AttributeBase& attribute, geode::index_t nb_elements )
         {
             file_ << attribute.name().value() << EOL;
             absl::flat_hash_map< double, std::vector< geode::index_t > >
                 attribute_distribution =
-                    create_attribute_distribution( attribute );
+                    create_attribute_distribution( attribute, nb_elements );
             std::vector< double > values;
             values.reserve( attribute_distribution.size() );
             for( auto val : attribute_distribution )
@@ -248,11 +249,12 @@ namespace
         }
 
         absl::flat_hash_map< double, std::vector< geode::index_t > >
-            create_attribute_distribution( geode::AttributeBase& attribute )
+            create_attribute_distribution(
+                geode::AttributeBase& attribute, geode::index_t nb_elements )
         {
             absl::flat_hash_map< double, std::vector< geode::index_t > >
                 att_dist;
-            for( const auto elem : geode::Range{ solid_.nb_polyhedra() } )
+            for( const auto elem : geode::Range{ nb_elements } )
             {
                 const auto value = attribute.generic_value( elem );
                 if( att_dist.contains( value ) )
@@ -294,7 +296,7 @@ namespace
             write_xyz_dist();
             for( const auto& attribute : attributes )
             {
-                write_property( *attribute );
+                write_property( *attribute, solid_.nb_vertices() );
             }
         }
 
@@ -434,7 +436,7 @@ namespace
                 {
                     continue;
                 }
-                write_property( *attribute );
+                write_property( *attribute, solid_.nb_polyhedra() );
             }
         }
 

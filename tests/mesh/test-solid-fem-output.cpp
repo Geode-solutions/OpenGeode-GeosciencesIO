@@ -22,11 +22,20 @@
  */
 #include <geode/tests_config.hpp>
 
+#include <fstream>
+
+#include <absl/container/flat_hash_map.h>
+#include <absl/strings/numbers.h>
+#include <absl/strings/str_split.h>
+
 #include <geode/basic/assert.hpp>
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/logger.hpp>
 #include <geode/basic/variable_attribute.hpp>
 
+#include <geode/geometry/point.hpp>
+
+#include <geode/mesh/builder/tetrahedral_solid_builder.hpp>
 #include <geode/mesh/core/tetrahedral_solid.hpp>
 
 #include <geode/geosciences_io/mesh/internal/fem_output.hpp>
@@ -35,6 +44,133 @@
 
 namespace
 {
+    std::vector< std::string > read_lines( std::string_view filename )
+    {
+        std::ifstream file{ geode::to_string( filename ) };
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            file.good(), "[Test] Cannot open file ", filename );
+        std::vector< std::string > lines;
+        std::string line;
+        while( std::getline( file, line ) )
+        {
+            lines.push_back( line );
+        }
+        return lines;
+    }
+
+    std::optional< geode::index_t > find_line(
+        absl::Span< const std::string > lines,
+        std::string_view content,
+        geode::index_t start = 0 )
+    {
+        for( const auto l : geode::Range{ start, lines.size() } )
+        {
+            if( lines[l] == content )
+            {
+                return l;
+            }
+        }
+        return std::nullopt;
+    }
+
+    // Reads the "value id id-id ..." lines following the line named header
+    // inside the given section
+    absl::flat_hash_map< geode::index_t, double > read_distribution(
+        absl::Span< const std::string > lines,
+        std::string_view section,
+        std::string_view header )
+    {
+        const auto section_line = find_line( lines, section );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            section_line.has_value(), "[Test] Missing section ", section );
+        const auto header_line =
+            find_line( lines, header, section_line.value() );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            header_line.has_value(), "[Test] Missing header ", header );
+        absl::flat_hash_map< geode::index_t, double > distribution;
+        for( const auto l :
+            geode::Range{ header_line.value() + 1, lines.size() } )
+        {
+            const std::vector< std::string_view > tokens =
+                absl::StrSplit( lines[l], ' ', absl::SkipEmpty() );
+            double value;
+            if( tokens.empty() || !absl::SimpleAtod( tokens[0], &value ) )
+            {
+                break;
+            }
+            for( const auto t : geode::Range{ 1, tokens.size() } )
+            {
+                const std::vector< std::string_view > range =
+                    absl::StrSplit( tokens[t], '-' );
+                geode::index_t first;
+                geode::index_t last;
+                geode::OpenGeodeGeosciencesIOMeshException::test(
+                    absl::SimpleAtoi( range.front(), &first )
+                        && absl::SimpleAtoi( range.back(), &last ),
+                    "[Test] Wrong id token ", tokens[t] );
+                for( const auto id : geode::Range{ first, last + 1 } )
+                {
+                    geode::OpenGeodeGeosciencesIOMeshException::test(
+                        distribution.emplace( id, value ).second, "[Test] Id ",
+                        id, " listed twice in ", header );
+                }
+            }
+        }
+        return distribution;
+    }
+
+    template < typename T >
+    std::shared_ptr< geode::VariableAttribute< T > > create_attribute(
+        geode::AttributeManager& manager,
+        std::string_view name,
+        T default_value )
+    {
+        geode::AttributeValues< T > values;
+        values.default_value = default_value;
+        const auto id = manager.create_attribute< geode::VariableAttribute, T >(
+            name, values, geode::AttributeProperties{} );
+        return manager.find_attribute< geode::VariableAttribute, T >( id );
+    }
+
+    std::unique_ptr< geode::TetrahedralSolid3D > create_solid()
+    {
+        auto solid = geode::TetrahedralSolid3D::create();
+        auto builder = geode::TetrahedralSolidBuilder3D::create( *solid );
+        builder->create_point( geode::Point3D{ { 0, 0, 0 } } );
+        builder->create_point( geode::Point3D{ { 1, 0, 0 } } );
+        builder->create_point( geode::Point3D{ { 0, 1, 0 } } );
+        builder->create_point( geode::Point3D{ { 0, 0, 1 } } );
+        builder->create_point( geode::Point3D{ { 0, 0, -1 } } );
+        builder->create_tetrahedron( { 0, 1, 2, 3 } );
+        builder->create_tetrahedron( { 0, 2, 1, 4 } );
+        builder->compute_polyhedron_adjacencies();
+        return solid;
+    }
+
+    void test_vertex_attribute_distribution()
+    {
+        auto solid = create_solid();
+        auto attribute = create_attribute< double >(
+            solid->vertex_attribute_manager(), "vertex_prop", 0 );
+        for( const auto v : geode::Range{ solid->nb_vertices() } )
+        {
+            attribute->set_value( v, 10. * v );
+        }
+        geode::save_tetrahedral_solid( *solid, "test_vertex_attribute.fem" );
+        const auto lines = read_lines( "test_vertex_attribute.fem" );
+        const auto distribution =
+            read_distribution( lines, "REF_DIS_I", "vertex_prop" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            distribution.size() == solid->nb_vertices(),
+            "[Test] Wrong number of nodes in vertex_prop distribution" );
+        for( const auto v : geode::Range{ solid->nb_vertices() } )
+        {
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                distribution.at( v + 1 ) == 10. * v,
+                "[Test] Wrong vertex_prop value for node ", v + 1 );
+        }
+    }
+
     void test_solid_fem_output()
     {
         auto tet_solid = geode::load_tetrahedral_solid< 3 >(
@@ -66,6 +202,7 @@ int main()
     {
         geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
         test_solid_fem_output();
+        test_vertex_attribute_distribution();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }
