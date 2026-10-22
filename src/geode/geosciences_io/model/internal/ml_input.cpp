@@ -42,8 +42,8 @@
 #include <geode/mesh/builder/point_set_builder.hpp>
 #include <geode/mesh/builder/triangulated_surface_builder.hpp>
 #include <geode/mesh/core/edged_curve.hpp>
-#include <geode/mesh/core/point_set.hpp>
 #include <geode/mesh/core/geode/geode_triangulated_surface.hpp>
+#include <geode/mesh/core/point_set.hpp>
 
 #include <geode/model/helpers/detail/split_along_surface_mesh_borders.hpp>
 #include <geode/model/mixin/core/corner.hpp>
@@ -636,6 +636,7 @@ namespace
         void build_surfaces( const TSurfMLData& tsurf )
         {
             const auto& data = tsurf.data;
+            geode::index_t nb_invalid_triangles{ 0 };
             for( const auto triangle_id : geode::Indices{ tsurf.tfaces } )
             {
                 auto builder =
@@ -656,11 +657,25 @@ namespace
                     geode::Range{ data.tface_triangles_offset[triangle_id],
                         data.tface_triangles_offset[triangle_id + 1] } )
                 {
-                    builder->create_triangle( { data.triangles[t][0] - current,
-                        data.triangles[t][1] - current,
-                        data.triangles[t][2] - current } );
+                    const auto& triangle = data.triangles[t];
+                    if( absl::c_any_of( triangle, [&]( geode::index_t vertex ) {
+                            return vertex < current || vertex >= next;
+                        } ) )
+                    {
+                        nb_invalid_triangles++;
+                        continue;
+                    }
+                    builder->create_triangle( { triangle[0] - current,
+                        triangle[1] - current, triangle[2] - current } );
                 }
                 builder->compute_polygon_adjacencies();
+            }
+            if( nb_invalid_triangles > 0 )
+            {
+                geode::Logger::warning( "[MLInput] TSurf ", tsurf.name, ": ",
+                    nb_invalid_triangles,
+                    " TRGL referring to vertices outside their TFACE have been "
+                    "ignored" );
             }
         }
 

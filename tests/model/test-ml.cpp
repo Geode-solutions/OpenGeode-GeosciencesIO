@@ -864,6 +864,19 @@ void test_bstone_without_line()
     check_model( model, 1, 0, 1, 0, 0, 0, 1 );
 }
 
+void test_triangle_outside_tface()
+{
+    const auto model = load_ml( "triangle_outside_tface.ml",
+        replace( tetra_ml(), "TRGL 4 5 6\n", "TRGL 4 5 6\nTRGL 4 5 7\n" ) );
+    check_model( model, 4, 6, 4, 1, 0, 0, 1 );
+    for( const auto& surface : model.surfaces() )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            surface.mesh().nb_polygons() == 1,
+            "Triangle outside its TFACE should be ignored" );
+    }
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -968,6 +981,7 @@ int main()
         test_coordinates_precision();
         test_border_without_bstone();
         test_bstone_without_line();
+        test_triangle_outside_tface();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
