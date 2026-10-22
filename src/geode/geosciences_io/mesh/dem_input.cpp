@@ -122,6 +122,15 @@ namespace
                 status == CE_None, nullptr,
                 geode::OpenGeodeException::TYPE::internal,
                 "[DEMInput] Failed to read elevation" );
+            geode::index_t nb_valid_vertices{ 0 };
+            for( const auto vertex : geode::Range{ nb_vertices } )
+            {
+                if( !is_no_data( elevation[vertex] ) )
+                {
+                    vertices[vertex] = nb_valid_vertices++;
+                }
+            }
+            builder_->create_vertices( nb_valid_vertices );
             for( const auto i : geode::Range{ height_ } )
             {
                 const auto i_contribution =
@@ -129,8 +138,7 @@ namespace
                 for( const auto j : geode::Range{ width_ } )
                 {
                     const auto vertex = i * width_ + j;
-                    const auto current_elevation = elevation[vertex];
-                    if( is_no_data( current_elevation ) )
+                    if( vertices[vertex] == geode::NO_ID )
                     {
                         continue;
                     }
@@ -138,9 +146,9 @@ namespace
                         coordinate_system_.direction( 0 ) * ( j + 0.5 );
                     const auto point = coordinate_system_.origin()
                                        + i_contribution + j_contribution;
-                    vertices[vertex] = builder_->create_point(
+                    builder_->set_point( vertices[vertex],
                         geode::Point3D{ { point.value( 0 ), point.value( 1 ),
-                            current_elevation } } );
+                            elevation[vertex] } } );
                 }
             }
             return vertices;
