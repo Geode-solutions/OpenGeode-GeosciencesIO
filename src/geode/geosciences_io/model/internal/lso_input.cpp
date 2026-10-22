@@ -635,8 +635,19 @@ namespace
             for( const auto& relation : find_block_relations( block_id ) )
             {
                 const auto& surface = model_.surface( relation.first );
+                const auto nb_polygons = surface.mesh().nb_polygons();
+                if( relation.second % nb_polygons != 0 )
+                {
+                    inspect_required_ = true;
+                    geode::Logger::warning( "[LSOInput] Block ",
+                        block.name().value(),
+                        " is only partially conformal to surface ",
+                        surface.name().value(), " (", relation.second,
+                        " tetrahedron facets for ", nb_polygons,
+                        " triangles)." );
+                }
                 const auto nb_relations =
-                    relation.second / surface.mesh().nb_polygons();
+                    ( relation.second + nb_polygons / 2 ) / nb_polygons;
                 if( nb_relations == 1 )
                 {
                     builder_.add_surface_block_boundary_relationship(

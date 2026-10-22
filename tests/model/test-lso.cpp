@@ -595,6 +595,32 @@ void test_border_without_corner()
     check_load_throws( "lso_duplicated_triangle.lso" );
 }
 
+geode::index_t count_block_boundaries( const geode::StructuralModel& model )
+{
+    geode::index_t count{ 0 };
+    for( const auto& block : model.blocks() )
+    {
+        count += model.nb_boundaries( block.id() );
+    }
+    return count;
+}
+
+void test_partial_conformity()
+{
+    const auto nb_boundaries =
+        count_block_boundaries( geode::load_structural_model(
+            absl::StrCat( geode::DATA_PATH, "vri.lso" ) ) );
+    // Remove a tetrahedron having facets on two surfaces
+    const auto model = geode::load_structural_model( write_modified_vri(
+        "lso_partial_conformity", []( std::vector< std::string >& lines ) {
+            const auto tetra = find_line( lines, "TETRA 112 59 110 111" );
+            lines.erase( lines.begin() + tetra, lines.begin() + tetra + 2 );
+        } ) );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        count_block_boundaries( model ) == nb_boundaries,
+        "Wrong number of Block boundaries with partial conformity" );
+}
+
 void test_tetra_properties()
 {
     const auto model = geode::load_structural_model(
@@ -661,6 +687,7 @@ int main()
         test_output_vertices_outside_blocks();
         test_output_surfaces_outside_collections();
         test_border_without_corner();
+        test_partial_conformity();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
