@@ -24,6 +24,7 @@
 #include <geode/tests_config.hpp>
 
 #include <cmath>
+#include <cstring>
 #include <fstream>
 #include <sstream>
 
@@ -135,6 +136,36 @@ namespace
         }
         std::ofstream file{ geode::to_string( filename ), std::ios::binary };
         file << header << binary << json;
+    }
+
+    /*
+     * zlib stream made of one stored (uncompressed) deflate block
+     */
+    std::string zlib_stored( const std::vector< double >& values )
+    {
+        std::string data( values.size() * sizeof( double ), '\0' );
+        std::memcpy( data.data(), values.data(), data.size() );
+        uint32_t a{ 1 };
+        uint32_t b{ 0 };
+        for( const auto byte : data )
+        {
+            a = ( a + static_cast< unsigned char >( byte ) ) % 65521;
+            b = ( b + a ) % 65521;
+        }
+        const auto adler = ( b << 16 ) | a;
+        const auto length = static_cast< uint16_t >( data.size() );
+        std::string stream{ '\x78', '\x01', '\x01' };
+        stream.push_back( static_cast< char >( length & 0xFF ) );
+        stream.push_back( static_cast< char >( length >> 8 ) );
+        stream.push_back( static_cast< char >( ~length & 0xFF ) );
+        stream.push_back( static_cast< char >( ( ~length >> 8 ) & 0xFF ) );
+        stream += data;
+        for( const auto shift : { 24, 16, 8, 0 } )
+        {
+            stream.push_back(
+                static_cast< char >( ( adler >> shift ) & 0xFF ) );
+        }
+        return stream;
     }
 
     void check_point( const geode::Point3D& point,
@@ -550,6 +581,34 @@ namespace
                 "Only the last vertex should have no ", name, " value" );
         }
     }
+    void test_binary_arrays()
+    {
+        const auto vertices = zlib_stored( { 0, 0, 0, 1, 0, 0, 2, 0, 0 } );
+        const auto scalars = zlib_stored( { 1, 2, 3, 4, 5 } );
+        const auto json = absl::StrCat( R"({
+            "p": { "__class__": "Project", "elements": [ "e" ] },
+            "e": { "__class__": "PointSetElement", "name": "points",
+                "geometry": "g", "data": [ "s" ] },
+            "g": { "__class__": "PointSetGeometry", "vertices": "gv" },
+            "gv": { "__class__": "Vector3Array", "array": { "start": 60,
+                "length": )",
+            vertices.size(), R"(, "dtype": "<f8" } },
+            "s": { "__class__": "ScalarData", "name": "scalar",
+                "location": "vertices", "array": "sa" },
+            "sa": { "__class__": "ScalarArray", "array": { "start": )",
+            60 + vertices.size(), R"(, "length": )", scalars.size(),
+            R"(, "dtype": "<f8" } }
+        })" );
+        constexpr auto filename = "omf_binary_arrays.omf";
+        write_omf( filename, json, absl::StrCat( vertices, scalars ) );
+        const auto point_set = geode::load_point_set< 3 >( filename );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            point_set->nb_vertices() == 3, "Wrong number of binary points" );
+        check_point( point_set->point( 2 ), geode::Point3D{ { 2, 0, 0 } },
+            "Wrong binary point" );
+        check_doubles(
+            point_set->vertex_attribute_manager(), "scalar", { 1, 2, 3 } );
+    }
 } // namespace
 
 int main()
@@ -571,6 +630,7 @@ int main()
         test_collinear_axes();
         test_huge_numbers();
         test_missing_vector_and_color_values();
+        test_binary_arrays();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

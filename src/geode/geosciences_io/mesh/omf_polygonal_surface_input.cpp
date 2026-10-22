@@ -130,7 +130,8 @@ namespace
                 geode::internal::OMFFile::name( element_ ),
                 "\" has collinear axes" );
             const auto origin = file_.origin( geometry_ );
-            auto offsets = file_.read_optional_scalars( geometry_, "offset_w" );
+            auto offsets = file_.read_optional_scalars(
+                geometry_, "offset_w", nb_nodes() );
             if( !offsets.empty() && offsets.size() != nb_nodes() )
             {
                 geode::Logger::warning( "[OMFInput] Grid surface \"",
