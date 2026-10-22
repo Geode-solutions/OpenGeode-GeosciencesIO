@@ -147,7 +147,8 @@ void test_missing_column()
         "<UserObjects>\n <Other/>\n</UserObjects>\n" );
     try
     {
-        geode::load_horizons_stack< 3 >( "skua_missing_column.xml" );
+        geode_unused(
+            geode::load_horizons_stack< 3 >( "skua_missing_column.xml" ) );
     }
     catch( const geode::OpenGeodeException& )
     {

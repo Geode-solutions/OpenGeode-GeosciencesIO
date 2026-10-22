@@ -571,8 +571,8 @@ void test_output_surfaces_outside_collections()
     {
         builder.remove_horizon( model.horizon( horizon ) );
     }
-    builder.add_surface( geode::MeshFactory::default_impl(
-        geode::TriangulatedSurface3D::type_name_static() ) );
+    geode_unused( builder.add_surface( geode::MeshFactory::default_impl(
+        geode::TriangulatedSurface3D::type_name_static() ) ) );
     geode::save_structural_model( model, "lso_surfaces_without_horizon.lso" );
     const auto reloaded =
         geode::load_structural_model( "lso_surfaces_without_horizon.lso" );

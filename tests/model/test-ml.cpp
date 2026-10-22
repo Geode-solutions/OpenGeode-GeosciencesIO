@@ -359,7 +359,7 @@ void check_load_throws( std::string_view filename, std::string_view content )
     write_file( filename, content );
     try
     {
-        geode::load_structural_model( filename );
+        geode_unused( geode::load_structural_model( filename ) );
     }
     catch( const geode::OpenGeodeException& exception )
     {
@@ -718,7 +718,7 @@ void test_empty_line_output()
 {
     auto model = load_ml( "empty_line.ml", tetra_ml() );
     geode::StructuralModelBuilder builder{ model };
-    builder.add_line();
+    geode_unused( builder.add_line() );
     geode::save_structural_model( model, "empty_line_saved.ml" );
     const auto reload = geode::load_structural_model( "empty_line_saved.ml" );
     check_model( reload, 4, 6, 4, 1, 0, 0, 1 );
@@ -813,7 +813,7 @@ void test_empty_surface_output()
     builder.add_surface_block_boundary_relationship(
         surface, *model.blocks().begin() );
     // Unclassified empty Surface
-    builder.add_surface();
+    geode_unused( builder.add_surface() );
     geode::save_structural_model( model, "empty_surface_saved.ml" );
     const auto reload =
         geode::load_structural_model( "empty_surface_saved.ml" );
