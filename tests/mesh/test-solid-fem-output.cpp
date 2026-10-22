@@ -436,6 +436,42 @@ namespace
             "[Test] Wrong REF_DISE_I count" );
     }
 
+    void test_multi_chunk_material()
+    {
+        auto solid = geode::TetrahedralSolid3D::create();
+        auto builder = geode::TetrahedralSolidBuilder3D::create( *solid );
+        for( const auto t : geode::Range{ 1000 } )
+        {
+            const auto x = static_cast< double >( t );
+            const auto v0 =
+                builder->create_point( geode::Point3D{ { x, 0, 0 } } );
+            builder->create_point( geode::Point3D{ { x + 1, 0, 0 } } );
+            builder->create_point( geode::Point3D{ { x, 1, 0 } } );
+            builder->create_point( geode::Point3D{ { x, 0, 1 } } );
+            builder->create_tetrahedron( { v0, v0 + 1, v0 + 2, v0 + 3 } );
+        }
+        solid->enable_facets();
+        auto aperture = create_attribute< double >(
+            solid->facets().facet_attribute_manager(),
+            "diagres_discontinuity_aperture", 1 );
+        for( const auto facet : geode::Range{ solid->facets().nb_facets() } )
+        {
+            aperture->set_value( facet, facet % 2 == 0 ? 0.5 : 0.25 );
+        }
+        geode::save_tetrahedral_solid( *solid, "test_multi_chunk.fem" );
+        const auto lines = read_lines( "test_multi_chunk.fem" );
+        const auto area = read_material( lines, "AREA" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            area.size() == solid->facets().nb_facets(),
+            "[Test] Wrong number of features in multi chunk AREA" );
+        for( const auto facet : geode::Range{ solid->facets().nb_facets() } )
+        {
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                area.at( facet + 1 ) == aperture->value( facet ),
+                "[Test] Wrong multi chunk AREA value for feature ", facet + 1 );
+        }
+    }
+
     void test_solid_fem_output()
     {
         auto tet_solid = geode::load_tetrahedral_solid< 3 >(
@@ -473,6 +509,7 @@ int main()
         test_wrong_feature_attribute_type();
         test_double_precision();
         test_distribution_counts();
+        test_multi_chunk_material();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }

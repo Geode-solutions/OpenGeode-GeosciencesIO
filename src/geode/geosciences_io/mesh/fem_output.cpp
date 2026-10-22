@@ -1074,29 +1074,14 @@ namespace
             {
                 const auto range_chunks =
                     format_range_chunks( feature_ids, CHUNK_SIZE );
-                DEBUG( range_chunks.size() );
-                if( range_chunks.size() == 1 )
+                for( const auto chunk : geode::Indices{ range_chunks } )
                 {
                     file_ << add_spaces( 14 ) << value << add_spaces( 1 )
-                          << range_chunks[0];
-                    if( iterator < property_values_to_features.size() - 1 )
+                          << range_chunks[chunk];
+                    if( chunk + 1 < range_chunks.size()
+                        || iterator + 1 < property_values_to_features.size() )
                     {
                         file_ << EOL;
-                    }
-                }
-                else
-                {
-                    for( const auto chunk :
-                        geode::Range{ range_chunks.size() } )
-                    {
-                        const auto& range_chunk = range_chunks[chunk];
-                        file_ << add_spaces( 14 ) << value << add_spaces( 1 )
-                              << range_chunk;
-                        if( iterator < property_values_to_features.size() - 1
-                            && chunk < range_chunks.size() - 1 )
-                        {
-                            file_ << EOL;
-                        }
                     }
                 }
                 iterator++;
