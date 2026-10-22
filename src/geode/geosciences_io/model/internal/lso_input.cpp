@@ -683,6 +683,52 @@ namespace
                     }
                 }
             }
+            for( const auto& surface : model_.surfaces() )
+            {
+                build_corners_on_free_border_loops( surface );
+            }
+        }
+
+        void build_corners_on_free_border_loops(
+            const geode::Surface3D& surface )
+        {
+            const auto& mesh = surface.mesh();
+            const auto component_id = surface.component_id();
+            const auto corner_type = geode::Corner3D::component_type_static();
+            const auto max_nb_edges = 3 * mesh.nb_polygons();
+            absl::flat_hash_set< geode::PolygonEdge > visited;
+            for( const auto p : geode::Range{ mesh.nb_polygons() } )
+            {
+                for( const auto& border : mesh.polygon_edges_on_border( p ) )
+                {
+                    if( visited.contains( border ) )
+                    {
+                        continue;
+                    }
+                    bool has_corner{ false };
+                    auto edge = border;
+                    geode::index_t nb_steps{ 0 };
+                    do
+                    {
+                        visited.emplace( edge );
+                        const auto unique_id =
+                            model_.unique_vertex( { component_id,
+                                mesh.polygon_edge_vertex( edge, 0 ) } );
+                        has_corner = has_corner
+                                     || model_.has_component_mesh_vertices(
+                                         unique_id, corner_type );
+                        edge = mesh.next_on_border( edge );
+                        nb_steps++;
+                    } while( edge != border && nb_steps < max_nb_edges );
+                    if( !has_corner )
+                    {
+                        const auto vertex =
+                            mesh.polygon_edge_vertex( border, 0 );
+                        create_corner( mesh.point( vertex ),
+                            model_.unique_vertex( { component_id, vertex } ) );
+                    }
+                }
+            }
         }
 
         void build_corner_from_edge( const geode::SurfaceMesh3D& mesh,

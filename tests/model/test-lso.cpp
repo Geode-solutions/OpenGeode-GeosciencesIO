@@ -621,6 +621,41 @@ void test_partial_conformity()
         "Wrong number of Block boundaries with partial conformity" );
 }
 
+void test_border_loop_without_corner()
+{
+    const auto filename = "lso_border_loop_without_corner.lso";
+    {
+        std::ofstream output{ filename };
+        output << "GOCAD LightTSolid 1\n"
+                  "HEADER {\nname: two_tetrahedra\n}\n"
+                  "VRTX 1 0 0 0\nVRTX 2 1 0 0\nVRTX 3 0 1 0\n"
+                  "VRTX 4 0 0 1\nVRTX 5 0 0 -1\n"
+                  "TETRA 1 2 3 4\n# CTETRA A none none none none\n"
+                  "TETRA 1 2 3 5\n# CTETRA B none none none none\n"
+                  "MODEL\n"
+                  "SURFACE top\nTFACE 1\nKEYVERTICES 1 2 4\n"
+                  "TRGL 1 2 4\nTRGL 2 3 4\nTRGL 3 1 4\n"
+                  "SURFACE middle\nTFACE 2\nKEYVERTICES 1 2 3\n"
+                  "TRGL 1 2 3\n"
+                  "SURFACE bottom\nTFACE 3\nKEYVERTICES 1 2 5\n"
+                  "TRGL 1 2 5\nTRGL 2 3 5\nTRGL 3 1 5\n"
+                  "MODEL_REGION A +1\nMODEL_REGION B -3\nEND\n";
+    }
+    const auto model = geode::load_structural_model( filename );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        model.nb_blocks() == 2 && model.nb_surfaces() == 3,
+        "Wrong number of Blocks or Surfaces" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        model.nb_corners() == 1 && model.nb_lines() == 1,
+        "A border loop without Corner should get one Corner and one Line" );
+    for( const auto& surface : model.surfaces() )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            model.nb_boundaries( surface.id() ) == 1,
+            "Surface should be bounded by the Line" );
+    }
+}
+
 void test_tetra_properties()
 {
     const auto model = geode::load_structural_model(
@@ -688,6 +723,7 @@ int main()
         test_output_surfaces_outside_collections();
         test_border_without_corner();
         test_partial_conformity();
+        test_border_loop_without_corner();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
