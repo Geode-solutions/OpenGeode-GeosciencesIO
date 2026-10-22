@@ -57,9 +57,23 @@ namespace
             geode::Logger::set_level( geode::Logger::LEVEL::critical );
             const auto raster = geode::load_raster_image< 2 >( filename_ );
             geode::Logger::set_level( level );
-            const auto cooridinate_system = read_coordinate_system();
             return geode::convert_raster_image_into_grid(
-                raster, cooridinate_system );
+                raster, bottom_up_coordinate_system() );
+        }
+
+    private:
+        /*!
+         * TIFF raster images are read bottom-up (cell 0 is the last image
+         * row) while the geotransform origin is the top-left image corner.
+         */
+        geode::CoordinateSystem2D bottom_up_coordinate_system()
+        {
+            const auto coordinate_system = read_coordinate_system();
+            const auto& row_direction = coordinate_system.direction( 1 );
+            const auto height =
+                static_cast< double >( dataset().GetRasterYSize() );
+            return { { coordinate_system.direction( 0 ), row_direction * -1. },
+                coordinate_system.origin() + row_direction * height };
         }
 
     private:
