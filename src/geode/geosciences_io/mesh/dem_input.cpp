@@ -23,6 +23,8 @@
 
 #include <geode/geosciences_io/mesh/internal/dem_input.hpp>
 
+#include <cmath>
+
 #include <gdal.h>
 #include <gdal_priv.h>
 #include <gdal_utils.h>
@@ -108,7 +110,14 @@ namespace
             const auto band = dataset().GetRasterBand( 1 );
             const auto status = band->RasterIO( GF_Read, 0, 0, width_, height_,
                 elevation.data(), width_, height_, GDT_Float32, 0, 0 );
-            const auto no_data_value = band->GetNoDataValue();
+            int has_no_data{ 0 };
+            const auto no_data_value = band->GetNoDataValue( &has_no_data );
+            const auto float_no_data_value =
+                static_cast< float >( no_data_value );
+            const auto is_no_data = [&]( float value ) {
+                return std::isnan( value )
+                       || ( has_no_data != 0 && value == float_no_data_value );
+            };
             geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                 status == CE_None, nullptr,
                 geode::OpenGeodeException::TYPE::internal,
@@ -121,7 +130,7 @@ namespace
                 {
                     const auto vertex = i * width_ + j;
                     const auto current_elevation = elevation[vertex];
-                    if( current_elevation == no_data_value )
+                    if( is_no_data( current_elevation ) )
                     {
                         continue;
                     }

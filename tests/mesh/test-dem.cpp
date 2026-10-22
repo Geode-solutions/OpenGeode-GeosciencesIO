@@ -24,6 +24,8 @@
 #include <geode/tests_config.hpp>
 
 #include <fstream>
+#include <limits>
+#include <tuple>
 #include <vector>
 
 #include <geode/basic/assert.hpp>
@@ -139,6 +141,23 @@ void test_huge_raster()
         thrown, "Loading a raster with too many pixels should throw" );
 }
 
+void test_no_data()
+{
+    const auto nan = std::numeric_limits< float >::quiet_NaN();
+    for( const auto& [name, no_data, value] :
+        { std::tuple{ "raster_dem_nan", "nan", nan },
+            std::tuple{ "raster_dem_float", "0.1", 0.1F } } )
+    {
+        const auto filename = write_raster(
+            name, "dem", 3, 2, { value, 2, 3, 4, 5, 6 }, no_data );
+        const auto surface = geode::load_polygonal_surface< 3 >( filename );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surface->nb_vertices() == 5 && surface->nb_polygons() == 1,
+            "No data pixels should be skipped in ", name );
+        check_polygons( *surface );
+    }
+}
+
 int main()
 {
     try
@@ -158,6 +177,7 @@ int main()
         check_normals( *surface );
         test_polygons();
         test_huge_raster();
+        test_no_data();
 
         geode::Logger::info( "[TEST SUCCESS]" );
 
