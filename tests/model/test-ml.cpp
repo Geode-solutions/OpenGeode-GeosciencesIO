@@ -695,6 +695,16 @@ void test_nested_blocks_output()
     }
 }
 
+void test_block_without_boundary_output()
+{
+    auto model = load_ml( "empty_block.ml", tetra_ml() );
+    geode::StructuralModelBuilder builder{ model };
+    builder.set_block_name( model.block( builder.add_block() ), "empty_block" );
+    geode::save_structural_model( model, "empty_block_saved.ml" );
+    const auto reload = geode::load_structural_model( "empty_block_saved.ml" );
+    check_model( reload, 4, 6, 4, 2, 0, 0, 1 );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -791,6 +801,7 @@ int main()
         test_missing_tsurf_section();
         test_tsurf_section_names();
         test_nested_blocks_output();
+        test_block_without_boundary_output();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

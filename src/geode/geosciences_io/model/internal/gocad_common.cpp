@@ -224,6 +224,10 @@ namespace
         absl::Span< const geode::uuid > boundaries,
         const PairedSigns& paired_signs )
     {
+        if( boundaries.empty() )
+        {
+            return absl::FixedArray< bool >( 0 );
+        }
         const auto relative =
             determine_relative_signs( boundaries, paired_signs );
         const auto& bbox = brep.surface( boundaries[0] ).mesh().bounding_box();
@@ -333,6 +337,14 @@ namespace
             for( const auto& surface : brep.boundaries( block ) )
             {
                 block_boundaries.push_back( surface.id() );
+            }
+            if( block_boundaries.empty() )
+            {
+                geode::Logger::warning( "[determine_surface_to_regions_sides] "
+                                        "Block ",
+                    block.name().value_or( block.id().string() ),
+                    " has no boundary Surface" );
+                continue;
             }
             const auto outward_signs =
                 determine_outward_signs( brep, block_boundaries, paired_signs );
