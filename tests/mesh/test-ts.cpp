@@ -265,6 +265,20 @@ namespace
         check_surface( *reloaded, 3, 1, "triangle" );
     }
 
+    void test_header_formats()
+    {
+        constexpr auto body = "TFACE\nVRTX 1 0 0 0\nVRTX 2 1 0 0\n"
+                              "VRTX 3 0 1 0\nTRGL 1 2 3\nEND\n";
+        const auto one_line = load_test_file( "test_ts_header_one_line.ts",
+            absl::StrCat( "GOCAD TSurf 1\nHEADER {name:one line}\n", body ) );
+        check_surface( *one_line, 3, 1, "one line" );
+        const auto keys = load_test_file( "test_ts_header_keys.ts",
+            absl::StrCat( "GOCAD TSurf 1\n  HEADER {\n  name: good \n"
+                          "  *full*name: wrong\n  }  \n",
+                body ) );
+        check_surface( *keys, 3, 1, "good" );
+    }
+
     void test_object_header_order()
     {
         const auto surface = load_test_file( "test_ts_header_order.ts",
@@ -361,6 +375,7 @@ int main()
         test_vertex_lines_with_properties();
         test_non_contiguous_ids();
         test_output_without_generic_attribute();
+        test_header_formats();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

@@ -875,22 +875,45 @@ namespace geode::internal
 {
     HeaderData read_header( std::ifstream& file )
     {
-        check_keyword( file, "HEADER" );
         HeaderData header;
+        // Returns true if the end of the header is reached
+        const auto read_header_content = [&header]( std::string_view content ) {
+            const auto end = content.find( '}' );
+            const auto is_end = end != std::string_view::npos;
+            if( is_end )
+            {
+                content = content.substr( 0, end );
+            }
+            const auto separator = content.find( ':' );
+            if( separator != std::string_view::npos
+                && absl::StripAsciiWhitespace( content.substr( 0, separator ) )
+                       == "name" )
+            {
+                header.name = read_name(
+                    geode::string_split( content.substr( separator + 1 ) ) );
+            }
+            return is_end;
+        };
         std::string line;
+        auto has_line = static_cast< bool >( std::getline( file, line ) );
+        std::string_view header_line =
+            has_line ? absl::StripAsciiWhitespace( line ) : std::string_view{};
+        OpenGeodeGeosciencesIOMeshException::check_exception(
+            has_line && absl::ConsumePrefix( &header_line, "HEADER" ), nullptr,
+            geode::OpenGeodeException::TYPE::data,
+            "[read_header] Line should start with \"HEADER\", got \"",
+            has_line ? line : "end of file", "\"" );
+        header_line = absl::StripLeadingAsciiWhitespace( header_line );
+        if( absl::ConsumePrefix( &header_line, "{" )
+            && read_header_content( header_line ) )
+        {
+            return header;
+        }
         while( std::getline( file, line ) )
         {
-            if( string_starts_with( line, "}" ) )
+            if( read_header_content( absl::StripAsciiWhitespace( line ) ) )
             {
                 return header;
-            }
-            constexpr std::string_view NAME_PREFFIX = "name:";
-            const auto name_it = line.find( NAME_PREFFIX );
-            if( name_it != std::string::npos )
-            {
-                std::string_view name_line{ line };
-                name_line.remove_prefix( name_it + NAME_PREFFIX.size() );
-                header.name = read_name( geode::string_split( name_line ) );
             }
         }
         throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
