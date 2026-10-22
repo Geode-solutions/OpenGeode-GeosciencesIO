@@ -25,6 +25,9 @@
 
 #include <fstream>
 
+#include <absl/algorithm/container.h>
+#include <absl/strings/strip.h>
+
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/file.hpp>
 #include <geode/basic/string.hpp>
@@ -41,7 +44,8 @@ namespace
     {
         std::string name;
         std::vector< std::string > attribute_names;
-        std::array< geode::index_t, 3 > xyz_attributes_position;
+        std::array< geode::index_t, 3 > xyz_attributes_position{ geode::NO_ID,
+            geode::NO_ID, geode::NO_ID };
     };
 
     class WellDevInputImpl
@@ -107,14 +111,20 @@ namespace
                         return;
                     }
                 }
-                if( geode::string_starts_with( line, "# WELL NAME:" ) )
+                std::string_view name_line{ line };
+                if( absl::ConsumePrefix( &name_line, "# WELL NAME:" ) )
                 {
-                    const auto split_line = geode::string_split( line );
-                    header_.name = geode::to_string( split_line[3] );
+                    header_.name = geode::to_string(
+                        absl::StripAsciiWhitespace( name_line ) );
                 }
                 else if( !first_pass )
                 {
                     const auto split_line = geode::string_split( line );
+                    if( split_line.empty()
+                        || split_line.front().front() == '#' )
+                    {
+                        continue;
+                    }
                     geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                         split_line.size() >= 3, nullptr,
                         geode::OpenGeodeException::TYPE::data,
@@ -142,12 +152,10 @@ namespace
                             geode::to_string( split_line[i] ) );
                     }
                     geode::OpenGeodeGeosciencesIOMeshException::check_exception(
-                        header_.xyz_attributes_position[0]
-                                != header_.xyz_attributes_position[1]
-                            && header_.xyz_attributes_position[0]
-                                   != header_.xyz_attributes_position[2]
-                            && header_.xyz_attributes_position[1]
-                                   != header_.xyz_attributes_position[2],
+                        absl::c_none_of( header_.xyz_attributes_position,
+                            []( geode::index_t position ) {
+                                return position == geode::NO_ID;
+                            } ),
                         nullptr, geode::OpenGeodeException::TYPE::data,
                         "[WellDevInput::header] Cannot find the X, Y and Z "
                         "point position attributes in the header." );

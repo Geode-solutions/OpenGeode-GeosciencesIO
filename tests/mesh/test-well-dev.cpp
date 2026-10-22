@@ -61,6 +61,25 @@ namespace
 
     void test_few_points()
     {
+        const auto named = load_test_file( "test_well_named.dev",
+            "# WELL TRACE FROM PETREL\n# WELL NAME:   My Well 2\n#====\n\n"
+            " MD X Y Z\n#====\n0 1 2 3\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            named->name() == "My Well 2", "Wrong well name" );
+        auto has_thrown = false;
+        try
+        {
+            load_test_file( "test_well_no_z.dev",
+                "# WELL TRACE FROM PETREL\n# WELL NAME:\n#====\n"
+                " MD X Y TVD\n#====\n0 1 2 3\n" );
+        }
+        catch( const geode::OpenGeodeException& exception )
+        {
+            geode::Logger::info( "Expected exception: ", exception.what() );
+            has_thrown = true;
+        }
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            has_thrown, "Well without Z column should throw" );
         check_curve( *load_test_file( "test_well_blank_lines.dev",
                          "# WELL TRACE FROM PETREL\n# WELL NAME: W\n#====\n MD "
                          "X Y Z\n#====\n0 1 2 3\n\n# comment\n1 1 2 4\n\n" ),
