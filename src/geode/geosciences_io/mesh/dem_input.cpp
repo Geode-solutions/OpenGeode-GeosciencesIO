@@ -184,9 +184,15 @@ namespace geode::internal
     std::unique_ptr< PolygonalSurface3D > DEMInput::read( const MeshImpl& impl )
     {
         auto surface = PolygonalSurface3D::create( impl );
-        DEMInputImpl reader{ *surface, this->filename() };
-        reader.read_file();
+        read_elevation_raster( this->filename(), *surface );
         return surface;
+    }
+
+    void read_elevation_raster(
+        std::string_view filename, PolygonalSurface3D& surface )
+    {
+        DEMInputImpl reader{ surface, filename };
+        reader.read_file();
     }
 
     auto DEMInput::additional_files() const -> AdditionalFiles
