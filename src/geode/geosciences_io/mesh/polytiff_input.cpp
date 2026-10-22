@@ -23,6 +23,8 @@
 
 #include <geode/geosciences_io/mesh/internal/polytiff_input.hpp>
 
+#include <array>
+
 #include <gdal_priv.h>
 
 #include <geode/basic/filename.hpp>
@@ -40,11 +42,14 @@
 
 namespace
 {
+    constexpr std::array< const char*, 1 > GDAL_DRIVERS{ "GTiff" };
+
     class PolyTIFFInputImpl : public geode::detail::GDALFile
     {
     public:
         PolyTIFFInputImpl( std::string_view filename )
-            : geode::detail::GDALFile{ filename }, filename_{ filename }
+            : geode::detail::GDALFile{ filename, GDAL_DRIVERS },
+              filename_{ filename }
         {
         }
 
@@ -104,7 +109,7 @@ namespace geode::internal
 
     auto PolyTIFFInput::additional_files() const -> AdditionalFiles
     {
-        detail::GDALFile reader{ filename() };
+        detail::GDALFile reader{ filename(), GDAL_DRIVERS };
         return reader.additional_files< AdditionalFiles >();
     }
 
@@ -116,7 +121,7 @@ namespace geode::internal
         {
             return grid_percent;
         }
-        detail::GDALFile reader{ this->filename() };
+        detail::GDALFile reader{ this->filename(), GDAL_DRIVERS };
         if( reader.dataset().GetRasterCount() == 0 )
         {
             return Percentage{ 0 };

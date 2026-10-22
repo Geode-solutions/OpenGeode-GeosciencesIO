@@ -23,6 +23,8 @@
 
 #include <geode/geosciences_io/model/internal/shp_input.hpp>
 
+#include <array>
+
 #include <ogrsf_frmts.h>
 
 #include <geode/basic/file.hpp>
@@ -48,11 +50,13 @@
 
 namespace
 {
+    constexpr std::array< const char*, 1 > GDAL_DRIVERS{ "ESRI Shapefile" };
+
     class SHPInputImpl : public geode::detail::GDALFile
     {
     public:
         SHPInputImpl( geode::Section& section, std::string_view filename )
-            : geode::detail::GDALFile{ filename },
+            : geode::detail::GDALFile{ filename, GDAL_DRIVERS },
               section_( section ),
               builder_{ section }
         {
@@ -290,7 +294,7 @@ namespace geode::internal
 
     Percentage SHPInput::is_loadable() const
     {
-        detail::GDALFile reader{ filename() };
+        detail::GDALFile reader{ filename(), GDAL_DRIVERS };
         if( reader.dataset().GetLayerCount() == 0 )
         {
             return Percentage{ 0 };
