@@ -69,7 +69,11 @@
 #include <geode/io/mesh/common.hpp>
 #include <geode/io/model/common.hpp>
 #include <geode/mesh/builder/point_set_builder.hpp>
+#include <geode/mesh/builder/tetrahedral_solid_builder.hpp>
+#include <geode/mesh/core/geode/geode_tetrahedral_solid.hpp>
 #include <geode/mesh/core/point_set.hpp>
+#include <geode/mesh/core/tetrahedral_solid.hpp>
+#include <geode/mesh/io/tetrahedral_solid_input.hpp>
 
 #include <geode/mesh/core/geode/geode_point_set.hpp>
 #include <geode/mesh/core/hybrid_solid.hpp>
@@ -800,6 +804,100 @@ void test_structural_model_regions()
         "[Test] StructuralModel deck should use both materials" );
 }
 
+geode::BRep tetrahedra_brep(
+    geode::index_t nb_blocks, const geode::Point3D& origin )
+{
+    geode::BRep model;
+    geode::BRepBuilder builder{ model };
+    builder.create_unique_vertices( 4 * nb_blocks );
+    for( const auto block_id : geode::Range{ nb_blocks } )
+    {
+        const auto& block = model.block( builder.add_block(
+            geode::OpenGeodeTetrahedralSolid3D::impl_name_static() ) );
+        auto mesh_builder =
+            builder.block_mesh_builder< geode::TetrahedralSolid3D >( block );
+        auto x = origin.value( 0 ) + 2. * block_id;
+        mesh_builder->create_point(
+            geode::Point3D{ { x, origin.value( 1 ), origin.value( 2 ) } } );
+        mesh_builder->create_point( geode::Point3D{
+            { x + 1., origin.value( 1 ), origin.value( 2 ) } } );
+        mesh_builder->create_point( geode::Point3D{
+            { x, origin.value( 1 ) + 1., origin.value( 2 ) } } );
+        mesh_builder->create_point( geode::Point3D{
+            { x, origin.value( 1 ), origin.value( 2 ) + 1. } } );
+        mesh_builder->create_tetrahedron( { 0, 1, 2, 3 } );
+        for( const auto vertex : geode::LRange{ 4 } )
+        {
+            builder.set_unique_vertex(
+                { block.component_id(), vertex }, 4 * block_id + vertex );
+        }
+    }
+    return model;
+}
+
+template < template < typename > class Attribute, typename T >
+geode::uuid add_block_property( geode::BRep& model,
+    geode::PHYSICAL_PROPERTY_NAME property,
+    std::string_view name,
+    absl::Span< const T > block_values )
+{
+    const geode::uuid attribute_id;
+    geode::index_t block_id{ 0 };
+    for( const auto& block : model.blocks() )
+    {
+        geode::AttributeValues< T > values;
+        values.default_value = block_values[block_id++];
+        block.mesh()
+            .polyhedron_attribute_manager()
+            .create_attribute< Attribute, T >( name, attribute_id, values, {} );
+    }
+    geode::BRepBuilder{ model }.set_physical_property(
+        property, geode::Block3D::component_type_static(), attribute_id );
+    return attribute_id;
+}
+
+template < typename T >
+std::vector< T > vtu_cell_values(
+    std::string_view filename, std::string_view attribute_name )
+{
+    const auto solid = geode::load_tetrahedral_solid< 3 >( filename );
+    const auto& manager = solid->polyhedron_attribute_manager();
+    const auto ids = manager.attribute_ids_matching_name( attribute_name );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        ids.has_value() && ids->size() == 1, "[Test] No attribute ",
+        attribute_name, " in ", filename );
+    const auto attribute =
+        manager.find_read_only_attribute< T >( ids->front() );
+    std::vector< T > values;
+    for( const auto polyhedron : geode::Range{ solid->nb_polyhedra() } )
+    {
+        values.push_back( attribute->value( polyhedron ) );
+    }
+    return values;
+}
+
+void test_constant_block_properties()
+{
+    auto model = tetrahedra_brep( 3, geode::Point3D{ { 0., 0., 0. } } );
+    const std::array< double, 3 > porosities{ 0.1, 0.2, 0.3 };
+    add_block_property< geode::ConstantAttribute, double >(
+        model, geode::PHYSICAL_PROPERTY_NAME::porosity, "poro", porosities );
+    geode::BRepGeosExporter exporter( model, "constant_blocks" );
+    exporter.run();
+    const auto values = vtu_cell_values< double >(
+        "constant_blocks/constant_blocks.vtu", "poro" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        values.size() == porosities.size(),
+        "[Test] Wrong number of exported cells" );
+    for( const auto block : geode::Indices{ porosities } )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            values[block] == porosities[block],
+            "[Test] Wrong porosity exported for Block ", block, ": ",
+            values[block] );
+    }
+}
+
 int main()
 {
     try
@@ -807,6 +905,7 @@ int main()
         geode::OpenGeodeGeosciencesIOModelLibrary::initialize();
         geode::OpenGeodeIOMeshLibrary::initialize();
         geode::OpenGeodeIOModelLibrary::initialize();
+        test_constant_block_properties();
         test_picasso();
         test_uniform_variable_boundary_condition();
         test_variable_boundary_condition();

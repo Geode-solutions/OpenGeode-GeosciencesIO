@@ -488,10 +488,82 @@ namespace geode::internal
                 "rockPorosity_referencePorosity" },
         };
 
+    template < typename... Types >
+    struct BlockAttributeTypes
+    {
+    };
+
+    using SupportedBlockAttributeTypes = BlockAttributeTypes< double,
+        float,
+        int,
+        unsigned int,
+        long,
+        unsigned long,
+        long long,
+        unsigned long long,
+        std::array< double, 2 >,
+        std::array< double, 3 >,
+        std::array< double, 6 >,
+        std::array< double, 9 >,
+        std::array< float, 3 > >;
+
+    // Copies the Block values in a VariableAttribute of the solid, the
+    // polyhedra of each Block being contiguous in the solid
+    template < typename T, typename Model >
+    bool copy_typed_block_attribute( const Model& model,
+        absl::Span< const index_t > block_polyhedra_offsets,
+        std::string_view attribute_type,
+        std::string_view attribute_name,
+        const uuid& attribute_id,
+        AttributeManager& solid_manager )
+    {
+        if( attribute_type != typeid( T ).name() )
+        {
+            return false;
+        }
+        AttributeProperties properties;
+        properties.transferable = true;
+        solid_manager.create_attribute< VariableAttribute, T >(
+            attribute_name, attribute_id, AttributeValues< T >{}, properties );
+        auto solid_attribute =
+            solid_manager.find_attribute< VariableAttribute, T >(
+                attribute_id );
+        index_t block_index{ 0 };
+        for( const auto& block : model.blocks() )
+        {
+            const auto& block_mesh = block.mesh();
+            const auto block_attribute =
+                block_mesh.polyhedron_attribute_manager()
+                    .template find_read_only_attribute< T >( attribute_id );
+            const auto offset = block_polyhedra_offsets[block_index++];
+            for( const auto polyhedron_id : Range{ block_mesh.nb_polyhedra() } )
+            {
+                solid_attribute->set_value( offset + polyhedron_id,
+                    block_attribute->value( polyhedron_id ) );
+            }
+        }
+        return true;
+    }
+
+    template < typename Model, typename... Types >
+    bool copy_block_attribute( const Model& model,
+        absl::Span< const index_t > block_polyhedra_offsets,
+        std::string_view attribute_type,
+        std::string_view attribute_name,
+        const uuid& attribute_id,
+        AttributeManager& solid_manager,
+        BlockAttributeTypes< Types... > /*unused*/ )
+    {
+        return (
+            copy_typed_block_attribute< Types >( model, block_polyhedra_offsets,
+                attribute_type, attribute_name, attribute_id, solid_manager )
+            || ... );
+    }
+
     template < typename Model >
     std::string transfer_block_attribute( const Model& model,
         SolidMesh3D& solid,
-        const ModelToMeshMappings& model2solid,
+        absl::Span< const index_t > block_polyhedra_offsets,
         const PhysicalProperties::Info& property_info )
     {
         const auto& attribute_id = property_info.attribute_id;
@@ -501,40 +573,46 @@ namespace geode::internal
             "[GeosExporter] Physical property attribute ",
             attribute_id.string(),
             " must be defined on Blocks to be exported." );
-        auto& solid_manager = solid.polyhedron_attribute_manager();
-        const auto& polyhedra_mapping = model2solid.solid_polyhedra_mapping;
+        std::optional< std::string > attribute_type;
+        std::optional< std::string > attribute_name;
         for( const auto& block : model.blocks() )
         {
-            const auto& block_mesh = block.mesh();
             const auto& block_manager =
-                block_mesh.polyhedron_attribute_manager();
+                block.mesh().polyhedron_attribute_manager();
             OpenGeodeGeosciencesIOModelException::check_exception(
                 block_manager.attribute_exists( attribute_id ), nullptr,
                 OpenGeodeException::TYPE::data,
                 "[GeosExporter] Physical property attribute ",
                 attribute_id.string(), " is missing on Block ",
                 block.id().string(), "." );
-            GenericMapping< index_t > block2solid;
-            for( const auto polyhedron_id : Range( block_mesh.nb_polyhedra() ) )
+            const auto type = block_manager.attribute_type( attribute_id );
+            if( !attribute_type )
             {
-                const MeshElement block_polyhedron{ block.id(), polyhedron_id };
-                if( !polyhedra_mapping.has_mapping_input( block_polyhedron ) )
-                {
-                    continue;
-                }
-                block2solid.map( polyhedron_id,
-                    polyhedra_mapping.in2out( block_polyhedron ) );
+                attribute_type.emplace( type );
+                attribute_name =
+                    block_manager.find_generic_attribute( attribute_id )
+                        ->name();
             }
-            solid_manager.import( block_manager, block2solid, attribute_id );
+            OpenGeodeGeosciencesIOModelException::check_exception(
+                type == attribute_type.value(), nullptr,
+                OpenGeodeException::TYPE::data,
+                "[GeosExporter] Physical property attribute ",
+                attribute_id.string(),
+                " has different value types on Blocks." );
         }
-        const auto attribute =
-            solid_manager.find_generic_attribute( attribute_id );
         OpenGeodeGeosciencesIOModelException::check_exception(
-            attribute && attribute->name().has_value(), nullptr,
-            OpenGeodeException::TYPE::data,
+            attribute_name.has_value(), nullptr, OpenGeodeException::TYPE::data,
             "[GeosExporter] Physical property attribute ",
             attribute_id.string(), " has no name." );
-        return attribute->name().value();
+        OpenGeodeGeosciencesIOModelException::check_exception(
+            copy_block_attribute( model, block_polyhedra_offsets,
+                attribute_type.value(), attribute_name.value(), attribute_id,
+                solid.polyhedron_attribute_manager(),
+                SupportedBlockAttributeTypes{} ),
+            nullptr, OpenGeodeException::TYPE::data,
+            "[GeosExporter] Physical property attribute ",
+            attribute_name.value(), " has an unsupported value type." );
+        return attribute_name.value();
     }
 
     template < typename Model >
@@ -565,6 +643,7 @@ namespace geode::internal
         model_curve_ = std::move( std::get< 0 >( curve_conversion ) );
         std::tie( model_solid_, model2solid_ ) =
             convert_brep_into_solid( model_ );
+        compute_block_polyhedra_offsets();
         AttributeValues< index_t > region_attribute_values;
         region_attribute_values.default_value = NO_ID;
         region_attribute_values.no_value = NO_ID;
@@ -590,6 +669,32 @@ namespace geode::internal
         const PhysicalProblem& problem )
     {
         problem_ = &problem;
+    }
+
+    template < typename Model >
+    void GeosExporterImpl< Model >::compute_block_polyhedra_offsets()
+    {
+        const auto& polyhedra_mapping = model2solid_.solid_polyhedra_mapping;
+        block_polyhedra_offsets_.clear();
+        block_polyhedra_offsets_.reserve( model_.nb_blocks() + 1 );
+        index_t offset{ 0 };
+        for( const auto& block : model_.blocks() )
+        {
+            const auto nb_polyhedra = block.mesh().nb_polyhedra();
+            OpenGeodeGeosciencesIOModelException::check_exception(
+                nb_polyhedra == 0
+                    || polyhedra_mapping.in2out( { block.id(), 0 } ) == offset,
+                nullptr, OpenGeodeException::TYPE::data,
+                "[GeosExporter] Polyhedra of Block ", block.id().string(),
+                " are not contiguous in the model solid." );
+            block_polyhedra_offsets_.push_back( offset );
+            offset += nb_polyhedra;
+        }
+        OpenGeodeGeosciencesIOModelException::check_exception(
+            offset == model_solid_->nb_polyhedra(), nullptr,
+            OpenGeodeException::TYPE::data,
+            "[GeosExporter] Wrong number of polyhedra in the model solid." );
+        block_polyhedra_offsets_.push_back( offset );
     }
 
     template < typename Model >
@@ -946,8 +1051,8 @@ namespace geode::internal
             }
             const auto& property_info =
                 model_.physical_property_info( property );
-            auto attribute_name = transfer_block_attribute(
-                model_, *model_solid_, model2solid_, property_info );
+            auto attribute_name = transfer_block_attribute( model_,
+                *model_solid_, block_polyhedra_offsets_, property_info );
             imported_fields_.emplace_back(
                 std::move( attribute_name ), to_string( geos_name ) );
             if( property == PHYSICAL_PROPERTY_NAME::porosity )

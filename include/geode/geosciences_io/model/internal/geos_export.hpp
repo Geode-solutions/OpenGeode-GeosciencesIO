@@ -97,6 +97,7 @@ namespace geode::internal
         std::string_view prefix() const;
 
         void convert_model();
+        void compute_block_polyhedra_offsets();
         index_t initialize_solid_region_attribute();
         void add_block_collection_regions();
         void initialize_surface_cells( index_t first_surface_region_id );
@@ -181,6 +182,9 @@ namespace geode::internal
         std::unique_ptr< EdgedCurve3D > model_curve_{};
         std::unique_ptr< SolidMesh3D > model_solid_{};
         ModelToMeshMappings model2solid_;
+        // First solid polyhedron of each Block, in the model Block order,
+        // followed by the number of solid polyhedra
+        std::vector< index_t > block_polyhedra_offsets_{};
 
         uuid region_attribute_id_;
         std::shared_ptr< VariableAttribute< index_t > > region_attribute_{};
