@@ -87,8 +87,15 @@ namespace
             }
             auto [solid, model_to_mesh_mapping] =
                 geode::convert_brep_into_solid( brep_ );
-            auto& tet_solid =
-                static_cast< const geode::TetrahedralSolid3D& >( *solid );
+            const auto* tet_solid_ptr =
+                dynamic_cast< const geode::TetrahedralSolid3D* >( solid.get() );
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                tet_solid_ptr != nullptr && solid->nb_polyhedra() != 0, nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[BRepFemOutput::write] Only BReps whose Blocks are all "
+                "non-empty TetrahedralSolid meshes can be saved in FEM "
+                "format" );
+            const auto& tet_solid = *tet_solid_ptr;
             copy_tetrahedra_attributes_in_solid(
                 tet_solid, model_to_mesh_mapping );
             paint_polyhedron_block_id_attributes(
@@ -413,6 +420,19 @@ namespace geode::internal
 
     bool BRepFemOutput::is_saveable( const BRep& brep ) const
     {
+        if( brep.nb_blocks() == 0 )
+        {
+            return false;
+        }
+        for( const auto& block : brep.blocks() )
+        {
+            if( block.mesh().type_name()
+                    != TetrahedralSolid3D::type_name_static()
+                || block.mesh().nb_polyhedra() == 0 )
+            {
+                return false;
+            }
+        }
         for( const auto unique_vertex : Range{ brep.nb_unique_vertices() } )
         {
             if( !brep.has_component_mesh_vertices(
