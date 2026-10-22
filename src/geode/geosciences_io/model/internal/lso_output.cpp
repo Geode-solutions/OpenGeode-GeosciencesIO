@@ -27,6 +27,9 @@
 #include <string>
 #include <vector>
 
+#include <absl/strings/match.h>
+#include <absl/strings/str_cat.h>
+
 #include <geode/geometry/point.hpp>
 
 #include <geode/mesh/core/edged_curve.hpp>
@@ -103,8 +106,7 @@ namespace
         {
             for( const auto& block : model_.blocks() )
             {
-                file_ << "MODEL_REGION "
-                      << block.name().value_or( block.id().string() ) << " ";
+                file_ << "MODEL_REGION " << region_name( block ) << " ";
                 const auto& surface = *model_.boundaries( block ).begin();
                 if( sides_.regions_surface_sides.at(
                         { block.id(), surface.id() } ) )
@@ -117,6 +119,16 @@ namespace
                 }
                 file_ << exported_surfaces_.at( surface.id() ) << EOL;
             }
+        }
+
+        static std::string region_name( const geode::Block3D& block )
+        {
+            auto name = block.name().value_or( block.id().string() );
+            if( absl::StrContains( name, ' ' ) )
+            {
+                return absl::StrCat( "\"", name, "\"" );
+            }
+            return name;
         }
 
         template < typename Components >
@@ -181,7 +193,7 @@ namespace
         {
             for( const auto& block : model_.blocks() )
             {
-                const auto name = block.name().value_or( block.id().string() );
+                const auto name = region_name( block );
                 const auto& id = block.component_id();
                 const auto& mesh = block.mesh();
                 for( const auto p : geode::Range{ mesh.nb_polyhedra() } )

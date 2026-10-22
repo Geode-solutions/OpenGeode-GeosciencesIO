@@ -27,6 +27,7 @@
 #include <absl/strings/match.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_join.h>
+#include <absl/strings/str_replace.h>
 #include <absl/strings/str_split.h>
 
 #include <algorithm>
@@ -304,9 +305,10 @@ void renumber_vertices( std::vector< std::string >& lines,
     }
 }
 
-void check_vri_model( const geode::StructuralModel& model )
+void check_vri_model( const geode::StructuralModel& model,
+    geode::index_t nb_vertices_attributes = 9 )
 {
-    check_model( model, 12, 20, 11, 2, 7, 0, 9 );
+    check_model( model, 12, 20, 11, 2, 7, 0, nb_vertices_attributes );
     geode::OpenGeodeGeosciencesIOModelException::test(
         count_tetrahedra( model ) == 292, "Wrong number of tetrahedra" );
 }
@@ -471,6 +473,48 @@ void test_model_section()
     check_vri_model( unnamed_surface );
 }
 
+void test_region_names()
+{
+    const auto rename = []( std::vector< std::string >& lines ) {
+        for( auto& line : lines )
+        {
+            if( absl::StartsWith( line, "# CTETRA Region_2 " )
+                || absl::StartsWith( line, "MODEL_REGION Region_2 " ) )
+            {
+                line = absl::StrReplaceAll(
+                    line, { { "Region_2", "\"Region 2\"" } } );
+            }
+        }
+    };
+    const auto check_names = []( const geode::StructuralModel& model,
+                                 geode::index_t nb_vertices_attributes ) {
+        check_vri_model( model, nb_vertices_attributes );
+        for( const auto& block : model.blocks() )
+        {
+            geode::OpenGeodeGeosciencesIOModelException::test(
+                block.name() == "Region 2" || block.name() == "Region_1",
+                "Wrong Block name: ", block.name().value() );
+        }
+    };
+    const auto model = geode::load_structural_model(
+        write_modified_vri( "lso_region_names_with_spaces", rename ) );
+    check_names( model, 9 );
+    geode::save_structural_model( model, "lso_region_names_saved.lso" );
+    const auto reloaded =
+        geode::load_structural_model( "lso_region_names_saved.lso" );
+    check_names( reloaded, 0 );
+
+    const auto unknown_region =
+        geode::load_structural_model( write_modified_vri(
+            "lso_unknown_region", []( std::vector< std::string >& lines ) {
+                lines[find_line( lines, "# CTETRA" )] =
+                    "# CTETRA Unknown none none none none";
+            } ) );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        count_tetrahedra( unknown_region ) == 291,
+        "Wrong number of tetrahedra with unknown region" );
+}
+
 void test_tetra_properties()
 {
     const auto model = geode::load_structural_model(
@@ -533,6 +577,7 @@ int main()
         test_shared_vertices();
         test_vertex_ids();
         test_model_section();
+        test_region_names();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

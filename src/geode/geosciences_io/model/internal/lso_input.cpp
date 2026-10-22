@@ -165,6 +165,7 @@ namespace
             read_tetrahedra_region_indicators();
             read_surfaces();
             read_blocks();
+            check_tetrahedra_regions();
             geode::detail::build_model_boundaries( model_, builder_ );
             build_corners();
             build_lines();
@@ -266,9 +267,8 @@ namespace
                         ", it will not be assigned to any region." );
                     continue;
                 }
-                const auto block_tokens = get_tokens();
                 block_name_attribute_->set_value(
-                    tetra_id, geode::to_string( token( block_tokens, 2 ) ) );
+                    tetra_id, tetrahedron_region_name() );
                 if( !std::getline( file_, line_ ) )
                 {
                     line_.clear();
@@ -480,10 +480,64 @@ namespace
                     builder_.add_block( geode::MeshFactory::default_impl(
                         geode::TetrahedralSolid3D::type_name_static() ) );
                 builder_.set_block_name(
-                    model_.block( block_id ), token( tokens, 1 ) );
+                    model_.block( block_id ), read_quoted_name( tokens, 1 ) );
                 build_block_mesh( block_id );
                 build_block_relations( block_id );
                 next_line();
+            }
+        }
+
+        std::string tetrahedron_region_name() const
+        {
+            return read_quoted_name( get_tokens(), 2 );
+        }
+
+        std::string read_quoted_name(
+            absl::Span< const std::string_view > tokens,
+            geode::index_t position ) const
+        {
+            const auto first = token( tokens, position );
+            if( !absl::StartsWith( first, "\"" ) )
+            {
+                return geode::to_string( first );
+            }
+            auto last = position;
+            while( last < tokens.size()
+                   && ( !absl::EndsWith( tokens[last], "\"" )
+                        || ( last == position && first.size() == 1 ) ) )
+            {
+                last++;
+            }
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                last < tokens.size(), nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[LSOInput] Missing closing quote in line \"", line_, "\"" );
+            return geode::internal::read_name(
+                tokens.subspan( position, last - position + 1 ) );
+        }
+
+        void check_tetrahedra_regions()
+        {
+            absl::flat_hash_set< std::string > region_names;
+            for( const auto& block : model_.blocks() )
+            {
+                region_names.emplace( block.name().value() );
+            }
+            geode::index_t nb_unassigned{ 0 };
+            for( const auto tetra : geode::Range{ solid_->nb_polyhedra() } )
+            {
+                if( !region_names.contains(
+                        block_name_attribute_->value( tetra ) ) )
+                {
+                    nb_unassigned++;
+                }
+            }
+            if( nb_unassigned > 0 )
+            {
+                inspect_required_ = true;
+                geode::Logger::warning( "[LSOInput] ", nb_unassigned,
+                    " tetrahedra do not belong to any MODEL_REGION and are "
+                    "ignored." );
             }
         }
 
