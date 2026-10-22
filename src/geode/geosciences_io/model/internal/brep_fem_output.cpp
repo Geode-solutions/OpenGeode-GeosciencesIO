@@ -344,16 +344,19 @@ namespace
                         attribute_p_id );
             for( const auto& block : brep_.blocks() )
             {
+                const auto name = block.name();
+                if( !name )
+                {
+                    continue;
+                }
+                const std::string block_name{ name.value() };
                 for( const auto polyhedron_id :
                     geode::Range{ block.mesh().nb_polyhedra() } )
                 {
-                    if( const auto name = block.name() )
-                    {
-                        attribute_p->set_value(
-                            model_to_mesh_mapping.solid_polyhedra_mapping
-                                .in2out( { block.id(), polyhedron_id } ),
-                            name.value() );
-                    }
+                    attribute_p->set_value(
+                        model_to_mesh_mapping.solid_polyhedra_mapping.in2out(
+                            { block.id(), polyhedron_id } ),
+                        block_name );
                 }
             }
         }
@@ -373,18 +376,22 @@ namespace
                         std::vector< std::string > >( attribute_v_id );
             for( const auto& block : brep_.blocks() )
             {
+                const auto name = block.name();
+                const auto block_name =
+                    name ? std::string{ name.value() } : block.id().string();
+                const auto& block_component_id = block.component_id();
                 for( const auto vertex_id :
                     geode::Range{ block.mesh().nb_vertices() } )
                 {
                     const auto unique_vertex = brep_.unique_vertex(
-                        { block.component_id(), vertex_id } );
-                    const auto vertex_out =
+                        { block_component_id, vertex_id } );
+                    attribute_v->modify_value(
                         model_to_mesh_mapping.unique_vertices_mapping.in2out(
-                            unique_vertex );
-                    auto vertex_blocks = attribute_v->value( vertex_out );
-                    vertex_blocks.push_back(
-                        block.name().value_or( block.id().string() ) );
-                    attribute_v->set_value( vertex_out, vertex_blocks );
+                            unique_vertex ),
+                        [&block_name](
+                            std::vector< std::string >& vertex_blocks ) {
+                            vertex_blocks.push_back( block_name );
+                        } );
                 }
             }
         }
