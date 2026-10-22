@@ -66,8 +66,6 @@ namespace
     public:
         static constexpr geode::index_t OFFSET_START{ 1 };
         static constexpr char EOL{ '\n' };
-        static constexpr auto BLOCK_NAME_ATTRIBUTE_NAME =
-            "geode_block_name_attribute_name";
 
         LSOInputImpl( std::string_view filename, geode::StructuralModel& model )
             : file_{ geode::to_string( filename ), std::ios::binary },
@@ -95,18 +93,6 @@ namespace
                 solid_->vertex_attribute_manager()
                     .find_attribute< geode::VariableAttribute, geode::index_t >(
                         vertex_attribute_id_id );
-            geode::AttributeValues< std::string > block_name_attribute_values;
-            block_name_attribute_values.default_value = "";
-            block_name_attribute_values.no_value = "";
-            const auto block_name_attribute_id =
-                solid_->polyhedron_attribute_manager()
-                    .create_attribute< geode::VariableAttribute, std::string >(
-                        BLOCK_NAME_ATTRIBUTE_NAME, block_name_attribute_values,
-                        attribute_properties );
-            block_name_attribute_ =
-                solid_->polyhedron_attribute_manager()
-                    .find_attribute< geode::VariableAttribute, std::string >(
-                        block_name_attribute_id );
             geode::AttributeValues< geode::uuid > facet_id_attribute_values;
             facet_id_attribute_values.default_value = default_id_;
             facet_id_attribute_values.no_value = default_id_;
@@ -130,8 +116,6 @@ namespace
         {
             solid_->vertex_attribute_manager().delete_attribute(
                 vertex_id_->id() );
-            solid_->polyhedron_attribute_manager().delete_attribute(
-                block_name_attribute_->id() );
             solid_->facets().facet_attribute_manager().delete_attribute(
                 facet_id_->id() );
             solid_->disable_facets();
@@ -251,6 +235,7 @@ namespace
                 }
                 const auto tetra_id =
                     solid_builder_->create_tetrahedron( vertices );
+                tetrahedron_regions_.push_back( geode::NO_ID );
                 geode::internal::read_properties( tetrahedra_prop_header_,
                     tetrahedra_attributes_, tokens, 5 );
                 if( !std::getline( file_, line_ ) )
@@ -267,14 +252,37 @@ namespace
                         ", it will not be assigned to any region." );
                     continue;
                 }
-                block_name_attribute_->set_value(
-                    tetra_id, tetrahedron_region_name() );
+                tetrahedron_regions_[tetra_id] =
+                    region_ids_
+                        .try_emplace(
+                            tetrahedron_region_name(), region_ids_.size() )
+                        .first->second;
                 if( !std::getline( file_, line_ ) )
                 {
                     line_.clear();
                 }
             }
             solid_builder_->compute_polyhedron_adjacencies();
+            region_tetrahedra_.resize( region_ids_.size() );
+            for( const auto tetra : geode::Indices{ tetrahedron_regions_ } )
+            {
+                const auto region = tetrahedron_regions_[tetra];
+                if( region != geode::NO_ID )
+                {
+                    region_tetrahedra_[region].push_back( tetra );
+                }
+            }
+        }
+
+        absl::Span< const geode::index_t > region_tetrahedra(
+            std::string_view name ) const
+        {
+            const auto it = region_ids_.find( name );
+            if( it == region_ids_.end() )
+            {
+                return {};
+            }
+            return region_tetrahedra_[it->second];
         }
 
         bool is_tetrahedron_line() const
@@ -518,20 +526,17 @@ namespace
 
         void check_tetrahedra_regions()
         {
-            absl::flat_hash_set< std::string > region_names;
+            geode::index_t nb_assigned{ 0 };
+            absl::flat_hash_set< std::string_view > region_names;
             for( const auto& block : model_.blocks() )
             {
-                region_names.emplace( block.name().value() );
-            }
-            geode::index_t nb_unassigned{ 0 };
-            for( const auto tetra : geode::Range{ solid_->nb_polyhedra() } )
-            {
-                if( !region_names.contains(
-                        block_name_attribute_->value( tetra ) ) )
+                const auto& name = block.name().value();
+                if( region_names.emplace( name ).second )
                 {
-                    nb_unassigned++;
+                    nb_assigned += region_tetrahedra( name ).size();
                 }
             }
+            const auto nb_unassigned = solid_->nb_polyhedra() - nb_assigned;
             if( nb_unassigned > 0 )
             {
                 inspect_required_ = true;
@@ -548,17 +553,14 @@ namespace
                 builder_.block_mesh_builder< geode::TetrahedralSolid3D >(
                     block );
             const auto component_id = block.component_id();
-            const auto block_name = block.name();
+            const auto tetrahedra = region_tetrahedra( block.name().value() );
             absl::flat_hash_map< geode::index_t, geode::index_t >
                 vertex_mapping;
             std::vector< geode::index_t > inverse_vertex_mapping;
             std::vector< geode::index_t > inverse_tetrahedra_mapping;
-            for( const auto tetra : geode::Range{ solid_->nb_polyhedra() } )
+            inverse_tetrahedra_mapping.reserve( tetrahedra.size() );
+            for( const auto tetra : tetrahedra )
             {
-                if( block_name_attribute_->value( tetra ) != block_name )
-                {
-                    continue;
-                }
                 std::array< geode::index_t, 4 > vertices;
                 for( const auto i : geode::LRange{ 4 } )
                 {
@@ -599,13 +601,9 @@ namespace
         {
             absl::flat_hash_map< geode::uuid, geode::index_t >
                 surface_relations;
-            const auto block_name = model_.block( block_id ).name();
-            for( const auto tetra : geode::Range{ solid_->nb_polyhedra() } )
+            for( const auto tetra :
+                region_tetrahedra( model_.block( block_id ).name().value() ) )
             {
-                if( block_name_attribute_->value( tetra ) != block_name )
-                {
-                    continue;
-                }
                 for( const auto f : geode::LRange{ 4 } )
                 {
                     const auto facet = solid_->facets().facet_from_vertices(
@@ -1074,12 +1072,13 @@ namespace
         std::unique_ptr< geode::TetrahedralSolidBuilder3D > solid_builder_;
         std::shared_ptr< geode::VariableAttribute< geode::index_t > >
             vertex_id_;
-        std::shared_ptr< geode::VariableAttribute< std::string > >
-            block_name_attribute_;
         std::shared_ptr< geode::VariableAttribute< geode::uuid > > facet_id_;
         geode::uuid default_id_;
         std::vector< absl::InlinedVector< geode::index_t, 1 > > vertex_mapping_;
         absl::flat_hash_map< geode::index_t, geode::index_t > file_vertex_ids_;
+        absl::flat_hash_map< std::string, geode::index_t > region_ids_;
+        std::vector< geode::index_t > tetrahedron_regions_;
+        std::vector< std::vector< geode::index_t > > region_tetrahedra_;
     };
 } // namespace
 
