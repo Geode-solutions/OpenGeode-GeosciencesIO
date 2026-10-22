@@ -52,6 +52,16 @@ namespace
             write_test_file( filename, content ) );
     }
 
+    void test_blank_lines()
+    {
+        const auto pointset = load_test_file( "test_vs_blank_lines.vs",
+            "GOCAD VSet 1\nHEADER {\nname: a\n}\nVRTX 1 0 0 0\n\n"
+            "# comment\nVRTX 2 1 1 1\n\t\nEND\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            pointset->nb_vertices() == 2,
+            "Wrong number of vertices with blank lines" );
+    }
+
     void test_quotes()
     {
         const auto filename = write_test_file( "test_vs_quotes.txt",
@@ -119,6 +129,7 @@ int main()
                         geode::internal::VSInput::extension() ),
             6 );
         test_quotes();
+        test_blank_lines();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

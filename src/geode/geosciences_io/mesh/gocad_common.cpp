@@ -105,6 +105,34 @@ namespace
         return geode::internal::read_name( tokens );
     }
 
+    bool is_empty_or_comment( absl::Span< const std::string_view > tokens )
+    {
+        return tokens.empty() || tokens.front().front() == '#';
+    }
+
+    bool has_enough_tokens( absl::Span< const std::string_view > tokens,
+        geode::index_t nb_tokens,
+        std::string_view line )
+    {
+        if( tokens.size() >= nb_tokens )
+        {
+            return true;
+        }
+        geode::Logger::warning( "[GocadInput] Line \"", line,
+            "\" should have at least ", nb_tokens, " tokens, it is skipped" );
+        return false;
+    }
+
+    void check_enough_tokens( absl::Span< const std::string_view > tokens,
+        geode::index_t nb_tokens,
+        std::string_view line )
+    {
+        geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+            tokens.size() >= nb_tokens, nullptr,
+            geode::OpenGeodeException::TYPE::data, "[GocadInput] Line \"", line,
+            "\" should have at least ", nb_tokens, " tokens" );
+    }
+
     void read_ilines( std::ifstream& file, geode::internal::ECurveData& ecurve )
     {
         geode::goto_keyword( file, "ILINE" );
@@ -112,9 +140,14 @@ namespace
         while( std::getline( file, line ) )
         {
             const auto tokens = geode::string_split( line );
+            if( is_empty_or_comment( tokens ) )
+            {
+                continue;
+            }
             const auto& keyword = tokens.front();
             if( keyword == "VRTX" || keyword == "PVRTX" )
             {
+                check_enough_tokens( tokens, 5, line );
                 if( ecurve.points.empty() )
                 {
                     ecurve.OFFSET_START = geode::string_to_index( tokens[1] );
@@ -127,6 +160,10 @@ namespace
             }
             else if( keyword == "SEG" )
             {
+                if( !has_enough_tokens( tokens, 3, line ) )
+                {
+                    continue;
+                }
                 ecurve.edges.emplace_back( std::array< geode::index_t, 2 >{
                     geode::string_to_index( tokens[1] ) - ecurve.OFFSET_START,
                     geode::string_to_index( tokens[2] )
@@ -146,9 +183,14 @@ namespace
         while( std::getline( file, line ) )
         {
             const auto tokens = geode::string_split( line );
+            if( is_empty_or_comment( tokens ) )
+            {
+                continue;
+            }
             const auto& keyword = tokens.front();
             if( keyword == "VRTX" || keyword == "PVRTX" )
             {
+                check_enough_tokens( tokens, 5, line );
                 if( tsurf.points.empty() )
                 {
                     tsurf.OFFSET_START = geode::string_to_index( tokens[1] );
@@ -164,6 +206,7 @@ namespace
             }
             else if( keyword == "ATOM" || keyword == "PATOM" )
             {
+                check_enough_tokens( tokens, 3, line );
                 tsurf.points.push_back(
                     tsurf.points.at( geode::string_to_index( tokens[2] )
                                      - tsurf.OFFSET_START ) );
@@ -173,6 +216,10 @@ namespace
             }
             else if( keyword == "TRGL" )
             {
+                if( !has_enough_tokens( tokens, 4, line ) )
+                {
+                    continue;
+                }
                 tsurf.triangles.emplace_back( std::array< geode::index_t, 3 >{
                     geode::string_to_index( tokens[1] ) - tsurf.OFFSET_START,
                     geode::string_to_index( tokens[2] ) - tsurf.OFFSET_START,
@@ -181,11 +228,19 @@ namespace
             }
             else if( keyword == "BSTONE" )
             {
+                if( !has_enough_tokens( tokens, 2, line ) )
+                {
+                    continue;
+                }
                 tsurf.bstones.push_back(
                     geode::string_to_index( tokens[1] ) - tsurf.OFFSET_START );
             }
             else if( keyword == "BORDER" )
             {
+                if( !has_enough_tokens( tokens, 4, line ) )
+                {
+                    continue;
+                }
                 tsurf.borders.emplace_back(
                     geode::string_to_index( tokens[2] ) - tsurf.OFFSET_START,
                     geode::string_to_index( tokens[3] ) - tsurf.OFFSET_START );
@@ -217,6 +272,10 @@ namespace
         do
         {
             const auto tokens = geode::string_split( line );
+            if( is_empty_or_comment( tokens ) )
+            {
+                continue;
+            }
             const auto& keyword = tokens.front();
             if( keyword == "END" )
             {
@@ -226,6 +285,7 @@ namespace
             {
                 continue;
             }
+            check_enough_tokens( tokens, 5, line );
             if( vertex_set.points.empty() )
             {
                 vertex_set.OFFSET_START = geode::string_to_index( tokens[1] );
@@ -398,6 +458,10 @@ namespace geode::internal
                 return crs;
             }
             const auto tokens = split_string_considering_quotes( line );
+            if( tokens.size() < 2 )
+            {
+                continue;
+            }
             if( tokens[0] == "ZPOSITIVE" )
             {
                 crs.z_sign_positive = ( tokens[1] == "Elevation" );

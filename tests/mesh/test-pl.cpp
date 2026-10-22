@@ -23,6 +23,8 @@
 
 #include <geode/tests_config.hpp>
 
+#include <fstream>
+
 #include <geode/basic/assert.hpp>
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/logger.hpp>
@@ -39,6 +41,29 @@
 
 namespace
 {
+    std::unique_ptr< geode::EdgedCurve3D > load_test_file(
+        std::string_view filename, std::string_view content )
+    {
+        {
+            std::ofstream file{ geode::to_string( filename ),
+                std::ios::binary };
+            file << content;
+        }
+        return geode::load_edged_curve< 3 >( filename );
+    }
+
+    void test_blank_lines()
+    {
+        const auto curve = load_test_file( "test_pl_blank_lines.pl",
+            "GOCAD PLine 1\nHEADER {\nname: a\n}\nILINE\n\n# comment\n"
+            "VRTX 1 0 0 0\n\nVRTX 2 1 0 0\nSEG 1\nSEG 1 2\nEND\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curve->nb_vertices() == 2,
+            "Wrong number of vertices with blank lines" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curve->nb_edges() == 1, "Wrong number of edges with blank lines" );
+    }
+
     void check_curve( const geode::EdgedCurve3D& curve,
         geode::index_t nb_vertices,
         geode::index_t nb_edges )
@@ -91,6 +116,7 @@ int main()
                         geode::internal::PLInput::extension() ),
             9395, 9395, "closed_lines." );
         // NOLINTEND(*-magic-numbers)
+        test_blank_lines();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }

@@ -23,6 +23,8 @@
 
 #include <geode/tests_config.hpp>
 
+#include <fstream>
+
 #include <geode/basic/assert.hpp>
 #include <geode/basic/logger.hpp>
 
@@ -32,6 +34,36 @@
 #include <geode/mesh/io/triangulated_surface_output.hpp>
 
 #include <geode/geosciences_io/mesh/internal/ts_input.hpp>
+
+namespace
+{
+    std::unique_ptr< geode::TriangulatedSurface3D > load_test_file(
+        std::string_view filename, std::string_view content )
+    {
+        {
+            std::ofstream file{ geode::to_string( filename ),
+                std::ios::binary };
+            file << content;
+        }
+        return geode::load_triangulated_surface< 3 >( filename );
+    }
+
+    void test_blank_lines()
+    {
+        const auto surface = load_test_file( "test_ts_blank_lines.ts",
+            "GOCAD TSurf 1\nHEADER {\nname: blank\n}\n"
+            "GOCAD_ORIGINAL_COORDINATE_SYSTEM\n\nNAME Default\nZPOSITIVE\n"
+            "END_ORIGINAL_COORDINATE_SYSTEM\nTFACE\n\n# comment\n"
+            "VRTX 1 0 0 0\nVRTX 2 1 0 0\n   \nVRTX 3 0 1 0\nTRGL 1 2\n"
+            "TRGL 1 2 3\nBSTONE\nBORDER 1 2\nEND\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surface->nb_vertices() == 3,
+            "Wrong number of vertices with blank lines" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surface->nb_polygons() == 1,
+            "Wrong number of triangles with blank lines" );
+    }
+} // namespace
 
 void check_surface( const geode::SurfaceMesh3D& surface,
     geode::index_t nb_vertices,
@@ -97,6 +129,7 @@ int main()
         check_file( absl::StrCat( geode::DATA_PATH, "ts-2props.",
                         geode::internal::TSInput::extension() ),
             4, 2, "test" );
+        test_blank_lines();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
