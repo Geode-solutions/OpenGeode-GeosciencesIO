@@ -531,7 +531,7 @@ namespace
                                         : solid_.nb_vertices() );
             for( const auto obj : geode::Range{ nb_obj } )
             {
-                const auto value = attribute.value( obj );
+                const auto& value = attribute.value( obj );
                 if( region_map.contains( value ) )
                 {
                     region_map[value].push_back( obj + 1 );

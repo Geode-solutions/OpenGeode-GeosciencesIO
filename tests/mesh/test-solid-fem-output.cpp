@@ -535,6 +535,41 @@ namespace
             "[Test] Only one facet feature should be written" );
     }
 
+    // First tokens of the lines following the given line
+    std::vector< std::string > first_tokens(
+        absl::Span< const std::string > lines,
+        std::string_view start,
+        geode::index_t nb_lines )
+    {
+        const auto start_line = find_line( lines, start ).value();
+        std::vector< std::string > tokens;
+        for( const auto l : geode::Range{ nb_lines } )
+        {
+            const std::vector< std::string > line_tokens = absl::StrSplit(
+                lines.at( start_line + 1 + l ), ' ', absl::SkipEmpty() );
+            tokens.push_back( line_tokens.front() );
+        }
+        return tokens;
+    }
+
+    void test_element_set_names()
+    {
+        auto solid = create_solid();
+        auto polyhedron_sets = create_attribute< std::string >(
+            solid->polyhedron_attribute_manager(), "Block_ID_polyhedron", "" );
+        polyhedron_sets->set_value( 0, "first_block_with_a_long_name" );
+        polyhedron_sets->set_value( 1, "second_block_with_a_long_name" );
+        geode::save_tetrahedral_solid( *solid, "test_element_sets.fem" );
+        const auto lines = read_lines( "test_element_sets.fem" );
+        auto element_sets = first_tokens( lines, "ELEMENTALSETS", 2 );
+        absl::c_sort( element_sets );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            element_sets
+                == std::vector< std::string >{ "first_block_with_a_long_name",
+                    "second_block_with_a_long_name" },
+            "[Test] Wrong elemental set names" );
+    }
+
     void test_solid_fem_output()
     {
         auto tet_solid = geode::load_tetrahedral_solid< 3 >(
@@ -575,6 +610,7 @@ int main()
         test_multi_chunk_material();
         test_facet_and_edge_features();
         test_features_without_valid_values();
+        test_element_set_names();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }
