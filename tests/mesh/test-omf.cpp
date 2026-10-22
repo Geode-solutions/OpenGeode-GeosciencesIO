@@ -510,6 +510,46 @@ namespace
             return geode::load_point_set< 3 >( block_file );
         } );
     }
+    void test_missing_vector_and_color_values()
+    {
+        constexpr auto filename = "omf_missing_values.omf";
+        write_omf( filename, R"({
+            "p": { "__class__": "Project", "elements": [ "e" ] },
+            "e": { "__class__": "PointSetElement", "name": "points",
+                "geometry": "g", "data": [ "v", "c", "i" ] },
+            "g": { "__class__": "PointSetGeometry", "vertices": "gv" },
+            "gv": { "__class__": "Vector3Array",
+                "array": [ 0, 0, 0, 1, 0, 0, 2, 0, 0 ] },
+            "v": { "__class__": "Vector3Data", "name": "vector",
+                "location": "vertices", "array": "va" },
+            "va": { "__class__": "Vector3Array", "array": [ 1, 2, 3, 0, 0, 0 ] },
+            "c": { "__class__": "ColorData", "name": "color",
+                "location": "vertices", "array": "ca" },
+            "ca": { "__class__": "ColorArray",
+                "array": [ [ 255, 0, 0 ], [ 0, 255, 0 ] ] },
+            "i": { "__class__": "ColorData", "name": "int_color",
+                "location": "vertices", "array": "ia" },
+            "ia": { "__class__": "Int3Array",
+                "array": [ [ 0, 0, 255 ], [ 0, 255, 0 ] ] }
+        })" );
+        const auto point_set = geode::load_point_set< 3 >( filename );
+        const auto& manager = point_set->vertex_attribute_manager();
+        const auto vector =
+            find_attribute< geode::Vector3D >( manager, "vector" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            vector->has_value( 0 ) && vector->has_value( 1 )
+                && !vector->has_value( 2 ),
+            "Only the last vertex should have no vector value" );
+        for( const auto& name : { "color", "int_color" } )
+        {
+            const auto color =
+                find_attribute< geode::RGBColor >( manager, name );
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                color->has_value( 0 ) && color->has_value( 1 )
+                    && !color->has_value( 2 ),
+                "Only the last vertex should have no ", name, " value" );
+        }
+    }
 } // namespace
 
 int main()
@@ -530,6 +570,7 @@ int main()
         test_degenerate_elements();
         test_collinear_axes();
         test_huge_numbers();
+        test_missing_vector_and_color_values();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

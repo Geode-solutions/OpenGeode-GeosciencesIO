@@ -200,6 +200,30 @@ namespace
         return values;
     }
 
+    template < geode::index_t dimension >
+    geode::AttributeValues< geode::Vector< dimension > > omf_no_data_vector()
+    {
+        geode::AttributeValues< geode::Vector< dimension > > values;
+        for( const auto axis : geode::LRange{ dimension } )
+        {
+            values.default_value.set_value(
+                axis, std::numeric_limits< double >::quiet_NaN() );
+        }
+        values.no_value = values.default_value;
+        return values;
+    }
+
+    /*
+     * Black is the OpenGeode no value color (see
+     * convert_raster_image_into_grid), it is also used for invalid colors
+     */
+    geode::AttributeValues< geode::RGBColor > omf_no_data_color()
+    {
+        geode::AttributeValues< geode::RGBColor > values;
+        values.no_value = values.default_value;
+        return values;
+    }
+
     geode::AttributeValues< std::string > omf_no_data_string()
     {
         geode::AttributeValues< std::string > values;
@@ -426,8 +450,7 @@ namespace
                 }
             }
             set_values( name_, absl::StrCat( "vector", dimension ),
-                geode::AttributeValues< geode::Vector< dimension > >{}, true,
-                vectors );
+                omf_no_data_vector< dimension >(), true, vectors );
         }
 
         void read_color_data()
@@ -435,8 +458,7 @@ namespace
             const auto& colors = array();
             if( omf_class_name( colors ) == "ColorArray" )
             {
-                set_values( name_, "color",
-                    geode::AttributeValues< geode::RGBColor >{}, false,
+                set_values( name_, "color", omf_no_data_color(), false,
                     read_omf_inline_colors( colors ) );
                 return;
             }
@@ -447,8 +469,7 @@ namespace
                 values[color] = omf_color( components[3 * color],
                     components[3 * color + 1], components[3 * color + 2] );
             }
-            set_values( name_, "color",
-                geode::AttributeValues< geode::RGBColor >{}, false, values );
+            set_values( name_, "color", omf_no_data_color(), false, values );
         }
 
         /*
@@ -504,8 +525,7 @@ namespace
             }
             else if( legend_class == "ColorArray" )
             {
-                set_legend_values( legend_name, "color",
-                    geode::AttributeValues< geode::RGBColor >{},
+                set_legend_values( legend_name, "color", omf_no_data_color(),
                     read_omf_inline_colors( legend_values ), indices, nb );
             }
             else if( legend_class == "ScalarArray" )
