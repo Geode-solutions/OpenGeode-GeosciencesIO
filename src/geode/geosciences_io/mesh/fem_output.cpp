@@ -722,7 +722,7 @@ namespace
                 {
                     const auto aperture_value =
                         aperture_attribute.value( facet );
-                    if( aperture_value < 0.0 )
+                    if( !( aperture_value >= 0.0 ) )
                     {
                         continue;
                     }
@@ -787,13 +787,14 @@ namespace
                     some_features_built = true;
                     feature_id_++;
                 }
-                geode::OpenGeodeGeosciencesIOMeshException::check_exception(
-                    some_features_built, nullptr,
-                    geode::OpenGeodeException::TYPE::data,
-                    "No 2D feature built. Please verify that your "
-                    "model "
-                    "contains diagres_discontinuity_aperture "
-                    "property." );
+                if( !some_features_built )
+                {
+                    features_.features2D_groups.pop_back();
+                    geode::Logger::warning(
+                        "[SolidFemOutput::write] No 2D discrete feature "
+                        "written: no facet has a non-negative ",
+                        APERTURE_ATTRIBUTE_NAME, " value" );
+                }
             }
 
             void build_1d_feature_groups(
@@ -811,7 +812,7 @@ namespace
                 {
                     const auto conduit_area_value =
                         conduit_area_attribute.value( edge );
-                    if( conduit_area_value < 0.0 )
+                    if( !( conduit_area_value >= 0.0 ) )
                     {
                         continue;
                     }
@@ -877,11 +878,14 @@ namespace
                     some_features_built = true;
                     feature_id_++;
                 }
-                geode::OpenGeodeGeosciencesIOMeshException::check_exception(
-                    some_features_built, nullptr,
-                    geode::OpenGeodeException::TYPE::data,
-                    "No 1D feature built. Please verify that your model "
-                    "contains diagres_conduit_area property." );
+                if( !some_features_built )
+                {
+                    features_.features1D_groups.pop_back();
+                    geode::Logger::warning(
+                        "[SolidFemOutput::write] No 1D discrete feature "
+                        "written: no edge has a non-negative ",
+                        CONDUIT_AREA_ATTRIBUTE_NAME, " value" );
+                }
             }
 
         private:

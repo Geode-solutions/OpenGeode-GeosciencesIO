@@ -506,6 +506,35 @@ namespace
             "[Test] Wrong COND material with facet and edge features" );
     }
 
+    void test_features_without_valid_values()
+    {
+        auto solid = create_solid();
+        solid->enable_facets();
+        solid->enable_edges();
+        auto aperture = create_attribute< double >(
+            solid->facets().facet_attribute_manager(),
+            "diagres_discontinuity_aperture", -1 );
+        create_attribute< double >( solid->edges().edge_attribute_manager(),
+            "diagres_conduit_area", -1 );
+        geode::save_tetrahedral_solid( *solid, "test_no_feature.fem" );
+        auto lines = read_lines( "test_no_feature.fem" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            !find_line( lines, "DFE" ),
+            "[Test] No discrete feature should be written" );
+
+        aperture->set_value(
+            solid->facets().facet_from_vertices( { 0, 1, 2 } ).value(), 0.5 );
+        aperture->set_value(
+            solid->facets().facet_from_vertices( { 0, 1, 3 } ).value(),
+            std::numeric_limits< double >::quiet_NaN() );
+        geode::save_tetrahedral_solid( *solid, "test_nan_feature.fem" );
+        lines = read_lines( "test_nan_feature.fem" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            find_line( lines, "    <fep count=\"1\">" ).has_value()
+                && find_line( lines, "    <groups count=\"1\">" ).has_value(),
+            "[Test] Only one facet feature should be written" );
+    }
+
     void test_solid_fem_output()
     {
         auto tet_solid = geode::load_tetrahedral_solid< 3 >(
@@ -545,6 +574,7 @@ int main()
         test_distribution_counts();
         test_multi_chunk_material();
         test_facet_and_edge_features();
+        test_features_without_valid_values();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }
