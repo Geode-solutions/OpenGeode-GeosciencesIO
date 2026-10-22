@@ -291,6 +291,14 @@ namespace
                 const auto& data = tsurf.data;
                 for( const auto corner : data.bstones )
                 {
+                    if( corner >= data.points.size() )
+                    {
+                        geode::Logger::warning( "[MLInput] TSurf ", tsurf.name,
+                            ": BSTONE refers to unknown vertex ",
+                            corner + data.OFFSET_START,
+                            ". It has been ignored" );
+                        continue;
+                    }
                     corner_points.push_back( data.points[corner] );
                     const auto tface_id = data.tface_id( corner );
                     const auto& surface =
@@ -343,7 +351,26 @@ namespace
                 const auto& data = tsurf.data;
                 for( const auto border : data.borders )
                 {
+                    if( border.corner_id >= data.points.size() )
+                    {
+                        geode::Logger::warning( "[MLInput] TSurf ", tsurf.name,
+                            ": BORDER refers to unknown vertex ",
+                            border.corner_id + data.OFFSET_START,
+                            ". It has been ignored" );
+                        continue;
+                    }
                     const auto tface_id = data.tface_id( border.corner_id );
+                    if( border.next_id < data.tface_vertices_offset[tface_id]
+                        || border.next_id
+                               >= data.tface_vertices_offset[tface_id + 1] )
+                    {
+                        geode::Logger::warning( "[MLInput] TSurf ", tsurf.name,
+                            ": BORDER from vertex ",
+                            border.corner_id + data.OFFSET_START,
+                            " refers to a vertex outside its TFACE. It has "
+                            "been ignored" );
+                        continue;
+                    }
                     const auto& surface =
                         model_.surface( tsurf.tfaces[tface_id] );
                     const auto corner_id =

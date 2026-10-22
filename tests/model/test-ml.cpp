@@ -877,6 +877,15 @@ void test_triangle_outside_tface()
     }
 }
 
+void test_invalid_bstone_border_indices()
+{
+    const auto model = load_ml( "invalid_bstone_border.ml",
+        replace( tetra_ml(), "BORDER 24 12 10\n",
+            "BORDER 24 12 10\nBSTONE 99\nBORDER 25 99 10\n"
+            "BORDER 26 10 99\nBORDER 27 10 4\n" ) );
+    check_model( model, 4, 6, 4, 1, 0, 0, 1 );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -982,6 +991,7 @@ int main()
         test_border_without_bstone();
         test_bstone_without_line();
         test_triangle_outside_tface();
+        test_invalid_bstone_border_indices();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
