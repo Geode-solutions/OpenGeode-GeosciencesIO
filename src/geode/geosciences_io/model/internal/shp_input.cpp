@@ -258,54 +258,66 @@ namespace
                         geometry->getGeometryType() );
                 }
             }
+            if( nb_ignored_holes_ > 0 )
+            {
+                geode::Logger::warning( "[SHPInput::create_surface] Polygon "
+                                        "holes are not supported: ",
+                    nb_ignored_holes_, " interior ring(s) of layer ",
+                    layer.GetName(), " ignored, holes are filled" );
+                nb_ignored_holes_ = 0;
+            }
         }
 
         void read_polygon(
             const OGRPolygon& polygon_string, const geode::Surface2D& surface )
         {
+            const auto* exterior = polygon_string.getExteriorRing();
+            if( exterior == nullptr )
+            {
+                return;
+            }
+            nb_ignored_holes_ += polygon_string.getNumInteriorRings();
+            const auto nb_vertices = nb_line_points( *exterior );
+            if( nb_vertices < 3 )
+            {
+                geode::Logger::warning(
+                    "[SHPInput::read_polygon] Skipping a "
+                    "polygon ring with less than 3 points" );
+                return;
+            }
             const auto& mesh = surface.mesh();
             auto surface_builder = builder_.surface_mesh_builder( surface );
-            for( const auto* line_string : polygon_string )
+            const auto start =
+                read_points( *exterior, surface, *surface_builder );
+            if( nb_vertices < geode::NO_LID )
             {
-                const auto nb_vertices = nb_line_points( *line_string );
-                if( nb_vertices < 3 )
+                absl::FixedArray< geode::index_t > vertices( nb_vertices );
+                absl::c_iota( vertices, start );
+                surface_builder->create_polygon( vertices );
+                return;
+            }
+            std::vector< std::reference_wrapper< const geode::Point2D > >
+                points;
+            points.reserve( nb_vertices );
+            for( const auto p : geode::Range{ nb_vertices } )
+            {
+                points.emplace_back( mesh.point( start + p ) );
+            }
+            geode::Polygon2D polygon{ std::move( points ) };
+            for( auto& triangle : polygon.triangulate() )
+            {
+                for( const auto v : geode::LRange{ 3 } )
                 {
-                    geode::Logger::warning(
-                        "[SHPInput::read_polygon] Skipping a polygon ring "
-                        "with less than 3 points" );
-                    continue;
+                    triangle[v] = start + triangle[v];
                 }
-                const auto start =
-                    read_points( *line_string, surface, *surface_builder );
-                if( nb_vertices < geode::NO_LID )
-                {
-                    absl::FixedArray< geode::index_t > vertices( nb_vertices );
-                    absl::c_iota( vertices, start );
-                    surface_builder->create_polygon( vertices );
-                    continue;
-                }
-                std::vector< std::reference_wrapper< const geode::Point2D > >
-                    points;
-                points.reserve( nb_vertices );
-                for( const auto p : geode::Range{ nb_vertices } )
-                {
-                    points.emplace_back( mesh.point( start + p ) );
-                }
-                geode::Polygon2D polygon{ std::move( points ) };
-                for( auto& triangle : polygon.triangulate() )
-                {
-                    for( const auto v : geode::LRange{ 3 } )
-                    {
-                        triangle[v] = start + triangle[v];
-                    }
-                    surface_builder->create_polygon( triangle );
-                }
+                surface_builder->create_polygon( triangle );
             }
         }
 
     private:
         geode::Section& section_;
         geode::SectionBuilder builder_;
+        geode::index_t nb_ignored_holes_{ 0 };
     };
 } // namespace
 

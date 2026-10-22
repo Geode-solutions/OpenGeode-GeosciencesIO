@@ -209,6 +209,17 @@ namespace
             polygons.nb_surfaces() == 1,
             "Wrong number of surfaces with null geometry" );
     }
+    void test_polygon_holes()
+    {
+        const auto section = geode::load_section( write_shapefile(
+            "shp_polygon_hole", wkbPolygon,
+            { "POLYGON ((0 0,10 0,10 10,0 10,0 0),(4 4,4 6,6 6,6 4,4 4))" } ) );
+        check_section_vertices( section );
+        const auto& mesh = ( *section.surfaces().begin() ).mesh();
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            mesh.nb_vertices() == 4 && mesh.nb_polygons() == 1,
+            "Polygon hole should not create overlapping polygons" );
+    }
 } // namespace
 
 int main()
@@ -238,6 +249,7 @@ int main()
         test_points();
         test_geometry_variants();
         test_null_geometries();
+        test_polygon_holes();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
