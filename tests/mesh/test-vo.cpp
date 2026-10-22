@@ -26,6 +26,7 @@
 
 #include <geode/tests_config.hpp>
 
+#include <filesystem>
 #include <fstream>
 
 #include <geode/basic/assert.hpp>
@@ -145,6 +146,39 @@ namespace
             has_thrown, "[TEST] Data file without column header should throw" );
     }
 
+    void test_data_file_location()
+    {
+        std::filesystem::create_directories( "test_vo_dir" );
+        {
+            std::ofstream file{ "test_vo_dir/data@@", std::ios::binary };
+            file << "* I J K p\n0 0 0 7\n";
+        }
+        const auto absolute_data =
+            std::filesystem::absolute( "test_vo_dir/data@@" ).string();
+        for( const auto& data_name :
+            { std::string{ "data@@" }, absolute_data } )
+        {
+            const auto filename = absl::StrCat( "test_vo_dir/voxet_",
+                data_name == absolute_data ? "absolute" : "relative", ".vo" );
+            {
+                std::ofstream file{ filename, std::ios::binary };
+                file << "GOCAD Voxet 1\nHEADER {\nname: v\n}\n"
+                     << SIMPLE_GEOMETRY << "ASCII_DATA_FILE " << data_name
+                     << "\nEND\n";
+            }
+            const auto additional_files =
+                geode::regular_grid_additional_files< 3 >( filename );
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                additional_files.mandatory_files.size() == 1
+                    && !additional_files.has_additional_files(),
+                "[TEST] Data file should be found next to the Voxet" );
+            const auto grid = geode::load_regular_grid< 3 >( filename );
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                cell_value( *grid, 0, 0, 0 ) == 7,
+                "[TEST] Wrong value read from data file ", data_name );
+        }
+    }
+
     void test_geometry()
     {
         const auto grid = geode::load_regular_grid< 3 >(
@@ -186,6 +220,7 @@ int main()
         test_cells_outside_grid();
         test_geometry();
         test_data_file_format();
+        test_data_file_location();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

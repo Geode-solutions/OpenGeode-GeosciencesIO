@@ -23,6 +23,7 @@
 
 #include <geode/geosciences_io/mesh/internal/vo_input.hpp>
 
+#include <filesystem>
 #include <fstream>
 #include <optional>
 #include <string>
@@ -55,6 +56,19 @@ namespace
             { { "ASCII_DATA_FILE ", "" }, { "\"", "" } } );
     }
 
+    std::string data_file_path(
+        std::string_view voxet_filename, std::string_view data_file )
+    {
+        const std::filesystem::path data_path{ geode::to_string( data_file ) };
+        if( data_path.is_absolute() )
+        {
+            return data_path.string();
+        }
+        return (
+            geode::filepath_without_filename( voxet_filename ) / data_path )
+            .string();
+    }
+
     std::optional< std::string > get_data_file( std::ifstream& file )
     {
         const auto line =
@@ -71,9 +85,7 @@ namespace
     public:
         VOInputImpl( std::string_view filename, geode::RegularGrid3D& grid )
             : file_{ geode::to_string( filename ), std::ios::binary },
-              file_folder_{
-                  geode::filepath_without_filename( filename ).string()
-              },
+              filename_{ filename },
               grid_( grid ),
               builder_{ geode::RegularGridBuilder3D::create( grid ) }
         {
@@ -247,13 +259,13 @@ namespace
                 data_file_.has_value(), nullptr,
                 geode::OpenGeodeException::TYPE::data,
                 "[VOInput] No data file record" );
-            const auto data_file_path =
-                absl::StrCat( file_folder_, data_file_.value() );
-            std::ifstream data_file{ data_file_path, std::ios::binary };
+            const auto data_path =
+                data_file_path( filename_, data_file_.value() );
+            std::ifstream data_file{ data_path, std::ios::binary };
             geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                 data_file.good(), nullptr,
                 geode::OpenGeodeException::TYPE::data,
-                "[VOInput] Cannot open data file: ", data_file_path );
+                "[VOInput] Cannot open data file: ", data_path );
             std::string line;
             std::vector< std::shared_ptr< geode::VariableAttribute< double > > >
                 data_attributes;
@@ -363,7 +375,7 @@ namespace
 
     private:
         std::ifstream file_;
-        std::string file_folder_;
+        std::string filename_;
         geode::RegularGrid3D& grid_;
         std::unique_ptr< geode::RegularGridBuilder3D > builder_;
         geode::internal::CRSData crs_;
@@ -396,8 +408,8 @@ namespace geode::internal
             return {};
         }
         AdditionalFiles missing;
-        missing.mandatory_files.emplace_back(
-            data_file.value(), file_exists( data_file.value() ) );
+        missing.mandatory_files.emplace_back( data_file.value(),
+            !file_exists( data_file_path( filename(), data_file.value() ) ) );
         return missing;
     }
 
