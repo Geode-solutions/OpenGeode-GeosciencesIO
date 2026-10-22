@@ -100,6 +100,49 @@ namespace
             "Coordinates are not saved with full precision" );
     }
 
+    std::vector< std::array< geode::Point3D, 2 > > sorted_edge_points(
+        const geode::EdgedCurve3D& curve )
+    {
+        std::vector< std::array< geode::Point3D, 2 > > edges;
+        for( const auto e : geode::Range{ curve.nb_edges() } )
+        {
+            std::array< geode::Point3D, 2 > points{
+                curve.point( curve.edge_vertices( e )[0] ),
+                curve.point( curve.edge_vertices( e )[1] )
+            };
+            if( points[1] < points[0] )
+            {
+                std::swap( points[0], points[1] );
+            }
+            edges.push_back( points );
+        }
+        absl::c_sort( edges, []( const auto& lhs, const auto& rhs ) {
+            return lhs[0] < rhs[0] || ( lhs[0] == rhs[0] && lhs[1] < rhs[1] );
+        } );
+        return edges;
+    }
+
+    void test_closed_loop_output()
+    {
+        auto curve = geode::EdgedCurve3D::create();
+        auto builder = geode::EdgedCurveBuilder3D::create( *curve );
+        builder->create_point( geode::Point3D{ { 0, 0, 0 } } );
+        builder->create_point( geode::Point3D{ { 1, 0, 0 } } );
+        builder->create_point( geode::Point3D{ { 0, 1, 0 } } );
+        builder->create_point( geode::Point3D{ { 5, 5, 5 } } );
+        builder->create_point( geode::Point3D{ { 6, 5, 5 } } );
+        builder->create_edge( 0, 1 );
+        builder->create_edge( 1, 2 );
+        builder->create_edge( 2, 0 );
+        builder->create_edge( 3, 4 );
+        geode::save_edged_curve( *curve, "test_pl_closed_loop.pl" );
+        const auto reloaded =
+            geode::load_edged_curve< 3 >( "test_pl_closed_loop.pl" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            sorted_edge_points( *reloaded ) == sorted_edge_points( *curve ),
+            "Closed loop is not saved correctly" );
+    }
+
     void check_curve( const geode::EdgedCurve3D& curve,
         geode::index_t nb_vertices,
         geode::index_t nb_edges )
@@ -155,6 +198,7 @@ int main()
         test_blank_lines();
         test_invalid_segments();
         test_output_precision();
+        test_closed_loop_output();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }

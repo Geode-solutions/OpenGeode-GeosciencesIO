@@ -212,10 +212,11 @@ namespace
             while( nb_edges_done != edged_curve_.nb_edges() )
             {
                 const auto start_edge = starting_edge();
+                const auto loop_start = current_offset;
                 write_edge_and_vertex(
                     { start_edge, 0 }, current_offset, nb_edges_done );
                 file_ << "SEG" << SPACE << current_offset - 1 << SPACE
-                      << edged_curve_.edge_vertices( start_edge )[0] + 1 << EOL;
+                      << loop_start << EOL;
                 nb_edges_done++;
             }
         }
