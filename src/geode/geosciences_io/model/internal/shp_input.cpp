@@ -154,17 +154,34 @@ namespace
         void read_line(
             const OGRLineString& line_string, const geode::Line2D& line )
         {
-            const auto& curve = line.mesh();
+            const auto nb_points = nb_line_points( line_string );
+            if( nb_points < 2 )
+            {
+                geode::Logger::warning( "[SHPInput::read_line] Skipping a line "
+                                        "part with less than 2 points" );
+                return;
+            }
             auto curve_builder = builder_.line_mesh_builder( line );
             const auto start = read_points( line_string, line, *curve_builder );
-            for( const auto p : geode::Range{ start, curve.nb_vertices() - 1 } )
+            for( const auto p : geode::Range{ nb_points - 1 } )
             {
-                curve_builder->create_edge( p, p + 1 );
+                curve_builder->create_edge( start + p, start + p + 1 );
             }
-            if( line_string.get_IsClosed() )
+            if( line_string.get_IsClosed() && nb_points > 2 )
             {
-                curve_builder->create_edge( start, curve.nb_vertices() - 1 );
+                curve_builder->create_edge( start, start + nb_points - 1 );
             }
+        }
+
+        static geode::index_t nb_line_points( const OGRLineString& line_string )
+        {
+            const auto nb_points =
+                static_cast< geode::index_t >( line_string.getNumPoints() );
+            if( nb_points > 1 && line_string.get_IsClosed() )
+            {
+                return nb_points - 1;
+            }
+            return nb_points;
         }
 
         template < typename Builder >
@@ -172,9 +189,7 @@ namespace
             const geode::Component2D& component,
             Builder& mesh_builder )
         {
-            const auto nb_points = line_string.get_IsClosed()
-                                       ? line_string.getNumPoints() - 1
-                                       : line_string.getNumPoints();
+            const auto nb_points = nb_line_points( line_string );
             const auto start = mesh_builder.create_vertices( nb_points );
             const auto unique_start =
                 builder_.create_unique_vertices( nb_points );
@@ -233,9 +248,16 @@ namespace
             auto surface_builder = builder_.surface_mesh_builder( surface );
             for( const auto* line_string : polygon_string )
             {
+                const auto nb_vertices = nb_line_points( *line_string );
+                if( nb_vertices < 3 )
+                {
+                    geode::Logger::warning(
+                        "[SHPInput::read_polygon] Skipping a polygon ring "
+                        "with less than 3 points" );
+                    continue;
+                }
                 const auto start =
                     read_points( *line_string, surface, *surface_builder );
-                const auto nb_vertices = line_string->getNumPoints() - 1;
                 if( nb_vertices < geode::NO_LID )
                 {
                     absl::FixedArray< geode::index_t > vertices( nb_vertices );
