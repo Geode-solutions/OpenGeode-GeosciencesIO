@@ -222,6 +222,43 @@ void test_overflowing_grid()
     test_invalid_grid( filename, "" );
 }
 
+void test_sparse_attributes()
+{
+    // Each record has its own attribute key: values are stored per record
+    constexpr auto filename = "sparse_attributes_grid.json";
+    {
+        std::ofstream file{ filename };
+        file << "{\"grid_df\":[";
+        for( const auto record : geode::Range{ 1000 } )
+        {
+            file << ( record == 0 ? "" : "," ) << "{\"x\":" << record % 10
+                 << ",\"y\":" << ( record / 10 ) % 10
+                 << ",\"z\":" << record / 100 << ",\"key" << record
+                 << "\":" << record << "}";
+        }
+        file << "]}";
+    }
+    const auto grid = geode::load_light_regular_grid< 3 >( filename );
+    for( const auto record : { 0, 1, 517, 999 } )
+    {
+        const auto attribute =
+            find_attribute< double >( grid, absl::StrCat( "key", record ) );
+        const auto vertex =
+            grid.vertex_index( { static_cast< geode::index_t >( record % 10 ),
+                static_cast< geode::index_t >( ( record / 10 ) % 10 ),
+                static_cast< geode::index_t >( record / 100 ) } );
+        for( const auto other : geode::Range{ grid.nb_grid_vertices() } )
+        {
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                attribute->has_value( other ) == ( other == vertex ),
+                "Only one vertex should have a value for key", record );
+        }
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            attribute->value( vertex ) == record, "Wrong value for key",
+            record );
+    }
+}
+
 int main()
 {
     try
@@ -241,6 +278,7 @@ int main()
         test_unordered_records();
         test_invalid_grids();
         test_overflowing_grid();
+        test_sparse_attributes();
 
         geode::Logger::info( "[TEST SUCCESS]" );
 

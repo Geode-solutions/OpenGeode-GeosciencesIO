@@ -76,6 +76,12 @@ namespace
     using Column = std::vector< double >;
 
     /*
+     * (record, value) pairs of one attribute key, only for the records
+     * having a numeric value for this key
+     */
+    using SparseColumn = std::vector< std::pair< geode::index_t, double > >;
+
+    /*
      * SAX handler storing grid_df records column by column, so that the file
      * is never held in memory as a JSON document
      */
@@ -219,7 +225,8 @@ namespace
             return coordinates_;
         }
 
-        [[nodiscard]] const std::vector< std::pair< std::string, Column > >&
+        [[nodiscard]] const std::vector<
+            std::pair< std::string, SparseColumn > >&
             attributes() const
         {
             return attributes_;
@@ -237,17 +244,13 @@ namespace
         }
 
         /*
-         * Pads every column with NaN up to the number of records
+         * Pads every coordinate column with NaN up to the number of records
          */
         void finalize()
         {
             for( auto& coordinate : coordinates_ )
             {
                 coordinate.resize( nb_records_, NO_DATA );
-            }
-            for( auto& [name, values] : attributes_ )
-            {
-                values.resize( nb_records_, NO_DATA );
             }
         }
 
@@ -259,31 +262,29 @@ namespace
 
         bool number( double value )
         {
-            if( in_record() )
+            if( !in_record() )
             {
-                auto& values = column( current_key_ );
-                values.resize( nb_records_ + 1, NO_DATA );
-                values.back() = value;
+                return true;
             }
-            return true;
-        }
-
-        Column& column( const std::string& key )
-        {
             for( const auto axis : geode::LRange{ 3 } )
             {
-                if( key == COORDINATE_KEYS[axis] )
+                if( current_key_ == COORDINATE_KEYS[axis] )
                 {
-                    return coordinates_[axis];
+                    auto& values = coordinates_[axis];
+                    values.resize( nb_records_ + 1, NO_DATA );
+                    values.back() = value;
+                    return true;
                 }
             }
-            const auto [it, inserted] = attribute_ids_.try_emplace(
-                key, static_cast< geode::index_t >( attributes_.size() ) );
+            const auto [it, inserted] =
+                attribute_ids_.try_emplace( current_key_,
+                    static_cast< geode::index_t >( attributes_.size() ) );
             if( inserted )
             {
-                attributes_.emplace_back( key, Column{} );
+                attributes_.emplace_back( current_key_, SparseColumn{} );
             }
-            return attributes_[it->second].second;
+            attributes_[it->second].second.emplace_back( nb_records_, value );
+            return true;
         }
 
     private:
@@ -294,7 +295,7 @@ namespace
         std::string current_key_;
         geode::index_t nb_records_{ 0 };
         std::array< Column, 3 > coordinates_;
-        std::vector< std::pair< std::string, Column > > attributes_;
+        std::vector< std::pair< std::string, SparseColumn > > attributes_;
         absl::flat_hash_map< std::string, geode::index_t > attribute_ids_;
         absl::flat_hash_map< std::string, std::string > top_level_strings_;
         std::string error_;
@@ -511,14 +512,9 @@ namespace
                     default_values.default_value = false;
                     const auto attribute = create_attribute< bool >(
                         manager, name, std::move( default_values ) );
-                    for( const auto record_id : geode::Indices{ values } )
+                    for( const auto& [record_id, value] : values )
                     {
-                        const auto value = values[record_id];
-                        if( !std::isnan( value ) )
-                        {
-                            attribute->set_value(
-                                vertices[record_id], value != 0 );
-                        }
+                        attribute->set_value( vertices[record_id], value != 0 );
                     }
                     continue;
                 }
@@ -527,10 +523,9 @@ namespace
                 default_values.no_value = NO_DATA;
                 const auto attribute = create_attribute< double >(
                     manager, name, std::move( default_values ) );
-                for( const auto record_id : geode::Indices{ values } )
+                for( const auto& [record_id, value] : values )
                 {
-                    attribute->set_value(
-                        vertices[record_id], values[record_id] );
+                    attribute->set_value( vertices[record_id], value );
                 }
             }
         }
