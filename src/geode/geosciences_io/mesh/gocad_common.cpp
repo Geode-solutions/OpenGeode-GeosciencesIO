@@ -723,7 +723,9 @@ namespace
         {
             header.units = read_property_strings( line );
         }
-        else
+        else if( keyword != "FIXED" && keyword != "READ_ONLY"
+                 && keyword != "PROP_ALIGNMENT" && keyword != "PROP_UNIT"
+                 && keyword != "PROP_ORIGINAL_UNITS" )
         {
             return false;
         }
