@@ -26,6 +26,8 @@
 
 #include <geode/tests_config.hpp>
 
+#include <fstream>
+
 #include <geode/basic/assert.hpp>
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/logger.hpp>
@@ -67,6 +69,55 @@ void test_grid_input()
         third_value, " where it should be 7.21909" );
 }
 
+namespace
+{
+    std::unique_ptr< geode::RegularGrid3D > load_test_voxet(
+        std::string_view name,
+        std::string_view geometry,
+        std::string_view data )
+    {
+        const auto data_name = absl::StrCat( name, "__ascii@@" );
+        {
+            std::ofstream file{ data_name, std::ios::binary };
+            file << data;
+        }
+        const auto filename = absl::StrCat( name, ".vo" );
+        {
+            std::ofstream file{ filename, std::ios::binary };
+            file << "GOCAD Voxet 1\nHEADER {\nname: " << name << "\n}\n"
+                 << geometry << "ASCII_DATA_FILE " << data_name
+                 << "\nPROPERTY 1 p\nEND\n";
+        }
+        return geode::load_regular_grid< 3 >( filename );
+    }
+
+    constexpr auto SIMPLE_GEOMETRY =
+        "AXIS_O 0 0 0\nAXIS_U 1 0 0\nAXIS_V 0 1 0\nAXIS_W 0 0 1\n"
+        "AXIS_MIN 0 0 0\nAXIS_MAX 1 1 1\nAXIS_N 2 2 2\n";
+
+    double cell_value( const geode::RegularGrid3D& grid,
+        geode::index_t i,
+        geode::index_t j,
+        geode::index_t k )
+    {
+        const auto& manager = grid.cell_attribute_manager();
+        const auto attribute = manager.find_read_only_attribute< double >(
+            manager.attribute_ids_matching_name( "p" ).value().front() );
+        return attribute->value( grid.cell_index( { i, j, k } ) );
+    }
+
+    void test_cells_outside_grid()
+    {
+        const auto grid = load_test_voxet( "test_vo_outside", SIMPLE_GEOMETRY,
+            "*\n* I J K p\n*\n0 0 0 1\n2 0 0 2\n0 5 0 3\n0 0 1000000 4\n"
+            "1 1 1 5\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            cell_value( *grid, 0, 0, 0 ) == 1
+                && cell_value( *grid, 1, 1, 1 ) == 5,
+            "[TEST] Wrong values with cells outside of the grid" );
+    }
+} // namespace
+
 int main()
 {
     try
@@ -74,6 +125,7 @@ int main()
         geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
         geode::Logger::set_level( geode::Logger::LEVEL::debug );
         test_grid_input();
+        test_cells_outside_grid();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

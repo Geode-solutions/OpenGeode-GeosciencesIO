@@ -33,6 +33,7 @@
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/file.hpp>
 #include <geode/basic/filename.hpp>
+#include <geode/basic/logger.hpp>
 #include <geode/basic/string.hpp>
 #include <geode/basic/variable_attribute.hpp>
 
@@ -198,6 +199,7 @@ namespace
                             attribute_id );
             }
             std::getline( data_file, line );
+            geode::index_t nb_outside_cells{ 0 };
             while( std::getline( data_file, line ) )
             {
                 tokens = geode::string_split( line );
@@ -208,10 +210,17 @@ namespace
                     "got",
                     tokens.size(), ", should have ",
                     data_attributes.size() + 3 );
-                const auto cell_id =
-                    grid_.cell_index( { geode::string_to_index( tokens[0] ),
-                        geode::string_to_index( tokens[1] ),
-                        geode::string_to_index( tokens[2] ) } );
+                const std::array< geode::index_t, 3 > cell{
+                    geode::string_to_index( tokens[0] ),
+                    geode::string_to_index( tokens[1] ),
+                    geode::string_to_index( tokens[2] )
+                };
+                if( !is_cell_inside_grid( cell ) )
+                {
+                    nb_outside_cells++;
+                    continue;
+                }
+                const auto cell_id = grid_.cell_index( cell );
                 for( const auto attribute_id :
                     geode::Indices{ data_attributes } )
                 {
@@ -219,6 +228,26 @@ namespace
                         geode::string_to_double( tokens[3 + attribute_id] ) );
                 }
             }
+            if( nb_outside_cells > 0 )
+            {
+                geode::Logger::warning( "[VOInput::read_data_file] ",
+                    nb_outside_cells,
+                    " data lines reference cells outside of the grid, they "
+                    "are skipped" );
+            }
+        }
+
+        bool is_cell_inside_grid(
+            const std::array< geode::index_t, 3 >& cell ) const
+        {
+            for( const auto axis : geode::LRange{ 3 } )
+            {
+                if( cell[axis] >= grid_.nb_cells_in_direction( axis ) )
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
     private:
