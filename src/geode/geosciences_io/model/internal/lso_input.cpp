@@ -447,7 +447,7 @@ namespace
             geode::internal::create_attributes( tetrahedra_prop_header_,
                 tetrahedra_attributes_,
                 block_mesh.polyhedron_attribute_manager(),
-                block_mesh.nb_vertices(), inverse_vertex_mapping );
+                block_mesh.nb_polyhedra(), inverse_tetrahedra_mapping );
         }
 
         absl::flat_hash_map< geode::uuid, geode::index_t > find_block_relations(

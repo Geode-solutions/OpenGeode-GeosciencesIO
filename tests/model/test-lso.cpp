@@ -23,10 +23,16 @@
 
 #include <geode/tests_config.hpp>
 
+#include <cmath>
+
 #include <geode/basic/assert.hpp>
+#include <geode/basic/attribute.hpp>
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/filename.hpp>
 #include <geode/basic/logger.hpp>
+#include <geode/basic/types.hpp>
+
+#include <geode/geometry/point.hpp>
 
 #include <geode/mesh/core/solid_mesh.hpp>
 #include <geode/mesh/core/tetrahedral_solid.hpp>
@@ -138,6 +144,49 @@ void test_file( std::string file,
         nb_horizons, nb_block_internals, 0 );
 }
 
+void test_tetra_properties()
+{
+    const auto model = geode::load_structural_model(
+        absl::StrCat( geode::DATA_PATH, "lso_tetra_properties.lso" ) );
+    geode::index_t nb_tetrahedra{ 0 };
+    for( const auto& block : model.blocks() )
+    {
+        const auto& mesh = block.mesh();
+        const auto& manager = mesh.polyhedron_attribute_manager();
+        const auto x_ids = manager.attribute_ids_matching_name( "centroid_x" );
+        const auto y_ids = manager.attribute_ids_matching_name( "centroid_y" );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            x_ids && x_ids->size() == 1 && y_ids && y_ids->size() == 1,
+            "Tetrahedra properties not found" );
+        const auto centroid_x =
+            manager.find_read_only_attribute< double >( x_ids->front() );
+        const auto centroid_y =
+            manager.find_read_only_attribute< std::array< double, 2 > >(
+                y_ids->front() );
+        for( const auto t : geode::Range{ mesh.nb_polyhedra() } )
+        {
+            const auto barycenter = mesh.polyhedron_barycenter( t );
+            geode::OpenGeodeGeosciencesIOModelException::test(
+                std::fabs( centroid_x->value( t ) - barycenter.value( 0 ) )
+                    < geode::GLOBAL_EPSILON,
+                "Wrong tetrahedron property value on tetrahedron ", t,
+                " of Block ", block.name().value() );
+            for( const auto value : centroid_y->value( t ) )
+            {
+                geode::OpenGeodeGeosciencesIOModelException::test(
+                    std::fabs( value - barycenter.value( 1 ) )
+                        < geode::GLOBAL_EPSILON,
+                    "Wrong tetrahedron array property value on "
+                    "tetrahedron ",
+                    t, " of Block ", block.name().value() );
+            }
+            nb_tetrahedra++;
+        }
+    }
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        nb_tetrahedra == 292, "Wrong number of tetrahedra" );
+}
+
 int main()
 {
     try
@@ -152,6 +201,7 @@ int main()
         test_file( absl::StrCat( geode::DATA_PATH, "vri.",
                        geode::internal::LSOInput::extension() ),
             12, 20, 11, 2, 7, 0, 9 );
+        test_tetra_properties();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
