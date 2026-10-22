@@ -673,7 +673,7 @@ namespace geode::internal
     }
 
     template < typename Model >
-    std::string transfer_block_attribute( const Model& model,
+    std::optional< std::string > transfer_block_attribute( const Model& model,
         SolidMesh3D& solid,
         absl::Span< const index_t > block_polyhedra_offsets,
         const PhysicalProperties::Info& property_info,
@@ -692,12 +692,13 @@ namespace geode::internal
         {
             const auto& block_manager =
                 block.mesh().polyhedron_attribute_manager();
-            OpenGeodeGeosciencesIOModelException::check_exception(
-                block_manager.attribute_exists( attribute_id ), nullptr,
-                OpenGeodeException::TYPE::data,
-                "[GeosExporter] Physical property attribute ",
-                attribute_id.string(), " is missing on Block ",
-                block.id().string(), "." );
+            if( !block_manager.attribute_exists( attribute_id ) )
+            {
+                Logger::warning( "[GeosExporter] Physical property attribute ",
+                    attribute_id.string(), " is missing on Block ",
+                    block.id().string(), ", it is not exported." );
+                return std::nullopt;
+            }
             const auto type = block_manager.attribute_type( attribute_id );
             if( !attribute_type )
             {
@@ -1208,26 +1209,6 @@ namespace geode::internal
     }
 
     template < typename Model >
-    bool GeosExporterImpl< Model >::check_property_name(
-        std::string_view property_name ) const
-    {
-        for( const auto& block : model_.blocks() )
-        {
-            if( !block.mesh()
-                    .polyhedron_attribute_manager()
-                    .attribute_ids_matching_name( property_name )
-                    .has_value() )
-            {
-                Logger::info( "The property ", property_name,
-                    " will not be exported because it is not defined on "
-                    "every block of the model." );
-                return false;
-            }
-        }
-        return true;
-    }
-
-    template < typename Model >
     void GeosExporterImpl< Model >::transfer_physical_properties()
     {
         for( const auto& [property, geos_name] : PHYSICAL_PROPERTY_GEOS_NAMES )
@@ -1241,8 +1222,12 @@ namespace geode::internal
             auto attribute_name =
                 transfer_block_attribute( model_, *model_solid_,
                     block_polyhedra_offsets_, property_info, geos_name );
+            if( !attribute_name )
+            {
+                continue;
+            }
             imported_fields_.emplace_back(
-                std::move( attribute_name ), to_string( geos_name ) );
+                std::move( attribute_name.value() ), to_string( geos_name ) );
             if( property == PHYSICAL_PROPERTY_NAME::porosity )
             {
                 porosity_attribute_id_ = property_info.attribute_id;

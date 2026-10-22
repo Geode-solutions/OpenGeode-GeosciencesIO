@@ -126,14 +126,12 @@ namespace geode::internal
         void write_boundary_conditions( pugi::xml_node& root ) const;
         void write_boundary_functions( pugi::xml_node& root ) const;
 
-        bool check_property_name( std::string_view property_name ) const;
         void transfer_physical_properties();
         void transfer_boundary_conditions();
         void transfer_boundary_condition( const uuid& attribute_id,
             std::string_view field_name,
             std::string_view name_prefix,
             std::optional< local_index_t > component );
-        void delete_mapping_attributes();
 
         std::string write_solid_file() const;
         void duplicate_imported_fields(

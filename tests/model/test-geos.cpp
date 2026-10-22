@@ -1304,6 +1304,32 @@ void test_boundary_table_face_centers()
         "[Test] Boundary table coordinates are not the face centers" );
 }
 
+void test_property_missing_on_block()
+{
+    auto model = tetrahedra_brep( 2, geode::Point3D{ { 0., 0., 0. } } );
+    const geode::uuid attribute_id;
+    geode::AttributeValues< double > values;
+    values.default_value = 0.1;
+    for( const auto& block : model.blocks() )
+    {
+        block.mesh()
+            .polyhedron_attribute_manager()
+            .create_attribute< geode::VariableAttribute, double >(
+                "poro", attribute_id, values, {} );
+        break;
+    }
+    geode::BRepBuilder{ model }.set_physical_property(
+        geode::PHYSICAL_PROPERTY_NAME::porosity,
+        geode::Block3D::component_type_static(), attribute_id );
+    geode::BRepGeosExporter exporter( model, "missing_property" );
+    exporter.run();
+    const auto xml =
+        read_file( "missing_property/missing_property_simulation.xml" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        count_occurrences( xml, "fieldsToImport" ) == 0,
+        "[Test] A property missing on a Block should not be exported" );
+}
+
 int main()
 {
     try
@@ -1320,6 +1346,7 @@ int main()
         test_run_twice();
         test_output_directories();
         test_boundary_table_face_centers();
+        test_property_missing_on_block();
         test_picasso();
         test_uniform_variable_boundary_condition();
         test_variable_boundary_condition();
