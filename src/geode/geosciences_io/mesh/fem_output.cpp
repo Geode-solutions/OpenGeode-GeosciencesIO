@@ -318,28 +318,30 @@ namespace
             return att_dist;
         }
 
-        void write_ref_nodal_dist()
+        static std::vector< std::shared_ptr< geode::AttributeBase > >
+            exported_attributes( const geode::AttributeManager& manager )
         {
-            geode::index_t nb_vertex_att{ 3 };
             std::vector< std::shared_ptr< geode::AttributeBase > > attributes;
-            attributes.reserve(
-                solid_.vertex_attribute_manager().attribute_ids().size() );
-            for( const auto id :
-                solid_.vertex_attribute_manager().attribute_ids() )
+            for( const auto& id : manager.attribute_ids() )
             {
-                const auto attribute =
-                    solid_.vertex_attribute_manager().find_generic_attribute(
-                        id );
+                auto attribute = manager.find_generic_attribute( id );
                 if( !attribute || !attribute->is_genericable()
                     || !attribute->properties().transferable )
                 {
                     continue;
                 }
-                attributes.push_back( attribute );
-                nb_vertex_att++;
+                attributes.push_back( std::move( attribute ) );
             }
+            return attributes;
+        }
+
+        void write_ref_nodal_dist()
+        {
+            static constexpr geode::index_t NB_COORDINATES{ 3 };
+            const auto attributes =
+                exported_attributes( solid_.vertex_attribute_manager() );
             file_ << "REF_DIS_I" << EOL;
-            file_ << SPACE << nb_vertex_att << "," << SPACE
+            file_ << SPACE << NB_COORDINATES + attributes.size() << "," << SPACE
                   << solid_.nb_vertices() << ","
                   << " 0" << EOL;
             write_xyz_dist();
@@ -468,23 +470,14 @@ namespace
 
         void write_ref_element_dist()
         {
+            const auto attributes =
+                exported_attributes( solid_.polyhedron_attribute_manager() );
             file_ << "REF_DISE_I" << EOL;
-            int nb_elem_att =
-                solid_.polyhedron_attribute_manager().attribute_ids().size()
-                - 3;
-            file_ << SPACE << nb_elem_att << "," << SPACE
+            file_ << SPACE << attributes.size() << "," << SPACE
                   << solid_.nb_polyhedra() << ","
                   << " 0" << EOL;
-            for( const auto id :
-                solid_.polyhedron_attribute_manager().attribute_ids() )
+            for( const auto& attribute : attributes )
             {
-                const auto attribute = solid_.polyhedron_attribute_manager()
-                                           .find_generic_attribute( id );
-                if( !attribute || !attribute->is_genericable()
-                    || !attribute->properties().transferable )
-                {
-                    continue;
-                }
                 write_property( *attribute, solid_.nb_polyhedra() );
             }
         }

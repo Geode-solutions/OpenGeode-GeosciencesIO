@@ -404,6 +404,38 @@ namespace
             "[Test] Wrong aperture value" );
     }
 
+    void test_distribution_counts()
+    {
+        auto solid = create_solid();
+        geode::save_tetrahedral_solid( *solid, "test_counts_empty.fem" );
+        auto lines = read_lines( "test_counts_empty.fem" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            lines.at( find_line( lines, "REF_DIS_I" ).value() + 1 )
+                == " 3, 5, 0",
+            "[Test] Wrong REF_DIS_I count without attribute" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            lines.at( find_line( lines, "REF_DISE_I" ).value() + 1 )
+                == " 0, 2, 0",
+            "[Test] Wrong REF_DISE_I count without attribute" );
+
+        create_attribute< double >(
+            solid->vertex_attribute_manager(), "vertex_count", 1 );
+        create_attribute< double >(
+            solid->polyhedron_attribute_manager(), "polyhedron_count", 1 );
+        create_attribute< std::string >(
+            solid->polyhedron_attribute_manager(), "polyhedron_string", "a" );
+        geode::save_tetrahedral_solid( *solid, "test_counts.fem" );
+        lines = read_lines( "test_counts.fem" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            lines.at( find_line( lines, "REF_DIS_I" ).value() + 1 )
+                == " 4, 5, 0",
+            "[Test] Wrong REF_DIS_I count" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            lines.at( find_line( lines, "REF_DISE_I" ).value() + 1 )
+                == " 1, 2, 0",
+            "[Test] Wrong REF_DISE_I count" );
+    }
+
     void test_solid_fem_output()
     {
         auto tet_solid = geode::load_tetrahedral_solid< 3 >(
@@ -440,6 +472,7 @@ int main()
         test_facet_conductivity();
         test_wrong_feature_attribute_type();
         test_double_precision();
+        test_distribution_counts();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }
