@@ -94,7 +94,8 @@ namespace geode::internal
         absl::Span< const std::vector< double > > attributes_values,
         geode::AttributeManager& attribute_manager,
         geode::index_t nb_vertices,
-        absl::Span< const geode::index_t > inverse_vertex_mapping );
+        absl::Span< const geode::index_t > inverse_vertex_mapping,
+        geode::index_t vertex_offset = 0 );
 
     void opengeode_geosciencesio_mesh_api write_prop_header(
         std::ofstream& file, const PropHeaderData& data );

@@ -142,6 +142,25 @@ namespace
         geode::OpenGeodeGeosciencesIOMeshException::test(
             vertex_value( *surface, "p", 2 ) == 13,
             "Wrong property value with partial property header" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            vertex_value( *surface, "b", 5 ) == 33
+                && vertex_value( *surface, "b", 0 ) == -2
+                && vertex_value( *surface, "p", 4 ) == -99999,
+            "Wrong property value in second TSurf" );
+    }
+
+    void test_multiple_tsurf_properties()
+    {
+        const auto surface = load_test_file( "test_ts_multi_properties.ts",
+            "GOCAD TSurf 1\nHEADER {\nname: s1\n}\nPROPERTIES p\nESIZES 1\n"
+            "TFACE\nPVRTX 1 0 0 1 11\nPVRTX 2 1 0 1 12\nPVRTX 3 0 1 1 13\n"
+            "TRGL 1 2 3\nEND\nGOCAD TSurf 1\nHEADER {\nname: s2\n}\n"
+            "PROPERTIES p\nESIZES 1\nTFACE\nPVRTX 1 0 0 2 21\n"
+            "PVRTX 2 1 0 2 22\nPVRTX 3 0 1 2 23\nTRGL 1 2 3\nEND\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            vertex_value( *surface, "p", 1 ) == 12
+                && vertex_value( *surface, "p", 4 ) == 22,
+            "Wrong property values with several TSurf" );
     }
 
     void test_object_header_order()
@@ -236,6 +255,7 @@ int main()
         test_invalid_indices();
         test_partial_property_header();
         test_object_header_order();
+        test_multiple_tsurf_properties();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

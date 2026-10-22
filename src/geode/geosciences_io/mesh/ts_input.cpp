@@ -97,7 +97,7 @@ namespace
                 tsurf.vertices_properties_header,
                 tsurf.vertices_attribute_values,
                 surface_.vertex_attribute_manager(), tsurf.points.size(),
-                inverse_vertex_mapping );
+                inverse_vertex_mapping, offset );
         }
 
     private:

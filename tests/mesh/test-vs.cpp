@@ -69,6 +69,24 @@ namespace
             "Wrong points.vs normal value" );
     }
 
+    void test_multiple_vset_properties()
+    {
+        const auto pointset = load_test_file( "test_vs_multi_properties.vs",
+            "GOCAD VSet 1\nHEADER {\nname: a\n}\nPROPERTIES p\n"
+            "PVRTX 1 0 0 0 1\nPVRTX 2 1 0 0 2\nEND\nGOCAD VSet 1\n"
+            "HEADER {\nname: b\n}\nPROPERTIES p\nPVRTX 1 0 1 0 3\nEND\n" );
+        const auto& manager = pointset->vertex_attribute_manager();
+        const auto ids = manager.attribute_ids_matching_name( "p" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            pointset->nb_vertices() == 3 && ids.has_value() && ids->size() == 1,
+            "Wrong point set with several VSet" );
+        const auto attribute =
+            manager.find_read_only_attribute< double >( ids->front() );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            attribute->value( 0 ) == 1 && attribute->value( 2 ) == 3,
+            "Wrong property values with several VSet" );
+    }
+
     void test_blank_lines()
     {
         const auto pointset = load_test_file( "test_vs_blank_lines.vs",
@@ -147,6 +165,7 @@ int main()
         test_quotes();
         test_blank_lines();
         test_points_normal();
+        test_multiple_vset_properties();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

@@ -682,16 +682,29 @@ namespace
     }
 
     template < typename Container >
-    void add_vertices_container_attribute( std::string_view attribute_name,
-        absl::Span< const double > attribute_values,
-        geode::AttributeManager& attribute_manager,
-        geode::index_t nb_vertices,
-        absl::Span< const geode::index_t > inverse_mapping,
-        Container value_array )
+    std::shared_ptr< geode::VariableAttribute< Container > >
+        find_or_create_attribute( geode::AttributeManager& attribute_manager,
+            std::string_view attribute_name,
+            const Container& no_value )
     {
+        if( const auto attribute_ids =
+                attribute_manager.attribute_ids_matching_name(
+                    attribute_name ) )
+        {
+            for( const auto& attribute_id : attribute_ids.value() )
+            {
+                if( auto attribute = std::dynamic_pointer_cast<
+                        geode::VariableAttribute< Container > >(
+                        attribute_manager.find_generic_attribute(
+                            attribute_id ) ) )
+                {
+                    return attribute;
+                }
+            }
+        }
         geode::AttributeValues< Container > default_attribute_values;
-        default_attribute_values.default_value = value_array;
-        default_attribute_values.no_value = value_array;
+        default_attribute_values.default_value = no_value;
+        default_attribute_values.no_value = no_value;
         geode::AttributeProperties attribute_properties;
         attribute_properties.assignable = false;
         attribute_properties.interpolable = false;
@@ -699,10 +712,39 @@ namespace
         const auto attribute_id = attribute_manager.template create_attribute<
             geode::VariableAttribute, Container >(
             attribute_name, default_attribute_values, attribute_properties );
-        auto attribute =
-            attribute_manager
-                .find_attribute< geode::VariableAttribute, Container >(
-                    attribute_id );
+        return attribute_manager
+            .find_attribute< geode::VariableAttribute, Container >(
+                attribute_id );
+    }
+
+    void add_vertices_double_attribute( std::string_view attribute_name,
+        absl::Span< const double > attribute_values,
+        geode::AttributeManager& attribute_manager,
+        geode::index_t nb_vertices,
+        absl::Span< const geode::index_t > inverse_mapping,
+        double no_value,
+        geode::index_t vertex_offset )
+    {
+        auto attribute = find_or_create_attribute(
+            attribute_manager, attribute_name, no_value );
+        for( const auto pt_id : geode::Range{ nb_vertices } )
+        {
+            attribute->set_value( vertex_offset + pt_id,
+                attribute_values[inverse_mapping[pt_id]] );
+        }
+    }
+
+    template < typename Container >
+    void add_vertices_container_attribute( std::string_view attribute_name,
+        absl::Span< const double > attribute_values,
+        geode::AttributeManager& attribute_manager,
+        geode::index_t nb_vertices,
+        absl::Span< const geode::index_t > inverse_mapping,
+        Container value_array,
+        geode::index_t vertex_offset )
+    {
+        auto attribute = find_or_create_attribute(
+            attribute_manager, attribute_name, value_array );
         for( const auto pt_id : geode::Range{ nb_vertices } )
         {
             for( const auto item_id : geode::LRange{ value_array.size() } )
@@ -711,7 +753,7 @@ namespace
                     attribute_values[inverse_mapping[pt_id] * value_array.size()
                                      + item_id];
             }
-            attribute->set_value( pt_id, value_array );
+            attribute->set_value( vertex_offset + pt_id, value_array );
         }
     }
 } // namespace
@@ -866,64 +908,42 @@ namespace geode::internal
         absl::Span< const std::vector< double > > attributes_values,
         geode::AttributeManager& attribute_manager,
         geode::index_t nb_vertices,
-        absl::Span< const geode::index_t > inverse_vertex_mapping )
+        absl::Span< const geode::index_t > inverse_vertex_mapping,
+        geode::index_t vertex_offset )
     {
         for( const auto attr_id : geode::Indices{ attributes_header.names } )
         {
+            const auto& name = attributes_header.names[attr_id];
+            const auto no_data = attributes_header.no_data_values[attr_id];
             const auto nb_attribute_items = attributes_header.esizes[attr_id];
             if( nb_attribute_items == 1 )
             {
-                geode::AttributeValues< double > attribute_values;
-                attribute_values.default_value =
-                    attributes_header.no_data_values[attr_id];
-                attribute_values.no_value =
-                    attributes_header.no_data_values[attr_id];
-                geode::AttributeProperties attribute_properties;
-                attribute_properties.assignable = false;
-                attribute_properties.interpolable = false;
-                attribute_properties.transferable = true;
-                const auto attribute_id =
-                    attribute_manager
-                        .create_attribute< geode::VariableAttribute, double >(
-                            attributes_header.names[attr_id], attribute_values,
-                            attribute_properties );
-                auto attribute =
-                    attribute_manager
-                        .find_attribute< geode::VariableAttribute, double >(
-                            attribute_id );
-                for( const auto pt_id : geode::Range{ nb_vertices } )
-                {
-                    attribute->set_value( pt_id,
-                        attributes_values[attr_id]
-                                         [inverse_vertex_mapping[pt_id]] );
-                }
+                add_vertices_double_attribute( name, attributes_values[attr_id],
+                    attribute_manager, nb_vertices, inverse_vertex_mapping,
+                    no_data, vertex_offset );
             }
             else if( nb_attribute_items == 2 )
             {
                 std::array< double, 2 > container;
-                container.fill( attributes_header.no_data_values[attr_id] );
-                add_vertices_container_attribute(
-                    attributes_header.names[attr_id],
+                container.fill( no_data );
+                add_vertices_container_attribute( name,
                     attributes_values[attr_id], attribute_manager, nb_vertices,
-                    inverse_vertex_mapping, container );
+                    inverse_vertex_mapping, container, vertex_offset );
             }
             else if( nb_attribute_items == 3 )
             {
                 std::array< double, 3 > container;
-                container.fill( attributes_header.no_data_values[attr_id] );
-                add_vertices_container_attribute(
-                    attributes_header.names[attr_id],
+                container.fill( no_data );
+                add_vertices_container_attribute( name,
                     attributes_values[attr_id], attribute_manager, nb_vertices,
-                    inverse_vertex_mapping, container );
+                    inverse_vertex_mapping, container, vertex_offset );
             }
             else
             {
-                std::vector< double > container( nb_attribute_items,
-                    attributes_header.no_data_values[attr_id] );
-                add_vertices_container_attribute<>(
-                    attributes_header.names[attr_id],
+                std::vector< double > container( nb_attribute_items, no_data );
+                add_vertices_container_attribute( name,
                     attributes_values[attr_id], attribute_manager, nb_vertices,
-                    inverse_vertex_mapping, container );
+                    inverse_vertex_mapping, container, vertex_offset );
             }
         }
     }

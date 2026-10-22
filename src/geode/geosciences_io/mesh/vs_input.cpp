@@ -61,6 +61,7 @@ namespace
     private:
         void build_point_set( const geode::internal::VSetData& vertex_set )
         {
+            const auto offset = point_set_.nb_vertices();
             if( vertex_set.header.name )
             {
                 builder_->set_name( vertex_set.header.name.value() );
@@ -76,7 +77,7 @@ namespace
                 vertex_set.vertices_properties_header,
                 vertex_set.vertices_attribute_values,
                 point_set_.vertex_attribute_manager(), vertex_set.points.size(),
-                inverse_vertex_mapping );
+                inverse_vertex_mapping, offset );
         }
 
     private:
