@@ -360,7 +360,12 @@ namespace
                         l++;
                     }
                 }
-                if( lines.size() < 2 )
+                if( lines.size() == 1 )
+                {
+                    register_line_data( surface, lines.front() );
+                    continue;
+                }
+                if( lines.empty() )
                 {
                     continue;
                 }

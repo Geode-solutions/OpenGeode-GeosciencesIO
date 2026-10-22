@@ -31,7 +31,11 @@
 #include <geode/basic/assert.hpp>
 #include <geode/basic/logger.hpp>
 
+#include <geode/mesh/core/edged_curve.hpp>
+#include <geode/mesh/core/surface_mesh.hpp>
+
 #include <geode/model/mixin/core/block.hpp>
+#include <geode/model/mixin/core/line.hpp>
 #include <geode/model/mixin/core/model_boundary.hpp>
 #include <geode/model/mixin/core/surface.hpp>
 
@@ -468,6 +472,54 @@ void test_small_regions()
         "Block should have 3 boundary Surfaces and 1 internal Surface" );
 }
 
+// Square bordered by a single closed Line
+std::string square_ml()
+{
+    return "GOCAD Model3d 1\n"
+           "HEADER {\n"
+           "name: square\n"
+           "}\n"
+           "TSURF square\n"
+           "TFACE 1 boundary square\n"
+           "  0 0 0\n"
+           "  1 0 0\n"
+           "  1 1 0\n"
+           "REGION 2  Universe \n"
+           "  +1  0\n"
+           "END\n"
+           "GOCAD TSurf 1\n"
+           "HEADER {\n"
+           "name: square\n"
+           "}\n"
+           "TFACE\n"
+           "VRTX 1 0 0 0\n"
+           "VRTX 2 1 0 0\n"
+           "VRTX 3 1 1 0\n"
+           "VRTX 4 0 1 0\n"
+           "TRGL 1 2 3\n"
+           "TRGL 1 3 4\n"
+           "BSTONE 1\n"
+           "BORDER 5 1 2\n"
+           "END\n";
+}
+
+void test_single_line_surface()
+{
+    const auto model = load_ml( "single_line_surface.ml", square_ml() );
+    check_model( model, 1, 1, 1, 0, 0, 0, 1 );
+    const auto& surface = *model.surfaces().begin();
+    const auto& line = *model.lines().begin();
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        line.mesh().nb_vertices() == 5, "Closed Line should have 5 vertices" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        model.is_boundary( line, surface )
+            && !model.is_internal( line, surface ),
+        "Single Line should be a boundary of the Surface" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        surface.mesh().nb_vertices() == 4,
+        "Surface should not have been split along its Line" );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -560,6 +612,7 @@ int main()
         test_invalid_tfaces();
         test_region_ids();
         test_small_regions();
+        test_single_line_surface();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
