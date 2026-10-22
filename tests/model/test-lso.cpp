@@ -23,13 +23,21 @@
 
 #include <geode/tests_config.hpp>
 
+#include <absl/strings/match.h>
+#include <absl/strings/str_cat.h>
+
 #include <cmath>
+#include <fstream>
+#include <functional>
+#include <string>
+#include <vector>
 
 #include <geode/basic/assert.hpp>
 #include <geode/basic/attribute.hpp>
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/filename.hpp>
 #include <geode/basic/logger.hpp>
+#include <geode/basic/string.hpp>
 #include <geode/basic/types.hpp>
 
 #include <geode/geometry/point.hpp>
@@ -144,6 +152,112 @@ void test_file( std::string file,
         nb_horizons, nb_block_internals, 0 );
 }
 
+std::vector< std::string > read_lines( std::string_view file )
+{
+    std::ifstream input{ geode::to_string( file ) };
+    std::vector< std::string > lines;
+    std::string line;
+    while( std::getline( input, line ) )
+    {
+        if( !line.empty() && line.back() == '\r' )
+        {
+            line.pop_back();
+        }
+        lines.push_back( line );
+    }
+    return lines;
+}
+
+std::string write_modified_vri( std::string_view name,
+    const std::function< void( std::vector< std::string >& ) >& modifier )
+{
+    auto lines = read_lines( absl::StrCat( geode::DATA_PATH, "vri.", "lso" ) );
+    modifier( lines );
+    const auto filename = absl::StrCat( name, ".lso" );
+    std::ofstream output{ filename };
+    for( const auto& line : lines )
+    {
+        output << line << "\n";
+    }
+    return filename;
+}
+
+geode::index_t find_line( const std::vector< std::string >& lines,
+    std::string_view start,
+    geode::index_t from = 0 )
+{
+    for( const auto i : geode::Range{ from, lines.size() } )
+    {
+        if( absl::StartsWith( lines[i], start ) )
+        {
+            return i;
+        }
+    }
+    throw geode::OpenGeodeGeosciencesIOModelException{ nullptr,
+        geode::OpenGeodeException::TYPE::data, "Line not found: ", start };
+}
+
+geode::index_t count_tetrahedra( const geode::StructuralModel& model )
+{
+    geode::index_t count{ 0 };
+    for( const auto& block : model.blocks() )
+    {
+        count += block.mesh().nb_polyhedra();
+    }
+    return count;
+}
+
+void check_load_throws( std::string_view file )
+{
+    try
+    {
+        const auto model = geode::load_structural_model( file );
+    }
+    catch( const geode::OpenGeodeException& exception )
+    {
+        geode::Logger::info( "Expected exception: ", exception.what() );
+        return;
+    }
+    throw geode::OpenGeodeGeosciencesIOModelException{ nullptr,
+        geode::OpenGeodeException::TYPE::data,
+        "Loading should have thrown an OpenGeodeException: ", file };
+}
+
+void test_malformed_tokens()
+{
+    check_load_throws( write_modified_vri(
+        "lso_truncated_after_tetra", []( std::vector< std::string >& lines ) {
+            lines.resize( find_line( lines, "TETRA " ) + 1 );
+        } ) );
+    check_load_throws( write_modified_vri(
+        "lso_short_tetra", []( std::vector< std::string >& lines ) {
+            lines[find_line( lines, "TETRA " )] = "TETRA 1 2 3";
+        } ) );
+    check_load_throws( write_modified_vri(
+        "lso_short_vertex", []( std::vector< std::string >& lines ) {
+            lines[find_line( lines, "PVRTX 5 " )] = "PVRTX 5 0.5";
+        } ) );
+    check_load_throws( write_modified_vri(
+        "lso_short_shared", []( std::vector< std::string >& lines ) {
+            lines[find_line( lines, "SHAREDPVRTX" )] = "SHAREDPVRTX 104";
+        } ) );
+    check_load_throws( write_modified_vri(
+        "lso_short_triangle", []( std::vector< std::string >& lines ) {
+            lines[find_line( lines, "TRGL" )] = "TRGL 1 2";
+        } ) );
+    check_load_throws( write_modified_vri(
+        "lso_short_region", []( std::vector< std::string >& lines ) {
+            lines[find_line( lines, "MODEL_REGION" )] = "MODEL_REGION";
+        } ) );
+    const auto model = geode::load_structural_model( write_modified_vri(
+        "lso_missing_ctetra", []( std::vector< std::string >& lines ) {
+            lines.erase( lines.begin() + find_line( lines, "# CTETRA" ) );
+        } ) );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        count_tetrahedra( model ) == 291,
+        "Wrong number of tetrahedra with missing CTETRA line" );
+}
+
 void test_tetra_properties()
 {
     const auto model = geode::load_structural_model(
@@ -202,6 +316,7 @@ int main()
                        geode::internal::LSOInput::extension() ),
             12, 20, 11, 2, 7, 0, 9 );
         test_tetra_properties();
+        test_malformed_tokens();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

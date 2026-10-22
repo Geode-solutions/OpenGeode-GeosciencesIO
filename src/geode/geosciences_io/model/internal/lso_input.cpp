@@ -29,6 +29,7 @@
 #include <absl/strings/match.h>
 
 #include <geode/basic/file.hpp>
+#include <geode/basic/logger.hpp>
 #include <geode/basic/string.hpp>
 #include <geode/basic/variable_attribute.hpp>
 
@@ -207,7 +208,7 @@ namespace
         {
             const auto tokens = get_tokens();
             const auto unique_id =
-                geode::string_to_index( tokens[2] ) - OFFSET_START;
+                geode::string_to_index( token( tokens, 2 ) ) - OFFSET_START;
             return { solid_->point( unique_id ), unique_id };
         }
 
@@ -217,7 +218,8 @@ namespace
             const auto tokens = get_tokens();
             for( const auto i : geode::LRange{ 3 } )
             {
-                const auto value = geode::string_to_double( tokens[i + 2] );
+                const auto value =
+                    geode::string_to_double( token( tokens, i + 2 ) );
                 point.set_value( i, value );
             }
             point.set_value(
@@ -237,26 +239,49 @@ namespace
 
         void read_tetrahedra()
         {
-            do
+            while( is_tetrahedron_line() )
             {
                 const auto tokens = get_tokens();
                 std::array< geode::index_t, 4 > vertices;
                 for( const auto i : geode::LRange{ 4 } )
                 {
                     vertices[i] =
-                        geode::string_to_index( tokens[i + 1] ) - OFFSET_START;
+                        geode::string_to_index( token( tokens, i + 1 ) )
+                        - OFFSET_START;
                 }
                 const auto tetra_id =
                     solid_builder_->create_tetrahedron( vertices );
                 geode::internal::read_properties( tetrahedra_prop_header_,
                     tetrahedra_attributes_, tokens, 5 );
-                std::getline( file_, line_ );
-                const auto tokens2 = get_tokens();
+                if( !std::getline( file_, line_ ) )
+                {
+                    line_.clear();
+                    break;
+                }
+                if( !geode::string_starts_with( line_, "# CTETRA" ) )
+                {
+                    inspect_required_ = true;
+                    geode::Logger::warning( "[LSOInput] Missing \"# CTETRA\" "
+                                            "line after tetrahedron ",
+                        tetra_id + OFFSET_START,
+                        ", it will not be assigned to any region." );
+                    continue;
+                }
+                const auto block_tokens = get_tokens();
                 block_name_attribute_->set_value(
-                    tetra_id, geode::to_string( tokens2[2] ) );
-            } while( std::getline( file_, line_ )
-                     && geode::string_starts_with( line_, "TETRA" ) );
+                    tetra_id, geode::to_string( token( block_tokens, 2 ) ) );
+                if( !std::getline( file_, line_ ) )
+                {
+                    line_.clear();
+                }
+            }
             solid_builder_->compute_polyhedron_adjacencies();
+        }
+
+        bool is_tetrahedron_line() const
+        {
+            const auto tokens = get_tokens();
+            return !tokens.empty() && tokens.front() == "TETRA";
         }
 
         void read_tetrahedra_region_indicators()
@@ -323,7 +348,8 @@ namespace
                 for( const auto i : geode::LRange{ 3 } )
                 {
                     const auto value =
-                        geode::string_to_index( tokens[i + 1] ) - OFFSET_START;
+                        geode::string_to_index( token( tokens, i + 1 ) )
+                        - OFFSET_START;
                     facet_vertices[i] = value;
                     const auto it = vertex_mapping.find( value );
                     if( it != vertex_mapping.end() )
@@ -390,7 +416,8 @@ namespace
                 const auto block_id =
                     builder_.add_block( geode::MeshFactory::default_impl(
                         geode::TetrahedralSolid3D::type_name_static() ) );
-                builder_.set_block_name( model_.block( block_id ), tokens[1] );
+                builder_.set_block_name(
+                    model_.block( block_id ), token( tokens, 1 ) );
                 build_block_mesh( block_id );
                 build_block_relations( block_id );
                 std::getline( file_, line_ );
@@ -615,6 +642,16 @@ namespace
         std::vector< std::string_view > get_tokens() const
         {
             return geode::string_split( line_ );
+        }
+
+        std::string_view token( absl::Span< const std::string_view > tokens,
+            geode::index_t position ) const
+        {
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                position < tokens.size(), nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[LSOInput] Missing value in line \"", line_, "\"" );
+            return tokens[position];
         }
 
         void build_lines()
