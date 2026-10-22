@@ -136,6 +136,41 @@ void test_pixel_orientation()
     }
 }
 
+void test_logger_level_on_error()
+{
+    const auto filename = "raster_geotiff_missing_source.tif";
+    {
+        std::ofstream vrt{ filename };
+        vrt << "<VRTDataset rasterXSize=\"3\" rasterYSize=\"2\">\n"
+            << "  <GeoTransform>100, 10, 0, 500, 0, -10</GeoTransform>\n"
+            << "  <VRTRasterBand dataType=\"Byte\" band=\"1\">\n"
+            << "    <SimpleSource>\n"
+            << "      <SourceFilename relativeToVRT=\"1\">"
+               "raster_geotiff_does_not_exist.tif</SourceFilename>\n"
+            << "      <SourceBand>1</SourceBand>\n"
+            << "      <SourceProperties RasterXSize=\"3\" RasterYSize=\"2\" "
+               "DataType=\"Byte\" BlockXSize=\"3\" BlockYSize=\"2\"/>\n"
+            << "    </SimpleSource>\n"
+            << "  </VRTRasterBand>\n"
+            << "</VRTDataset>\n";
+    }
+    const auto level = geode::Logger::level();
+    bool thrown{ false };
+    try
+    {
+        const auto grid = geode::load_light_regular_grid< 2 >( filename );
+    }
+    catch( const geode::OpenGeodeException& )
+    {
+        thrown = true;
+    }
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        thrown, "Loading a raster with a missing source should throw" );
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        geode::Logger::level() == level,
+        "Logger level should be restored after a loading error" );
+}
+
 int main()
 {
     try
@@ -149,6 +184,7 @@ int main()
         geode::save_light_regular_grid( grid, "cea.vti" );
 
         test_pixel_orientation();
+        test_logger_level_on_error();
 
         geode::Logger::info( "[TEST SUCCESS]" );
 

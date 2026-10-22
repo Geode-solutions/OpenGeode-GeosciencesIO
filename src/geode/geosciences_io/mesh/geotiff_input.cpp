@@ -53,15 +53,39 @@ namespace
 
         geode::LightRegularGrid2D read_file()
         {
-            const auto level = geode::Logger::level();
-            geode::Logger::set_level( geode::Logger::LEVEL::critical );
-            const auto raster = geode::load_raster_image< 2 >( filename_ );
-            geode::Logger::set_level( level );
+            const auto raster = load_raster_quietly();
             return geode::convert_raster_image_into_grid(
                 raster, bottom_up_coordinate_system() );
         }
 
     private:
+        geode::RasterImage2D load_raster_quietly() const
+        {
+            class LoggerLevelRestorer
+            {
+            public:
+                LoggerLevelRestorer() : level_{ geode::Logger::level() }
+                {
+                    geode::Logger::set_level( geode::Logger::LEVEL::critical );
+                }
+                LoggerLevelRestorer( const LoggerLevelRestorer& ) = delete;
+                LoggerLevelRestorer& operator=(
+                    const LoggerLevelRestorer& ) = delete;
+                LoggerLevelRestorer( LoggerLevelRestorer&& ) = delete;
+                LoggerLevelRestorer& operator=(
+                    LoggerLevelRestorer&& ) = delete;
+                ~LoggerLevelRestorer()
+                {
+                    geode::Logger::set_level( level_ );
+                }
+
+            private:
+                geode::Logger::LEVEL level_;
+            };
+            const LoggerLevelRestorer restorer;
+            return geode::load_raster_image< 2 >( filename_ );
+        }
+
         /*!
          * TIFF raster images are read bottom-up (cell 0 is the last image
          * row) while the geotransform origin is the top-left image corner.
