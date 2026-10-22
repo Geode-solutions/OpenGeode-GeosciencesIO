@@ -392,6 +392,15 @@ void test_end_prefixed_keyword()
     check_model( model, 4, 6, 4, 1, 0, 0, 1 );
 }
 
+void test_invalid_tfaces()
+{
+    check_load_throws( "short_tface.ml",
+        replace( tetra_ml(), "TFACE 2 boundary bnd", "TFACE 2 boundary" ) );
+    check_load_throws( "undeclared_tface_tsurf.ml",
+        replace(
+            tetra_ml(), "TFACE 2 boundary bnd", "TFACE 2 boundary other" ) );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -481,6 +490,7 @@ int main()
         test_truncated_regions();
         test_empty_lines();
         test_end_prefixed_keyword();
+        test_invalid_tfaces();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

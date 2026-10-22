@@ -906,13 +906,22 @@ namespace
         void process_TFACE_keyword(
             absl::Span< const std::string_view > tokens )
         {
-            absl::Span< const std::string_view > remaining_tokens(
-                &tokens[2], tokens.size() - 2 );
-            std::string name = geode::internal::read_name( remaining_tokens );
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                tokens.size() >= 3, nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[MLInput] TFACE line should contain an id, a geological "
+                "type and a TSURF name" );
+            std::string name =
+                geode::internal::read_name( tokens.subspan( 2 ) );
+            const auto tsurf_it = tsurf_names2index_.find( name );
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                tsurf_it != tsurf_names2index_.end(), nullptr,
+                geode::OpenGeodeException::TYPE::data, "[MLInput] TFACE ",
+                tokens[0], " refers to undeclared TSURF ", name );
             const auto& surface_id = builder_.add_surface(
                 geode::OpenGeodeTriangulatedSurface3D::impl_name_static() );
             builder_.set_surface_name( model_.surface( surface_id ), name );
-            auto& tsurf = tsurfs_[tsurf_names2index_.at( name )];
+            auto& tsurf = tsurfs_[tsurf_it->second];
             tsurf.feature = geode::to_string( tokens[1] );
             tsurf.tfaces.emplace_back( surface_id );
             surfaces_.emplace_back( surface_id );
