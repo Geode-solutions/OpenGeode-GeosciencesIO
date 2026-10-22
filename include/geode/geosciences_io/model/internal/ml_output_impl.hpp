@@ -142,6 +142,15 @@ namespace geode::internal
          */
         void assign_surfaces_to_tsurfs()
         {
+            for( const auto& surface : model_.surfaces() )
+            {
+                if( surface.mesh().nb_polygons() == 0 )
+                {
+                    Logger::warning( "[MLOutput] Surface ",
+                        component_name( surface ),
+                        " has no polygon. It has not been exported" );
+                }
+            }
             for( const auto& boundary : model_.model_boundaries() )
             {
                 assign_surfaces(
@@ -159,6 +168,12 @@ namespace geode::internal
             auto& surfaces = owned_surfaces_[collection.id()];
             for( const auto& item : items )
             {
+                if( item.mesh().nb_polygons() == 0 )
+                {
+                    // Also excluded from unclassified Surfaces
+                    assigned_surfaces_.insert( item.id() );
+                    continue;
+                }
                 if( !assigned_surfaces_.insert( item.id() ).second )
                 {
                     Logger::warning( "[MLOutput] A Surface from ",
@@ -204,6 +219,10 @@ namespace geode::internal
             std::vector< uuid > result;
             for( const auto& surface : model_.surfaces() )
             {
+                if( surface.mesh().nb_polygons() == 0 )
+                {
+                    continue;
+                }
                 if( !assigned_surfaces_.contains( surface.id() ) )
                 {
                     result.push_back( surface.id() );
@@ -300,6 +319,10 @@ namespace geode::internal
                 index_t counter{ 0 };
                 for( const auto& surface : model_.boundaries( region ) )
                 {
+                    if( !components_.contains( surface.id() ) )
+                    {
+                        continue;
+                    }
                     const auto sign = sides_.regions_surface_sides.at(
                                           { region.id(), surface.id() } )
                                           ? '+'
@@ -314,6 +337,10 @@ namespace geode::internal
                 }
                 for( const auto& surface : model_.internal_surfaces( region ) )
                 {
+                    if( !components_.contains( surface.id() ) )
+                    {
+                        continue;
+                    }
                     file_ << "+" << components_.at( surface.id() ) << SPACE
                           << SPACE;
                     counter++;

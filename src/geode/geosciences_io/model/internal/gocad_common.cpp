@@ -30,6 +30,7 @@
 #include <absl/container/fixed_array.h>
 
 #include <geode/geometry/basic_objects/tetrahedron.hpp>
+#include <geode/geometry/basic_objects/triangle.hpp>
 #include <geode/geometry/bounding_box.hpp>
 #include <geode/geometry/mensuration.hpp>
 #include <geode/geometry/vector.hpp>
@@ -201,21 +202,109 @@ namespace
             mesh.point( mesh.polygon_vertex( { polygon, vertex_order[2] } ) ) };
     }
 
-    // Signed solid angle of a triangle seen from a point (Van Oosterom and
-    // Strackee formula)
-    double solid_angle( const std::array< geode::Point3D, 3 >& triangle,
+    // Half of the signed solid angle of a triangle seen from a point (Van
+    // Oosterom and Strackee formula)
+    double half_solid_angle( const std::array< geode::Point3D, 3 >& triangle,
         const geode::Point3D& point )
     {
-        const geode::Vector3D a{ point, triangle[0] };
-        const geode::Vector3D b{ point, triangle[1] };
-        const geode::Vector3D c{ point, triangle[2] };
-        const auto la = a.length();
-        const auto lb = b.length();
-        const auto lc = c.length();
-        const auto numerator = a.dot( b.cross( c ) );
-        const auto denominator =
-            la * lb * lc + a.dot( b ) * lc + a.dot( c ) * lb + b.dot( c ) * la;
-        return 2. * std::atan2( numerator, denominator );
+        const geode::Vector3D to_v0{ point, triangle[0] };
+        const geode::Vector3D to_v1{ point, triangle[1] };
+        const geode::Vector3D to_v2{ point, triangle[2] };
+        const auto length0 = to_v0.length();
+        const auto length1 = to_v1.length();
+        const auto length2 = to_v2.length();
+        const auto numerator = to_v0.dot( to_v1.cross( to_v2 ) );
+        const auto denominator = ( length0 * length1 * length2 )
+                                 + ( to_v0.dot( to_v1 ) * length2 )
+                                 + ( to_v0.dot( to_v2 ) * length1 )
+                                 + ( to_v1.dot( to_v2 ) * length0 );
+        return std::atan2( numerator, denominator );
+    }
+
+    struct Shells
+    {
+        explicit Shells( geode::index_t nb_components )
+            : volumes( nb_components, 0 ), inner_points( nb_components )
+        {
+        }
+
+        absl::FixedArray< double > volumes;
+        absl::FixedArray< std::optional< geode::Point3D > > inner_points;
+    };
+
+    // Signed volume and a point on each shell (component without polygon
+    // has no point)
+    Shells compute_shells( const geode::BRep& brep,
+        absl::Span< const geode::uuid > boundaries,
+        const RelativeSigns& relative )
+    {
+        geode::BoundingBox3D bbox;
+        for( const auto& boundary : boundaries )
+        {
+            const auto& mesh = brep.surface( boundary ).mesh();
+            if( mesh.nb_polygons() != 0 )
+            {
+                bbox = mesh.bounding_box();
+                break;
+            }
+        }
+        const auto center = ( bbox.min() + bbox.max() ) * 0.5;
+        Shells shells{ relative.nb_components };
+        for( const auto surface : geode::Indices{ boundaries } )
+        {
+            const auto component = relative.components[surface];
+            const auto& mesh = brep.surface( boundaries[surface] ).mesh();
+            for( const auto polygon : geode::Range{ mesh.nb_polygons() } )
+            {
+                const auto triangle =
+                    oriented_triangle( mesh, polygon, relative.signs[surface] );
+                shells.volumes[component] += geode::tetrahedron_signed_volume(
+                    { triangle[0], triangle[1], triangle[2], center } );
+                if( !shells.inner_points[component] )
+                {
+                    shells.inner_points[component] =
+                        geode::Triangle3D{ triangle[0], triangle[1],
+                            triangle[2] }
+                            .barycenter();
+                }
+            }
+        }
+        return shells;
+    }
+
+    // Number of other shells containing the point (generalized winding
+    // number: +-1 inside a shell, 0 outside)
+    geode::index_t nesting_depth( const geode::BRep& brep,
+        absl::Span< const geode::uuid > boundaries,
+        const RelativeSigns& relative,
+        geode::index_t component,
+        const geode::Point3D& point )
+    {
+        absl::FixedArray< double > half_windings( relative.nb_components, 0 );
+        for( const auto surface : geode::Indices{ boundaries } )
+        {
+            const auto other = relative.components[surface];
+            if( other == component )
+            {
+                continue;
+            }
+            const auto& mesh = brep.surface( boundaries[surface] ).mesh();
+            for( const auto polygon : geode::Range{ mesh.nb_polygons() } )
+            {
+                half_windings[other] += half_solid_angle(
+                    oriented_triangle( mesh, polygon, relative.signs[surface] ),
+                    point );
+            }
+        }
+        geode::index_t depth{ 0 };
+        for( const auto half_winding : half_windings )
+        {
+            if( std::fabs( half_winding ) > M_PI )
+            {
+                depth++;
+            }
+        }
+        return depth;
     }
 
     /*!
@@ -234,74 +323,33 @@ namespace
         }
         const auto relative =
             determine_relative_signs( boundaries, paired_signs );
-        const auto& bbox = brep.surface( boundaries[0] ).mesh().bounding_box();
-        const auto center = ( bbox.min() + bbox.max() ) * 0.5;
-        absl::FixedArray< double > volumes( relative.nb_components, 0 );
-        absl::FixedArray< std::optional< geode::Point3D > > inner_points(
-            relative.nb_components );
-        for( const auto s : geode::Indices{ boundaries } )
+        const auto shells = compute_shells( brep, boundaries, relative );
+        absl::FixedArray< bool > flip( relative.nb_components, false );
+        for( const auto component : geode::Range{ relative.nb_components } )
         {
-            const auto component = relative.components[s];
-            const auto& mesh = brep.surface( boundaries[s] ).mesh();
-            for( const auto t : geode::Range{ mesh.nb_polygons() } )
+            // Components without polygon have no orientation to find
+            const auto& point = shells.inner_points[component];
+            if( !point )
             {
-                const auto triangle =
-                    oriented_triangle( mesh, t, relative.signs[s] );
-                volumes[component] += geode::tetrahedron_signed_volume(
-                    { triangle[0], triangle[1], triangle[2], center } );
-                if( !inner_points[component] )
-                {
-                    inner_points[component] =
-                        ( triangle[0] + triangle[1] + triangle[2] ) / 3.;
-                }
+                continue;
             }
-        }
-        for( const auto volume : volumes )
-        {
+            const auto volume = shells.volumes[component];
             geode::OpenGeodeGeosciencesIOModelException::check_exception(
                 std::fabs( volume ) > 0, nullptr,
                 geode::OpenGeodeException::TYPE::data,
                 "Null volume block is not valid" );
-        }
-        absl::FixedArray< bool > flip( relative.nb_components, false );
-        for( const auto component : geode::Range{ relative.nb_components } )
-        {
-            geode::index_t depth{ 0 };
-            if( relative.nb_components > 1 )
-            {
-                absl::FixedArray< double > windings(
-                    relative.nb_components, 0 );
-                for( const auto s : geode::Indices{ boundaries } )
-                {
-                    const auto other = relative.components[s];
-                    if( other == component )
-                    {
-                        continue;
-                    }
-                    const auto& mesh = brep.surface( boundaries[s] ).mesh();
-                    for( const auto t : geode::Range{ mesh.nb_polygons() } )
-                    {
-                        windings[other] += solid_angle(
-                            oriented_triangle( mesh, t, relative.signs[s] ),
-                            inner_points[component].value() );
-                    }
-                }
-                for( const auto winding : windings )
-                {
-                    // Generalized winding number: +-1 inside, 0 outside
-                    if( std::fabs( winding ) > 2. * M_PI )
-                    {
-                        depth++;
-                    }
-                }
-            }
+            const auto depth = relative.nb_components > 1
+                                   ? nesting_depth( brep, boundaries, relative,
+                                         component, point.value() )
+                                   : 0;
             const auto outer_shell = depth % 2 == 0;
-            flip[component] = ( volumes[component] > 0 ) != outer_shell;
+            flip[component] = ( volume > 0 ) != outer_shell;
         }
         absl::FixedArray< bool > signs( boundaries.size() );
-        for( const auto s : geode::Indices{ boundaries } )
+        for( const auto surface : geode::Indices{ boundaries } )
         {
-            signs[s] = relative.signs[s] != flip[relative.components[s]];
+            signs[surface] =
+                relative.signs[surface] != flip[relative.components[surface]];
         }
         return signs;
     }

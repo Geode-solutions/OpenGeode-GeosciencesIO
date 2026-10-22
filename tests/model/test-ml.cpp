@@ -795,6 +795,23 @@ void test_several_border_loops_output()
     check_annulus( geode::load_structural_model( "annulus_saved.ml" ) );
 }
 
+void test_empty_surface_output()
+{
+    auto model = load_ml( "empty_surface.ml", tetra_ml() );
+    geode::StructuralModelBuilder builder{ model };
+    const auto& surface = model.surface( builder.add_surface() );
+    builder.add_surface_in_model_boundary(
+        surface, *model.model_boundaries().begin() );
+    builder.add_surface_block_boundary_relationship(
+        surface, *model.blocks().begin() );
+    // Unclassified empty Surface
+    builder.add_surface();
+    geode::save_structural_model( model, "empty_surface_saved.ml" );
+    const auto reload =
+        geode::load_structural_model( "empty_surface_saved.ml" );
+    check_model( reload, 4, 6, 4, 1, 0, 0, 1 );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -895,6 +912,7 @@ int main()
         test_empty_line_output();
         test_surface_collection_output();
         test_several_border_loops_output();
+        test_empty_surface_output();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
