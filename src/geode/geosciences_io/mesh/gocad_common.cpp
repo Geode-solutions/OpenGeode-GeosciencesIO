@@ -39,24 +39,38 @@
 namespace
 {
     std::string get_string_between_quote(
-        const std::vector< std::string_view > tokens,
+        absl::Span< const std::string_view > tokens,
         geode::index_t& from_to_id )
     {
-        std::string string_between_quote;
-        while(
-            from_to_id++ < tokens.size() && tokens[from_to_id].back() != '\"' )
+        auto token = tokens[from_to_id];
+        token.remove_prefix( 1 );
+        if( !token.empty() && token.back() == '\"' )
         {
-            absl::StrAppend( &string_between_quote, tokens[from_to_id], " " );
+            token.remove_suffix( 1 );
+            return geode::to_string( token );
         }
-        if( from_to_id == tokens.size() )
+        std::string string_between_quote{ token };
+        while( ++from_to_id < tokens.size() )
         {
-            throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
-                geode::OpenGeodeException::TYPE::data,
-                "[Reading Inputs From Skua-Gocad] missing a closing "
-                "quote character." };
+            token = tokens[from_to_id];
+            const auto is_closing = token.back() == '\"';
+            if( is_closing )
+            {
+                token.remove_suffix( 1 );
+            }
+            if( !string_between_quote.empty() && !token.empty() )
+            {
+                string_between_quote.push_back( ' ' );
+            }
+            absl::StrAppend( &string_between_quote, token );
+            if( is_closing )
+            {
+                return string_between_quote;
+            }
         }
-        absl::StrAppend( &string_between_quote, tokens[from_to_id] );
-        string_between_quote.erase( string_between_quote.size() - 1, 1 );
+        geode::Logger::warning( "[Reading Inputs From Skua-Gocad] Missing a "
+                                "closing quote character, the end of the line ",
+            "is used: \"", string_between_quote, "\"" );
         return string_between_quote;
     }
 
@@ -65,10 +79,10 @@ namespace
     {
         std::vector< std::string > merged;
         const auto tokens = geode::string_split( string_to_split );
-        geode::index_t token_id{ 0 };
-        while( token_id < tokens.size() )
+        merged.reserve( tokens.size() );
+        for( geode::index_t token_id = 0; token_id < tokens.size(); token_id++ )
         {
-            if( tokens[token_id] == "\"" )
+            if( tokens[token_id].front() == '\"' )
             {
                 merged.emplace_back(
                     get_string_between_quote( tokens, token_id ) );
@@ -77,7 +91,6 @@ namespace
             {
                 merged.emplace_back( tokens[token_id] );
             }
-            token_id++;
         }
         return merged;
     }

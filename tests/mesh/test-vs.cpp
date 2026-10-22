@@ -23,6 +23,8 @@
 
 #include <geode/tests_config.hpp>
 
+#include <fstream>
+
 #include <geode/basic/assert.hpp>
 #include <geode/basic/logger.hpp>
 
@@ -30,7 +32,55 @@
 #include <geode/mesh/io/point_set_input.hpp>
 #include <geode/mesh/io/point_set_output.hpp>
 
+#include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
 #include <geode/geosciences_io/mesh/internal/vs_input.hpp>
+
+namespace
+{
+    std::string write_test_file(
+        std::string_view filename, std::string_view content )
+    {
+        std::ofstream file{ geode::to_string( filename ), std::ios::binary };
+        file << content;
+        return geode::to_string( filename );
+    }
+
+    std::unique_ptr< geode::PointSet3D > load_test_file(
+        std::string_view filename, std::string_view content )
+    {
+        return geode::load_point_set< 3 >(
+            write_test_file( filename, content ) );
+    }
+
+    void test_quotes()
+    {
+        const auto filename = write_test_file( "test_vs_quotes.txt",
+            "GOCAD_ORIGINAL_COORDINATE_SYSTEM\n"
+            "NAME \"SKUA Local\"\n"
+            "DATUM \" a  b \"\n"
+            "PROJECTION \"\n"
+            "END_ORIGINAL_COORDINATE_SYSTEM\n" );
+        std::ifstream file{ filename, std::ios::binary };
+        const auto crs = geode::internal::read_CRS( file );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            crs.name == "SKUA Local", "Wrong CRS name: ", crs.name );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            crs.datum == "a b", "Wrong CRS datum: ", crs.datum );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            crs.projection.empty(), "Wrong CRS projection: ", crs.projection );
+
+        try
+        {
+            load_test_file( "test_vs_unclosed_quote.vs",
+                "GOCAD VSet 1\nHEADER {\nname: a\n}\nPROPERTIES \"\n"
+                "VRTX 1 0 0 0\nEND\n" );
+        }
+        catch( const geode::OpenGeodeException& exception )
+        {
+            geode::Logger::info( "Unclosed quote: ", exception.what() );
+        }
+    }
+} // namespace
 
 void check_pointset(
     const geode::PointSet3D& pointset, geode::index_t nb_vertices )
@@ -68,6 +118,7 @@ int main()
         check_file( absl::StrCat( geode::DATA_PATH, "points.",
                         geode::internal::VSInput::extension() ),
             6 );
+        test_quotes();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
