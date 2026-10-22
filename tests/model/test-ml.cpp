@@ -445,6 +445,29 @@ void test_region_ids()
         "duplicate_tface_ids.ml", replace( tetra_ml(), "TFACE 2", "TFACE 1" ) );
 }
 
+void test_small_regions()
+{
+    const auto one_surface = load_ml( "one_surface_region.ml",
+        replace( tetra_ml(), "  -1  -2  -3  -4  0", "  -1  0" ) );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        one_surface.nb_boundaries( ( *one_surface.blocks().begin() ).id() )
+            == 1,
+        "Block should have 1 boundary Surface" );
+    const auto no_surface = load_ml( "no_surface_region.ml",
+        replace( tetra_ml(), "  -1  -2  -3  -4  0", "  0" ) );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        no_surface.nb_boundaries( ( *no_surface.blocks().begin() ).id() ) == 0,
+        "Block should have no boundary Surface" );
+    const auto internal = load_ml(
+        "internal_region.ml", replace( tetra_ml(), "  -1  -2  -3  -4  0",
+                                  "  -1  -2  -3  -4  +4  0" ) );
+    const auto& block = *internal.blocks().begin();
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        internal.nb_boundaries( block.id() ) == 3
+            && internal.nb_internals( block.id() ) == 1,
+        "Block should have 3 boundary Surfaces and 1 internal Surface" );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -536,6 +559,7 @@ int main()
         test_end_prefixed_keyword();
         test_invalid_tfaces();
         test_region_ids();
+        test_small_regions();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

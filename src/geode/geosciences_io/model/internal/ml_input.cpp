@@ -1045,26 +1045,34 @@ namespace
                     surfaces.push_back( surface.value() );
                 }
             }
-            std::sort( surfaces.begin(), surfaces.end() );
-            for( size_t s = 1; s < surfaces.size(); s++ )
+            if( surfaces.empty() )
             {
-                if( surfaces[s - 1] != surfaces[s] )
+                geode::Logger::warning(
+                    "[MLInput] REGION ", block_name, " has no Surface" );
+                return;
+            }
+            // A Surface stated once bounds the Block, a Surface stated on
+            // both sides is internal to the Block
+            absl::c_sort( surfaces );
+            for( size_t s = 0; s < surfaces.size(); )
+            {
+                auto next = s + 1;
+                while( next < surfaces.size() && surfaces[next] == surfaces[s] )
+                {
+                    next++;
+                }
+                const auto& surface = model_.surface( surfaces_[surfaces[s]] );
+                if( next - s == 1 )
                 {
                     builder_.add_surface_block_boundary_relationship(
-                        model_.surface( surfaces_[surfaces[s - 1]] ), block );
+                        surface, block );
                 }
                 else
                 {
                     builder_.add_surface_block_internal_relationship(
-                        model_.surface( surfaces_[surfaces[s]] ), block );
-                    s++;
+                        surface, block );
                 }
-            }
-            const auto last = surfaces.size() - 1;
-            if( surfaces[last - 1] != surfaces[last] )
-            {
-                builder_.add_surface_block_boundary_relationship(
-                    model_.surface( surfaces_[surfaces[last]] ), block );
+                s = next;
             }
         }
 
