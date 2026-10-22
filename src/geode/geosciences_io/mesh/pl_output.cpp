@@ -50,7 +50,8 @@ namespace
             : file_{ geode::to_string( filename ) },
               edged_curve_( edged_curve ),
               properties_( edged_curve.vertex_attribute_manager() ),
-              edge_done_( edged_curve.nb_edges(), false )
+              edge_done_( edged_curve.nb_edges(), false ),
+              file_ids_( edged_curve.nb_vertices(), geode::NO_ID )
         {
             geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                 file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
@@ -100,6 +101,13 @@ namespace
         void write_pvrtx(
             const geode::index_t v, const geode::index_t current_offset )
         {
+            if( file_ids_[v] != geode::NO_ID )
+            {
+                file_ << "ATOM" << SPACE << current_offset << SPACE
+                      << file_ids_[v] << EOL;
+                return;
+            }
+            file_ids_[v] = current_offset;
             file_ << VRTX_KEYWORD << SPACE << current_offset << SPACE
                   << edged_curve_.point( v ).value( 0 ) << SPACE
                   << edged_curve_.point( v ).value( 1 ) << SPACE
@@ -181,6 +189,25 @@ namespace
                       << loop_start << EOL;
                 nb_edges_done++;
             }
+            write_isolated_vertices( current_offset );
+        }
+
+        void write_isolated_vertices( geode::index_t current_offset )
+        {
+            auto iline_started = false;
+            for( const auto v : geode::Range{ edged_curve_.nb_vertices() } )
+            {
+                if( file_ids_[v] != geode::NO_ID )
+                {
+                    continue;
+                }
+                if( !iline_started )
+                {
+                    file_ << "ILINE" << EOL;
+                    iline_started = true;
+                }
+                write_pvrtx( v, current_offset++ );
+            }
         }
 
         geode::index_t starting_edge()
@@ -238,6 +265,7 @@ namespace
         const geode::EdgedCurve3D& edged_curve_;
         geode::internal::GocadVertexProperties properties_;
         std::vector< bool > edge_done_;
+        std::vector< geode::index_t > file_ids_;
         std::string VRTX_KEYWORD{ "VRTX" };
     };
 } // namespace

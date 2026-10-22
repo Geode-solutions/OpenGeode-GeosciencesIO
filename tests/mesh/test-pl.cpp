@@ -41,6 +41,10 @@
 
 namespace
 {
+    void check_curve( const geode::EdgedCurve3D& curve,
+        geode::index_t nb_vertices,
+        geode::index_t nb_edges );
+
     std::unique_ptr< geode::EdgedCurve3D > load_test_file(
         std::string_view filename, std::string_view content )
     {
@@ -192,6 +196,31 @@ namespace
             "Closed loop is not saved correctly" );
     }
 
+    void test_shared_and_isolated_vertices_output()
+    {
+        auto curve = geode::EdgedCurve3D::create();
+        auto builder = geode::EdgedCurveBuilder3D::create( *curve );
+        builder->create_point( geode::Point3D{ { 0, 0, 0 } } );
+        builder->create_point( geode::Point3D{ { 1, 0, 0 } } );
+        builder->create_point( geode::Point3D{ { 2, 0, 0 } } );
+        builder->create_point( geode::Point3D{ { 2, 1, 0 } } );
+        builder->create_point( geode::Point3D{ { 9, 9, 9 } } );
+        builder->create_edge( 0, 1 );
+        builder->create_edge( 1, 2 );
+        builder->create_edge( 2, 3 );
+        builder->create_edge( 3, 1 );
+        geode::save_edged_curve( *curve, "test_pl_lollipop.pl" );
+        const auto reloaded =
+            geode::load_edged_curve< 3 >( "test_pl_lollipop.pl" );
+        check_curve( *reloaded, 5, 4 );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            sorted_edge_points( *reloaded ) == sorted_edge_points( *curve ),
+            "Shared vertices are not saved correctly" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            reloaded->edges_around_vertex( 1 ).size() == 3,
+            "Shared vertex is disconnected after reload" );
+    }
+
     void check_curve( const geode::EdgedCurve3D& curve,
         geode::index_t nb_vertices,
         geode::index_t nb_edges )
@@ -250,6 +279,7 @@ int main()
         test_closed_loop_output();
         test_non_contiguous_ids();
         test_properties_and_atoms();
+        test_shared_and_isolated_vertices_output();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }
