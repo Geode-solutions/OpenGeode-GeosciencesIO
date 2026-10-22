@@ -1043,7 +1043,7 @@ namespace geode::internal
                     .set_value( condition.function_name->c_str() );
             }
             specification_node.append_attribute( "scale" ).set_value(
-                absl::StrFormat( "%.15g", condition.scale ).c_str() );
+                geos_real( condition.scale ).c_str() );
             specification_node.append_attribute( "setNames" )
                 .set_value( absl::StrCat(
                     "{ ", absl::StrJoin( condition.region_ids, ", " ), " }" )

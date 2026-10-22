@@ -70,7 +70,9 @@
 #include <geode/io/model/common.hpp>
 #include <geode/mesh/builder/point_set_builder.hpp>
 #include <geode/mesh/builder/tetrahedral_solid_builder.hpp>
+#include <geode/mesh/builder/triangulated_surface_builder.hpp>
 #include <geode/mesh/core/geode/geode_tetrahedral_solid.hpp>
+#include <geode/mesh/core/geode/geode_triangulated_surface.hpp>
 #include <geode/mesh/core/point_set.hpp>
 #include <geode/mesh/core/tetrahedral_solid.hpp>
 #include <geode/mesh/io/tetrahedral_solid_input.hpp>
@@ -600,8 +602,8 @@ void test_spe10_reference()
     // Perforation boxes of the reference grid_geos_simulation.xml
     for( const auto* pattern : { "name=\"source\"", "name=\"sink1\"",
              "name=\"sink2\"", "name=\"sink3\"", "name=\"sink4\"",
-             "xMin=\"{182.8799, 335.2799, -0.0001}\"",
-             "xMax=\"{188.9761, 338.3281, 1.2201}\"" } )
+             "xMin=\"{182.8799, 335.2799, -9.999999999999999e-05}\"",
+             "xMax=\"{188.9761, 338.32809999999995, 1.2201}\"" } )
     {
         geode::OpenGeodeGeosciencesIOModelException::test(
             absl::StrContains( deck, pattern ), "[Test] ", pattern,
@@ -1026,6 +1028,56 @@ void test_well_perforation_boxes()
     }
 }
 
+void add_triangle_surface( geode::BRep& model,
+    const std::array< std::pair< geode::index_t, geode::index_t >, 3 >&
+        block_vertices )
+{
+    std::vector< geode::uuid > block_ids;
+    for( const auto& block : model.blocks() )
+    {
+        block_ids.push_back( block.id() );
+    }
+    geode::BRepBuilder builder{ model };
+    const auto& surface = model.surface( builder.add_surface(
+        geode::OpenGeodeTriangulatedSurface3D::impl_name_static() ) );
+    auto mesh_builder =
+        builder.surface_mesh_builder< geode::TriangulatedSurface3D >( surface );
+    for( const auto vertex : geode::LRange{ 3 } )
+    {
+        const auto& [block, block_vertex] = block_vertices[vertex];
+        const auto& block_mesh = model.block( block_ids[block] ).mesh();
+        mesh_builder->create_point( block_mesh.point( block_vertex ) );
+        builder.set_unique_vertex( { surface.component_id(), vertex },
+            model.unique_vertex(
+                { model.block( block_ids[block] ).component_id(),
+                    block_vertex } ) );
+    }
+    mesh_builder->create_triangle( { 0, 1, 2 } );
+}
+
+void test_boundary_condition_scale_precision()
+{
+    auto model = tetrahedra_brep( 1, geode::Point3D{ { 0., 0., 0. } } );
+    add_triangle_surface( model, { { { 0, 0 }, { 0, 1 }, { 0, 2 } } } );
+    std::vector< geode::uuid > surfaces;
+    for( const auto& surface : model.surfaces() )
+    {
+        surfaces.push_back( surface.id() );
+    }
+    const auto pressure = 1e7 / 3.;
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "pressure",
+        pressure );
+    geode::BRepGeosExporter exporter( model, "scale_precision" );
+    exporter.run();
+    const auto xml =
+        read_file( "scale_precision/scale_precision_simulation.xml" );
+    const auto start = xml.find( "scale=\"" ) + 7;
+    const auto scale = std::stod( xml.substr( start ) );
+    geode::OpenGeodeGeosciencesIOModelException::test( scale == pressure,
+        "[Test] Boundary condition scale is not exact: ", scale );
+}
+
 int main()
 {
     try
@@ -1037,6 +1089,7 @@ int main()
         test_structural_model_block_without_unit();
         test_structural_model_block_in_two_units();
         test_well_perforation_boxes();
+        test_boundary_condition_scale_precision();
         test_picasso();
         test_uniform_variable_boundary_condition();
         test_variable_boundary_condition();

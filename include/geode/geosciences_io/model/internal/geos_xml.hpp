@@ -37,7 +37,8 @@ namespace pugi
 
 namespace geode::internal
 {
-    /// Real value written with 15 significant digits
+    /// Real value written with the fewest significant digits (at least 15)
+    /// that read back to the same value
     [[nodiscard]] std::string geos_real( double value );
 
     /// GEOS array of reals: "{ a, b, c }"
