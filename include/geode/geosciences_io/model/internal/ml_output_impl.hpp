@@ -105,6 +105,7 @@ namespace geode::internal
             }
             internal::write_header( file_, header );
             internal::write_CRS( file_, {} );
+            warn_unexported_components();
             assign_surfaces_to_tsurfs();
             write_model_components();
             write_model_surfaces();
@@ -125,6 +126,41 @@ namespace geode::internal
             // Exact round-trip of coordinates
             file_.imbue( std::locale::classic() );
             file_.precision( std::numeric_limits< double >::max_digits10 );
+        }
+
+        /*!
+         * Only Surface border Lines and their Corners can be described in a
+         * .ml file
+         */
+        void warn_unexported_components() const
+        {
+            index_t nb_isolated_corners{ 0 };
+            for( const auto& corner : model_.corners() )
+            {
+                if( model_.nb_incidences( corner.id() ) == 0 )
+                {
+                    nb_isolated_corners++;
+                }
+            }
+            if( nb_isolated_corners > 0 )
+            {
+                Logger::warning( "[MLOutput] ", nb_isolated_corners,
+                    " Corners bounding no Line have not been exported" );
+            }
+            index_t nb_embedded_lines{ 0 };
+            for( const auto& line : model_.lines() )
+            {
+                if( model_.nb_embeddings( line.id() ) > 0 )
+                {
+                    nb_embedded_lines++;
+                }
+            }
+            if( nb_embedded_lines > 0 )
+            {
+                Logger::warning( "[MLOutput] ", nb_embedded_lines,
+                    " Lines internal to a Surface or a Block may not have "
+                    "been exported" );
+            }
         }
 
         index_t& component_id()

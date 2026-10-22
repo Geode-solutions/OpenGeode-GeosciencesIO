@@ -37,7 +37,11 @@
 #include <geode/mesh/core/edged_curve.hpp>
 #include <geode/mesh/core/surface_mesh.hpp>
 
+#include <geode/mesh/builder/point_set_builder.hpp>
+#include <geode/mesh/core/point_set.hpp>
+
 #include <geode/model/mixin/core/block.hpp>
+#include <geode/model/mixin/core/corner.hpp>
 #include <geode/model/mixin/core/line.hpp>
 #include <geode/model/mixin/core/model_boundary.hpp>
 #include <geode/model/mixin/core/surface.hpp>
@@ -903,6 +907,21 @@ void test_tface_type_mismatch()
     check_model( model, 4, 6, 4, 1, 0, 0, 1 );
 }
 
+void test_unexported_components_output()
+{
+    auto model = load_ml( "isolated_corner.ml", tetra_ml() );
+    geode::StructuralModelBuilder builder{ model };
+    const auto& corner = model.corner( builder.add_corner() );
+    builder.corner_mesh_builder( corner )->create_point(
+        geode::Point3D{ { 0.1, 0.1, 0.1 } } );
+    builder.add_corner_block_internal_relationship(
+        corner, *model.blocks().begin() );
+    geode::save_structural_model( model, "isolated_corner_saved.ml" );
+    const auto reload =
+        geode::load_structural_model( "isolated_corner_saved.ml" );
+    check_model( reload, 4, 6, 4, 1, 0, 0, 1 );
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -1011,6 +1030,7 @@ int main()
         test_invalid_bstone_border_indices();
         test_no_surface();
         test_tface_type_mismatch();
+        test_unexported_components_output();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
