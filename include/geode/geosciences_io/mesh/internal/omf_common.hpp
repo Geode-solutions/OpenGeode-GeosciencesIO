@@ -184,7 +184,11 @@ namespace geode::internal
             uint64_t max_values = MAX_ARRAY_VALUES ) const;
 
     private:
-        [[nodiscard]] std::vector< char > read_binary(
+        /*!
+         * Decompress an array block of 8 bytes values directly into T values
+         */
+        template < typename T >
+        [[nodiscard]] std::vector< T > read_binary(
             const nlohmann::json& binary, uint64_t max_values ) const;
 
     private:

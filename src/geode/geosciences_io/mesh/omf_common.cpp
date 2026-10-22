@@ -942,21 +942,18 @@ namespace geode::internal
             return values;
         }
         const auto dtype = content.value( "dtype", "" );
-        const auto bytes = read_binary( content, max_values );
-        std::vector< double > values( bytes.size() / 8 );
         if( dtype == "<f8" )
         {
-            std::memcpy( values.data(), bytes.data(), 8 * values.size() );
-            return values;
+            return read_binary< double >( content, max_values );
         }
         OpenGeodeGeosciencesIOMeshException::check_exception( dtype == "<i8",
             nullptr, OpenGeodeException::TYPE::data,
             "[OMFInput] Unsupported array dtype ", dtype );
+        const auto integers = read_binary< int64_t >( content, max_values );
+        std::vector< double > values( integers.size() );
         for( const auto value : Indices{ values } )
         {
-            int64_t integer;
-            std::memcpy( &integer, bytes.data() + 8 * value, 8 );
-            values[value] = static_cast< double >( integer );
+            values[value] = static_cast< double >( integers[value] );
         }
         return values;
     }
@@ -981,28 +978,27 @@ namespace geode::internal
             return values;
         }
         const auto dtype = content.value( "dtype", "" );
-        const auto bytes = read_binary( content, max_values );
-        std::vector< int64_t > values( bytes.size() / 8 );
         if( dtype == "<i8" )
         {
-            std::memcpy( values.data(), bytes.data(), 8 * values.size() );
-            return values;
+            return read_binary< int64_t >( content, max_values );
         }
         OpenGeodeGeosciencesIOMeshException::check_exception( dtype == "<f8",
             nullptr, OpenGeodeException::TYPE::data,
             "[OMFInput] Unsupported array dtype ", dtype );
+        const auto reals = read_binary< double >( content, max_values );
+        std::vector< int64_t > values( reals.size() );
         for( const auto value : Indices{ values } )
         {
-            double real;
-            std::memcpy( &real, bytes.data() + 8 * value, 8 );
-            values[value] = omf_real_to_integer( real );
+            values[value] = omf_real_to_integer( reals[value] );
         }
         return values;
     }
 
-    std::vector< char > OMFFile::read_binary(
+    template < typename T >
+    std::vector< T > OMFFile::read_binary(
         const nlohmann::json& binary, uint64_t max_values ) const
     {
+        static_assert( sizeof( T ) == 8 );
         const auto start = omf_json_offset( binary, "start" );
         const auto length = omf_json_offset( binary, "length" );
         OpenGeodeGeosciencesIOMeshException::check_exception(
@@ -1028,22 +1024,23 @@ namespace geode::internal
             "[OMFInput] Failed to initialize zlib" );
         stream.next_in = reinterpret_cast< Bytef* >( compressed.data() );
         stream.avail_in = static_cast< uInt >( length );
-        const auto max_size = max_values * 8;
-        std::vector< char > result;
+        const auto max_size = max_values * sizeof( T );
+        std::vector< T > result;
+        std::size_t size{ 0 };
         int status{ Z_OK };
         bool truncated{ false };
         while( status == Z_OK )
         {
-            const auto size = result.size();
-            result.resize( size + INFLATE_CHUNK_SIZE );
+            result.resize( result.size() + INFLATE_CHUNK_SIZE / sizeof( T ) );
+            const auto capacity = result.size() * sizeof( T );
             stream.next_out =
-                reinterpret_cast< Bytef* >( result.data() + size );
-            stream.avail_out = static_cast< uInt >( INFLATE_CHUNK_SIZE );
+                reinterpret_cast< Bytef* >( result.data() ) + size;
+            stream.avail_out = static_cast< uInt >( capacity - size );
             status = inflate( &stream, Z_NO_FLUSH );
-            result.resize( size + INFLATE_CHUNK_SIZE - stream.avail_out );
-            if( result.size() > max_size )
+            size = capacity - stream.avail_out;
+            if( size > max_size )
             {
-                result.resize( max_size );
+                size = max_size;
                 truncated = true;
                 break;
             }
@@ -1058,15 +1055,19 @@ namespace geode::internal
             Logger::warning( "[OMFInput] Array block at ", start,
                 " has more than the ", max_values,
                 " expected values: extra values are ignored" );
-            return result;
         }
-        OpenGeodeGeosciencesIOMeshException::check_exception(
-            status == Z_STREAM_END, nullptr, OpenGeodeException::TYPE::data,
-            "[OMFInput] Corrupted compressed array block at ", start );
-        OpenGeodeGeosciencesIOMeshException::check_exception(
-            result.size() % 8 == 0, nullptr, OpenGeodeException::TYPE::data,
-            "[OMFInput] Array block at ", start, " has ", result.size(),
-            " bytes, which is not a multiple of 8" );
+        else
+        {
+            OpenGeodeGeosciencesIOMeshException::check_exception(
+                status == Z_STREAM_END, nullptr, OpenGeodeException::TYPE::data,
+                "[OMFInput] Corrupted compressed array block at ", start );
+            OpenGeodeGeosciencesIOMeshException::check_exception(
+                size % sizeof( T ) == 0, nullptr,
+                OpenGeodeException::TYPE::data, "[OMFInput] Array block at ",
+                start, " has ", size, " bytes, which is not a multiple of ",
+                sizeof( T ) );
+        }
+        result.resize( size / sizeof( T ) );
         return result;
     }
 
