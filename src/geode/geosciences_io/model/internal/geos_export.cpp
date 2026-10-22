@@ -51,16 +51,21 @@
 #include <geode/basic/variable_attribute.hpp>
 
 #include <geode/geometry/aabb.hpp>
+#include <geode/geometry/basic_objects/tetrahedron.hpp>
 #include <geode/geometry/bounding_box.hpp>
 #include <geode/geometry/distance.hpp>
+#include <geode/geometry/information.hpp>
 #include <geode/geometry/nn_search.hpp>
 #include <geode/geometry/point.hpp>
+#include <geode/geometry/position.hpp>
+#include <geode/geometry/vector.hpp>
 
 #include <geode/geosciences_io/model/common.hpp>
 
 #include <geode/mesh/core/hybrid_solid.hpp>
 #include <geode/mesh/core/point_set.hpp>
 #include <geode/mesh/core/polyhedral_solid.hpp>
+#include <geode/mesh/core/regular_grid_solid.hpp>
 #include <geode/mesh/core/solid_mesh.hpp>
 #include <geode/mesh/core/surface_mesh.hpp>
 #include <geode/mesh/core/tetrahedral_solid.hpp>
@@ -308,9 +313,47 @@ namespace
 
     geode::index_t nb_table_nodes( const TableCoordinates& coordinates )
     {
-        return static_cast< geode::index_t >( coordinates[0].size()
-                                              * coordinates[1].size()
-                                              * coordinates[2].size() );
+        std::size_t nb_nodes{ 1 };
+        for( const auto& axis_coordinates : coordinates )
+        {
+            nb_nodes *= axis_coordinates.size();
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                nb_nodes < geode::NO_ID, nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[GeosExporter] Boundary condition table is too large: ",
+                coordinates[0].size(), " x ", coordinates[1].size(), " x ",
+                coordinates[2].size(), " nodes." );
+        }
+        return static_cast< geode::index_t >( nb_nodes );
+    }
+
+    // Area weighted centroid of the polygon, used by GEOS as faceCenter
+    geode::Point3D face_center(
+        const geode::SurfaceMesh3D& mesh, geode::index_t polygon_id )
+    {
+        const auto vertices = mesh.polygon_vertices( polygon_id );
+        if( vertices.size() == 3 )
+        {
+            return mesh.polygon_barycenter( polygon_id );
+        }
+        const auto& first = mesh.point( vertices[0] );
+        geode::Point3D weighted_centers;
+        double total_area{ 0 };
+        for( const auto vertex : geode::LRange{ 1, vertices.size() - 1 } )
+        {
+            const auto& second = mesh.point( vertices[vertex] );
+            const auto& third = mesh.point( vertices[vertex + 1] );
+            const auto area = geode::Vector3D{ first, second }
+                                  .cross( geode::Vector3D{ first, third } )
+                                  .length();
+            weighted_centers += ( first + second + third ) * ( area / 3. );
+            total_area += area;
+        }
+        if( total_area == 0 )
+        {
+            return mesh.polygon_barycenter( polygon_id );
+        }
+        return weighted_centers / total_area;
     }
 
     // Polygon centers flattened on the table axes holding a single coordinate
@@ -441,10 +484,16 @@ namespace
         geode::OpenGeodeGeosciencesIOModelException::check_exception(
             file.good(), nullptr, geode::OpenGeodeException::TYPE::data,
             "[GeosExporter] Cannot open file ", filename );
+        std::string content;
         for( const auto value : values )
         {
-            file << absl::StrFormat( "%.17g", value ) << "\n";
+            absl::StrAppendFormat( &content, "%.17g\n", value );
         }
+        file << content;
+        file.close();
+        geode::OpenGeodeGeosciencesIOModelException::check_exception(
+            !file.fail(), nullptr, geode::OpenGeodeException::TYPE::data,
+            "[GeosExporter] Cannot write file ", filename );
     }
 
     // Mean of one item of a numeric attribute over the first elements
@@ -458,6 +507,58 @@ namespace
             sum += attribute.generic_item_value( element, item );
         }
         return nb_elements == 0 ? 0. : sum / nb_elements;
+    }
+
+    // Characters splitting the items of GEOS lists "{ a, b }"
+    constexpr std::string_view GEOS_LIST_SEPARATORS{ " \t\n\r,{}" };
+
+    bool is_valid_geos_list_item( std::string_view name )
+    {
+        return !name.empty()
+               && name.find_first_of( GEOS_LIST_SEPARATORS )
+                      == std::string_view::npos;
+    }
+
+    // Directory without trailing separator nor dot segments
+    std::filesystem::path normalized_directory( std::string_view directory )
+    {
+        auto path = std::filesystem::path{ geode::to_string( directory ) }
+                        .lexically_normal();
+        if( !path.empty() && !path.has_filename() )
+        {
+            path = path.parent_path();
+        }
+        return path;
+    }
+
+    // The polyhedron is split in tetrahedra joining its barycenter to a fan
+    // triangulation of its facets
+    bool is_point_in_polyhedron( const geode::SolidMesh3D& solid,
+        geode::index_t polyhedron_id,
+        const geode::Point3D& point )
+    {
+        const auto barycenter = solid.polyhedron_barycenter( polyhedron_id );
+        for( const auto facet :
+            geode::LRange{ solid.nb_polyhedron_facets( polyhedron_id ) } )
+        {
+            const auto vertices =
+                solid.polyhedron_facet_vertices( { polyhedron_id, facet } );
+            const auto& first = solid.point( vertices[0] );
+            for( const auto vertex : geode::LRange{ 1, vertices.size() - 1 } )
+            {
+                const geode::Tetrahedron tetrahedron{ first,
+                    solid.point( vertices[vertex] ),
+                    solid.point( vertices[vertex + 1] ), barycenter };
+                const auto position =
+                    geode::point_tetrahedron_position( point, tetrahedron );
+                if( position != geode::POSITION::outside
+                    && position != geode::POSITION::parallel )
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     template < typename Model >
@@ -488,11 +589,125 @@ namespace geode::internal
                 "rockPorosity_referencePorosity" },
         };
 
+    template < typename... Types >
+    struct BlockAttributeTypes
+    {
+    };
+
+    using SupportedBlockAttributeTypes = BlockAttributeTypes< double,
+        float,
+        int,
+        unsigned int,
+        long,
+        unsigned long,
+        long long,
+        unsigned long long,
+        std::array< double, 2 >,
+        std::array< double, 3 >,
+        std::array< double, 6 >,
+        std::array< double, 9 >,
+        std::array< float, 3 > >;
+
+    // Copies the Block values in a VariableAttribute of the solid, the
+    // polyhedra of each Block being contiguous in the solid
+    template < typename T, typename Model >
+    bool copy_typed_block_attribute( const Model& model,
+        absl::Span< const index_t > block_polyhedra_offsets,
+        std::string_view attribute_type,
+        std::string_view attribute_name,
+        const uuid& attribute_id,
+        AttributeManager& solid_manager )
+    {
+        if( attribute_type != typeid( T ).name() )
+        {
+            return false;
+        }
+        AttributeProperties properties;
+        properties.transferable = true;
+        solid_manager.create_attribute< VariableAttribute, T >(
+            attribute_name, attribute_id, AttributeValues< T >{}, properties );
+        auto solid_attribute =
+            solid_manager.find_attribute< VariableAttribute, T >(
+                attribute_id );
+        index_t block_index{ 0 };
+        for( const auto& block : model.blocks() )
+        {
+            const auto& block_mesh = block.mesh();
+            const auto block_attribute =
+                block_mesh.polyhedron_attribute_manager()
+                    .template find_read_only_attribute< T >( attribute_id );
+            const auto offset = block_polyhedra_offsets[block_index++];
+            for( const auto polyhedron_id : Range{ block_mesh.nb_polyhedra() } )
+            {
+                solid_attribute->set_value( offset + polyhedron_id,
+                    block_attribute->value( polyhedron_id ) );
+            }
+        }
+        return true;
+    }
+
+    template < typename Model, typename... Types >
+    bool copy_block_attribute( const Model& model,
+        absl::Span< const index_t > block_polyhedra_offsets,
+        std::string_view attribute_type,
+        std::string_view attribute_name,
+        const uuid& attribute_id,
+        AttributeManager& solid_manager,
+        BlockAttributeTypes< Types... > /*unused*/ )
+    {
+        return (
+            copy_typed_block_attribute< Types >( model, block_polyhedra_offsets,
+                attribute_type, attribute_name, attribute_id, solid_manager )
+            || ... );
+    }
+
+    // The VTU writer renames the attributes sharing a name, which would not
+    // match the field names given to GEOS
+    std::string unique_attribute_name( const AttributeManager& manager,
+        std::string_view attribute_name,
+        std::string_view geos_name )
+    {
+        auto valid_name = to_string( attribute_name );
+        if( !is_valid_geos_list_item( valid_name ) )
+        {
+            absl::c_replace_if(
+                valid_name,
+                []( char character ) {
+                    return GEOS_LIST_SEPARATORS.find( character )
+                           != std::string_view::npos;
+                },
+                '_' );
+            if( valid_name.empty() )
+            {
+                valid_name = to_string( geos_name );
+            }
+            Logger::warning( "[GeosExporter] Attribute name \"", attribute_name,
+                "\" cannot be used in GEOS lists, it is "
+                "exported as ",
+                valid_name, "." );
+        }
+        const std::string_view name{ valid_name };
+        if( !manager.attribute_ids_matching_name( name ) )
+        {
+            return valid_name;
+        }
+        auto unique_name = absl::StrCat( name, "_", geos_name );
+        for( index_t suffix{ 0 };
+            manager.attribute_ids_matching_name( unique_name ); suffix++ )
+        {
+            unique_name = absl::StrCat( name, "_", geos_name, "_", suffix );
+        }
+        Logger::warning( "[GeosExporter] Attribute name ", name,
+            " is already exported, it is exported as ", unique_name, "." );
+        return unique_name;
+    }
+
     template < typename Model >
-    std::string transfer_block_attribute( const Model& model,
+    std::optional< std::string > transfer_block_attribute( const Model& model,
         SolidMesh3D& solid,
-        const ModelToMeshMappings& model2solid,
-        const PhysicalProperties::Info& property_info )
+        absl::Span< const index_t > block_polyhedra_offsets,
+        const PhysicalProperties::Info& property_info,
+        std::string_view geos_name )
     {
         const auto& attribute_id = property_info.attribute_id;
         OpenGeodeGeosciencesIOModelException::check_exception(
@@ -501,70 +716,91 @@ namespace geode::internal
             "[GeosExporter] Physical property attribute ",
             attribute_id.string(),
             " must be defined on Blocks to be exported." );
-        auto& solid_manager = solid.polyhedron_attribute_manager();
-        const auto& polyhedra_mapping = model2solid.solid_polyhedra_mapping;
+        std::optional< std::string > attribute_type;
+        std::optional< std::string > attribute_name;
         for( const auto& block : model.blocks() )
         {
-            const auto& block_mesh = block.mesh();
             const auto& block_manager =
-                block_mesh.polyhedron_attribute_manager();
+                block.mesh().polyhedron_attribute_manager();
+            if( !block_manager.attribute_exists( attribute_id ) )
+            {
+                Logger::warning( "[GeosExporter] Physical property attribute ",
+                    attribute_id.string(), " is missing on Block ",
+                    block.id().string(), ", it is not exported." );
+                return std::nullopt;
+            }
+            const auto type = block_manager.attribute_type( attribute_id );
+            if( !attribute_type )
+            {
+                attribute_type.emplace( type );
+                attribute_name =
+                    block_manager.find_generic_attribute( attribute_id )
+                        ->name();
+            }
             OpenGeodeGeosciencesIOModelException::check_exception(
-                block_manager.attribute_exists( attribute_id ), nullptr,
+                type == attribute_type.value(), nullptr,
                 OpenGeodeException::TYPE::data,
                 "[GeosExporter] Physical property attribute ",
-                attribute_id.string(), " is missing on Block ",
-                block.id().string(), "." );
-            GenericMapping< index_t > block2solid;
-            for( const auto polyhedron_id : Range( block_mesh.nb_polyhedra() ) )
-            {
-                const MeshElement block_polyhedron{ block.id(), polyhedron_id };
-                if( !polyhedra_mapping.has_mapping_input( block_polyhedron ) )
-                {
-                    continue;
-                }
-                block2solid.map( polyhedron_id,
-                    polyhedra_mapping.in2out( block_polyhedron ) );
-            }
-            solid_manager.import( block_manager, block2solid, attribute_id );
+                attribute_id.string(),
+                " has different value types on Blocks." );
         }
-        const auto attribute =
-            solid_manager.find_generic_attribute( attribute_id );
         OpenGeodeGeosciencesIOModelException::check_exception(
-            attribute && attribute->name().has_value(), nullptr,
-            OpenGeodeException::TYPE::data,
+            attribute_name.has_value(), nullptr, OpenGeodeException::TYPE::data,
             "[GeosExporter] Physical property attribute ",
             attribute_id.string(), " has no name." );
-        return attribute->name().value();
+        auto& solid_manager = solid.polyhedron_attribute_manager();
+        if( const auto attribute =
+                solid_manager.find_generic_attribute( attribute_id ) )
+        {
+            // Attribute already exported for another physical property
+            return attribute->name().value();
+        }
+        const auto vtu_name = unique_attribute_name(
+            solid_manager, attribute_name.value(), geos_name );
+        OpenGeodeGeosciencesIOModelException::check_exception(
+            copy_block_attribute( model, block_polyhedra_offsets,
+                attribute_type.value(), vtu_name, attribute_id, solid_manager,
+                SupportedBlockAttributeTypes{} ),
+            nullptr, OpenGeodeException::TYPE::data,
+            "[GeosExporter] Physical property attribute ",
+            attribute_name.value(), " has an unsupported value type." );
+        return vtu_name;
     }
 
     template < typename Model >
     GeosExporterImpl< Model >::GeosExporterImpl(
         std::string_view files_directory, const Model& model )
         : model_( model ),
-          files_directory_{
-              std::filesystem::path{ to_string( files_directory ) }.string()
-          },
-          prefix_{ filename_without_extension( files_directory ).string() }
+          files_directory_{ normalized_directory( files_directory ).string() },
+          prefix_{ normalized_directory( files_directory ).stem().string() }
     {
-        if( std::filesystem::path{ to_string( files_directory ) }
-                .is_relative() )
-        {
-            std::filesystem::create_directory(
-                std::filesystem::current_path() / files_directory_ );
-        }
-        else
-        {
-            std::filesystem::create_directory( files_directory_ );
-        }
+        OpenGeodeGeosciencesIOModelException::check_exception( !prefix_.empty(),
+            nullptr, OpenGeodeException::TYPE::data,
+            "[GeosExporter] Cannot export in directory \"", files_directory,
+            "\": its name is used as file prefix and must not be empty." );
+        std::filesystem::create_directories( files_directory_ );
     }
 
     template < typename Model >
     void GeosExporterImpl< Model >::convert_model()
     {
-        auto curve_conversion = convert_brep_into_curve( model_ );
-        model_curve_ = std::move( std::get< 0 >( curve_conversion ) );
+        bool all_regular_grids{ model_.nb_blocks() != 0 };
+        for( const auto& block : model_.blocks() )
+        {
+            if( block.mesh().type_name() != RegularGrid3D::type_name_static() )
+            {
+                all_regular_grids = false;
+                break;
+            }
+        }
+        OpenGeodeGeosciencesIOModelException::check_exception(
+            !all_regular_grids, nullptr, OpenGeodeException::TYPE::data,
+            "[GeosExporter] Cannot export a model whose Blocks are all "
+            "RegularGrids: convert the Block meshes into HybridSolids "
+            "first." );
         std::tie( model_solid_, model2solid_ ) =
             convert_brep_into_solid( model_ );
+        compute_block_polyhedra_offsets();
         AttributeValues< index_t > region_attribute_values;
         region_attribute_values.default_value = NO_ID;
         region_attribute_values.no_value = NO_ID;
@@ -590,6 +826,32 @@ namespace geode::internal
         const PhysicalProblem& problem )
     {
         problem_ = &problem;
+    }
+
+    template < typename Model >
+    void GeosExporterImpl< Model >::compute_block_polyhedra_offsets()
+    {
+        const auto& polyhedra_mapping = model2solid_.solid_polyhedra_mapping;
+        block_polyhedra_offsets_.clear();
+        block_polyhedra_offsets_.reserve( model_.nb_blocks() + 1 );
+        index_t offset{ 0 };
+        for( const auto& block : model_.blocks() )
+        {
+            const auto nb_polyhedra = block.mesh().nb_polyhedra();
+            OpenGeodeGeosciencesIOModelException::check_exception(
+                nb_polyhedra == 0
+                    || polyhedra_mapping.in2out( { block.id(), 0 } ) == offset,
+                nullptr, OpenGeodeException::TYPE::data,
+                "[GeosExporter] Polyhedra of Block ", block.id().string(),
+                " are not contiguous in the model solid." );
+            block_polyhedra_offsets_.push_back( offset );
+            offset += nb_polyhedra;
+        }
+        OpenGeodeGeosciencesIOModelException::check_exception(
+            offset == model_solid_->nb_polyhedra(), nullptr,
+            OpenGeodeException::TYPE::data,
+            "[GeosExporter] Wrong number of polyhedra in the model solid." );
+        block_polyhedra_offsets_.push_back( offset );
     }
 
     template < typename Model >
@@ -634,14 +896,22 @@ namespace geode::internal
 
         const auto filename_xml =
             absl::StrCat( files_directory(), "/", prefix(), "_simulation.xml" );
-        doc_xml.save_file( filename_xml.c_str(), PUGIXML_TEXT( "    " ),
-            pugi::format_indent_attributes );
+        OpenGeodeGeosciencesIOModelException::check_exception(
+            doc_xml.save_file( filename_xml.c_str(), PUGIXML_TEXT( "    " ),
+                pugi::format_indent_attributes ),
+            nullptr, OpenGeodeException::TYPE::data,
+            "[GeosExporter] Cannot write file ", filename_xml );
     }
 
     template < typename Model >
     void GeosExporterImpl< Model >::add_well_perforations(
         const PointSet3D& perforations, std::string_view name )
     {
+        OpenGeodeGeosciencesIOModelException::check_exception(
+            is_valid_geos_list_item( name ), nullptr,
+            OpenGeodeException::TYPE::data,
+            "[GeosExporter] Well perforations name \"", name,
+            "\" must be non empty and contain no space, comma nor brace." );
         OpenGeodeGeosciencesIOModelException::check_exception(
             absl::c_find( well_names_, name ) == well_names_.end(), nullptr,
             OpenGeodeException::TYPE::data,
@@ -654,6 +924,7 @@ namespace geode::internal
     template < typename Model >
     void GeosExporterImpl< Model >::prepare_export()
     {
+        clear_export();
         if( problem_ != nullptr )
         {
             validate_problem();
@@ -663,10 +934,27 @@ namespace geode::internal
         initialize_surface_cells( nb_solid_regions );
         transfer_physical_properties();
         transfer_boundary_conditions();
+        compute_well_boxes();
         if( problem_ != nullptr )
         {
             prepare_simulation();
         }
+    }
+
+    template < typename Model >
+    void GeosExporterImpl< Model >::clear_export()
+    {
+        surface_cells_.clear();
+        surface_cells_region_.clear();
+        surface_regions_.clear();
+        imported_fields_.clear();
+        boundary_conditions_.clear();
+        boundary_grids_.clear();
+        boundary_tables_.clear();
+        boundary_fraction_phases_.clear();
+        porosity_attribute_id_.reset();
+        permeability_attribute_id_.reset();
+        writer_.reset();
     }
 
     template < typename Model >
@@ -686,17 +974,21 @@ namespace geode::internal
         region_definitions_ = create_region_definitions( model_ );
         add_block_collection_regions();
         const auto& block_regions = region_definitions_.block_regions;
-        for( const auto polyhedron_id : Range( model_solid_->nb_polyhedra() ) )
+        index_t block_index{ 0 };
+        for( const auto& block : model_.blocks() )
         {
-            const auto& block_id =
-                model2solid_.solid_polyhedra_mapping.out2in( polyhedron_id )
-                    .mesh_id;
-            const auto region = block_regions.find( block_id );
+            const auto region = block_regions.find( block.id() );
             OpenGeodeGeosciencesIOModelException::check_exception(
                 region != block_regions.end(), nullptr,
                 OpenGeodeException::TYPE::internal, "[GeosExporter] Block ",
-                block_id.string(), " belongs to no region." );
-            region_attribute_->set_value( polyhedron_id, region->second );
+                block.id().string(), " belongs to no region." );
+            for( const auto polyhedron_id :
+                Range{ block_polyhedra_offsets_[block_index],
+                    block_polyhedra_offsets_[block_index + 1] } )
+            {
+                region_attribute_->set_value( polyhedron_id, region->second );
+            }
+            block_index++;
         }
         return static_cast< index_t >( region_definitions_.regions.size() );
     }
@@ -731,11 +1023,20 @@ namespace geode::internal
     void GeosExporterImpl< Model >::initialize_surface_cells(
         index_t first_surface_region_id )
     {
+        const auto& polygons_mapping = model2solid_.surface_polygons_mapping;
         auto region_id = first_surface_region_id;
         for( const auto& surface : model_.surfaces() )
         {
+            index_t nb_skipped_polygons{ 0 };
             for( const auto polygon_id : Range{ surface.mesh().nb_polygons() } )
             {
+                // Only polygons on a solid facet define GEOS faces
+                if( !polygons_mapping.has_mapping_input(
+                        { surface.id(), polygon_id } ) )
+                {
+                    nb_skipped_polygons++;
+                    continue;
+                }
                 auto vertices =
                     polygon_unique_vertices( model_, surface, polygon_id );
                 for( auto& vertex : vertices )
@@ -746,8 +1047,60 @@ namespace geode::internal
                 surface_cells_.emplace_back( std::move( vertices ) );
                 surface_cells_region_.push_back( region_id );
             }
+            if( nb_skipped_polygons != 0 )
+            {
+                Logger::warning( "[GeosExporter] ", nb_skipped_polygons,
+                    " polygons of Surface ", surface.id().string(),
+                    " are not on a Block polyhedron facet, they are not "
+                    "exported." );
+            }
             surface_regions_.emplace( surface.id(), region_id );
             region_id++;
+        }
+    }
+
+    template < typename Model >
+    void GeosExporterImpl< Model >::compute_well_boxes()
+    {
+        well_boxes_.clear();
+        if( well_perforations_.empty() )
+        {
+            return;
+        }
+        const auto aabb = create_aabb_tree( *model_solid_ );
+        for( const auto well_id : Indices{ well_perforations_ } )
+        {
+            const auto& well = well_perforations_[well_id];
+            const auto& well_name = well_names_[well_id];
+            BoundingBox3D perf_box;
+            bool has_perforated_cell{ false };
+            for( const auto point_id : Range( well->nb_vertices() ) )
+            {
+                const auto& point = well->point( point_id );
+                const auto cell_id = containing_cell( aabb, point );
+                if( cell_id == NO_ID )
+                {
+                    Logger::warning( "[GeosExporter] Perforation ", point_id,
+                        " of well ", well_name, " (", point.string(),
+                        ") is not inside the model, it is ignored." );
+                    continue;
+                }
+                has_perforated_cell = true;
+                for( const auto vertex_id :
+                    model_solid_->polyhedron_vertices( cell_id ) )
+                {
+                    perf_box.add_point( model_solid_->point( vertex_id ) );
+                }
+            }
+            if( !has_perforated_cell )
+            {
+                Logger::warning( "[GeosExporter] No perforation of well ",
+                    well_name,
+                    " is inside the model, no perforation Box is exported." );
+                well_boxes_.emplace_back( std::nullopt );
+                continue;
+            }
+            well_boxes_.emplace_back( std::move( perf_box ) );
         }
     }
 
@@ -755,56 +1108,53 @@ namespace geode::internal
     void GeosExporterImpl< Model >::write_well_perforations_boxes(
         pugi::xml_node& root ) const
     {
-        auto aabb = create_aabb_tree( *model_solid_ );
-        for( const auto well_id : Indices{ well_perforations_ } )
+        for( const auto well_id : Indices{ well_boxes_ } )
         {
-            const auto& well = well_perforations_[well_id];
-            BoundingBox3D perf_box;
-            for( const auto point : Range( well->nb_vertices() ) )
+            const auto& perf_box = well_boxes_[well_id];
+            if( !perf_box )
             {
-                const auto neigh_cells =
-                    aabb.containing_boxes( well->point( point ) );
-                if( neigh_cells.empty() )
-                {
-                    continue;
-                }
-                double distance_to_nearest_cell_center{
-                    std::numeric_limits< double >::max()
-                };
-                index_t selected_cell_id{ NO_ID };
-                for( const auto cell_id : neigh_cells )
-                {
-                    const auto tmp_dist =
-                        point_point_distance< 3 >( well->point( point ),
-                            model_solid_->polyhedron_barycenter( cell_id ) );
-                    if( distance_to_nearest_cell_center < tmp_dist )
-                    {
-                        continue;
-                    }
-                    distance_to_nearest_cell_center = tmp_dist;
-                    selected_cell_id = cell_id;
-                }
-                for( auto& vertex_id :
-                    model_solid_->polyhedron_vertices( selected_cell_id ) )
-                {
-                    perf_box.add_point( model_solid_->point( vertex_id ) );
-                }
+                continue;
             }
             auto box_node = root.append_child( "Box" );
             box_node.append_attribute( "name" ).set_value(
                 well_names_[well_id].c_str() );
             static constexpr auto SAFETY_OFFSET = 100. * GLOBAL_EPSILON;
+            const auto box_corner = []( const Point3D& corner, double offset ) {
+                return absl::StrCat( "{",
+                    geos_real( corner.value( 0 ) + offset ), ", ",
+                    geos_real( corner.value( 1 ) + offset ), ", ",
+                    geos_real( corner.value( 2 ) + offset ), "}" );
+            };
             box_node.append_attribute( "xMin" ).set_value(
-                absl::StrCat( "{", perf_box.min().value( 0 ) - SAFETY_OFFSET,
-                    ", ", perf_box.min().value( 1 ) - SAFETY_OFFSET, ", ",
-                    perf_box.min().value( 2 ) - SAFETY_OFFSET, "}" )
-                    .c_str() );
+                box_corner( perf_box->min(), -SAFETY_OFFSET ).c_str() );
             box_node.append_attribute( "xMax" ).set_value(
-                absl::StrCat( "{", perf_box.max().value( 0 ) + SAFETY_OFFSET,
-                    ", ", perf_box.max().value( 1 ) + SAFETY_OFFSET, ", ",
-                    perf_box.max().value( 2 ) + SAFETY_OFFSET, "}" )
-                    .c_str() );
+                box_corner( perf_box->max(), SAFETY_OFFSET ).c_str() );
         }
+    }
+
+    template < typename Model >
+    index_t GeosExporterImpl< Model >::containing_cell(
+        const AABBTree3D& aabb, const Point3D& point ) const
+    {
+        double distance_to_nearest_cell_center{
+            std::numeric_limits< double >::max()
+        };
+        index_t selected_cell_id{ NO_ID };
+        for( const auto cell_id : aabb.containing_boxes( point ) )
+        {
+            if( !is_point_in_polyhedron( *model_solid_, cell_id, point ) )
+            {
+                continue;
+            }
+            const auto distance = point_point_distance< 3 >(
+                point, model_solid_->polyhedron_barycenter( cell_id ) );
+            if( distance < distance_to_nearest_cell_center )
+            {
+                distance_to_nearest_cell_center = distance;
+                selected_cell_id = cell_id;
+            }
+        }
+        return selected_cell_id;
     }
 
     template < typename Model >
@@ -880,7 +1230,7 @@ namespace geode::internal
                     .set_value( condition.function_name->c_str() );
             }
             specification_node.append_attribute( "scale" ).set_value(
-                absl::StrFormat( "%.15g", condition.scale ).c_str() );
+                geos_real( condition.scale ).c_str() );
             specification_node.append_attribute( "setNames" )
                 .set_value( absl::StrCat(
                     "{ ", absl::StrJoin( condition.region_ids, ", " ), " }" )
@@ -916,26 +1266,6 @@ namespace geode::internal
     }
 
     template < typename Model >
-    bool GeosExporterImpl< Model >::check_property_name(
-        std::string_view property_name ) const
-    {
-        for( const auto& block : model_.blocks() )
-        {
-            if( !block.mesh()
-                    .polyhedron_attribute_manager()
-                    .attribute_ids_matching_name( property_name )
-                    .has_value() )
-            {
-                Logger::info( "The property ", property_name,
-                    " will not be exported because it is not defined on "
-                    "every block of the model." );
-                return false;
-            }
-        }
-        return true;
-    }
-
-    template < typename Model >
     void GeosExporterImpl< Model >::transfer_physical_properties()
     {
         for( const auto& [property, geos_name] : PHYSICAL_PROPERTY_GEOS_NAMES )
@@ -946,10 +1276,15 @@ namespace geode::internal
             }
             const auto& property_info =
                 model_.physical_property_info( property );
-            auto attribute_name = transfer_block_attribute(
-                model_, *model_solid_, model2solid_, property_info );
+            auto attribute_name =
+                transfer_block_attribute( model_, *model_solid_,
+                    block_polyhedra_offsets_, property_info, geos_name );
+            if( !attribute_name )
+            {
+                continue;
+            }
             imported_fields_.emplace_back(
-                std::move( attribute_name ), to_string( geos_name ) );
+                std::move( attribute_name.value() ), to_string( geos_name ) );
             if( property == PHYSICAL_PROPERTY_NAME::porosity )
             {
                 porosity_attribute_id_ = property_info.attribute_id;
@@ -1049,7 +1384,7 @@ namespace geode::internal
         centers.reserve( mesh.nb_polygons() );
         for( const auto polygon_id : Range{ mesh.nb_polygons() } )
         {
-            centers.push_back( mesh.polygon_barycenter( polygon_id ) );
+            centers.push_back( face_center( mesh, polygon_id ) );
         }
         auto coordinates = separating_table_coordinates( centers );
         OpenGeodeGeosciencesIOModelException::check_exception(
@@ -1067,6 +1402,10 @@ namespace geode::internal
         }
         grid.node_polygons = table_node_polygons( grid.coordinates,
             table_polygon_nodes( grid.coordinates, centers ), centers );
+        Logger::info( "[GeosExporter] Boundary condition table of Surface ",
+            surface.id().string(), ": ", grid.coordinates[0].size(), " x ",
+            grid.coordinates[1].size(), " x ", grid.coordinates[2].size(),
+            " nodes" );
         return boundary_grids_.emplace( surface.id(), std::move( grid ) )
             .first->second;
     }
@@ -1155,8 +1494,10 @@ namespace geode::internal
         {
             throw OpenGeodeGeosciencesIOModelException{ nullptr,
                 OpenGeodeException::TYPE::data,
-                "[Blocks::save_geos] Cannot find the explicit "
-                "SolidMesh type" };
+                "[GeosExporter] Cannot write the model solid of type ",
+                model_solid_->type_name().get(),
+                ": only TetrahedralSolid, HybridSolid and PolyhedralSolid are "
+                "supported." };
         }
         return filename;
     }
@@ -1197,6 +1538,12 @@ namespace geode::internal
                 "several times." );
             const auto source =
                 cell_attributes.find_read_only_attribute< double >( source_id );
+            OpenGeodeGeosciencesIOModelException::check_exception(
+                !cell_attributes.attribute_ids_matching_name( field.vtu_name ),
+                nullptr, OpenGeodeException::TYPE::data,
+                "[GeosExporter] Cannot import a copy of ", field.source.name,
+                " named ", field.vtu_name,
+                ": another exported attribute has this name." );
             AttributeValues< double > values;
             values.default_value = 0.;
             const auto copy_id =
@@ -1253,7 +1600,14 @@ namespace geode::internal
             PHYSICAL_PROPERTY_NAME::boundary_pressure );
         context.has_boundary_temperature = model_.has_physical_property(
             PHYSICAL_PROPERTY_NAME::boundary_temperature );
-        context.well_names = well_names_;
+        // Only the wells perforating the model define a GEOS set
+        for( const auto well_id : Indices{ well_boxes_ } )
+        {
+            if( well_boxes_[well_id] )
+            {
+                context.well_names.push_back( well_names_[well_id] );
+            }
+        }
         return context;
     }
 

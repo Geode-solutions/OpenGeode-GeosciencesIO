@@ -24,6 +24,7 @@
 #pragma once
 
 #include <fstream>
+#include <memory>
 
 #include <absl/functional/function_ref.h>
 #include <absl/types/span.h>
@@ -56,6 +57,11 @@ namespace geode::internal
     public:
         static constexpr auto EXTENSION = "omf";
         static constexpr auto OMF_ELEMENT_ATTRIBUTE_NAME = "omf_element";
+        /*!
+         * Default bound of the number of values of an array: meshes are
+         * limited to NO_ID points or elements of at most 3 values
+         */
+        static constexpr uint64_t MAX_ARRAY_VALUES = 3 * uint64_t{ NO_ID };
 
         explicit OMFFile( std::string_view filename );
 
@@ -149,7 +155,9 @@ namespace geode::internal
          * vector if there is no such array
          */
         [[nodiscard]] std::vector< double > read_optional_scalars(
-            const nlohmann::json& geometry, std::string_view key ) const;
+            const nlohmann::json& geometry,
+            std::string_view key,
+            uint64_t max_values = MAX_ARRAY_VALUES ) const;
 
         /*!
          * Create attributes in the manager for all element data defined at
@@ -164,15 +172,33 @@ namespace geode::internal
             AttributeManager& manager,
             absl::FunctionRef< index_t( index_t ) > attribute_element ) const;
 
+        /*!
+         * Read a scalar array. Values of compressed arrays beyond max_values
+         * are not decompressed and are ignored with a warning.
+         */
         [[nodiscard]] std::vector< double > read_scalars(
-            const nlohmann::json& array ) const;
+            const nlohmann::json& array,
+            uint64_t max_values = MAX_ARRAY_VALUES ) const;
 
         [[nodiscard]] std::vector< int64_t > read_integers(
-            const nlohmann::json& array ) const;
+            const nlohmann::json& array,
+            uint64_t max_values = MAX_ARRAY_VALUES ) const;
 
     private:
-        [[nodiscard]] std::vector< char > read_binary(
-            const nlohmann::json& binary ) const;
+        /*!
+         * Decompress an array block of 8 bytes values directly into T values
+         */
+        template < typename T >
+        [[nodiscard]] std::vector< T > read_binary(
+            const nlohmann::json& binary, uint64_t max_values ) const;
+
+    private:
+        /*!
+         * Parsed file used by is_loadable, cached per thread while the file
+         * is unchanged since all OMF readers check the same file
+         */
+        [[nodiscard]] static std::shared_ptr< const OMFFile > loadability_file(
+            std::string_view filename );
 
     private:
         std::string filename_;
@@ -181,6 +207,7 @@ namespace geode::internal
         nlohmann::json index_;
         const nlohmann::json* project_{ nullptr };
         Vector3D project_origin_;
+        bool warn_missing_elements_{ true };
     };
 
     /*!

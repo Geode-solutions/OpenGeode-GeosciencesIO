@@ -61,14 +61,6 @@ namespace
             builder.set_name( absl::StripAsciiWhitespace(
                 root_.child( "name" ).child_value() ) );
             const auto& units = root_.child( "units" );
-            bool use_base_names;
-            const auto ok = absl::SimpleAtob(
-                units.attribute( "use_base_names" ).value(), &use_base_names );
-            geode::OpenGeodeGeosciencesIOModelException::check_exception( ok,
-                nullptr, geode::OpenGeodeException::TYPE::data,
-                "[HorizonStackSKUAInput::read_units] Failed to "
-                "read use_base_names attribute." );
-            absl::flat_hash_map< std::string, geode::uuid > name_map;
             for( const auto& unit : units.children( "unit" ) )
             {
                 const auto unit_name = absl::StripAsciiWhitespace(
@@ -83,16 +75,9 @@ namespace
                         unit_top.child( "name" ).child_value() );
                     const auto top_relation = absl::StripAsciiWhitespace(
                         unit_top.child( "relation" ).child_value() );
-                    if( !name_map.contains( top_horizon_name ) )
-                    {
-                        const auto& top_horizon_uuid = builder.add_horizon();
-                        builder.set_horizon_name(
-                            horizons_stack.horizon( top_horizon_uuid ),
-                            top_horizon_name );
-                        name_map[top_horizon_name] = top_horizon_uuid;
-                    }
                     const auto& top_horizon = horizons_stack.horizon(
-                        name_map.at( top_horizon_name ) );
+                        find_or_create_horizon( top_horizon_name, unit_name,
+                            horizons_stack, builder ) );
                     builder.set_horizon_above( top_horizon, strati_unit );
                     if( top_relation != "structural" )
                     {
@@ -115,16 +100,9 @@ namespace
                         unit_base.child( "name" ).child_value() );
                     const auto base_relation = absl::StripAsciiWhitespace(
                         unit_base.child( "relation" ).child_value() );
-                    if( !name_map.contains( base_horizon_name ) )
-                    {
-                        const auto& base_horizon_uuid = builder.add_horizon();
-                        builder.set_horizon_name(
-                            horizons_stack.horizon( base_horizon_uuid ),
-                            base_horizon_name );
-                        name_map[base_horizon_name] = base_horizon_uuid;
-                    }
                     const auto& base_horizon = horizons_stack.horizon(
-                        name_map.at( base_horizon_name ) );
+                        find_or_create_horizon( base_horizon_name, unit_name,
+                            horizons_stack, builder ) );
                     builder.set_horizon_under( base_horizon, strati_unit );
                     if( base_relation != "structural" )
                     {
@@ -148,6 +126,47 @@ namespace
         }
 
     private:
+        const geode::uuid& find_or_create_horizon( std::string_view name,
+            std::string_view unit_name,
+            const geode::HorizonsStack< dimension >& horizons_stack,
+            geode::HorizonsStackBuilder< dimension >& builder )
+        {
+            if( name.empty() )
+            {
+                // Unnamed horizons cannot be matched between units
+                auto unique_name =
+                    absl::StrCat( "unnamed_horizon_", nb_unnamed_++ );
+                while( name_map_.contains( unique_name ) )
+                {
+                    unique_name =
+                        absl::StrCat( "unnamed_horizon_", nb_unnamed_++ );
+                }
+                geode::Logger::warning( "[HorizonStackSKUAInput] Unnamed "
+                                        "horizon of unit ",
+                    unit_name, " has been named ", unique_name );
+                return create_horizon(
+                    std::move( unique_name ), horizons_stack, builder );
+            }
+            const auto it = name_map_.find( name );
+            if( it != name_map_.end() )
+            {
+                return it->second;
+            }
+            return create_horizon(
+                geode::to_string( name ), horizons_stack, builder );
+        }
+
+        const geode::uuid& create_horizon( std::string name,
+            const geode::HorizonsStack< dimension >& horizons_stack,
+            geode::HorizonsStackBuilder< dimension >& builder )
+        {
+            const auto& horizon_id = builder.add_horizon();
+            builder.set_horizon_name(
+                horizons_stack.horizon( horizon_id ), name );
+            return name_map_.emplace( std::move( name ), horizon_id )
+                .first->second;
+        }
+
         void load_file()
         {
             std::ifstream file{ geode::to_string( filename_ ) };
@@ -163,12 +182,19 @@ namespace
                 " while parsing file: ", filename_ );
             root_ = document_.child( "UserObjects" )
                         .child( "LocalStratigraphicColumn" );
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                !root_.empty(), nullptr, geode::OpenGeodeException::TYPE::data,
+                "[HorizonStackSKUAInput] Cannot find "
+                "UserObjects/LocalStratigraphicColumn element in file: ",
+                filename_ );
         }
 
     private:
         std::string filename_;
         pugi::xml_document document_;
         pugi::xml_node root_;
+        absl::flat_hash_map< std::string, geode::uuid > name_map_;
+        geode::index_t nb_unnamed_{ 0 };
     };
 } // namespace
 
@@ -185,9 +211,14 @@ namespace geode::internal
     Percentage HorizonStackSKUAInput< dimension >::is_loadable() const
     {
         std::ifstream file{ geode::to_string( this->filename() ) };
-        if( goto_keyword_if_it_exists( file, " <LocalStratigraphicColumn" ) )
+        std::string line;
+        while( std::getline( file, line ) )
         {
-            return Percentage{ 1 };
+            // Any indentation, possibly on the same line as other elements
+            if( line.find( "<LocalStratigraphicColumn" ) != std::string::npos )
+            {
+                return Percentage{ 1 };
+            }
         }
         return Percentage{ 0 };
     }

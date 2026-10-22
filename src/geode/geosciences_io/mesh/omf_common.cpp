@@ -26,11 +26,13 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <filesystem>
 #include <limits>
 #include <typeinfo>
 
 #include <zlib.h>
 
+#include <absl/algorithm/container.h>
 #include <absl/strings/str_cat.h>
 
 #include <geode/basic/attribute_manager.hpp>
@@ -100,6 +102,20 @@ namespace
             return {};
         }
         return it->get_ref< const std::string& >();
+    }
+
+    /*
+     * Value of a required key, with a clear error if it is missing
+     */
+    const nlohmann::json& omf_member(
+        const nlohmann::json& object, std::string_view key )
+    {
+        const auto it = object.find( key );
+        geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+            it != object.end(), nullptr, geode::OpenGeodeException::TYPE::data,
+            "[OMFInput] Missing key \"", key, "\" in ",
+            omf_class_name( object ), " object" );
+        return *it;
     }
 
     geode::Vector3D omf_vector( const nlohmann::json& object,
@@ -199,6 +215,30 @@ namespace
         return values;
     }
 
+    template < geode::index_t dimension >
+    geode::AttributeValues< geode::Vector< dimension > > omf_no_data_vector()
+    {
+        geode::AttributeValues< geode::Vector< dimension > > values;
+        for( const auto axis : geode::LRange{ dimension } )
+        {
+            values.default_value.set_value(
+                axis, std::numeric_limits< double >::quiet_NaN() );
+        }
+        values.no_value = values.default_value;
+        return values;
+    }
+
+    /*
+     * Black is the OpenGeode no value color (see
+     * convert_raster_image_into_grid), it is also used for invalid colors
+     */
+    geode::AttributeValues< geode::RGBColor > omf_no_data_color()
+    {
+        geode::AttributeValues< geode::RGBColor > values;
+        values.no_value = values.default_value;
+        return values;
+    }
+
     geode::AttributeValues< std::string > omf_no_data_string()
     {
         geode::AttributeValues< std::string > values;
@@ -221,6 +261,62 @@ namespace
                 value.is_string() ? value.get< std::string >() : "" );
         }
         return strings;
+    }
+
+    /*
+     * Integer value of a real, -1 if it is not finite or out of the int64_t
+     * range
+     */
+    int64_t omf_real_to_integer( double real )
+    {
+        // 2^63, exactly representable as a double
+        constexpr auto LIMIT =
+            -static_cast< double >( std::numeric_limits< int64_t >::min() );
+        if( !std::isfinite( real ) || real < -LIMIT || real >= LIMIT )
+        {
+            return -1;
+        }
+        return static_cast< int64_t >( real );
+    }
+
+    /*
+     * Integer value of a JSON number, -1 if it is not a number or out of the
+     * int64_t range
+     */
+    int64_t omf_json_integer( const nlohmann::json& value )
+    {
+        if( value.is_number_unsigned() )
+        {
+            const auto integer = value.get< uint64_t >();
+            return integer > static_cast< uint64_t >(
+                       std::numeric_limits< int64_t >::max() )
+                       ? -1
+                       : static_cast< int64_t >( integer );
+        }
+        if( value.is_number_integer() )
+        {
+            return value.get< int64_t >();
+        }
+        if( value.is_number_float() )
+        {
+            return omf_real_to_integer( value.get< double >() );
+        }
+        return -1;
+    }
+
+    uint64_t omf_json_offset(
+        const nlohmann::json& binary, std::string_view key )
+    {
+        const auto it = binary.find( key );
+        if( it == binary.end() )
+        {
+            return 0;
+        }
+        geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+            it->is_number_unsigned(), nullptr,
+            geode::OpenGeodeException::TYPE::data, "[OMFInput] Array block ",
+            key, " ", it->dump(), " is not a non negative integer" );
+        return it->get< uint64_t >();
     }
 
     geode::RGBColor omf_color( int64_t red, int64_t green, int64_t blue )
@@ -250,8 +346,9 @@ namespace
                         return component.is_number();
                     } ) )
             {
-                colors.push_back( omf_color( value[0].get< int64_t >(),
-                    value[1].get< int64_t >(), value[2].get< int64_t >() ) );
+                colors.push_back( omf_color( omf_json_integer( value[0] ),
+                    omf_json_integer( value[1] ),
+                    omf_json_integer( value[2] ) ) );
             }
             else
             {
@@ -318,7 +415,7 @@ namespace
     private:
         const nlohmann::json& array() const
         {
-            return file_.object( data_.at( ARRAY_KEY ) );
+            return file_.object( omf_member( data_, ARRAY_KEY ) );
         }
 
         template < typename T >
@@ -344,13 +441,14 @@ namespace
         void read_scalar_data()
         {
             set_values( name_, "scalar", omf_no_data_double(), true,
-                file_.read_scalars( array() ) );
+                file_.read_scalars( array(), nb_values_ ) );
         }
 
         template < geode::index_t dimension >
         void read_vector_data()
         {
-            const auto components = file_.read_scalars( array() );
+            const auto components = file_.read_scalars(
+                array(), uint64_t{ nb_values_ } * dimension );
             if( components.size() % dimension != 0 )
             {
                 geode::Logger::warning( "[OMFInput] Data \"", name_,
@@ -368,8 +466,7 @@ namespace
                 }
             }
             set_values( name_, absl::StrCat( "vector", dimension ),
-                geode::AttributeValues< geode::Vector< dimension > >{}, true,
-                vectors );
+                omf_no_data_vector< dimension >(), true, vectors );
         }
 
         void read_color_data()
@@ -377,20 +474,19 @@ namespace
             const auto& colors = array();
             if( omf_class_name( colors ) == "ColorArray" )
             {
-                set_values( name_, "color",
-                    geode::AttributeValues< geode::RGBColor >{}, false,
+                set_values( name_, "color", omf_no_data_color(), false,
                     read_omf_inline_colors( colors ) );
                 return;
             }
-            const auto components = file_.read_integers( colors );
+            const auto components =
+                file_.read_integers( colors, uint64_t{ nb_values_ } * 3 );
             std::vector< geode::RGBColor > values( components.size() / 3 );
             for( const auto color : geode::Indices{ values } )
             {
                 values[color] = omf_color( components[3 * color],
                     components[3 * color + 1], components[3 * color + 2] );
             }
-            set_values( name_, "color",
-                geode::AttributeValues< geode::RGBColor >{}, false, values );
+            set_values( name_, "color", omf_no_data_color(), false, values );
         }
 
         /*
@@ -400,7 +496,7 @@ namespace
          */
         void read_mapped_data()
         {
-            const auto indices = file_.read_integers( array() );
+            const auto indices = file_.read_integers( array(), nb_values_ );
             const auto nb =
                 omf_usable_size( name_, indices.size(), nb_values_ );
             geode::AttributeValues< int > index_values;
@@ -436,7 +532,8 @@ namespace
             {
                 legend_name = name_;
             }
-            const auto& legend_values = file_.object( legend.at( "values" ) );
+            const auto& legend_values =
+                file_.object( omf_member( legend, "values" ) );
             const auto legend_class = omf_class_name( legend_values );
             if( legend_class == "StringArray"
                 || legend_class == "DateTimeArray" )
@@ -446,8 +543,7 @@ namespace
             }
             else if( legend_class == "ColorArray" )
             {
-                set_legend_values( legend_name, "color",
-                    geode::AttributeValues< geode::RGBColor >{},
+                set_legend_values( legend_name, "color", omf_no_data_color(),
                     read_omf_inline_colors( legend_values ), indices, nb );
             }
             else if( legend_class == "ScalarArray" )
@@ -554,27 +650,64 @@ namespace geode::internal
     {
         try
         {
+            const auto omf = loadability_file( filename );
+            if( !omf )
             {
-                std::ifstream file{ to_string( filename ), std::ios::binary };
-                if( !file.good() || !read_omf_header( file ) )
-                {
-                    return Percentage{ 0 };
-                }
+                return Percentage{ 0 };
             }
-            const OMFFile omf{ filename };
-            const auto nb_elements = omf.nb_elements();
+            const auto nb_elements = omf->nb_elements();
             if( nb_elements == 0 )
             {
                 return Percentage{ 0 };
             }
             return Percentage{ static_cast< double >(
-                                   nb_loadable_elements( omf ) )
+                                   nb_loadable_elements( *omf ) )
                                / static_cast< double >( nb_elements ) };
         }
         catch( ... )
         {
             return Percentage{ 0 };
         }
+    }
+
+    std::shared_ptr< const OMFFile > OMFFile::loadability_file(
+        std::string_view filename )
+    {
+        struct CachedFile
+        {
+            std::string path;
+            std::uintmax_t size{ 0 };
+            std::filesystem::file_time_type time;
+            std::shared_ptr< const OMFFile > file;
+        };
+        thread_local CachedFile cache;
+        auto path = to_string( filename );
+        std::error_code error;
+        const auto size = std::filesystem::file_size( path, error );
+        const auto time = error
+                              ? std::filesystem::file_time_type{}
+                              : std::filesystem::last_write_time( path, error );
+        if( !error && cache.file && cache.path == path && cache.size == size
+            && cache.time == time )
+        {
+            return cache.file;
+        }
+        cache.file.reset();
+        {
+            std::ifstream file{ path, std::ios::binary };
+            if( !file.good() || !read_omf_header( file ) )
+            {
+                return nullptr;
+            }
+        }
+        auto omf = std::make_shared< OMFFile >( filename );
+        omf->warn_missing_elements_ = false;
+        omf->file_.close();
+        if( !error )
+        {
+            cache = { std::move( path ), size, time, omf };
+        }
+        return omf;
     }
 
     std::size_t OMFFile::nb_elements() const
@@ -611,8 +744,11 @@ namespace geode::internal
                                 : index_.end();
             if( it == index_.end() || !it->is_object() )
             {
-                Logger::warning( "[OMFInput] Project element ", uid.dump(),
-                    " is missing from the file and is skipped" );
+                if( warn_missing_elements_ )
+                {
+                    Logger::warning( "[OMFInput] Project element ", uid.dump(),
+                        " is missing from the file and is skipped" );
+                }
                 continue;
             }
             if( omf_class_name( *it ) != element_class )
@@ -651,7 +787,7 @@ namespace geode::internal
     const nlohmann::json& OMFFile::geometry(
         const nlohmann::json& element ) const
     {
-        return object( element.at( "geometry" ) );
+        return object( omf_member( element, "geometry" ) );
     }
 
     std::string_view OMFFile::name( const nlohmann::json& object )
@@ -717,7 +853,8 @@ namespace geode::internal
     std::vector< Point3D > OMFFile::read_points(
         const nlohmann::json& geometry, std::string_view key ) const
     {
-        const auto coordinates = read_scalars( object( geometry.at( key ) ) );
+        const auto coordinates =
+            read_scalars( object( omf_member( geometry, key ) ) );
         OpenGeodeGeosciencesIOMeshException::check_exception(
             coordinates.size() % 3 == 0, nullptr,
             OpenGeodeException::TYPE::data, "[OMFInput] Number of ", key,
@@ -743,7 +880,8 @@ namespace geode::internal
             std::string_view key,
             index_t nb_vertices ) const
     {
-        const auto indices = read_integers( object( geometry.at( key ) ) );
+        const auto indices =
+            read_integers( object( omf_member( geometry, key ) ) );
         OpenGeodeGeosciencesIOMeshException::check_exception(
             indices.size() % nb_vertices_per_element == 0, nullptr,
             OpenGeodeException::TYPE::data, "[OMFInput] Number of ", key,
@@ -752,6 +890,7 @@ namespace geode::internal
         std::vector< std::array< index_t, nb_vertices_per_element > > elements;
         elements.reserve( indices.size() / nb_vertices_per_element );
         index_t nb_invalid{ 0 };
+        index_t nb_degenerate{ 0 };
         for( std::size_t first = 0; first < indices.size();
             first += nb_vertices_per_element )
         {
@@ -766,6 +905,15 @@ namespace geode::internal
                     break;
                 }
                 element[vertex] = static_cast< index_t >( index );
+                if( absl::c_count(
+                        absl::MakeConstSpan( element.data(), vertex ),
+                        element[vertex] )
+                    != 0 )
+                {
+                    element.fill( NO_ID );
+                    nb_degenerate++;
+                    break;
+                }
             }
         }
         if( nb_invalid > 0 )
@@ -773,6 +921,11 @@ namespace geode::internal
             Logger::warning( "[OMFInput] ", nb_invalid, " ", key,
                 " referencing vertices outside [0, ", nb_vertices,
                 ") are skipped" );
+        }
+        if( nb_degenerate > 0 )
+        {
+            Logger::warning( "[OMFInput] ", nb_degenerate, " ", key,
+                " with repeated vertices are skipped" );
         }
         return elements;
     }
@@ -785,14 +938,16 @@ namespace geode::internal
             const nlohmann::json&, std::string_view, index_t ) const;
 
     std::vector< double > OMFFile::read_optional_scalars(
-        const nlohmann::json& geometry, std::string_view key ) const
+        const nlohmann::json& geometry,
+        std::string_view key,
+        uint64_t max_values ) const
     {
         const auto it = geometry.find( key );
         if( it == geometry.end() || it->is_null() )
         {
             return {};
         }
-        return read_scalars( object( *it ) );
+        return read_scalars( object( *it ), max_values );
     }
 
     void OMFFile::read_data( const nlohmann::json& element,
@@ -828,9 +983,9 @@ namespace geode::internal
     }
 
     std::vector< double > OMFFile::read_scalars(
-        const nlohmann::json& array ) const
+        const nlohmann::json& array, uint64_t max_values ) const
     {
-        const auto& content = array.at( ARRAY_KEY );
+        const auto& content = omf_member( array, ARRAY_KEY );
         if( content.is_array() )
         {
             std::vector< double > values;
@@ -845,72 +1000,68 @@ namespace geode::internal
             return values;
         }
         const auto dtype = content.value( "dtype", "" );
-        const auto bytes = read_binary( content );
-        std::vector< double > values( bytes.size() / 8 );
         if( dtype == "<f8" )
         {
-            std::memcpy( values.data(), bytes.data(), 8 * values.size() );
-            return values;
+            return read_binary< double >( content, max_values );
         }
         OpenGeodeGeosciencesIOMeshException::check_exception( dtype == "<i8",
             nullptr, OpenGeodeException::TYPE::data,
             "[OMFInput] Unsupported array dtype ", dtype );
+        const auto integers = read_binary< int64_t >( content, max_values );
+        std::vector< double > values( integers.size() );
         for( const auto value : Indices{ values } )
         {
-            int64_t integer;
-            std::memcpy( &integer, bytes.data() + 8 * value, 8 );
-            values[value] = static_cast< double >( integer );
+            values[value] = static_cast< double >( integers[value] );
         }
         return values;
     }
 
     std::vector< int64_t > OMFFile::read_integers(
-        const nlohmann::json& array ) const
+        const nlohmann::json& array, uint64_t max_values ) const
     {
-        const auto& content = array.at( ARRAY_KEY );
+        const auto& content = omf_member( array, ARRAY_KEY );
         if( content.is_array() )
         {
             std::vector< int64_t > values;
             values.reserve( content.size() );
             for( const auto& value : content )
             {
-                for( const auto& component :
-                    value.is_array() ? value
-                                     : nlohmann::json::array( { value } ) )
+                if( !value.is_array() )
                 {
-                    values.push_back( component.is_number()
-                                          ? component.get< int64_t >()
-                                          : -1 );
+                    values.push_back( omf_json_integer( value ) );
+                    continue;
+                }
+                for( const auto& component : value )
+                {
+                    values.push_back( omf_json_integer( component ) );
                 }
             }
             return values;
         }
         const auto dtype = content.value( "dtype", "" );
-        const auto bytes = read_binary( content );
-        std::vector< int64_t > values( bytes.size() / 8 );
         if( dtype == "<i8" )
         {
-            std::memcpy( values.data(), bytes.data(), 8 * values.size() );
-            return values;
+            return read_binary< int64_t >( content, max_values );
         }
         OpenGeodeGeosciencesIOMeshException::check_exception( dtype == "<f8",
             nullptr, OpenGeodeException::TYPE::data,
             "[OMFInput] Unsupported array dtype ", dtype );
+        const auto reals = read_binary< double >( content, max_values );
+        std::vector< int64_t > values( reals.size() );
         for( const auto value : Indices{ values } )
         {
-            double real;
-            std::memcpy( &real, bytes.data() + 8 * value, 8 );
-            values[value] =
-                std::isfinite( real ) ? static_cast< int64_t >( real ) : -1;
+            values[value] = omf_real_to_integer( reals[value] );
         }
         return values;
     }
 
-    std::vector< char > OMFFile::read_binary(
-        const nlohmann::json& binary ) const
+    template < typename T >
+    std::vector< T > OMFFile::read_binary(
+        const nlohmann::json& binary, uint64_t max_values ) const
     {
-        const auto start = binary.value( "start", uint64_t{ 0 } );
-        const auto length = binary.value( "length", uint64_t{ 0 } );
+        static_assert( sizeof( T ) == 8 );
+        const auto start = omf_json_offset( binary, "start" );
+        const auto length = omf_json_offset( binary, "length" );
         OpenGeodeGeosciencesIOMeshException::check_exception(
             start >= static_cast< uint64_t >( HEADER_SIZE )
                 && length <= json_start_ && start <= json_start_ - length
@@ -934,30 +1085,50 @@ namespace geode::internal
             "[OMFInput] Failed to initialize zlib" );
         stream.next_in = reinterpret_cast< Bytef* >( compressed.data() );
         stream.avail_in = static_cast< uInt >( length );
-        std::vector< char > result;
+        const auto max_size = max_values * sizeof( T );
+        std::vector< T > result;
+        std::size_t size{ 0 };
         int status{ Z_OK };
+        bool truncated{ false };
         while( status == Z_OK )
         {
-            const auto size = result.size();
-            result.resize( size + INFLATE_CHUNK_SIZE );
+            result.resize( result.size() + INFLATE_CHUNK_SIZE / sizeof( T ) );
+            const auto capacity = result.size() * sizeof( T );
             stream.next_out =
-                reinterpret_cast< Bytef* >( result.data() + size );
-            stream.avail_out = static_cast< uInt >( INFLATE_CHUNK_SIZE );
+                reinterpret_cast< Bytef* >( result.data() ) + size;
+            stream.avail_out = static_cast< uInt >( capacity - size );
             status = inflate( &stream, Z_NO_FLUSH );
-            result.resize( size + INFLATE_CHUNK_SIZE - stream.avail_out );
+            size = capacity - stream.avail_out;
+            if( size > max_size )
+            {
+                size = max_size;
+                truncated = true;
+                break;
+            }
             if( status == Z_BUF_ERROR && stream.avail_in > 0 )
             {
                 status = Z_OK;
             }
         }
         inflateEnd( &stream );
-        OpenGeodeGeosciencesIOMeshException::check_exception(
-            status == Z_STREAM_END, nullptr, OpenGeodeException::TYPE::data,
-            "[OMFInput] Corrupted compressed array block at ", start );
-        OpenGeodeGeosciencesIOMeshException::check_exception(
-            result.size() % 8 == 0, nullptr, OpenGeodeException::TYPE::data,
-            "[OMFInput] Array block at ", start, " has ", result.size(),
-            " bytes, which is not a multiple of 8" );
+        if( truncated )
+        {
+            Logger::warning( "[OMFInput] Array block at ", start,
+                " has more than the ", max_values,
+                " expected values: extra values are ignored" );
+        }
+        else
+        {
+            OpenGeodeGeosciencesIOMeshException::check_exception(
+                status == Z_STREAM_END, nullptr, OpenGeodeException::TYPE::data,
+                "[OMFInput] Corrupted compressed array block at ", start );
+            OpenGeodeGeosciencesIOMeshException::check_exception(
+                size % sizeof( T ) == 0, nullptr,
+                OpenGeodeException::TYPE::data, "[OMFInput] Array block at ",
+                start, " has ", size, " bytes, which is not a multiple of ",
+                sizeof( T ) );
+        }
+        result.resize( size / sizeof( T ) );
         return result;
     }
 

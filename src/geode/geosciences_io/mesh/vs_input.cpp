@@ -26,6 +26,7 @@
 #include <fstream>
 
 #include <geode/basic/file.hpp>
+#include <geode/basic/logger.hpp>
 
 #include <geode/geometry/point.hpp>
 
@@ -51,23 +52,34 @@ namespace
 
         void read_file()
         {
+            geode::index_t nb_objects{ 0 };
             while( const auto vertex_set =
                        geode::internal::read_vs_points( file_ ) )
             {
                 build_point_set( vertex_set.value() );
+                nb_objects++;
+            }
+            if( nb_objects == 0 )
+            {
+                geode::Logger::warning(
+                    "[VSInput] No GOCAD VSet found in the file" );
             }
         }
 
     private:
         void build_point_set( const geode::internal::VSetData& vertex_set )
         {
-            if( vertex_set.header.name )
+            const auto offset = point_set_.nb_vertices();
+            if( vertex_set.header.name && !point_set_.name() )
             {
                 builder_->set_name( vertex_set.header.name.value() );
             }
-            for( const auto& point : vertex_set.points )
+            const auto first_vertex =
+                builder_->create_vertices( vertex_set.points.size() );
+            for( const auto vertex : geode::Indices{ vertex_set.points } )
             {
-                builder_->create_point( point );
+                builder_->set_point(
+                    first_vertex + vertex, vertex_set.points[vertex] );
             }
             std::vector< geode::index_t > inverse_vertex_mapping(
                 vertex_set.points.size() );
@@ -76,7 +88,7 @@ namespace
                 vertex_set.vertices_properties_header,
                 vertex_set.vertices_attribute_values,
                 point_set_.vertex_attribute_manager(), vertex_set.points.size(),
-                inverse_vertex_mapping );
+                inverse_vertex_mapping, offset );
         }
 
     private:

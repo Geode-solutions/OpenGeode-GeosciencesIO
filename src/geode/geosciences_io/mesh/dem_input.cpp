@@ -23,6 +23,8 @@
 
 #include <geode/geosciences_io/mesh/internal/dem_input.hpp>
 
+#include <cmath>
+
 #include <gdal.h>
 #include <gdal_priv.h>
 #include <gdal_utils.h>
@@ -58,14 +60,23 @@ namespace
     private:
         void create_polygons( absl::Span< const geode::index_t > vertices )
         {
+            const auto& column_direction = coordinate_system_.direction( 0 );
+            const auto& row_direction = coordinate_system_.direction( 1 );
+            const auto is_direct =
+                column_direction.value( 0 ) * row_direction.value( 1 )
+                    - column_direction.value( 1 ) * row_direction.value( 0 )
+                > 0;
             for( const auto i : geode::Range{ height_ - 1 } )
             {
                 const auto i_offset = i * width_;
                 for( const auto j : geode::Range{ width_ - 1 } )
                 {
-                    const auto j_offset = j + width_;
-                    std::array polygon{ i_offset + j, i_offset + j + 1,
-                        i_offset + j_offset, i_offset + j_offset + 1 };
+                    const auto pixel = i_offset + j;
+                    auto polygon =
+                        is_direct ? std::array{ pixel, pixel + 1,
+                            pixel + width_ + 1, pixel + width_ }
+                                  : std::array{ pixel, pixel + width_,
+                                        pixel + width_ + 1, pixel + 1 };
                     bool found{ true };
                     for( auto& vertex : polygon )
                     {
@@ -99,30 +110,45 @@ namespace
             const auto band = dataset().GetRasterBand( 1 );
             const auto status = band->RasterIO( GF_Read, 0, 0, width_, height_,
                 elevation.data(), width_, height_, GDT_Float32, 0, 0 );
-            const auto no_data_value = band->GetNoDataValue();
+            int has_no_data{ 0 };
+            const auto no_data_value = band->GetNoDataValue( &has_no_data );
+            const auto float_no_data_value =
+                static_cast< float >( no_data_value );
+            const auto is_no_data = [&]( float value ) {
+                return std::isnan( value )
+                       || ( has_no_data != 0 && value == float_no_data_value );
+            };
             geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                 status == CE_None, nullptr,
                 geode::OpenGeodeException::TYPE::internal,
                 "[DEMInput] Failed to read elevation" );
+            geode::index_t nb_valid_vertices{ 0 };
+            for( const auto vertex : geode::Range{ nb_vertices } )
+            {
+                if( !is_no_data( elevation[vertex] ) )
+                {
+                    vertices[vertex] = nb_valid_vertices++;
+                }
+            }
+            builder_->create_vertices( nb_valid_vertices );
             for( const auto i : geode::Range{ height_ } )
             {
                 const auto i_contribution =
-                    coordinate_system_.direction( 1 ) * i;
+                    coordinate_system_.direction( 1 ) * ( i + 0.5 );
                 for( const auto j : geode::Range{ width_ } )
                 {
                     const auto vertex = i * width_ + j;
-                    const auto current_elevation = elevation[vertex];
-                    if( current_elevation == no_data_value )
+                    if( vertices[vertex] == geode::NO_ID )
                     {
                         continue;
                     }
                     const auto j_contribution =
-                        coordinate_system_.direction( 0 ) * j;
+                        coordinate_system_.direction( 0 ) * ( j + 0.5 );
                     const auto point = coordinate_system_.origin()
                                        + i_contribution + j_contribution;
-                    vertices[vertex] = builder_->create_point(
+                    builder_->set_point( vertices[vertex],
                         geode::Point3D{ { point.value( 0 ), point.value( 1 ),
-                            current_elevation } } );
+                            elevation[vertex] } } );
                 }
             }
             return vertices;
@@ -131,8 +157,18 @@ namespace
         void read_metadata()
         {
             coordinate_system_ = read_coordinate_system();
-            width_ = dataset().GetRasterXSize();
-            height_ = dataset().GetRasterYSize();
+            const auto width = dataset().GetRasterXSize();
+            const auto height = dataset().GetRasterYSize();
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                width > 0 && height > 0
+                    && static_cast< std::uint64_t >( width )
+                               * static_cast< std::uint64_t >( height )
+                           < geode::NO_ID,
+                nullptr, geode::OpenGeodeException::TYPE::data,
+                "[DEMInput] Raster size ", width, "x", height,
+                " exceeds the maximum number of vertices" );
+            width_ = static_cast< geode::index_t >( width );
+            height_ = static_cast< geode::index_t >( height );
         }
 
     private:
@@ -148,9 +184,15 @@ namespace geode::internal
     std::unique_ptr< PolygonalSurface3D > DEMInput::read( const MeshImpl& impl )
     {
         auto surface = PolygonalSurface3D::create( impl );
-        DEMInputImpl reader{ *surface, this->filename() };
-        reader.read_file();
+        read_elevation_raster( this->filename(), *surface );
         return surface;
+    }
+
+    void read_elevation_raster(
+        std::string_view filename, PolygonalSurface3D& surface )
+    {
+        DEMInputImpl reader{ surface, filename };
+        reader.read_file();
     }
 
     auto DEMInput::additional_files() const -> AdditionalFiles

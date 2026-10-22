@@ -23,83 +23,22 @@
 
 #include <geode/geosciences_io/mesh/internal/polytiff_input.hpp>
 
-#include <gdal_priv.h>
-
-#include <geode/basic/filename.hpp>
-#include <geode/basic/logger.hpp>
-
-#include <geode/geometry/point.hpp>
-
-#include <geode/mesh/builder/polygonal_surface_builder.hpp>
-#include <geode/mesh/core/light_regular_grid.hpp>
 #include <geode/mesh/core/polygonal_surface.hpp>
-#include <geode/mesh/helpers/convert_surface_mesh.hpp>
-#include <geode/mesh/io/light_regular_grid_input.hpp>
+
+#include <gdal_priv.h>
 
 #include <geode/io/image/detail/gdal_file.hpp>
 
-namespace
-{
-    class PolyTIFFInputImpl : public geode::detail::GDALFile
-    {
-    public:
-        PolyTIFFInputImpl( std::string_view filename )
-            : geode::detail::GDALFile{ filename }, filename_{ filename }
-        {
-        }
-
-        std::unique_ptr< geode::PolygonalSurface3D > read_file()
-        {
-            const auto level = geode::Logger::level();
-            geode::Logger::set_level( geode::Logger::LEVEL::critical );
-            const auto grid = geode::load_light_regular_grid< 2 >( filename_ );
-            geode::Logger::set_level( level );
-            auto surface2d = geode::convert_grid_into_polygonal_surface( grid );
-            const auto nb_bands = dataset().GetRasterCount();
-            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
-                nb_bands > 0, nullptr, geode::OpenGeodeException::TYPE::data,
-                "[PolyTIFFInput] No bands found" );
-            absl::FixedArray< float > elevation( surface2d->nb_vertices() );
-            const auto band = dataset().GetRasterBand( 1 );
-            const auto width = dataset().GetRasterXSize();
-            const auto height = dataset().GetRasterYSize();
-            const auto status = band->RasterIO( GF_Read, 0, 0, width, height,
-                elevation.data(), width, height, GDT_Float32, 0, 0 );
-            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
-                status == CE_None, nullptr,
-                geode::OpenGeodeException::TYPE::internal,
-                "[PolyTIFFInput] Failed to read elevation" );
-            const auto no_data_value = band->GetNoDataValue();
-            auto surface3d = geode::convert_polygonal_surface2d_into_3d(
-                *surface2d, 2, no_data_value );
-            auto builder =
-                geode::PolygonalSurfaceBuilder3D::create( *surface3d );
-            for( const auto vertex : geode::Range{ surface3d->nb_vertices() } )
-            {
-                const auto current_elevation = elevation[vertex];
-                if( current_elevation == no_data_value )
-                {
-                    continue;
-                }
-                auto point = surface3d->point( vertex );
-                point.set_value( 2, current_elevation );
-                builder->set_point( vertex, point );
-            }
-            return surface3d;
-        }
-
-    private:
-        std::string_view filename_;
-    };
-} // namespace
+#include <geode/geosciences_io/mesh/internal/dem_input.hpp>
 
 namespace geode::internal
 {
     std::unique_ptr< PolygonalSurface3D > PolyTIFFInput::read(
-        const MeshImpl& /*impl*/ )
+        const MeshImpl& impl )
     {
-        PolyTIFFInputImpl geo_reader( filename() );
-        return geo_reader.read_file();
+        auto surface = PolygonalSurface3D::create( impl );
+        read_elevation_raster( filename(), *surface );
+        return surface;
     }
 
     auto PolyTIFFInput::additional_files() const -> AdditionalFiles
@@ -110,14 +49,9 @@ namespace geode::internal
 
     Percentage PolyTIFFInput::is_loadable() const
     {
-        const auto grid_percent =
-            is_light_regular_grid_loadable< 2 >( filename() );
-        if( grid_percent.value() != 1 )
-        {
-            return grid_percent;
-        }
         detail::GDALFile reader{ this->filename() };
-        if( reader.dataset().GetRasterCount() == 0 )
+        if( !reader.is_coordinate_system_loadable()
+            || reader.dataset().GetRasterCount() == 0 )
         {
             return Percentage{ 0 };
         }

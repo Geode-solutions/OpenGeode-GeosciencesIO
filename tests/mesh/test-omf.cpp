@@ -24,8 +24,11 @@
 #include <geode/tests_config.hpp>
 
 #include <cmath>
+#include <cstring>
 #include <fstream>
 #include <sstream>
+
+#include <absl/strings/match.h>
 
 #include <geode/basic/assert.hpp>
 #include <geode/basic/attribute_manager.hpp>
@@ -110,6 +113,61 @@ namespace
                 attribute->value( element ) == values[element],
                 "Wrong value of ", name, " for element ", element );
         }
+    }
+
+    /*
+     * Write an OMF v1 file made of a header, binary blocks starting at byte
+     * 60 and the JSON index
+     */
+    void write_omf( std::string_view filename,
+        std::string_view json,
+        std::string_view binary = {} )
+    {
+        std::string header( 60, '\0' );
+        const std::array< unsigned char, 4 > magic{ 0x84, 0x83, 0x82, 0x81 };
+        for( const auto byte : geode::LRange{ 4 } )
+        {
+            header[byte] = static_cast< char >( magic[byte] );
+        }
+        header.replace( 4, 10, "OMF-v0.9.0" );
+        const auto json_start = static_cast< uint64_t >( 60 + binary.size() );
+        for( const auto byte : geode::LRange{ 8 } )
+        {
+            header[52 + byte] =
+                static_cast< char >( ( json_start >> ( 8 * byte ) ) & 0xFF );
+        }
+        std::ofstream file{ geode::to_string( filename ), std::ios::binary };
+        file << header << binary << json;
+    }
+
+    /*
+     * zlib stream made of one stored (uncompressed) deflate block
+     */
+    std::string zlib_stored( const std::vector< double >& values )
+    {
+        std::string data( values.size() * sizeof( double ), '\0' );
+        std::memcpy( data.data(), values.data(), data.size() );
+        uint32_t a{ 1 };
+        uint32_t b{ 0 };
+        for( const auto byte : data )
+        {
+            a = ( a + static_cast< unsigned char >( byte ) ) % 65521;
+            b = ( b + a ) % 65521;
+        }
+        const auto adler = ( b << 16 ) | a;
+        const auto length = static_cast< uint16_t >( data.size() );
+        std::string stream{ '\x78', '\x01', '\x01' };
+        stream.push_back( static_cast< char >( length & 0xFF ) );
+        stream.push_back( static_cast< char >( length >> 8 ) );
+        stream.push_back( static_cast< char >( ~length & 0xFF ) );
+        stream.push_back( static_cast< char >( ( ~length >> 8 ) & 0xFF ) );
+        stream += data;
+        for( const auto shift : { 24, 16, 8, 0 } )
+        {
+            stream.push_back(
+                static_cast< char >( ( adler >> shift ) & 0xFF ) );
+        }
+        return stream;
     }
 
     void check_point( const geode::Point3D& point,
@@ -381,6 +439,223 @@ namespace
         geode::OpenGeodeGeosciencesIOMeshException::test(
             false, "OMF file with invalid JSON start should not be loaded" );
     }
+    void test_degenerate_elements()
+    {
+        constexpr auto filename = "omf_degenerate_elements.omf";
+        write_omf( filename, R"({
+            "p": { "__class__": "Project", "elements": [ "l", "s" ] },
+            "l": { "__class__": "LineSetElement", "name": "lines",
+                "geometry": "lg" },
+            "lg": { "__class__": "LineSetGeometry", "vertices": "lv",
+                "segments": "ls" },
+            "lv": { "__class__": "Vector3Array",
+                "array": [ 0, 0, 0, 1, 0, 0, 2, 0, 0, 3, 0, 0 ] },
+            "ls": { "__class__": "Int2Array",
+                "array": [ [ 0, 1 ], [ 3, 3 ], [ 1, 2 ] ] },
+            "s": { "__class__": "SurfaceElement", "name": "surface",
+                "geometry": "sg" },
+            "sg": { "__class__": "SurfaceGeometry", "vertices": "sv",
+                "triangles": "st" },
+            "sv": { "__class__": "Vector3Array",
+                "array": [ 0, 0, 0, 1, 0, 0, 0, 1, 0 ] },
+            "st": { "__class__": "Int3Array",
+                "array": [ [ 0, 1, 2 ], [ 0, 0, 1 ] ] }
+        })" );
+        const auto curve = geode::load_edged_curve< 3 >( filename );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curve->nb_edges() == 2, "Degenerate segment should be skipped" );
+        const auto surface = geode::load_triangulated_surface< 3 >( filename );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surface->nb_polygons() == 1,
+            "Degenerate triangle should be skipped" );
+    }
+    template < typename Loader >
+    void check_load_throws( std::string_view message, Loader&& loader )
+    {
+        try
+        {
+            loader();
+        }
+        catch( const geode::OpenGeodeException& )
+        {
+            return;
+        }
+        geode::OpenGeodeGeosciencesIOMeshException::test( false, message );
+    }
+
+    void test_collinear_axes()
+    {
+        constexpr auto surface_file = "omf_collinear_surface_axes.omf";
+        write_omf( surface_file, R"({
+            "p": { "__class__": "Project", "elements": [ "s" ] },
+            "s": { "__class__": "SurfaceElement", "name": "grid",
+                "geometry": "sg" },
+            "sg": { "__class__": "SurfaceGridGeometry", "tensor_u": [ 1, 1 ],
+                "tensor_v": [ 1 ], "axis_u": [ 1, 0, 0 ],
+                "axis_v": [ 2, 0, 0 ] }
+        })" );
+        check_load_throws(
+            "Surface grid with collinear axes should throw", [&] {
+                return geode::load_polygonal_surface< 3 >( surface_file );
+            } );
+        constexpr auto volume_file = "omf_coplanar_volume_axes.omf";
+        write_omf( volume_file, R"({
+            "p": { "__class__": "Project", "elements": [ "v" ] },
+            "v": { "__class__": "VolumeElement", "name": "grid",
+                "geometry": "vg" },
+            "vg": { "__class__": "VolumeGridGeometry", "tensor_u": [ 1 ],
+                "tensor_v": [ 1 ], "tensor_w": [ 1 ], "axis_u": [ 1, 0, 0 ],
+                "axis_v": [ 0, 1, 0 ], "axis_w": [ 1, 1, 0 ] }
+        })" );
+        check_load_throws( "Volume grid with coplanar axes should throw", [&] {
+            return geode::load_light_regular_grid< 3 >( volume_file );
+        } );
+    }
+    void test_huge_numbers()
+    {
+        constexpr auto filename = "omf_huge_numbers.omf";
+        write_omf( filename, R"({
+            "p": { "__class__": "Project", "elements": [ "l" ] },
+            "l": { "__class__": "LineSetElement", "name": "lines",
+                "geometry": "lg" },
+            "lg": { "__class__": "LineSetGeometry", "vertices": "lv",
+                "segments": "ls" },
+            "lv": { "__class__": "Vector3Array",
+                "array": [ 0, 0, 0, 1, 0, 0, 2, 0, 0 ] },
+            "ls": { "__class__": "Int2Array",
+                "array": [ [ 0, 1 ], [ 1e30, 2 ], [ -1e30, 2 ],
+                    [ 18446744073709551615, 2 ], [ 1, 2 ] ] }
+        })" );
+        const auto curve = geode::load_edged_curve< 3 >( filename );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curve->nb_edges() == 2,
+            "Segments with huge indices should be skipped" );
+        constexpr auto block_file = "omf_huge_block_start.omf";
+        write_omf( block_file, R"({
+            "p": { "__class__": "Project", "elements": [ "l" ] },
+            "l": { "__class__": "PointSetElement", "name": "points",
+                "geometry": "lg" },
+            "lg": { "__class__": "PointSetGeometry", "vertices": "lv" },
+            "lv": { "__class__": "Vector3Array", "array": { "start": 1e30,
+                "length": 8, "dtype": "<f8" } }
+        })" );
+        check_load_throws( "Array block with invalid start should throw", [&] {
+            return geode::load_point_set< 3 >( block_file );
+        } );
+    }
+    void test_missing_vector_and_color_values()
+    {
+        constexpr auto filename = "omf_missing_values.omf";
+        write_omf( filename, R"({
+            "p": { "__class__": "Project", "elements": [ "e" ] },
+            "e": { "__class__": "PointSetElement", "name": "points",
+                "geometry": "g", "data": [ "v", "c", "i" ] },
+            "g": { "__class__": "PointSetGeometry", "vertices": "gv" },
+            "gv": { "__class__": "Vector3Array",
+                "array": [ 0, 0, 0, 1, 0, 0, 2, 0, 0 ] },
+            "v": { "__class__": "Vector3Data", "name": "vector",
+                "location": "vertices", "array": "va" },
+            "va": { "__class__": "Vector3Array", "array": [ 1, 2, 3, 0, 0, 0 ] },
+            "c": { "__class__": "ColorData", "name": "color",
+                "location": "vertices", "array": "ca" },
+            "ca": { "__class__": "ColorArray",
+                "array": [ [ 255, 0, 0 ], [ 0, 255, 0 ] ] },
+            "i": { "__class__": "ColorData", "name": "int_color",
+                "location": "vertices", "array": "ia" },
+            "ia": { "__class__": "Int3Array",
+                "array": [ [ 0, 0, 255 ], [ 0, 255, 0 ] ] }
+        })" );
+        const auto point_set = geode::load_point_set< 3 >( filename );
+        const auto& manager = point_set->vertex_attribute_manager();
+        const auto vector =
+            find_attribute< geode::Vector3D >( manager, "vector" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            vector->has_value( 0 ) && vector->has_value( 1 )
+                && !vector->has_value( 2 ),
+            "Only the last vertex should have no vector value" );
+        for( const auto& name : { "color", "int_color" } )
+        {
+            const auto color =
+                find_attribute< geode::RGBColor >( manager, name );
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                color->has_value( 0 ) && color->has_value( 1 )
+                    && !color->has_value( 2 ),
+                "Only the last vertex should have no ", name, " value" );
+        }
+    }
+    void test_binary_arrays()
+    {
+        const auto vertices = zlib_stored( { 0, 0, 0, 1, 0, 0, 2, 0, 0 } );
+        const auto scalars = zlib_stored( { 1, 2, 3, 4, 5 } );
+        const auto json = absl::StrCat( R"({
+            "p": { "__class__": "Project", "elements": [ "e" ] },
+            "e": { "__class__": "PointSetElement", "name": "points",
+                "geometry": "g", "data": [ "s" ] },
+            "g": { "__class__": "PointSetGeometry", "vertices": "gv" },
+            "gv": { "__class__": "Vector3Array", "array": { "start": 60,
+                "length": )",
+            vertices.size(), R"(, "dtype": "<f8" } },
+            "s": { "__class__": "ScalarData", "name": "scalar",
+                "location": "vertices", "array": "sa" },
+            "sa": { "__class__": "ScalarArray", "array": { "start": )",
+            60 + vertices.size(), R"(, "length": )", scalars.size(),
+            R"(, "dtype": "<f8" } }
+        })" );
+        constexpr auto filename = "omf_binary_arrays.omf";
+        write_omf( filename, json, absl::StrCat( vertices, scalars ) );
+        const auto point_set = geode::load_point_set< 3 >( filename );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            point_set->nb_vertices() == 3, "Wrong number of binary points" );
+        check_point( point_set->point( 2 ), geode::Point3D{ { 2, 0, 0 } },
+            "Wrong binary point" );
+        check_doubles(
+            point_set->vertex_attribute_manager(), "scalar", { 1, 2, 3 } );
+    }
+    void test_missing_keys()
+    {
+        constexpr auto filename = "omf_missing_keys.omf";
+        write_omf( filename, R"({
+            "p": { "__class__": "Project", "elements": [ "e" ] },
+            "e": { "__class__": "PointSetElement", "name": "points",
+                "geometry": "g" },
+            "g": { "__class__": "PointSetGeometry" }
+        })" );
+        try
+        {
+            const auto point_set = geode::load_point_set< 3 >( filename );
+        }
+        catch( const geode::OpenGeodeException& exception )
+        {
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                absl::StrContains( exception.what(),
+                    "Missing key \"vertices\" in PointSetGeometry" ),
+                "Missing key error should be explicit: ", exception.what() );
+            return;
+        }
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            false, "Geometry without vertices should not be loaded" );
+    }
+    void test_loadability_of_modified_file()
+    {
+        constexpr auto filename = "omf_modified.omf";
+        write_omf( filename, R"({
+            "p": { "__class__": "Project", "elements": [ "e" ] },
+            "e": { "__class__": "PointSetElement", "geometry": "g" },
+            "g": { "__class__": "PointSetGeometry", "vertices": "v" },
+            "v": { "__class__": "Vector3Array", "array": [ 0, 0, 0 ] }
+        })" );
+        check_loadable( filename, 1, 0, 0, 0, 0 );
+        check_loadable( filename, 1, 0, 0, 0, 0 );
+        write_omf( filename, R"({
+            "p": { "__class__": "Project", "elements": [ "e", "missing" ] },
+            "e": { "__class__": "LineSetElement", "geometry": "g" },
+            "g": { "__class__": "LineSetGeometry", "vertices": "v",
+                "segments": "s" },
+            "v": { "__class__": "Vector3Array", "array": [ 0, 0, 0, 1, 0, 0 ] },
+            "s": { "__class__": "Int2Array", "array": [ [ 0, 1 ] ] }
+        })" );
+        check_loadable( filename, 0, 1, 0, 0, 0 );
+    }
 } // namespace
 
 int main()
@@ -398,6 +673,13 @@ int main()
         test_non_uniform_grid();
         test_invalid_json_start();
         test_mixed_loadability();
+        test_degenerate_elements();
+        test_collinear_axes();
+        test_huge_numbers();
+        test_missing_vector_and_color_values();
+        test_binary_arrays();
+        test_missing_keys();
+        test_loadability_of_modified_file();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

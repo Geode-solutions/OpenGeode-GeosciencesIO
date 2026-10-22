@@ -26,6 +26,7 @@
 #include <fstream>
 
 #include <geode/basic/file.hpp>
+#include <geode/basic/logger.hpp>
 
 #include <geode/geometry/point.hpp>
 
@@ -53,9 +54,16 @@ namespace
 
         void read_file()
         {
+            geode::index_t nb_objects{ 0 };
             while( const auto tsurf = geode::internal::read_tsurf( file_ ) )
             {
                 build_surface( tsurf.value() );
+                nb_objects++;
+            }
+            if( nb_objects == 0 )
+            {
+                geode::Logger::warning(
+                    "[TSInput] No GOCAD TSurf found in the file" );
             }
             builder_->compute_polygon_adjacencies();
         }
@@ -64,13 +72,16 @@ namespace
         void build_surface( const geode::internal::TSurfData& tsurf )
         {
             const auto offset = surface_.nb_vertices();
-            if( tsurf.header.name )
+            if( tsurf.header.name && !surface_.name() )
             {
                 builder_->set_name( tsurf.header.name.value() );
             }
-            for( const auto& point : tsurf.points )
+            const auto first_vertex =
+                builder_->create_vertices( tsurf.points.size() );
+            for( const auto vertex : geode::Indices{ tsurf.points } )
             {
-                builder_->create_point( point );
+                builder_->set_point(
+                    first_vertex + vertex, tsurf.points[vertex] );
             }
             if( offset == 0 )
             {
@@ -97,7 +108,7 @@ namespace
                 tsurf.vertices_properties_header,
                 tsurf.vertices_attribute_values,
                 surface_.vertex_attribute_manager(), tsurf.points.size(),
-                inverse_vertex_mapping );
+                inverse_vertex_mapping, offset );
         }
 
     private:

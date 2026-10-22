@@ -23,6 +23,8 @@
 
 #pragma once
 
+#include <algorithm>
+#include <deque>
 #include <optional>
 
 #include <geode/basic/attribute_manager.hpp>
@@ -81,7 +83,11 @@ namespace geode::internal
     PropHeaderData opengeode_geosciencesio_mesh_api read_prop_header(
         std::ifstream& file, std::string_view prefix );
 
-    void opengeode_geosciencesio_mesh_api read_properties(
+    /*!
+     * Reads the property values of a vertex line. Missing values are set to
+     * NO_DATA_VALUES and false is returned.
+     */
+    bool opengeode_geosciencesio_mesh_api read_properties(
         const PropHeaderData& properties_header,
         std::vector< std::vector< double > >& attribute_values,
         absl::Span< const std::string_view > tokens,
@@ -92,7 +98,8 @@ namespace geode::internal
         absl::Span< const std::vector< double > > attributes_values,
         geode::AttributeManager& attribute_manager,
         geode::index_t nb_vertices,
-        absl::Span< const geode::index_t > inverse_vertex_mapping );
+        absl::Span< const geode::index_t > inverse_vertex_mapping,
+        geode::index_t vertex_offset = 0 );
 
     void opengeode_geosciencesio_mesh_api write_prop_header(
         std::ofstream& file, const PropHeaderData& data );
@@ -106,6 +113,49 @@ namespace geode::internal
     };
     void opengeode_geosciencesio_mesh_api write_property_class_header(
         std::ofstream& file, const PropClassHeaderData& data );
+
+    /*!
+     * Vertex attributes written as GOCAD properties: transferable and
+     * genericable attributes, with all their items and full precision for
+     * double based attributes.
+     */
+    class opengeode_geosciencesio_mesh_api GocadVertexProperties
+    {
+        OPENGEODE_DISABLE_COPY_AND_MOVE( GocadVertexProperties );
+
+    public:
+        explicit GocadVertexProperties(
+            const AttributeManager& attribute_manager );
+        ~GocadVertexProperties();
+
+        [[nodiscard]] bool empty() const
+        {
+            return header_.empty();
+        }
+
+        [[nodiscard]] const PropHeaderData& header() const
+        {
+            return header_;
+        }
+
+        [[nodiscard]] const std::vector< PropClassHeaderData >&
+            class_headers() const
+        {
+            return class_headers_;
+        }
+
+        /*!
+         * Writes the property values of the given vertex, each one preceded
+         * by a space.
+         */
+        void write_values( std::ostream& file, index_t vertex ) const;
+
+    private:
+        struct Property;
+        PropHeaderData header_;
+        std::vector< PropClassHeaderData > class_headers_;
+        std::vector< Property > properties_;
+    };
 
     struct TSurfBorderData
     {
@@ -121,14 +171,11 @@ namespace geode::internal
     {
         index_t tface_id( index_t vertex_id ) const
         {
-            for( const auto i : Range{ 1, tface_vertices_offset.size() } )
-            {
-                if( vertex_id < tface_vertices_offset[i] )
-                {
-                    return i - 1;
-                }
-            }
-            return tface_vertices_offset.size() - 1;
+            const auto it = std::upper_bound( tface_vertices_offset.begin(),
+                tface_vertices_offset.end(), vertex_id );
+            return static_cast< index_t >(
+                       std::distance( tface_vertices_offset.begin(), it ) )
+                   - 1;
         }
 
         index_t OFFSET_START{ 1 };
@@ -151,8 +198,10 @@ namespace geode::internal
         index_t OFFSET_START{ 1 };
         HeaderData header;
         CRSData crs;
+        PropHeaderData vertices_properties_header;
         std::vector< Point3D > points;
         std::vector< std::array< index_t, 2 > > edges;
+        std::vector< std::vector< double > > vertices_attribute_values;
     };
     std::optional< ECurveData > opengeode_geosciencesio_mesh_api read_ecurve(
         std::ifstream& file );

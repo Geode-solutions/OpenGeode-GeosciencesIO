@@ -218,6 +218,15 @@ namespace geode::internal
         {
             for( const auto& source : problem_.source_terms() )
             {
+                if( absl::c_find( context_.well_names, source.well )
+                    == context_.well_names.end() )
+                {
+                    Logger::warning( "[GeosExporter] Source term of well ",
+                        source.well,
+                        " is not exported: the well perforates no model "
+                        "cell." );
+                    continue;
+                }
                 auto node = add_named_child( field_specifications, "SourceFlux",
                     geos_source_term_name( source ) );
                 set_attribute( node, "objectPath", "ElementRegions" );

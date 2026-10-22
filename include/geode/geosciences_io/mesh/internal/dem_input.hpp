@@ -27,6 +27,12 @@
 
 #include <geode/mesh/io/polygonal_surface_input.hpp>
 
+namespace geode
+{
+    FORWARD_DECLARATION_DIMENSION_CLASS( PolygonalSurface );
+    ALIAS_3D( PolygonalSurface );
+} // namespace geode
+
 namespace geode::internal
 {
     class DEMInput final : public PolygonalSurfaceInput< 3 >
@@ -55,4 +61,12 @@ namespace geode::internal
 
         Percentage is_loadable() const final;
     };
+
+    /*!
+     * Fill a surface from the first band of a georeferenced raster: one
+     * vertex per pixel center with the pixel value as elevation (no data
+     * pixels are skipped) and one quad between four neighboring pixels.
+     */
+    void read_elevation_raster(
+        std::string_view filename, PolygonalSurface3D& surface );
 } // namespace geode::internal

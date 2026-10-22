@@ -123,8 +123,15 @@ namespace
             const auto axis_v =
                 geode::internal::OMFFile::axis( geometry_, "axis_v", 1 );
             const auto axis_w = axis_u.cross( axis_v );
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                axis_w.length() > geode::GLOBAL_EPSILON, nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[OMFInput] Grid surface \"",
+                geode::internal::OMFFile::name( element_ ),
+                "\" has collinear axes" );
             const auto origin = file_.origin( geometry_ );
-            auto offsets = file_.read_optional_scalars( geometry_, "offset_w" );
+            auto offsets = file_.read_optional_scalars(
+                geometry_, "offset_w", nb_nodes() );
             if( !offsets.empty() && offsets.size() != nb_nodes() )
             {
                 geode::Logger::warning( "[OMFInput] Grid surface \"",
@@ -133,15 +140,18 @@ namespace
                     ": missing offsets are set to 0" );
             }
             offsets.resize( nb_nodes(), 0 );
+            const auto first_vertex = builder_.create_vertices( nb_nodes() );
             for( const auto v : geode::Indices{ v_ } )
             {
                 for( const auto u : geode::Indices{ u_ } )
                 {
                     const auto offset = offsets[node( u, v )];
-                    builder_.create_point( geode::Point3D{
-                        origin + axis_u * u_[u] + axis_v * v_[v]
-                        + axis_w
-                              * ( std::isfinite( offset ) ? offset : 0. ) } );
+                    builder_.set_point( first_vertex + node( u, v ),
+                        geode::Point3D{
+                            origin + axis_u * u_[u] + axis_v * v_[v]
+                            + axis_w
+                                  * ( std::isfinite( offset ) ? offset
+                                                              : 0. ) } );
                 }
             }
         }

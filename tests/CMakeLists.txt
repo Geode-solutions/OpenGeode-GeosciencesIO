@@ -26,6 +26,7 @@ if(NOT TARGET OpenGeode-GeosciencesIO::mesh)
     find_package(OpenGeode-IO REQUIRED CONFIG)
     find_package(OpenGeode-Geosciences REQUIRED CONFIG)
     find_package(OpenGeode-GeosciencesIO REQUIRED CONFIG)
+    find_package(GDAL REQUIRED CONFIG)
     enable_testing()
 endif()
 

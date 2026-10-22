@@ -27,6 +27,7 @@
 #include <fstream>
 #include <functional>
 
+#include <absl/container/fixed_array.h>
 #include <absl/container/flat_hash_set.h>
 
 #include <geode/basic/string.hpp>
@@ -42,6 +43,7 @@
 #include <geode/mesh/builder/triangulated_surface_builder.hpp>
 #include <geode/mesh/core/edged_curve.hpp>
 #include <geode/mesh/core/geode/geode_triangulated_surface.hpp>
+#include <geode/mesh/core/point_set.hpp>
 
 #include <geode/model/helpers/detail/split_along_surface_mesh_borders.hpp>
 #include <geode/model/mixin/core/corner.hpp>
@@ -166,9 +168,21 @@ namespace
             }
             geode::internal::read_CRS( file_ );
             read_model_components();
-            for( auto& tsurf : tsurfs_ )
+            absl::FixedArray< bool > filled( tsurfs_.size(), false );
+            geode::index_t next_position{ 0 };
+            for( const auto section : geode::Indices{ tsurfs_ } )
             {
-                tsurf.data = geode::internal::read_tsurf( file_ ).value();
+                auto tsurf_data = geode::internal::read_tsurf( file_ );
+                geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                    tsurf_data.has_value(), nullptr,
+                    geode::OpenGeodeException::TYPE::data, "[MLInput] Found ",
+                    section, " GOCAD TSurf sections but the file declares ",
+                    tsurfs_.size(), " TSURF" );
+                const auto index = find_tsurf_index(
+                    tsurf_data->header, filled, next_position );
+                filled[index] = true;
+                auto& tsurf = tsurfs_[index];
+                tsurf.data = std::move( tsurf_data.value() );
                 if( tsurf.tfaces.empty() )
                 {
                     // TSURF without TFACE in the Model3d section: its
@@ -189,12 +203,49 @@ namespace
                     tsurf.tfaces.size(), " TFACE for it" );
                 build_surfaces( tsurf );
             }
+            if( model_.nb_surfaces() == 0 )
+            {
+                geode::Logger::warning( "[MLInput] No Surface in the file" );
+                return;
+            }
             compute_epsilon();
             build_corners();
             build_lines();
         }
 
     private:
+        /*!
+         * GOCAD TSurf sections are matched to TSURF declarations by their
+         * HEADER name, or by position if there is no matching name.
+         */
+        geode::index_t find_tsurf_index(
+            const geode::internal::HeaderData& header,
+            absl::Span< const bool > filled,
+            geode::index_t& next_position ) const
+        {
+            if( header.name )
+            {
+                const auto it = tsurf_names2index_.find( header.name.value() );
+                if( it != tsurf_names2index_.end() && !filled[it->second] )
+                {
+                    return it->second;
+                }
+            }
+            while( filled[next_position] )
+            {
+                next_position++;
+            }
+            if( header.name )
+            {
+                geode::Logger::warning( "[MLInput] GOCAD TSurf ",
+                    header.name.value(),
+                    " does not match any remaining TSURF. It has been "
+                    "matched by position to TSURF ",
+                    tsurfs_[next_position].name );
+            }
+            return next_position;
+        }
+
         struct TSurfMLData
         {
             TSurfMLData( std::string input_name )
@@ -245,6 +296,14 @@ namespace
                 const auto& data = tsurf.data;
                 for( const auto corner : data.bstones )
                 {
+                    if( corner >= data.points.size() )
+                    {
+                        geode::Logger::warning( "[MLInput] TSurf ", tsurf.name,
+                            ": BSTONE refers to unknown vertex ",
+                            corner + data.OFFSET_START,
+                            ". It has been ignored" );
+                        continue;
+                    }
                     corner_points.push_back( data.points[corner] );
                     const auto tface_id = data.tface_id( corner );
                     const auto& surface =
@@ -297,7 +356,26 @@ namespace
                 const auto& data = tsurf.data;
                 for( const auto border : data.borders )
                 {
+                    if( border.corner_id >= data.points.size() )
+                    {
+                        geode::Logger::warning( "[MLInput] TSurf ", tsurf.name,
+                            ": BORDER refers to unknown vertex ",
+                            border.corner_id + data.OFFSET_START,
+                            ". It has been ignored" );
+                        continue;
+                    }
                     const auto tface_id = data.tface_id( border.corner_id );
+                    if( border.next_id < data.tface_vertices_offset[tface_id]
+                        || border.next_id
+                               >= data.tface_vertices_offset[tface_id + 1] )
+                    {
+                        geode::Logger::warning( "[MLInput] TSurf ", tsurf.name,
+                            ": BORDER from vertex ",
+                            border.corner_id + data.OFFSET_START,
+                            " refers to a vertex outside its TFACE. It has "
+                            "been ignored" );
+                        continue;
+                    }
                     const auto& surface =
                         model_.surface( tsurf.tfaces[tface_id] );
                     const auto corner_id =
@@ -325,9 +403,13 @@ namespace
                 const auto& surface_id = line_start.first.component_id.id;
                 const auto& surface = model_.surface( surface_id );
                 auto line_data = compute_line( surface, line_start );
-                line_data.line = find_or_create_line( line_data );
+                if( !line_data )
+                {
+                    continue;
+                }
+                line_data->line = find_or_create_line( line_data.value() );
                 surface_lines[surface_id].emplace_back(
-                    std::move( line_data ) );
+                    std::move( line_data.value() ) );
             }
             for( auto& surface_line : surface_lines )
             {
@@ -360,7 +442,12 @@ namespace
                         l++;
                     }
                 }
-                if( lines.size() < 2 )
+                if( lines.size() == 1 )
+                {
+                    register_line_data( surface, lines.front() );
+                    continue;
+                }
+                if( lines.empty() )
                 {
                     continue;
                 }
@@ -387,7 +474,10 @@ namespace
             {
                 const auto surface_id = surface.component_id();
                 const auto& mesh = surface.mesh();
-                bool need_to_split{ false };
+                // Lines touching unassigned Surface vertices, tested once all
+                // vertices are assigned
+                std::vector< geode::uuid > candidate_lines;
+                absl::flat_hash_set< geode::uuid > seen_lines;
                 for( const auto v : geode::Range{ mesh.nb_vertices() } )
                 {
                     const geode::ComponentMeshVertex cmv{ surface_id, v };
@@ -401,41 +491,38 @@ namespace
                     {
                         builder_.set_unique_vertex(
                             cmv, builder_.create_unique_vertex() );
+                        continue;
                     }
-                    else
+                    geode::OpenGeodeGeosciencesIOModelException::
+                        check_exception( result.size() == 1, nullptr,
+                            geode::OpenGeodeException::TYPE::data,
+                            "[MLInput] Several unique vertices found for the "
+                            "same point" );
+                    const auto vertex = result.front();
+                    builder_.set_unique_vertex( cmv, vertex );
+                    for( const auto& line_cmv :
+                        model_.component_mesh_vertices( vertex ) )
                     {
-                        geode::OpenGeodeGeosciencesIOModelException::
-                            check_exception( result.size() == 1, nullptr,
-                                geode::OpenGeodeException::TYPE::data,
-                                "[MLInput] Several unique vertices found for "
-                                "the "
-                                "same point" );
-                        const auto vertex = result.front();
-                        builder_.set_unique_vertex( cmv, vertex );
-                        geode::OpenGeodeGeosciencesIOModelException::
-                            check_exception( result.size() == 1, nullptr,
-                                geode::OpenGeodeException::TYPE::data,
-                                "[MLInput] Several unique vertices found for "
-                                "the "
-                                "same point" );
-                        for( const auto& line_cmv :
-                            model_.component_mesh_vertices( vertex ) )
+                        if( line_cmv.component_id.type
+                                == geode::Line3D::component_type_static()
+                            && seen_lines.insert( line_cmv.component_id.id )
+                                .second )
                         {
-                            if( line_cmv.component_id.type
-                                != geode::Line3D::component_type_static() )
-                            {
-                                continue;
-                            }
-                            const auto& line =
-                                model_.line( line_cmv.component_id.id );
-                            if( !model_.is_internal( line, surface )
-                                && should_line_be_internal( line, surface ) )
-                            {
-                                need_to_split = true;
-                                builder_.add_line_surface_internal_relationship(
-                                    line, surface );
-                            }
+                            candidate_lines.push_back(
+                                line_cmv.component_id.id );
                         }
+                    }
+                }
+                bool need_to_split{ false };
+                for( const auto& line_id : candidate_lines )
+                {
+                    const auto& line = model_.line( line_id );
+                    if( !model_.is_internal( line, surface )
+                        && should_line_be_internal( line, surface ) )
+                    {
+                        need_to_split = true;
+                        builder_.add_line_surface_internal_relationship(
+                            line, surface );
                     }
                 }
                 if( need_to_split )
@@ -469,9 +556,15 @@ namespace
             std::vector< geode::Point3D > points( model_.nb_unique_vertices() );
             for( const auto v : geode::Range{ model_.nb_unique_vertices() } )
             {
-                [[maybe_unused]] bool done{ false };
+                std::optional< geode::uuid > orphan_corner;
+                bool done{ false };
                 for( const auto& cmv : model_.component_mesh_vertices( v ) )
                 {
+                    if( cmv.component_id.type
+                        == geode::Corner3D::component_type_static() )
+                    {
+                        orphan_corner = cmv.component_id.id;
+                    }
                     if( cmv.component_id.type
                         != geode::Line3D::component_type_static() )
                     {
@@ -482,10 +575,21 @@ namespace
                     done = true;
                     break;
                 }
+                if( done )
+                {
+                    continue;
+                }
                 geode::OpenGeodeGeosciencesIOModelException::check_exception(
-                    done, nullptr, geode::OpenGeodeException::TYPE::data,
+                    orphan_corner.has_value(), nullptr,
+                    geode::OpenGeodeException::TYPE::internal,
                     "[MLInput] All current unique vertices should be "
-                    "associated to at least one Line" );
+                    "associated to at least one Line or Corner" );
+                const auto& corner = model_.corner( orphan_corner.value() );
+                points[v] = corner.mesh().point( 0 );
+                geode::Logger::warning( "[MLInput] BSTONE at ",
+                    points[v].string(),
+                    " is not the end of any BORDER. Its Corner bounds no "
+                    "Line" );
             }
             return geode::NNSearch3D{ std::move( points ) };
         }
@@ -564,6 +668,7 @@ namespace
         void build_surfaces( const TSurfMLData& tsurf )
         {
             const auto& data = tsurf.data;
+            geode::index_t nb_invalid_triangles{ 0 };
             for( const auto triangle_id : geode::Indices{ tsurf.tfaces } )
             {
                 auto builder =
@@ -584,11 +689,25 @@ namespace
                     geode::Range{ data.tface_triangles_offset[triangle_id],
                         data.tface_triangles_offset[triangle_id + 1] } )
                 {
-                    builder->create_triangle( { data.triangles[t][0] - current,
-                        data.triangles[t][1] - current,
-                        data.triangles[t][2] - current } );
+                    const auto& triangle = data.triangles[t];
+                    if( absl::c_any_of( triangle, [&]( geode::index_t vertex ) {
+                            return vertex < current || vertex >= next;
+                        } ) )
+                    {
+                        nb_invalid_triangles++;
+                        continue;
+                    }
+                    builder->create_triangle( { triangle[0] - current,
+                        triangle[1] - current, triangle[2] - current } );
                 }
                 builder->compute_polygon_adjacencies();
+            }
+            if( nb_invalid_triangles > 0 )
+            {
+                geode::Logger::warning( "[MLInput] TSurf ", tsurf.name, ": ",
+                    nb_invalid_triangles,
+                    " TRGL referring to vertices outside their TFACE have been "
+                    "ignored" );
             }
         }
 
@@ -681,23 +800,43 @@ namespace
             }
         }
 
-        LineData compute_line( const geode::Surface3D& surface,
-            const std::pair< geode::ComponentMeshVertex,
-                geode::ComponentMeshVertex >& line_start )
+        std::optional< geode::uuid > find_corner(
+            const geode::Surface3D& surface, geode::index_t vertex ) const
         {
-            LineData result;
-            result.surface = surface.id();
+            const auto unique_vertex =
+                model_.unique_vertex( { surface.component_id(), vertex } );
+            if( unique_vertex == geode::NO_ID )
+            {
+                return std::nullopt;
+            }
             for( const auto& cmv :
-                model_.component_mesh_vertices( model_.unique_vertex(
-                    { surface.component_id(), line_start.first.vertex } ) ) )
+                model_.component_mesh_vertices( unique_vertex ) )
             {
                 if( cmv.component_id.type
                     == geode::Corner3D::component_type_static() )
                 {
-                    result.corner0 = cmv.component_id.id;
-                    break;
+                    return cmv.component_id.id;
                 }
             }
+            return std::nullopt;
+        }
+
+        std::optional< LineData > compute_line( const geode::Surface3D& surface,
+            const std::pair< geode::ComponentMeshVertex,
+                geode::ComponentMeshVertex >& line_start )
+        {
+            const auto corner0 =
+                find_corner( surface, line_start.first.vertex );
+            if( !corner0 )
+            {
+                geode::Logger::warning( "[MLInput] BORDER of Surface ",
+                    surface.name().value_or( surface.id().string() ),
+                    " does not start on a BSTONE. It has been ignored" );
+                return std::nullopt;
+            }
+            LineData result;
+            result.surface = surface.id();
+            result.corner0 = corner0.value();
             const auto& mesh = surface.mesh();
             result.indices.push_back( line_start.first.vertex );
             result.points.emplace_back( mesh.point( result.indices.back() ) );
@@ -705,51 +844,42 @@ namespace
             geode::PolygonEdge edge;
             std::tie( edge, orientation ) = find_edge(
                 mesh, line_start.second.vertex, line_start.first.vertex );
-            if( orientation )
+            const auto edge_end = [&mesh, orientation](
+                                      const geode::PolygonEdge& current ) {
+                return orientation ? mesh.polygon_vertex(
+                                         geode::PolygonVertex{ current } )
+                                   : mesh.polygon_edge_vertex( current, 1 );
+            };
+            // A border walk visits each vertex at most once before reaching a
+            // BSTONE, otherwise the BORDER is corrupted
+            while( model_.unique_vertex(
+                       { surface.component_id(), edge_end( edge ) } )
+                   == geode::NO_ID )
             {
-                while(
-                    model_.unique_vertex( { surface.component_id(),
-                        mesh.polygon_vertex( geode::PolygonVertex{ edge } ) } )
-                    == geode::NO_ID )
+                if( result.indices.size() > mesh.nb_vertices() )
                 {
-                    result.indices.push_back(
-                        mesh.polygon_vertex( geode::PolygonVertex{ edge } ) );
-                    result.points.emplace_back(
-                        mesh.point( result.indices.back() ) );
-                    edge = mesh.previous_on_border( edge );
+                    geode::Logger::warning( "[MLInput] BORDER of Surface ",
+                        surface.name().value_or( surface.id().string() ),
+                        " does not end on a BSTONE. It has been ignored" );
+                    return std::nullopt;
                 }
-                result.indices.push_back(
-                    mesh.polygon_vertex( geode::PolygonVertex{ edge } ) );
+                result.indices.push_back( edge_end( edge ) );
                 result.points.emplace_back(
                     mesh.point( result.indices.back() ) );
+                edge = orientation ? mesh.previous_on_border( edge )
+                                   : mesh.next_on_border( edge );
             }
-            else
+            result.indices.push_back( edge_end( edge ) );
+            result.points.emplace_back( mesh.point( result.indices.back() ) );
+            const auto corner1 = find_corner( surface, result.indices.back() );
+            if( !corner1 )
             {
-                while( model_.unique_vertex( { surface.component_id(),
-                           mesh.polygon_edge_vertex( edge, 1 ) } )
-                       == geode::NO_ID )
-                {
-                    result.indices.push_back(
-                        mesh.polygon_edge_vertex( edge, 1 ) );
-                    result.points.emplace_back(
-                        mesh.point( result.indices.back() ) );
-                    edge = mesh.next_on_border( edge );
-                }
-                result.indices.push_back( mesh.polygon_edge_vertex( edge, 1 ) );
-                result.points.emplace_back(
-                    mesh.point( result.indices.back() ) );
+                geode::Logger::warning( "[MLInput] BORDER of Surface ",
+                    surface.name().value_or( surface.id().string() ),
+                    " does not end on a BSTONE. It has been ignored" );
+                return std::nullopt;
             }
-            for( const auto& cmv :
-                model_.component_mesh_vertices( model_.unique_vertex(
-                    { surface.component_id(), result.indices.back() } ) ) )
-            {
-                if( cmv.component_id.type
-                    == geode::Corner3D::component_type_static() )
-                {
-                    result.corner1 = cmv.component_id.id;
-                    break;
-                }
-            }
+            result.corner1 = corner1.value();
             return result;
         }
 
@@ -758,14 +888,19 @@ namespace
             std::string line;
             while( std::getline( file_, line ) )
             {
-                if( geode::string_starts_with( line, "END" ) )
+                const auto tokens = geode::string_split( line );
+                if( tokens.empty() )
+                {
+                    continue;
+                }
+                const auto& component_type = tokens.front();
+                // Exact match: other keywords may start with END (e.g.
+                // END_ORIGINAL_COORDINATE_SYSTEM)
+                if( component_type == "END" )
                 {
                     create_tsurfs();
                     return;
                 }
-
-                const auto tokens = geode::string_split( line );
-                const auto& component_type = tokens.front();
                 absl::Span< const std::string_view > remaining_tokens(
                     &tokens[1], tokens.size() - 1 );
                 if( component_type == "TSURF" )
@@ -901,14 +1036,38 @@ namespace
         void process_TFACE_keyword(
             absl::Span< const std::string_view > tokens )
         {
-            absl::Span< const std::string_view > remaining_tokens(
-                &tokens[2], tokens.size() - 2 );
-            std::string name = geode::internal::read_name( remaining_tokens );
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                tokens.size() >= 3, nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[MLInput] TFACE line should contain an id, a geological "
+                "type and a TSURF name" );
+            std::string name =
+                geode::internal::read_name( tokens.subspan( 2 ) );
+            const auto tsurf_it = tsurf_names2index_.find( name );
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                tsurf_it != tsurf_names2index_.end(), nullptr,
+                geode::OpenGeodeException::TYPE::data, "[MLInput] TFACE ",
+                tokens[0], " refers to undeclared TSURF ", name );
+            const auto tface_id = geode::string_to_index( tokens[0] );
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                tface_ids_.emplace( tface_id, surfaces_.size() ).second,
+                nullptr, geode::OpenGeodeException::TYPE::data,
+                "[MLInput] Several TFACE have id ", tface_id );
             const auto& surface_id = builder_.add_surface(
                 geode::OpenGeodeTriangulatedSurface3D::impl_name_static() );
             builder_.set_surface_name( model_.surface( surface_id ), name );
-            auto& tsurf = tsurfs_[tsurf_names2index_.at( name )];
-            tsurf.feature = geode::to_string( tokens[1] );
+            auto& tsurf = tsurfs_[tsurf_it->second];
+            if( tsurf.tfaces.empty() )
+            {
+                tsurf.feature = geode::to_string( tokens[1] );
+            }
+            else if( tsurf.feature != tokens[1] )
+            {
+                geode::Logger::warning( "[MLInput] TFACE ", tokens[0],
+                    " of TSURF ", name, " has type ", tokens[1],
+                    " while previous TFACE have type ", tsurf.feature,
+                    ". Type ", tsurf.feature, " has been kept" );
+            }
             tsurf.tfaces.emplace_back( surface_id );
             surfaces_.emplace_back( surface_id );
         }
@@ -916,19 +1075,27 @@ namespace
         void process_REGION_keyword(
             absl::Span< const std::string_view > tokens )
         {
-            absl::Span< const std::string_view > remaining_tokens(
-                &tokens[1], tokens.size() - 1 );
-            auto name = geode::internal::read_name( remaining_tokens );
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                tokens.size() >= 2, nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[MLInput] REGION line should contain an id and a name" );
+            const auto region_id = geode::string_to_index( tokens[0] );
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                region_id != universe_id_ && !region_ids_.contains( region_id ),
+                nullptr, geode::OpenGeodeException::TYPE::data,
+                "[MLInput] Several REGION have id ", region_id );
+            auto name = geode::internal::read_name( tokens.subspan( 1 ) );
             if( name == "Universe" )
             {
+                universe_id_ = region_id;
                 read_universe();
                 return;
             }
             const auto& block_id = builder_.add_block();
             builder_.set_block_name(
                 model_.block( block_id ), std::move( name ) );
+            region_ids_.emplace( region_id, block_id );
             create_block_topology( block_id );
-            blocks_.emplace_back( block_id );
         }
 
         void process_LAYER_keyword(
@@ -953,22 +1120,53 @@ namespace
             create_fault_block_topology( fault_block_id );
         }
 
+        std::vector< int > read_region_items(
+            std::string_view keyword, std::string_view name )
+        {
+            std::vector< int > items;
+            std::string line;
+            while( std::getline( file_, line ) )
+            {
+                for( const auto string : geode::string_split( line ) )
+                {
+                    const auto item = geode::string_to_int( string );
+                    if( item == 0 )
+                    {
+                        return items;
+                    }
+                    items.push_back( item );
+                }
+            }
+            throw geode::OpenGeodeGeosciencesIOModelException{ nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[MLInput] Unexpected end of file in ", keyword, " ", name };
+        }
+
+        std::optional< geode::index_t > find_tface(
+            int surface_info, std::string_view region_name ) const
+        {
+            const auto tface_id =
+                static_cast< geode::index_t >( std::abs( surface_info ) );
+            const auto it = tface_ids_.find( tface_id );
+            if( it == tface_ids_.end() )
+            {
+                geode::Logger::warning( "[MLInput] REGION ", region_name,
+                    " refers to unknown TFACE id ", tface_id,
+                    ". It has been ignored" );
+                return std::nullopt;
+            }
+            return it->second;
+        }
+
         void read_universe()
         {
-            while( true )
+            for( const auto surface_info :
+                read_region_items( "REGION", "Universe" ) )
             {
-                std::string boundary_line;
-                std::getline( file_, boundary_line );
-                for( const auto string : geode::string_split( boundary_line ) )
+                if( const auto surface =
+                        find_tface( surface_info, "Universe" ) )
                 {
-                    const auto surface_info = geode::string_to_int( string );
-                    if( surface_info == 0 )
-                    {
-                        return;
-                    }
-                    const auto surface_id =
-                        std::abs( surface_info ) - OFFSET_START;
-                    universe_.emplace( surfaces_.at( surface_id ) );
+                    universe_.emplace( surfaces_[surface.value()] );
                 }
             }
         }
@@ -976,50 +1174,69 @@ namespace
         void create_block_topology( const geode::uuid& block_id )
         {
             const auto& block = model_.block( block_id );
+            const auto& block_name = block.name().value();
             std::vector< geode::index_t > surfaces;
-            while( true )
+            for( const auto surface_info :
+                read_region_items( "REGION", block_name ) )
             {
-                std::string boundary_line;
-                std::getline( file_, boundary_line );
-                for( const auto string : geode::string_split( boundary_line ) )
+                if( const auto surface =
+                        find_tface( surface_info, block_name ) )
                 {
-                    const auto surface_info = geode::string_to_int( string );
-                    if( surface_info == 0 )
-                    {
-                        std::sort( surfaces.begin(), surfaces.end() );
-                        for( size_t s = 1; s < surfaces.size(); s++ )
-                        {
-                            if( surfaces[s - 1] != surfaces[s] )
-                            {
-                                builder_
-                                    .add_surface_block_boundary_relationship(
-                                        model_.surface(
-                                            surfaces_[surfaces[s - 1]] ),
-                                        block );
-                            }
-                            else
-                            {
-                                builder_
-                                    .add_surface_block_internal_relationship(
-                                        model_.surface(
-                                            surfaces_[surfaces[s]] ),
-                                        block );
-                                s++;
-                            }
-                        }
-                        const auto last = surfaces.size() - 1;
-                        if( surfaces[last - 1] != surfaces[last] )
-                        {
-                            builder_.add_surface_block_boundary_relationship(
-                                model_.surface( surfaces_[surfaces[last]] ),
-                                block );
-                        }
-                        return;
-                    }
-                    const auto surface_id =
-                        std::abs( surface_info ) - OFFSET_START;
-                    surfaces.push_back( surface_id );
+                    surfaces.push_back( surface.value() );
                 }
+            }
+            if( surfaces.empty() )
+            {
+                geode::Logger::warning(
+                    "[MLInput] REGION ", block_name, " has no Surface" );
+                return;
+            }
+            // A Surface stated once bounds the Block, a Surface stated on
+            // both sides is internal to the Block
+            absl::c_sort( surfaces );
+            for( size_t s = 0; s < surfaces.size(); )
+            {
+                auto next = s + 1;
+                while( next < surfaces.size() && surfaces[next] == surfaces[s] )
+                {
+                    next++;
+                }
+                const auto& surface = model_.surface( surfaces_[surfaces[s]] );
+                if( next - s == 1 )
+                {
+                    builder_.add_surface_block_boundary_relationship(
+                        surface, block );
+                }
+                else
+                {
+                    builder_.add_surface_block_internal_relationship(
+                        surface, block );
+                }
+                s = next;
+            }
+        }
+
+        template < typename Action >
+        void read_region_blocks( std::string_view keyword,
+            std::string_view name,
+            const Action& action )
+        {
+            for( const auto item : read_region_items( keyword, name ) )
+            {
+                const auto region_id = static_cast< geode::index_t >( item );
+                if( region_id == universe_id_ )
+                {
+                    continue;
+                }
+                const auto it = region_ids_.find( region_id );
+                if( it == region_ids_.end() )
+                {
+                    geode::Logger::warning( "[MLInput] Stated in ", keyword,
+                        " ", name, ", REGION id ", item,
+                        " does not match an existing REGION" );
+                    continue;
+                }
+                action( model_.block( it->second ) );
             }
         }
 
@@ -1028,85 +1245,20 @@ namespace
         {
             const auto& stratigraphic_unit =
                 model_.stratigraphic_unit( stratigraphic_unit_id );
-            std::vector< geode::index_t > blocks;
-            const auto blocks_offset = OFFSET_START + surfaces_.size();
-            while( true )
-            {
-                std::string boundary_line;
-                std::getline( file_, boundary_line );
-                for( const auto string : geode::string_split( boundary_line ) )
-                {
-                    const auto block_id = geode::string_to_index( string );
-                    if( block_id == 0 )
-                    {
-                        for( const auto b : blocks )
-                        {
-                            if( b == 0 )
-                            {
-                                continue; // Universe
-                            }
-                            if( b - OFFSET_START < blocks_.size() )
-                            {
-                                builder_.add_block_in_stratigraphic_unit(
-                                    model_.block( blocks_[b - OFFSET_START] ),
-                                    stratigraphic_unit );
-                            }
-                            else
-                            {
-                                geode::Logger::warning(
-                                    "[MLInput] Stated in LAYER ",
-                                    stratigraphic_unit.name().value(),
-                                    ", Block id ", b + blocks_offset,
-                                    " does not match an existing REGION" );
-                            }
-                        }
-                        return;
-                    }
-                    blocks.push_back( block_id - blocks_offset );
-                }
-            }
+            read_region_blocks( "LAYER", stratigraphic_unit.name().value(),
+                [&]( const geode::Block3D& block ) {
+                    builder_.add_block_in_stratigraphic_unit(
+                        block, stratigraphic_unit );
+                } );
         }
 
         void create_fault_block_topology( const geode::uuid& fault_block_id )
         {
             const auto& fault_block = model_.fault_block( fault_block_id );
-            std::vector< geode::index_t > blocks;
-            const auto blocks_offset = OFFSET_START + surfaces_.size();
-            while( true )
-            {
-                std::string boundary_line;
-                std::getline( file_, boundary_line );
-                for( const auto string : geode::string_split( boundary_line ) )
-                {
-                    const auto block_id = geode::string_to_index( string );
-                    if( block_id == 0 )
-                    {
-                        for( const auto b : blocks )
-                        {
-                            if( b == 0 )
-                            {
-                                continue; // Universe
-                            }
-                            if( b - OFFSET_START < blocks_.size() )
-                            {
-                                builder_.add_block_in_fault_block(
-                                    model_.block( blocks_[b - OFFSET_START] ),
-                                    fault_block );
-                            }
-                            else
-                            {
-                                geode::Logger::warning(
-                                    "[MLInput] Stated in FAULT_BLOCK ",
-                                    fault_block.name().value(), ", Block id ",
-                                    b + blocks_offset,
-                                    " does not match an existing REGION" );
-                            }
-                        }
-                        return;
-                    }
-                    blocks.push_back( block_id - blocks_offset );
-                }
-            }
+            read_region_blocks( "FAULT_BLOCK", fault_block.name().value(),
+                [&]( const geode::Block3D& block ) {
+                    builder_.add_block_in_fault_block( block, fault_block );
+                } );
         }
 
     private:
@@ -1118,7 +1270,11 @@ namespace
         absl::flat_hash_map< std::pair< geode::uuid, geode::uuid >, LinesID >
             corners2line_;
         std::vector< std::reference_wrapper< const geode::uuid > > surfaces_;
-        std::vector< std::reference_wrapper< const geode::uuid > > blocks_;
+        absl::flat_hash_map< geode::index_t, geode::index_t > tface_ids_;
+        absl::flat_hash_map< geode::index_t,
+            std::reference_wrapper< const geode::uuid > >
+            region_ids_;
+        geode::index_t universe_id_{ geode::NO_ID };
         absl::flat_hash_set< geode::uuid > universe_;
         double epsilon_;
     };
