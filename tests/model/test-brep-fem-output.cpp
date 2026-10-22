@@ -406,6 +406,19 @@ namespace
         }
     }
 
+    void test_save_in_new_directory()
+    {
+        auto brep = geode::load_brep(
+            absl::StrCat( geode::DATA_PATH, "remeshed_yom-faults.og_brep" ) );
+        const auto filename = "fem_output_directory/brep/test_brep.fem";
+        geode::save_brep( brep, filename );
+        const auto lines = read_lines( filename );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            !lines.empty() && lines.front() == "PROBLEM:"
+                && lines.back() == "END",
+            "[Test] Incomplete FEM file in new directory" );
+    }
+
     void test_non_tetrahedral_brep()
     {
         geode::BRep empty_brep;
@@ -454,6 +467,7 @@ int main()
         test_block_attributes();
         test_features_on_any_component();
         test_double_precision();
+        test_save_in_new_directory();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }

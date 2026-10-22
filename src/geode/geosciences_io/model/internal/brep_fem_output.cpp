@@ -23,7 +23,6 @@
 
 #include <geode/geosciences_io/model/internal/brep_fem_output.hpp>
 
-#include <fstream>
 #include <limits>
 #include <string_view>
 
@@ -31,7 +30,6 @@
 
 #include <geode/basic/attribute.hpp>
 #include <geode/basic/attribute_manager.hpp>
-#include <geode/basic/filename.hpp>
 #include <geode/basic/io.hpp>
 #include <geode/basic/types.hpp>
 #include <geode/basic/variable_attribute.hpp>
@@ -69,25 +67,14 @@ namespace
         static constexpr char EOL{ '\n' };
         static constexpr char SPACE{ ' ' };
         BRepFemOutputImpl( std::string_view filename, const geode::BRep& brep )
-            : file_{ geode::to_string( filename ) },
-              file_str_view_{ filename },
-              brep_( brep )
+            : filename_{ filename }, brep_( brep )
         {
-            geode::OpenGeodeGeosciencesIOModelException::check_exception(
-                file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
-                "Error while opening file: ", filename );
         }
 
         void write_file()
         {
             geode::Logger::info(
                 "[BRepSolidFemOutput::write] Writing fem file." );
-            const auto directories =
-                geode::filepath_without_filename( "filename" );
-            if( !directories.empty() )
-            {
-                std::filesystem::create_directories( directories );
-            }
             auto [solid, model_to_mesh_mapping] =
                 geode::convert_brep_into_solid( brep_ );
             const auto* tet_solid_ptr =
@@ -107,7 +94,7 @@ namespace
                 tet_solid, model_to_mesh_mapping );
             paint_surface_infos( tet_solid, model_to_mesh_mapping );
             paint_line_infos( tet_solid, model_to_mesh_mapping );
-            geode::save_tetrahedral_solid( tet_solid, file_str_view_ );
+            geode::save_tetrahedral_solid( tet_solid, filename_ );
         }
 
     private:
@@ -484,8 +471,7 @@ namespace
         }
 
     private:
-        std::ofstream file_;
-        std::string_view file_str_view_;
+        std::string_view filename_;
         const geode::BRep& brep_;
     };
 } // namespace

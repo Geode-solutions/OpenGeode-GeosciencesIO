@@ -20,16 +20,16 @@
  * SOFTWARE.
  *
  */
-#include <absl/container/btree_map.h>
 #include <cmath>
 #include <fstream>
+#include <limits>
+
+#include <absl/container/btree_map.h>
 
 #include <geode/basic/attribute_manager.hpp>
-#include <geode/basic/filename.hpp>
 #include <geode/basic/io.hpp>
 #include <geode/basic/types.hpp>
 #include <geode/basic/variable_attribute.hpp>
-#include <limits>
 
 #include <geode/mesh/core/edged_curve.hpp>
 #include <geode/mesh/core/solid_edges.hpp>
@@ -166,12 +166,6 @@ namespace
         void write_file()
         {
             geode::Logger::info( "[SolidFemOutput::write] Writing fem file." );
-            const auto directories =
-                geode::filepath_without_filename( "filename" );
-            if( !directories.empty() )
-            {
-                std::filesystem::create_directories( directories );
-            }
             write_problem();
             write_class();
             write_dimension();
