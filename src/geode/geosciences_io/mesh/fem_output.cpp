@@ -326,6 +326,15 @@ namespace
                 {
                     continue;
                 }
+                if( attribute->nb_items() != 1 )
+                {
+                    geode::Logger::warning( "[SolidFemOutput::write] "
+                                            "Attribute ",
+                        attribute->name().value(),
+                        " is not exported: only scalar attributes are "
+                        "supported" );
+                    continue;
+                }
                 attributes.push_back( std::move( attribute ) );
             }
             return attributes;

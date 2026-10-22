@@ -618,6 +618,29 @@ namespace
             "[Test] Unsorted material values" );
     }
 
+    void test_vector_attributes()
+    {
+        auto solid = create_solid();
+        create_attribute< std::array< double, 3 > >(
+            solid->vertex_attribute_manager(), "vertex_vector",
+            { 1., 2., 3. } );
+        create_attribute< geode::Point3D >(
+            solid->polyhedron_attribute_manager(), "polyhedron_point",
+            geode::Point3D{ { 1., 2., 3. } } );
+        geode::save_tetrahedral_solid( *solid, "test_vector_attributes.fem" );
+        const auto lines = read_lines( "test_vector_attributes.fem" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            !find_line( lines, "vertex_vector" )
+                && !find_line( lines, "polyhedron_point" ),
+            "[Test] Vector attributes should not be exported" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            lines.at( find_line( lines, "REF_DIS_I" ).value() + 1 )
+                    == " 3, 5, 0"
+                && lines.at( find_line( lines, "REF_DISE_I" ).value() + 1 )
+                       == " 0, 2, 0",
+            "[Test] Wrong distribution counts with vector attributes" );
+    }
+
     void test_solid_fem_output()
     {
         auto tet_solid = geode::load_tetrahedral_solid< 3 >(
@@ -660,6 +683,7 @@ int main()
         test_features_without_valid_values();
         test_element_set_names();
         test_deterministic_order();
+        test_vector_attributes();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }
