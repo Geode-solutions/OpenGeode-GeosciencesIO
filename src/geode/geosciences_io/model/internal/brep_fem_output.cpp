@@ -24,7 +24,10 @@
 #include <geode/geosciences_io/model/internal/brep_fem_output.hpp>
 
 #include <fstream>
+#include <limits>
 #include <string_view>
+
+#include <absl/container/flat_hash_map.h>
 
 #include <geode/basic/attribute.hpp>
 #include <geode/basic/attribute_manager.hpp>
@@ -380,54 +383,82 @@ namespace
             }
         }
 
+        template < typename T >
+        static void copy_block_attribute_values(
+            const geode::AttributeBase& block_attribute,
+            const geode::Block3D& block,
+            const geode::ModelToMeshMappings& model_to_mesh_mapping,
+            geode::VariableAttribute< double >& solid_attribute )
+        {
+            const auto& typed_attribute =
+                dynamic_cast< const geode::ReadOnlyAttribute< T >& >(
+                    block_attribute );
+            for( const auto polyhedron :
+                geode::Range{ block.mesh().nb_polyhedra() } )
+            {
+                solid_attribute.set_value(
+                    model_to_mesh_mapping.solid_polyhedra_mapping.in2out(
+                        { block.id(), polyhedron } ),
+                    static_cast< double >(
+                        typed_attribute.value( polyhedron ) ) );
+            }
+        }
+
         void copy_tetrahedra_attributes_in_solid(
             const geode::TetrahedralSolid3D& solid,
             const geode::ModelToMeshMappings& model_to_mesh_mapping ) const
         {
+            absl::flat_hash_map< std::string,
+                std::shared_ptr< geode::VariableAttribute< double > > >
+                solid_attributes;
             for( const auto& block : brep_.blocks() )
             {
-                const auto& mesh = block.mesh();
-                for( const auto& attribute_id :
-                    mesh.polyhedron_attribute_manager().attribute_ids() )
+                const auto& manager =
+                    block.mesh().polyhedron_attribute_manager();
+                for( const auto& attribute_id : manager.attribute_ids() )
                 {
-                    const auto& block_polyhedron_attribute =
-                        mesh.polyhedron_attribute_manager()
-                            .find_generic_attribute( attribute_id );
-                    if( !block_polyhedron_attribute
-                        || !block_polyhedron_attribute->properties()
-                            .transferable
-                        || ( block_polyhedron_attribute->type()
-                                 != typeid( double ).name()
-                             && block_polyhedron_attribute->type()
-                                    != typeid( float ).name() ) )
+                    const auto block_attribute =
+                        manager.find_generic_attribute( attribute_id );
+                    if( !block_attribute
+                        || !block_attribute->properties().transferable )
                     {
                         continue;
                     }
-                    geode::AttributeValues< double > solid_attribute_values;
-                    solid_attribute_values.default_value =
-                        block_polyhedron_attribute->generic_value( 0 );
-                    solid_attribute_values.no_value =
-                        block_polyhedron_attribute->generic_value( 0 );
-                    auto solid_polyhedron_attribute_id =
-                        solid.polyhedron_attribute_manager()
-                            .create_attribute< geode::VariableAttribute,
-                                double >(
-                                block_polyhedron_attribute->name().value(),
-                                solid_attribute_values,
-                                block_polyhedron_attribute->properties() );
-                    auto solid_polyhedron_attribute =
-                        solid.polyhedron_attribute_manager()
-                            .find_attribute< geode::VariableAttribute, double >(
-                                solid_polyhedron_attribute_id );
-                    for( const auto polyhedron :
-                        geode::Range{ mesh.nb_polyhedra() } )
+                    const auto type = block_attribute->type();
+                    const auto is_double = type == typeid( double ).name();
+                    if( !is_double && type != typeid( float ).name() )
                     {
-                        const auto polyhedron_out =
-                            model_to_mesh_mapping.solid_polyhedra_mapping
-                                .in2out( { block.id(), polyhedron } );
-                        solid_polyhedron_attribute->set_value( polyhedron_out,
-                            block_polyhedron_attribute->generic_value(
-                                polyhedron ) );
+                        continue;
+                    }
+                    auto& solid_attribute =
+                        solid_attributes[block_attribute->name().value()];
+                    if( !solid_attribute )
+                    {
+                        geode::AttributeValues< double > solid_attribute_values;
+                        solid_attribute_values.default_value =
+                            std::numeric_limits< double >::quiet_NaN();
+                        solid_attribute_values.no_value =
+                            solid_attribute_values.default_value;
+                        const auto solid_attribute_id =
+                            solid.polyhedron_attribute_manager()
+                                .create_attribute< geode::VariableAttribute,
+                                    double >( block_attribute->name().value(),
+                                    solid_attribute_values,
+                                    block_attribute->properties() );
+                        solid_attribute =
+                            solid.polyhedron_attribute_manager()
+                                .find_attribute< geode::VariableAttribute,
+                                    double >( solid_attribute_id );
+                    }
+                    if( is_double )
+                    {
+                        copy_block_attribute_values< double >( *block_attribute,
+                            block, model_to_mesh_mapping, *solid_attribute );
+                    }
+                    else
+                    {
+                        copy_block_attribute_values< float >( *block_attribute,
+                            block, model_to_mesh_mapping, *solid_attribute );
                     }
                 }
             }
