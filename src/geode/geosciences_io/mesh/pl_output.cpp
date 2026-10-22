@@ -24,6 +24,7 @@
 #include <geode/geosciences_io/mesh/internal/pl_output.hpp>
 
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -53,6 +54,7 @@ namespace
             geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                 file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "Error while opening file: ", filename );
+            file_.precision( std::numeric_limits< double >::max_digits10 );
         }
 
         void write_prop_header()

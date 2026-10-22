@@ -82,6 +82,24 @@ namespace
             "Wrong edge vertices with invalid segments" );
     }
 
+    void test_output_precision()
+    {
+        auto curve = geode::EdgedCurve3D::create();
+        auto builder = geode::EdgedCurveBuilder3D::create( *curve );
+        const geode::Point3D point0{ { 1056340.123456789, 0.1, -2.5e-7 } };
+        const geode::Point3D point1{ { 1.0 / 3.0, 7654321.987654321, 3 } };
+        builder->create_point( point0 );
+        builder->create_point( point1 );
+        builder->create_edge( 0, 1 );
+        geode::save_edged_curve( *curve, "test_pl_precision.pl" );
+        const auto reloaded =
+            geode::load_edged_curve< 3 >( "test_pl_precision.pl" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            reloaded->nb_vertices() == 2 && reloaded->point( 0 ) == point0
+                && reloaded->point( 1 ) == point1,
+            "Coordinates are not saved with full precision" );
+    }
+
     void check_curve( const geode::EdgedCurve3D& curve,
         geode::index_t nb_vertices,
         geode::index_t nb_edges )
@@ -136,6 +154,7 @@ int main()
         // NOLINTEND(*-magic-numbers)
         test_blank_lines();
         test_invalid_segments();
+        test_output_precision();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }
