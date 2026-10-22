@@ -155,7 +155,10 @@ void test_unordered_records()
 
 void test_invalid_grid( std::string_view filename, std::string_view content )
 {
-    write_file( filename, content );
+    if( !content.empty() )
+    {
+        write_file( filename, content );
+    }
     try
     {
         [[maybe_unused]] const auto grid =
@@ -201,6 +204,24 @@ void test_invalid_grids()
     })" );
 }
 
+void test_overflowing_grid()
+{
+    // 131072 x 32769 x 1 vertices wraps to 131072 in 32 bits, the number of
+    // records
+    constexpr auto filename = "overflowing_grid.json";
+    {
+        std::ofstream file{ filename };
+        file << "{\"grid_df\":[";
+        for( const auto record : geode::Range{ 131072 } )
+        {
+            file << ( record == 0 ? "" : "," ) << "{\"x\":" << record
+                 << ",\"y\":" << record % 32769 << ",\"z\":0}";
+        }
+        file << "]}";
+    }
+    test_invalid_grid( filename, "" );
+}
+
 int main()
 {
     try
@@ -219,6 +240,7 @@ int main()
 
         test_unordered_records();
         test_invalid_grids();
+        test_overflowing_grid();
 
         geode::Logger::info( "[TEST SUCCESS]" );
 

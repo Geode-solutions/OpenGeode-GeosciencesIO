@@ -24,6 +24,7 @@
 #include <geode/geosciences_io/mesh/internal/json_grid_input.hpp>
 
 #include <cmath>
+#include <cstdint>
 #include <fstream>
 #include <limits>
 #include <optional>
@@ -388,6 +389,7 @@ namespace
 
         geode::LightRegularGrid3D read_file()
         {
+            check_number_of_vertices();
             geode::LightRegularGrid3D grid{ origin(), cells_number(),
                 cells_length() };
             // TODO: coordinate_system (EPSG code) is not stored since
@@ -398,6 +400,28 @@ namespace
         }
 
     private:
+        void check_number_of_vertices() const
+        {
+            std::uint64_t nb_vertices{ 1 };
+            for( const auto& axis : axes_ )
+            {
+                // Each factor is at most the number of records, stopping
+                // as soon as the product exceeds it prevents any overflow
+                nb_vertices *= axis.nb_vertices;
+                if( nb_vertices > sax_.nb_records() )
+                {
+                    break;
+                }
+            }
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                nb_vertices == sax_.nb_records(), nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[JSONGridInput] Number of records (", sax_.nb_records(),
+                ") does not match the number of grid vertices (",
+                axes_[0].nb_vertices, " x ", axes_[1].nb_vertices, " x ",
+                axes_[2].nb_vertices, ")" );
+        }
+
         [[nodiscard]] geode::Point3D origin() const
         {
             return geode::Point3D{ { axes_[0].origin, axes_[1].origin,
@@ -432,12 +456,6 @@ namespace
         [[nodiscard]] std::vector< geode::index_t > record_vertices(
             const geode::LightRegularGrid3D& grid ) const
         {
-            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
-                sax_.nb_records() == grid.nb_grid_vertices(), nullptr,
-                geode::OpenGeodeException::TYPE::data,
-                "[JSONGridInput] Number of records (", sax_.nb_records(),
-                ") does not match the number of grid vertices (",
-                grid.nb_grid_vertices(), ")" );
             std::vector< geode::index_t > vertices( sax_.nb_records() );
             std::vector< bool > visited( grid.nb_grid_vertices(), false );
             for( const auto record_id : geode::Range{ sax_.nb_records() } )
