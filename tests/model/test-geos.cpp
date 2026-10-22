@@ -1207,6 +1207,23 @@ void test_run_twice()
         "[Test] Running the exporter twice should give the same files" );
 }
 
+void test_output_directories()
+{
+    const auto model = tetrahedra_brep( 1, geode::Point3D{ { 0., 0., 0. } } );
+    geode::BRepGeosExporter trailing_exporter( model, "trailing_slash/" );
+    trailing_exporter.run();
+    geode::BRepGeosExporter nested_exporter( model, "nested/./directory" );
+    nested_exporter.run();
+    for( const auto& file : { "trailing_slash/trailing_slash_simulation.xml",
+             "trailing_slash/trailing_slash.vtu",
+             "nested/directory/directory_simulation.xml",
+             "nested/directory/directory.vtu" } )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            std::filesystem::exists( file ), "[Test] Missing file ", file );
+    }
+}
+
 int main()
 {
     try
@@ -1221,6 +1238,7 @@ int main()
         test_property_names_clash();
         test_surface_polygons_not_on_solid_facets();
         test_run_twice();
+        test_output_directories();
         test_picasso();
         test_uniform_variable_boundary_condition();
         test_variable_boundary_condition();

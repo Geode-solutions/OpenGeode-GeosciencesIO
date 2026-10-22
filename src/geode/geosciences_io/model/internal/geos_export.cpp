@@ -470,6 +470,18 @@ namespace
         return nb_elements == 0 ? 0. : sum / nb_elements;
     }
 
+    // Directory without trailing separator nor dot segments
+    std::filesystem::path normalized_directory( std::string_view directory )
+    {
+        auto path = std::filesystem::path{ geode::to_string( directory ) }
+                        .lexically_normal();
+        if( !path.empty() && !path.has_filename() )
+        {
+            path = path.parent_path();
+        }
+        return path;
+    }
+
     // The polyhedron is split in tetrahedra joining its barycenter to a fan
     // triangulation of its facets
     bool is_point_in_polyhedron( const geode::SolidMesh3D& solid,
@@ -689,21 +701,14 @@ namespace geode::internal
     GeosExporterImpl< Model >::GeosExporterImpl(
         std::string_view files_directory, const Model& model )
         : model_( model ),
-          files_directory_{
-              std::filesystem::path{ to_string( files_directory ) }.string()
-          },
-          prefix_{ filename_without_extension( files_directory ).string() }
+          files_directory_{ normalized_directory( files_directory ).string() },
+          prefix_{ normalized_directory( files_directory ).stem().string() }
     {
-        if( std::filesystem::path{ to_string( files_directory ) }
-                .is_relative() )
-        {
-            std::filesystem::create_directory(
-                std::filesystem::current_path() / files_directory_ );
-        }
-        else
-        {
-            std::filesystem::create_directory( files_directory_ );
-        }
+        OpenGeodeGeosciencesIOModelException::check_exception( !prefix_.empty(),
+            nullptr, OpenGeodeException::TYPE::data,
+            "[GeosExporter] Cannot export in directory \"", files_directory,
+            "\": its name is used as file prefix and must not be empty." );
+        std::filesystem::create_directories( files_directory_ );
     }
 
     template < typename Model >
@@ -821,8 +826,11 @@ namespace geode::internal
 
         const auto filename_xml =
             absl::StrCat( files_directory(), "/", prefix(), "_simulation.xml" );
-        doc_xml.save_file( filename_xml.c_str(), PUGIXML_TEXT( "    " ),
-            pugi::format_indent_attributes );
+        OpenGeodeGeosciencesIOModelException::check_exception(
+            doc_xml.save_file( filename_xml.c_str(), PUGIXML_TEXT( "    " ),
+                pugi::format_indent_attributes ),
+            nullptr, OpenGeodeException::TYPE::data,
+            "[GeosExporter] Cannot write file ", filename_xml );
     }
 
     template < typename Model >
