@@ -109,6 +109,33 @@ namespace
             return attribute.generic_value( element );
         }
 
+        static std::shared_ptr< geode::VariableAttribute< std::string > >
+            find_or_create_name_attribute(
+                geode::AttributeManager& manager, std::string_view name )
+        {
+            if( const auto attribute_ids =
+                    manager.attribute_ids_matching_name( name ) )
+            {
+                return manager
+                    .find_attribute< geode::VariableAttribute, std::string >(
+                        attribute_ids->front() );
+            }
+            geode::AttributeValues< std::string > values;
+            values.default_value = "No_name";
+            values.no_value = "No_name";
+            geode::AttributeProperties properties;
+            properties.assignable = false;
+            properties.interpolable = false;
+            properties.transferable = true;
+            const auto attribute_id =
+                manager
+                    .create_attribute< geode::VariableAttribute, std::string >(
+                        name, values, properties );
+            return manager
+                .find_attribute< geode::VariableAttribute, std::string >(
+                    attribute_id );
+        }
+
         void paint_facets_attribute( const geode::TetrahedralSolid3D& tet_solid,
             const geode::ModelToMeshMappings& model_to_mesh_mapping,
             std::string_view attribute_name,
@@ -132,22 +159,10 @@ namespace
                     .facet_attribute_manager()
                     .find_attribute< geode::VariableAttribute, double >(
                         solid_attribute_id );
-            geode::AttributeValues< std::string >
-                solid_surface_name_attribute_values;
-            solid_surface_name_attribute_values.default_value = "No_name";
-            solid_surface_name_attribute_values.no_value = "No_name";
-            auto solid_surface_name_attribute_id =
-                tet_solid.facets()
-                    .facet_attribute_manager()
-                    .create_attribute< geode::VariableAttribute, std::string >(
-                        SURFACE_NAME_ATTRIBUTE,
-                        solid_surface_name_attribute_values,
-                        solid_attribute_properties );
-            auto solid_surface_name_attribute =
-                tet_solid.facets()
-                    .facet_attribute_manager()
-                    .find_attribute< geode::VariableAttribute, std::string >(
-                        solid_surface_name_attribute_id );
+            const auto solid_surface_name_attribute =
+                find_or_create_name_attribute(
+                    tet_solid.facets().facet_attribute_manager(),
+                    SURFACE_NAME_ATTRIBUTE );
             for( const auto& surface : brep_.surfaces() )
             {
                 const auto& mesh = surface.mesh();
@@ -239,21 +254,10 @@ namespace
                     .edge_attribute_manager()
                     .find_attribute< geode::VariableAttribute, double >(
                         solid_attribute_id );
-            geode::AttributeValues< std::string >
-                solid_line_name_attribute_values;
-            solid_line_name_attribute_values.default_value = "No_name";
-            solid_line_name_attribute_values.no_value = "No_name";
-            const auto solid_line_name_attribute_id =
-                tet_solid.edges()
-                    .edge_attribute_manager()
-                    .create_attribute< geode::VariableAttribute, std::string >(
-                        LINE_NAME_ATTRIBUTE, solid_line_name_attribute_values,
-                        solid_attribute_properties );
-            auto solid_line_name_attribute =
-                tet_solid.edges()
-                    .edge_attribute_manager()
-                    .find_attribute< geode::VariableAttribute, std::string >(
-                        solid_line_name_attribute_id );
+            const auto solid_line_name_attribute =
+                find_or_create_name_attribute(
+                    tet_solid.edges().edge_attribute_manager(),
+                    LINE_NAME_ATTRIBUTE );
             for( const auto& line : brep_.lines() )
             {
                 const auto& mesh = line.mesh();
