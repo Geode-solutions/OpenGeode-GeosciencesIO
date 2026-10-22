@@ -76,9 +76,10 @@ namespace
                 const auto point_id = create_point( split_line );
                 assign_point_attributes( split_line, point_id );
             }
-            for( const auto pt_id : geode::Range{ curve_.nb_vertices() - 1 } )
+            for( geode::index_t pt_id = 1; pt_id < curve_.nb_vertices();
+                pt_id++ )
             {
-                builder_->create_edge( pt_id, pt_id + 1 );
+                builder_->create_edge( pt_id - 1, pt_id );
             }
         }
 

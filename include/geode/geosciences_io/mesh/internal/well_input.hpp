@@ -57,9 +57,9 @@ namespace geode::internal
             {
                 builder_->create_point( read_coord( line ) );
             }
-            for( const auto pt_id : Range{ curve_.nb_vertices() - 1 } )
+            for( index_t pt_id = 1; pt_id < curve_.nb_vertices(); pt_id++ )
             {
-                builder_->create_edge( pt_id, pt_id + 1 );
+                builder_->create_edge( pt_id - 1, pt_id );
             }
         }
 
