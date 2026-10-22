@@ -147,6 +147,50 @@ namespace
         return manager.find_attribute< geode::VariableAttribute, T >( id );
     }
 
+    // Reads the "value id id-id ..." lines of the given DFE material
+    absl::flat_hash_map< geode::index_t, double > read_material(
+        absl::Span< const std::string > lines, std::string_view material )
+    {
+        const auto material_line = find_line( lines,
+            absl::StrCat( "          <material id=\"", material, "\">" ) );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            material_line.has_value(), "[Test] Missing material ", material );
+        absl::flat_hash_map< geode::index_t, double > values;
+        for( const auto l :
+            geode::Range{ material_line.value() + 2, lines.size() } )
+        {
+            const std::vector< std::string_view > tokens =
+                absl::StrSplit( lines[l], ' ', absl::SkipEmpty() );
+            double value;
+            if( tokens.empty() || !absl::SimpleAtod( tokens[0], &value ) )
+            {
+                break;
+            }
+            for( const auto t : geode::Range{ 1, tokens.size() } )
+            {
+                if( tokens[t] == "]]>" )
+                {
+                    return values;
+                }
+                const std::vector< std::string_view > range =
+                    absl::StrSplit( tokens[t], '-' );
+                geode::index_t first;
+                geode::index_t last;
+                geode::OpenGeodeGeosciencesIOModelException::test(
+                    absl::SimpleAtoi( range.front(), &first )
+                        && absl::SimpleAtoi( range.back(), &last ),
+                    "[Test] Wrong id token ", tokens[t] );
+                for( const auto id : geode::Range{ first, last + 1 } )
+                {
+                    geode::OpenGeodeGeosciencesIOModelException::test(
+                        values.emplace( id, value ).second, "[Test] Feature ",
+                        id, " listed twice in ", material );
+                }
+            }
+        }
+        return values;
+    }
+
     void test_brep_fem_output()
     {
         auto brep = geode::load_brep(
@@ -329,6 +373,39 @@ namespace
             "[Test] Wrong number of discrete features" );
     }
 
+    void test_double_precision()
+    {
+        auto brep = geode::load_brep(
+            absl::StrCat( geode::DATA_PATH, "remeshed_yom-faults.og_brep" ) );
+        const auto& surface = *brep.surfaces().begin();
+        add_constant_attribute( surface.mesh().polygon_attribute_manager(),
+            "diagres_discontinuity_aperture", 1.23456789e-5 );
+        for( const auto& block : brep.blocks() )
+        {
+            add_constant_attribute( block.mesh().polyhedron_attribute_manager(),
+                "porosity", 0.123456789012 );
+        }
+        geode::save_brep( brep, "test_brep_precision.fem" );
+        const auto lines = read_lines( "test_brep_precision.fem" );
+        const auto apertures = read_material( lines, "AREA" );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            apertures.size() == surface.mesh().nb_polygons(),
+            "[Test] Wrong number of apertures" );
+        for( const auto& [feature, aperture] : apertures )
+        {
+            geode::OpenGeodeGeosciencesIOModelException::test(
+                aperture == 1.23456789e-5, "[Test] Wrong aperture of feature ",
+                feature );
+        }
+        for( const auto& [element, porosity] :
+            read_distribution( lines, "REF_DISE_I", "porosity" ) )
+        {
+            geode::OpenGeodeGeosciencesIOModelException::test(
+                porosity == 0.123456789012, "[Test] Wrong porosity of element ",
+                element );
+        }
+    }
+
     void test_non_tetrahedral_brep()
     {
         geode::BRep empty_brep;
@@ -376,6 +453,7 @@ int main()
         test_unmapped_surface_and_line_elements();
         test_block_attributes();
         test_features_on_any_component();
+        test_double_precision();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }

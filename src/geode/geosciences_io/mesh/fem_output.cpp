@@ -27,6 +27,7 @@
 #include <geode/basic/io.hpp>
 #include <geode/basic/types.hpp>
 #include <geode/basic/variable_attribute.hpp>
+#include <limits>
 
 #include <geode/mesh/core/edged_curve.hpp>
 #include <geode/mesh/core/solid_edges.hpp>
@@ -118,6 +119,18 @@ namespace
         return nullptr;
     }
 
+    double attribute_value( const geode::ReadOnlyAttribute< double >& attribute,
+        geode::index_t element )
+    {
+        return attribute.value( element );
+    }
+
+    double attribute_value(
+        const geode::AttributeBase& attribute, geode::index_t element )
+    {
+        return attribute.generic_value( element );
+    }
+
     std::string add_spaces( geode::index_t n )
     {
         return std::string( n, SPACE );
@@ -142,6 +155,7 @@ namespace
             std::string_view filename, const geode::TetrahedralSolid3D& solid )
             : file_{ geode::to_string( filename ) }, solid_( solid )
         {
+            file_.precision( std::numeric_limits< double >::max_digits10 );
             geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                 file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "Error while opening file: ", filename );
@@ -228,8 +242,9 @@ namespace
             }
         }
 
+        template < typename Value >
         void write_chunks( absl::Span< const geode::index_t > elements,
-            std::string attribute_value,
+            const Value& attribute_value,
             geode::index_t max_chunk_size )
         {
             for( const auto& range_chunk :
@@ -241,21 +256,20 @@ namespace
             }
         }
 
-        void write_chunks( absl::Span< const geode::index_t > elements,
-            double attribute_value,
-            geode::index_t max_chunk_size )
-        {
-            write_chunks(
-                elements, std::to_string( attribute_value ), max_chunk_size );
-        }
-
         void write_property(
             geode::AttributeBase& attribute, geode::index_t nb_elements )
         {
             file_ << attribute.name().value() << EOL;
             absl::flat_hash_map< double, std::vector< geode::index_t > >
                 attribute_distribution =
-                    create_attribute_distribution( attribute, nb_elements );
+                    attribute.type() == typeid( double ).name()
+                        ? create_attribute_distribution(
+                              dynamic_cast<
+                                  const geode::ReadOnlyAttribute< double >& >(
+                                  attribute ),
+                              nb_elements )
+                        : create_attribute_distribution(
+                              attribute, nb_elements );
             std::vector< double > values;
             values.reserve( attribute_distribution.size() );
             for( auto val : attribute_distribution )
@@ -270,16 +284,17 @@ namespace
             }
         }
 
+        template < typename Attribute >
         absl::flat_hash_map< double, std::vector< geode::index_t > >
             create_attribute_distribution(
-                geode::AttributeBase& attribute, geode::index_t nb_elements )
+                const Attribute& attribute, geode::index_t nb_elements )
         {
             absl::flat_hash_map< double, std::vector< geode::index_t > >
                 att_dist;
             geode::index_t nb_nan_values{ 0 };
             for( const auto elem : geode::Range{ nb_elements } )
             {
-                const auto value = attribute.generic_value( elem );
+                const auto value = attribute_value( attribute, elem );
                 if( std::isnan( value ) )
                 {
                     nb_nan_values++;

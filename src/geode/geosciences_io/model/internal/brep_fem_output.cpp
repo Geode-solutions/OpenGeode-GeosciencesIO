@@ -111,6 +111,17 @@ namespace
         }
 
     private:
+        static double attribute_value( const geode::AttributeBase& attribute,
+            const geode::ReadOnlyAttribute< double >* double_attribute,
+            geode::index_t element )
+        {
+            if( double_attribute )
+            {
+                return double_attribute->value( element );
+            }
+            return attribute.generic_value( element );
+        }
+
         void paint_facets_attribute( const geode::TetrahedralSolid3D& tet_solid,
             const geode::ModelToMeshMappings& model_to_mesh_mapping,
             std::string_view attribute_name,
@@ -160,9 +171,12 @@ namespace
                 {
                     continue;
                 }
-                const auto& surface_attribute =
+                const auto surface_attribute =
                     mesh.polygon_attribute_manager().find_generic_attribute(
                         attribute_ids.value().front() );
+                const auto* surface_double_attribute =
+                    dynamic_cast< const geode::ReadOnlyAttribute< double >* >(
+                        surface_attribute.get() );
                 geode::index_t nb_skipped{ 0 };
                 for( const auto polygon : geode::Range{ mesh.nb_polygons() } )
                 {
@@ -177,7 +191,8 @@ namespace
                         model_to_mesh_mapping.surface_polygons_mapping.in2out(
                             element );
                     solid_attribute->set_value( facet_in_solid,
-                        surface_attribute->generic_value( polygon ) );
+                        attribute_value( *surface_attribute,
+                            surface_double_attribute, polygon ) );
                     if( const auto name = surface.name() )
                     {
                         solid_surface_name_attribute->set_value(
@@ -262,9 +277,12 @@ namespace
                 {
                     continue;
                 }
-                const auto& line_attribute =
+                const auto line_attribute =
                     mesh.edge_attribute_manager().find_generic_attribute(
                         attribute_ids.value().front() );
+                const auto* line_double_attribute =
+                    dynamic_cast< const geode::ReadOnlyAttribute< double >* >(
+                        line_attribute.get() );
                 geode::index_t nb_skipped{ 0 };
                 for( const auto edge : geode::Range{ mesh.nb_edges() } )
                 {
@@ -279,7 +297,8 @@ namespace
                         model_to_mesh_mapping.line_edges_mapping.in2out(
                             element );
                     solid_attribute->set_value(
-                        edge_in_solid, line_attribute->generic_value( edge ) );
+                        edge_in_solid, attribute_value( *line_attribute,
+                                           line_double_attribute, edge ) );
                     if( const auto name = line.name() )
                     {
                         solid_line_name_attribute->set_value(

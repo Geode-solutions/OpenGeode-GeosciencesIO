@@ -338,6 +338,72 @@ namespace
             "[Test] Non string Block_ID_polyhedron should be ignored" );
     }
 
+    void test_double_precision()
+    {
+        auto solid = create_solid();
+        auto builder = geode::TetrahedralSolidBuilder3D::create( *solid );
+        const geode::Point3D point{ { 512345.678, 4567890.123, -1e-9 } };
+        builder->set_point( 4, point );
+        auto vertex_attribute = create_attribute< double >(
+            solid->vertex_attribute_manager(), "vertex_precision", 1e-9 );
+        vertex_attribute->set_value( 0, 1.0000001 );
+        vertex_attribute->set_value( 1, 1.0000002 );
+        auto polyhedron_attribute =
+            create_attribute< double >( solid->polyhedron_attribute_manager(),
+                "polyhedron_precision", 0.1 );
+        polyhedron_attribute->set_value( 1, 123456789.123 );
+        solid->enable_facets();
+        auto aperture = create_attribute< double >(
+            solid->facets().facet_attribute_manager(),
+            "diagres_discontinuity_aperture", -1 );
+        const auto facet =
+            solid->facets().facet_from_vertices( { 0, 1, 2 } ).value();
+        aperture->set_value( facet, 1.23456789e-5 );
+        geode::save_tetrahedral_solid( *solid, "test_precision.fem" );
+        const auto lines = read_lines( "test_precision.fem" );
+
+        const auto coordinates = find_line( lines, "XYZCOOR" ).value();
+        const std::vector< std::string_view > tokens =
+            absl::StrSplit( lines[coordinates + 5], absl::ByAnyChar( ", " ),
+                absl::SkipEmpty() );
+        for( const auto d : geode::LRange{ 3 } )
+        {
+            double value;
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                tokens.size() == 3 && absl::SimpleAtod( tokens[d], &value )
+                    && value == point.value( d ),
+                "[Test] Wrong coordinate ", d, " of node 5" );
+        }
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            read_distribution( lines, "REF_DIS_I", "X" ).at( 5 )
+                    == point.value( 0 )
+                && read_distribution( lines, "REF_DIS_I", "Y" ).at( 5 )
+                       == point.value( 1 )
+                && read_distribution( lines, "REF_DIS_I", "Z" ).at( 5 )
+                       == point.value( 2 ),
+            "[Test] Wrong coordinate distributions of node 5" );
+        const auto vertex_distribution =
+            read_distribution( lines, "REF_DIS_I", "vertex_precision" );
+        for( const auto v : geode::Range{ solid->nb_vertices() } )
+        {
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                vertex_distribution.at( v + 1 ) == vertex_attribute->value( v ),
+                "[Test] Wrong vertex_precision value for node ", v + 1 );
+        }
+        const auto polyhedron_distribution =
+            read_distribution( lines, "REF_DISE_I", "polyhedron_precision" );
+        for( const auto p : geode::Range{ solid->nb_polyhedra() } )
+        {
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                polyhedron_distribution.at( p + 1 )
+                    == polyhedron_attribute->value( p ),
+                "[Test] Wrong polyhedron_precision value for element ", p + 1 );
+        }
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            read_material( lines, "AREA" ).at( 1 ) == 1.23456789e-5,
+            "[Test] Wrong aperture value" );
+    }
+
     void test_solid_fem_output()
     {
         auto tet_solid = geode::load_tetrahedral_solid< 3 >(
@@ -373,6 +439,7 @@ int main()
         test_nan_attribute_values();
         test_facet_conductivity();
         test_wrong_feature_attribute_type();
+        test_double_precision();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }
