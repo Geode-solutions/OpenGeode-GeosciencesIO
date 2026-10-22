@@ -903,8 +903,17 @@ namespace
             auto edge = border;
             auto unique_id = unique_id0;
             const auto corner_type = geode::Corner3D::component_type_static();
+            const auto max_nb_edges = 3 * mesh.nb_polygons();
             do
             {
+                geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                    line.mesh().nb_edges() < max_nb_edges, nullptr,
+                    geode::OpenGeodeException::TYPE::data,
+                    "[LSOInput] Cannot build a Line along the border of "
+                    "Surface ",
+                    surface.name().value_or( surface.id().string() ),
+                    ": the border never reaches a Corner (invalid surface "
+                    "topology)" );
                 edge = mesh.next_on_border( edge );
                 const auto vertex_id = mesh.polygon_edge_vertex( edge, 0 );
                 unique_id = model_.unique_vertex(

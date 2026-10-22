@@ -580,6 +580,21 @@ void test_output_surfaces_outside_collections()
         "Wrong reloaded model with Surfaces outside any collection" );
 }
 
+void test_border_without_corner()
+{
+    auto lines = read_lines( absl::StrCat( geode::DATA_PATH, "test.lso" ) );
+    const auto first_triangle =
+        find_line( lines, "TRGL", find_line( lines, "TFACE 4" ) );
+    lines.insert( lines.begin() + first_triangle + 1, lines[first_triangle] );
+    std::ofstream output{ "lso_duplicated_triangle.lso" };
+    for( const auto& line : lines )
+    {
+        output << line << "\n";
+    }
+    output.close();
+    check_load_throws( "lso_duplicated_triangle.lso" );
+}
+
 void test_tetra_properties()
 {
     const auto model = geode::load_structural_model(
@@ -645,6 +660,7 @@ int main()
         test_region_names();
         test_output_vertices_outside_blocks();
         test_output_surfaces_outside_collections();
+        test_border_without_corner();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
