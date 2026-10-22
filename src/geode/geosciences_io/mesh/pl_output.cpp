@@ -251,7 +251,10 @@ namespace
             geode::Logger::info( "[PLOutput::write] Writting pl file." );
             file_ << "GOCAD PLine 1" << EOL;
             geode::internal::HeaderData header;
-            header.name = "edged_curve_name";
+            if( const auto name = edged_curve_.name() )
+            {
+                header.name = name.value();
+            }
             geode::internal::write_header( file_, header );
             geode::internal::write_CRS( file_, {} );
             write_prop_header();

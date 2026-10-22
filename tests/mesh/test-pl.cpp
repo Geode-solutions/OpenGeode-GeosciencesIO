@@ -209,6 +209,7 @@ namespace
         builder->create_edge( 1, 2 );
         builder->create_edge( 2, 3 );
         builder->create_edge( 3, 1 );
+        builder->set_name( "my lollipop" );
         geode::save_edged_curve( *curve, "test_pl_lollipop.pl" );
         const auto reloaded =
             geode::load_edged_curve< 3 >( "test_pl_lollipop.pl" );
@@ -219,6 +220,8 @@ namespace
         geode::OpenGeodeGeosciencesIOMeshException::test(
             reloaded->edges_around_vertex( 1 ).size() == 3,
             "Shared vertex is disconnected after reload" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            reloaded->name() == "my lollipop", "Wrong saved PLine name" );
     }
 
     void check_curve( const geode::EdgedCurve3D& curve,
