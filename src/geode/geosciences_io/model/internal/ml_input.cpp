@@ -474,7 +474,10 @@ namespace
             {
                 const auto surface_id = surface.component_id();
                 const auto& mesh = surface.mesh();
-                bool need_to_split{ false };
+                // Lines touching unassigned Surface vertices, tested once all
+                // vertices are assigned
+                std::vector< geode::uuid > candidate_lines;
+                absl::flat_hash_set< geode::uuid > seen_lines;
                 for( const auto v : geode::Range{ mesh.nb_vertices() } )
                 {
                     const geode::ComponentMeshVertex cmv{ surface_id, v };
@@ -488,41 +491,38 @@ namespace
                     {
                         builder_.set_unique_vertex(
                             cmv, builder_.create_unique_vertex() );
+                        continue;
                     }
-                    else
+                    geode::OpenGeodeGeosciencesIOModelException::
+                        check_exception( result.size() == 1, nullptr,
+                            geode::OpenGeodeException::TYPE::data,
+                            "[MLInput] Several unique vertices found for the "
+                            "same point" );
+                    const auto vertex = result.front();
+                    builder_.set_unique_vertex( cmv, vertex );
+                    for( const auto& line_cmv :
+                        model_.component_mesh_vertices( vertex ) )
                     {
-                        geode::OpenGeodeGeosciencesIOModelException::
-                            check_exception( result.size() == 1, nullptr,
-                                geode::OpenGeodeException::TYPE::data,
-                                "[MLInput] Several unique vertices found for "
-                                "the "
-                                "same point" );
-                        const auto vertex = result.front();
-                        builder_.set_unique_vertex( cmv, vertex );
-                        geode::OpenGeodeGeosciencesIOModelException::
-                            check_exception( result.size() == 1, nullptr,
-                                geode::OpenGeodeException::TYPE::data,
-                                "[MLInput] Several unique vertices found for "
-                                "the "
-                                "same point" );
-                        for( const auto& line_cmv :
-                            model_.component_mesh_vertices( vertex ) )
+                        if( line_cmv.component_id.type
+                                == geode::Line3D::component_type_static()
+                            && seen_lines.insert( line_cmv.component_id.id )
+                                .second )
                         {
-                            if( line_cmv.component_id.type
-                                != geode::Line3D::component_type_static() )
-                            {
-                                continue;
-                            }
-                            const auto& line =
-                                model_.line( line_cmv.component_id.id );
-                            if( !model_.is_internal( line, surface )
-                                && should_line_be_internal( line, surface ) )
-                            {
-                                need_to_split = true;
-                                builder_.add_line_surface_internal_relationship(
-                                    line, surface );
-                            }
+                            candidate_lines.push_back(
+                                line_cmv.component_id.id );
                         }
+                    }
+                }
+                bool need_to_split{ false };
+                for( const auto& line_id : candidate_lines )
+                {
+                    const auto& line = model_.line( line_id );
+                    if( !model_.is_internal( line, surface )
+                        && should_line_be_internal( line, surface ) )
+                    {
+                        need_to_split = true;
+                        builder_.add_line_surface_internal_relationship(
+                            line, surface );
                     }
                 }
                 if( need_to_split )
