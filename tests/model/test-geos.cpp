@@ -574,6 +574,8 @@ void test_spe10_reference()
     exporter.set_physical_problem( problem );
     add_spe10_wells( exporter );
     exporter.run();
+    // A second run must write the same deck
+    exporter.run();
     const auto deck =
         read_file( "spe10_reference/spe10_reference_simulation.xml" );
     for( const auto* pattern :
@@ -1179,6 +1181,32 @@ void test_surface_polygons_not_on_solid_facets()
     check_nb_vtu_cells( model, "surface_not_facet", 3 );
 }
 
+void test_run_twice()
+{
+    auto model = tetrahedra_brep( 2, geode::Point3D{ { 0., 0., 0. } } );
+    add_triangle_surface( model, { { { 0, 0 }, { 0, 1 }, { 0, 2 } } } );
+    const std::array< double, 2 > porosities{ 0.1, 0.2 };
+    add_block_property< geode::ConstantAttribute, double >(
+        model, geode::PHYSICAL_PROPERTY_NAME::porosity, "poro", porosities );
+    std::vector< geode::uuid > surfaces;
+    for( const auto& surface : model.surfaces() )
+    {
+        surfaces.push_back( surface.id() );
+    }
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "pressure", 1e7 );
+    geode::BRepGeosExporter exporter( model, "run_twice" );
+    exporter.run();
+    exporter.run();
+    const auto xml = read_file( "run_twice/run_twice_simulation.xml" );
+    const auto vtu = read_file( "run_twice/run_twice.vtu" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        count_occurrences( xml, "objectPath=" ) == 1
+            && xml_list( xml, "fieldsToImport" ).size() == 1
+            && count_occurrences( vtu, "NumberOfCells=\"3\"" ) == 1,
+        "[Test] Running the exporter twice should give the same files" );
+}
+
 int main()
 {
     try
@@ -1192,6 +1220,7 @@ int main()
         test_regular_grid_blocks();
         test_property_names_clash();
         test_surface_polygons_not_on_solid_facets();
+        test_run_twice();
         test_picasso();
         test_uniform_variable_boundary_condition();
         test_variable_boundary_condition();

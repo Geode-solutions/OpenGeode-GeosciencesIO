@@ -841,6 +841,7 @@ namespace geode::internal
     template < typename Model >
     void GeosExporterImpl< Model >::prepare_export()
     {
+        clear_export();
         if( problem_ != nullptr )
         {
             validate_problem();
@@ -854,6 +855,22 @@ namespace geode::internal
         {
             prepare_simulation();
         }
+    }
+
+    template < typename Model >
+    void GeosExporterImpl< Model >::clear_export()
+    {
+        surface_cells_.clear();
+        surface_cells_region_.clear();
+        surface_regions_.clear();
+        imported_fields_.clear();
+        boundary_conditions_.clear();
+        boundary_grids_.clear();
+        boundary_tables_.clear();
+        boundary_fraction_phases_.clear();
+        porosity_attribute_id_.reset();
+        permeability_attribute_id_.reset();
+        writer_.reset();
     }
 
     template < typename Model >

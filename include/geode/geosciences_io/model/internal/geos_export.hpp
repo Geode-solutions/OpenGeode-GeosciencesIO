@@ -100,6 +100,7 @@ namespace geode::internal
 
         void convert_model();
         void compute_block_polyhedra_offsets();
+        void clear_export();
         index_t initialize_solid_region_attribute();
         void add_block_collection_regions();
         void initialize_surface_cells( index_t first_surface_region_id );
