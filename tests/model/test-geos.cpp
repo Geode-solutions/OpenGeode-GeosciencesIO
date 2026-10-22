@@ -66,8 +66,6 @@
 
 #include <geode/geometry/bounding_box.hpp>
 #include <geode/geometry/point.hpp>
-#include <geode/io/mesh/common.hpp>
-#include <geode/io/model/common.hpp>
 #include <geode/mesh/builder/point_set_builder.hpp>
 #include <geode/mesh/builder/tetrahedral_solid_builder.hpp>
 #include <geode/mesh/builder/triangulated_surface_builder.hpp>
@@ -1083,12 +1081,10 @@ int main()
     try
     {
         geode::OpenGeodeGeosciencesIOModelLibrary::initialize();
-        geode::OpenGeodeIOMeshLibrary::initialize();
-        geode::OpenGeodeIOModelLibrary::initialize();
+        test_well_perforation_boxes();
         test_constant_block_properties();
         test_structural_model_block_without_unit();
         test_structural_model_block_in_two_units();
-        test_well_perforation_boxes();
         test_boundary_condition_scale_precision();
         test_picasso();
         test_uniform_variable_boundary_condition();
