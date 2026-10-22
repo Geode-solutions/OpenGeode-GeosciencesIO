@@ -143,6 +143,29 @@ namespace
             vertex_value( *surface, "p", 2 ) == 13,
             "Wrong property value with partial property header" );
     }
+
+    void test_object_header_order()
+    {
+        const auto surface = load_test_file( "test_ts_header_order.ts",
+            "GOCAD TSurf 1\nHEADER {\nname: s1\n}\nGEOLOGICAL_FEATURE f\n"
+            "PROPERTY_CLASS_HEADER Z {\nkind: Z\nis_z: on\n}\n"
+            "GOCAD_ORIGINAL_COORDINATE_SYSTEM\nNAME Default\nZPOSITIVE Depth\n"
+            "END_ORIGINAL_COORDINATE_SYSTEM\nGEOLOGICAL_TYPE top\n"
+            "PROPERTIES p\nESIZES 1\nPVRTX 1 0 0 1 11\nPVRTX 2 1 0 1 12\n"
+            "PVRTX 3 0 1 1 13\nTRGL 1 2 3\n"
+            "GOCAD TSurf 1\nHEADER {\nname: s2\n}\nTFACE\nVRTX 1 0 0 2\n"
+            "VRTX 2 1 0 2\nVRTX 3 0 1 2\nTRGL 1 2 3\nEND\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surface->nb_vertices() == 6 && surface->nb_polygons() == 2,
+            "Wrong surface with unordered object header" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surface->point( 0 ).value( 2 ) == -1
+                && surface->point( 3 ).value( 2 ) == 2,
+            "ZPOSITIVE not applied with unordered object header" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            vertex_value( *surface, "p", 1 ) == 12,
+            "Wrong property with unordered object header" );
+    }
 } // namespace
 
 void check_surface( const geode::SurfaceMesh3D& surface,
@@ -212,6 +235,7 @@ int main()
         test_blank_lines();
         test_invalid_indices();
         test_partial_property_header();
+        test_object_header_order();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

@@ -27,6 +27,7 @@
 #include <optional>
 #include <string>
 
+#include <absl/algorithm/container.h>
 #include <absl/strings/match.h>
 #include <absl/strings/str_join.h>
 #include <absl/strings/str_replace.h>
@@ -252,9 +253,35 @@ namespace
         tsurf.borders.resize( nb_valid, { 0, 0 } );
     }
 
+    bool is_object_end( std::ifstream& file,
+        std::string_view line,
+        std::string_view keyword,
+        std::string_view object )
+    {
+        if( keyword == "END" )
+        {
+            return true;
+        }
+        if( keyword == "GOCAD" )
+        {
+            geode::Logger::warning(
+                "[GocadInput] Missing END keyword in ", object, " section" );
+            file.seekg( file.tellg()
+                        - static_cast< std::streamoff >( line.size() + 1 ) );
+            return true;
+        }
+        return false;
+    }
+
+    void warn_missing_end( std::ifstream& file, std::string_view object )
+    {
+        geode::Logger::warning(
+            "[GocadInput] Missing END keyword in ", object, " section" );
+        file.clear();
+    }
+
     void read_ilines( std::ifstream& file, geode::internal::ECurveData& ecurve )
     {
-        geode::goto_keyword( file, "ILINE" );
         std::string line;
         while( std::getline( file, line ) )
         {
@@ -264,6 +291,11 @@ namespace
                 continue;
             }
             const auto& keyword = tokens.front();
+            if( is_object_end( file, line, keyword, "PLine" ) )
+            {
+                resolve_ecurve_indices( ecurve );
+                return;
+            }
             if( keyword == "VRTX" || keyword == "PVRTX" )
             {
                 check_enough_tokens( tokens, 5, line );
@@ -287,18 +319,22 @@ namespace
                     geode::string_to_index( tokens[1] ),
                     geode::string_to_index( tokens[2] ) } );
             }
-            else if( keyword == "END" )
-            {
-                resolve_ecurve_indices( ecurve );
-                return;
-            }
         }
+        warn_missing_end( file, "PLine" );
+        resolve_ecurve_indices( ecurve );
+    }
+
+    void end_tsurf( geode::internal::TSurfData& tsurf )
+    {
+        tsurf.tface_triangles_offset.push_back( tsurf.triangles.size() );
+        tsurf.tface_vertices_offset.push_back( tsurf.points.size() );
+        resolve_tsurf_indices( tsurf );
     }
 
     void read_tfaces( std::ifstream& file, geode::internal::TSurfData& tsurf )
     {
-        geode::goto_keyword( file, "TFACE" );
         std::string line;
+        auto tface_started = false;
         while( std::getline( file, line ) )
         {
             const auto tokens = geode::string_split( line );
@@ -307,6 +343,11 @@ namespace
                 continue;
             }
             const auto& keyword = tokens.front();
+            if( is_object_end( file, line, keyword, "TSurf" ) )
+            {
+                end_tsurf( tsurf );
+                return;
+            }
             if( keyword == "VRTX" || keyword == "PVRTX" )
             {
                 check_enough_tokens( tokens, 5, line );
@@ -363,30 +404,26 @@ namespace
             }
             else if( keyword == "TFACE" )
             {
-                tsurf.tface_triangles_offset.push_back(
-                    tsurf.triangles.size() );
-                tsurf.tface_vertices_offset.push_back( tsurf.points.size() );
-            }
-            else if( keyword == "END" )
-            {
-                tsurf.tface_triangles_offset.push_back(
-                    tsurf.triangles.size() );
-                tsurf.tface_vertices_offset.push_back( tsurf.points.size() );
-                resolve_tsurf_indices( tsurf );
-                return;
+                if( tface_started || !tsurf.points.empty()
+                    || !tsurf.triangles.empty() )
+                {
+                    tsurf.tface_triangles_offset.push_back(
+                        tsurf.triangles.size() );
+                    tsurf.tface_vertices_offset.push_back(
+                        tsurf.points.size() );
+                }
+                tface_started = true;
             }
         }
-        throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
-            geode::OpenGeodeException::TYPE::data,
-            "[read_tfaces] Cannot find the end of TSurf section" };
+        warn_missing_end( file, "TSurf" );
+        end_tsurf( tsurf );
     }
 
     void read_VSet_vertices(
         std::ifstream& file, geode::internal::VSetData& vertex_set )
     {
-        auto line = geode::goto_keywords(
-            file, std::array< std::string_view, 2 >{ "VRTX", "PVRTX" } );
-        do
+        std::string line;
+        while( std::getline( file, line ) )
         {
             const auto tokens = geode::string_split( line );
             if( is_empty_or_comment( tokens ) )
@@ -394,7 +431,7 @@ namespace
                 continue;
             }
             const auto& keyword = tokens.front();
-            if( keyword == "END" )
+            if( is_object_end( file, line, keyword, "VSet" ) )
             {
                 return;
             }
@@ -415,10 +452,8 @@ namespace
             geode::internal::read_properties(
                 vertex_set.vertices_properties_header,
                 vertex_set.vertices_attribute_values, tokens, 5 );
-        } while( std::getline( file, line ) );
-        throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
-            geode::OpenGeodeException::TYPE::data,
-            "[read_tfaces] Cannot find the end of VSet section" };
+        }
+        warn_missing_end( file, "VSet" );
     }
 
     std::vector< std::string > read_property_strings( std::string_view line )
@@ -580,6 +615,70 @@ namespace
             return false;
         }
         return true;
+    }
+
+    struct ObjectHeaderData
+    {
+        geode::internal::HeaderData header;
+        geode::internal::CRSData crs;
+        geode::internal::PropHeaderData vertices_properties_header;
+    };
+
+    bool is_object_body_keyword( std::string_view keyword )
+    {
+        static constexpr std::array< std::string_view, 12 > BODY_KEYWORDS{
+            "GOCAD", "TFACE", "ILINE", "VRTX", "PVRTX", "ATOM", "PATOM", "TRGL",
+            "SEG", "BSTONE", "BORDER", "END"
+        };
+        return absl::c_linear_search( BODY_KEYWORDS, keyword );
+    }
+
+    void skip_block( std::ifstream& file )
+    {
+        std::string line;
+        while( std::getline( file, line ) )
+        {
+            if( absl::StartsWith(
+                    absl::StripLeadingAsciiWhitespace( line ), "}" ) )
+            {
+                return;
+            }
+        }
+    }
+
+    ObjectHeaderData read_object_header( std::ifstream& file )
+    {
+        ObjectHeaderData data;
+        data.header = geode::internal::read_header( file );
+        std::string line;
+        auto position = file.tellg();
+        while( std::getline( file, line ) )
+        {
+            const auto tokens = geode::string_split( line );
+            if( !is_empty_or_comment( tokens ) )
+            {
+                if( is_object_body_keyword( tokens.front() ) )
+                {
+                    file.seekg( position );
+                    break;
+                }
+                if( tokens.front() == "GOCAD_ORIGINAL_COORDINATE_SYSTEM" )
+                {
+                    file.seekg( position );
+                    data.crs = geode::internal::read_CRS( file );
+                }
+                else if( !read_prop_header_line(
+                             data.vertices_properties_header, line, "" )
+                         && tokens.back().back() == '{' )
+                {
+                    skip_block( file );
+                }
+            }
+            position = file.tellg();
+        }
+        file.clear();
+        complete_prop_header( data.vertices_properties_header );
+        return data;
     }
 
     template < typename Container >
@@ -910,10 +1009,11 @@ namespace geode::internal
             return std::nullopt;
         }
         TSurfData tsurf;
-        tsurf.header = read_header( file );
-        tsurf.crs = read_CRS( file );
+        auto object_header = read_object_header( file );
+        tsurf.header = std::move( object_header.header );
+        tsurf.crs = std::move( object_header.crs );
         tsurf.vertices_properties_header =
-            geode::internal::read_prop_header( file, "" );
+            std::move( object_header.vertices_properties_header );
         tsurf.vertices_attribute_values.resize(
             tsurf.vertices_properties_header.names.size() );
         read_tfaces( file, tsurf );
@@ -927,8 +1027,9 @@ namespace geode::internal
             return std::nullopt;
         }
         ECurveData ecurve;
-        ecurve.header = read_header( file );
-        ecurve.crs = read_CRS( file );
+        auto object_header = read_object_header( file );
+        ecurve.header = std::move( object_header.header );
+        ecurve.crs = std::move( object_header.crs );
         read_ilines( file, ecurve );
         return ecurve;
     }
@@ -940,10 +1041,11 @@ namespace geode::internal
             return std::nullopt;
         }
         VSetData vertex_set;
-        vertex_set.header = read_header( file );
-        vertex_set.crs = read_CRS( file );
+        auto object_header = read_object_header( file );
+        vertex_set.header = std::move( object_header.header );
+        vertex_set.crs = std::move( object_header.crs );
         vertex_set.vertices_properties_header =
-            geode::internal::read_prop_header( file, "" );
+            std::move( object_header.vertices_properties_header );
         vertex_set.vertices_attribute_values.resize(
             vertex_set.vertices_properties_header.names.size() );
         read_VSet_vertices( file, vertex_set );

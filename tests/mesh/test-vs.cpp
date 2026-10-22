@@ -52,6 +52,23 @@ namespace
             write_test_file( filename, content ) );
     }
 
+    void test_points_normal()
+    {
+        const auto pointset = geode::load_point_set< 3 >(
+            absl::StrCat( geode::DATA_PATH, "points.vs" ) );
+        const auto& manager = pointset->vertex_attribute_manager();
+        const auto ids = manager.attribute_ids_matching_name( "normal" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            ids.has_value() && ids->size() == 1,
+            "points.vs normal property is missing" );
+        const auto normal =
+            manager.find_read_only_attribute< std::array< double, 3 > >(
+                ids->front() );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            normal->value( 5 ) == std::array< double, 3 >{ 0, 0, 0 },
+            "Wrong points.vs normal value" );
+    }
+
     void test_blank_lines()
     {
         const auto pointset = load_test_file( "test_vs_blank_lines.vs",
@@ -129,6 +146,7 @@ int main()
             6 );
         test_quotes();
         test_blank_lines();
+        test_points_normal();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
