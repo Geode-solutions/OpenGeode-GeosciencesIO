@@ -203,6 +203,23 @@ void test_data_band()
     }
 }
 
+void test_huge_raster()
+{
+    const auto filename =
+        write_raster( "raster_geotiff_huge", "tif", 70000, 70000, {}, "" );
+    bool thrown{ false };
+    try
+    {
+        const auto grid = geode::load_light_regular_grid< 2 >( filename );
+    }
+    catch( const geode::OpenGeodeException& )
+    {
+        thrown = true;
+    }
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        thrown, "Loading a raster with too many pixels should throw" );
+}
+
 int main()
 {
     try
@@ -218,6 +235,7 @@ int main()
         test_pixel_orientation();
         test_logger_level_on_error();
         test_data_band();
+        test_huge_raster();
 
         geode::Logger::info( "[TEST SUCCESS]" );
 

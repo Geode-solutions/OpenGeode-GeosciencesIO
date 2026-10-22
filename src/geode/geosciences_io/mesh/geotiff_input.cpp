@@ -24,6 +24,7 @@
 #include <geode/geosciences_io/mesh/internal/geotiff_input.hpp>
 
 #include <cmath>
+#include <cstdint>
 #include <limits>
 
 #include <gdal_priv.h>
@@ -60,6 +61,16 @@ namespace
 
         geode::LightRegularGrid2D read_file()
         {
+            const auto width = dataset().GetRasterXSize();
+            const auto height = dataset().GetRasterYSize();
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                width > 0 && height > 0
+                    && static_cast< std::uint64_t >( width )
+                               * static_cast< std::uint64_t >( height )
+                           < geode::NO_ID,
+                nullptr, geode::OpenGeodeException::TYPE::data,
+                "[GEOTIFFInput] Raster size ", width, "x", height,
+                " exceeds the maximum number of cells" );
             const auto raster = load_raster_quietly();
             auto grid = geode::convert_raster_image_into_grid(
                 raster, bottom_up_coordinate_system() );
