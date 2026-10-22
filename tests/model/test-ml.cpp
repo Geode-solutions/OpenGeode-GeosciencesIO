@@ -30,6 +30,7 @@
 
 #include <geode/basic/assert.hpp>
 #include <geode/basic/logger.hpp>
+#include <geode/basic/string.hpp>
 
 #include <geode/geometry/bounding_box.hpp>
 
@@ -626,6 +627,74 @@ void test_tsurf_section_names()
     }
 }
 
+// REGION name -> TFACE id -> signs (several for internal Surfaces)
+absl::flat_hash_map< std::string,
+    absl::flat_hash_map< geode::index_t, std::vector< bool > > >
+    read_region_signs( std::string_view filename )
+{
+    absl::flat_hash_map< std::string,
+        absl::flat_hash_map< geode::index_t, std::vector< bool > > >
+        regions;
+    std::ifstream file{ geode::to_string( filename ) };
+    std::string line;
+    while( std::getline( file, line ) )
+    {
+        const auto tokens = geode::string_split( line );
+        if( tokens.empty() || tokens.front() != "REGION" )
+        {
+            continue;
+        }
+        auto& region = regions[tokens.back()];
+        bool end{ false };
+        while( !end && std::getline( file, line ) )
+        {
+            for( const auto token : geode::string_split( line ) )
+            {
+                const auto item = geode::string_to_int( token );
+                if( item == 0 )
+                {
+                    end = true;
+                    break;
+                }
+                region[static_cast< geode::index_t >( std::abs( item ) )]
+                    .push_back( item > 0 );
+            }
+        }
+    }
+    return regions;
+}
+
+void test_nested_blocks_output()
+{
+    const auto model = load_ml( "nested_blocks.ml", nested_tetra_ml( false ) );
+    geode::save_structural_model( model, "nested_blocks_saved.ml" );
+    const auto reload =
+        geode::load_structural_model( "nested_blocks_saved.ml" );
+    check_model( reload, 8, 12, 8, 2, 0, 1, 1 );
+    const auto regions = read_region_signs( "nested_blocks_saved.ml" );
+    const auto& universe = regions.at( "Universe" );
+    const auto& outer = regions.at( "outer_block" );
+    const auto& inner = regions.at( "inner_block" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        universe.size() == 4 && outer.size() == 8 && inner.size() == 4,
+        "Wrong number of Surfaces in exported REGIONs" );
+    // Each Surface is seen with opposite signs from its two sides
+    for( const auto& [tface, signs] : universe )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            outer.at( tface ).front() != signs.front(),
+            "Universe and outer Block should see the outer Surfaces from "
+            "opposite sides" );
+    }
+    for( const auto& [tface, signs] : inner )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            outer.at( tface ).front() != signs.front(),
+            "Outer and inner Blocks should see the inclusion Surfaces from "
+            "opposite sides" );
+    }
+}
+
 void test_is_loadable()
 {
     const auto model_a4 = absl::StrCat(
@@ -721,6 +790,7 @@ int main()
         test_single_line_surface();
         test_missing_tsurf_section();
         test_tsurf_section_names();
+        test_nested_blocks_output();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
