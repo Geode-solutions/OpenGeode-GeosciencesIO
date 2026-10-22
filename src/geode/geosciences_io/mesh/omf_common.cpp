@@ -968,9 +968,12 @@ namespace geode::internal
             values.reserve( content.size() );
             for( const auto& value : content )
             {
-                for( const auto& component :
-                    value.is_array() ? value
-                                     : nlohmann::json::array( { value } ) )
+                if( !value.is_array() )
+                {
+                    values.push_back( omf_json_integer( value ) );
+                    continue;
+                }
+                for( const auto& component : value )
                 {
                     values.push_back( omf_json_integer( component ) );
                 }
