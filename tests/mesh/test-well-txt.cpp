@@ -61,6 +61,9 @@ namespace
 
     void test_few_points()
     {
+        check_curve( *load_test_file( "test_well_blank_lines.txt",
+                         "# comment\n1 2 3\n\n4 5 6\n   \n" ),
+            2, 1, "well with blank lines" );
         check_curve(
             *load_test_file( "test_well_empty.txt", "" ), 0, 0, "empty well" );
         check_curve( *load_test_file( "test_well_one_point.txt", "1 2 3\n" ), 1,

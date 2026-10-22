@@ -61,6 +61,10 @@ namespace
 
     void test_few_points()
     {
+        check_curve( *load_test_file( "test_well_blank_lines.dev",
+                         "# WELL TRACE FROM PETREL\n# WELL NAME: W\n#====\n MD "
+                         "X Y Z\n#====\n0 1 2 3\n\n# comment\n1 1 2 4\n\n" ),
+            2, 1, "well with blank lines" );
         check_curve( *load_test_file( "test_well_no_point.dev",
                          "# WELL TRACE FROM PETREL\n# WELL NAME: W\n#====\n"
                          " MD X Y Z\n#====\n" ),

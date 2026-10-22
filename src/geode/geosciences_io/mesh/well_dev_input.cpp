@@ -67,6 +67,10 @@ namespace
             while( std::getline( file_, line ) )
             {
                 const auto split_line = geode::string_split( line );
+                if( split_line.empty() || split_line.front().front() == '#' )
+                {
+                    continue;
+                }
                 geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                     split_line.size() == header_.attribute_names.size() + 3,
                     nullptr, geode::OpenGeodeException::TYPE::data,
