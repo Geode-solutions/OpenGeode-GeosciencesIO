@@ -20,8 +20,10 @@
  * SOFTWARE.
  *
  */
+#include <absl/container/btree_map.h>
 #include <cmath>
 #include <fstream>
+
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/filename.hpp>
 #include <geode/basic/io.hpp>
@@ -518,13 +520,12 @@ namespace
             }
         }
 
-        absl::flat_hash_map< std::string_view, std::vector< geode::index_t > >
+        absl::btree_map< std::string_view, std::vector< geode::index_t > >
             create_region_map(
                 const geode::ReadOnlyAttribute< std::string >& attribute,
                 bool create_element_region )
         {
-            absl::flat_hash_map< std::string_view,
-                std::vector< geode::index_t > >
+            absl::btree_map< std::string_view, std::vector< geode::index_t > >
                 region_map;
             geode::index_t nb_obj =
                 ( create_element_region ? solid_.nb_polyhedra()
@@ -544,14 +545,13 @@ namespace
             return region_map;
         }
 
-        absl::flat_hash_map< std::string_view, std::vector< geode::index_t > >
+        absl::btree_map< std::string_view, std::vector< geode::index_t > >
             create_region_map(
                 const geode::ReadOnlyAttribute< std::vector< std::string > >&
                     attribute,
                 bool create_element_region )
         {
-            absl::flat_hash_map< std::string_view,
-                std::vector< geode::index_t > >
+            absl::btree_map< std::string_view, std::vector< geode::index_t > >
                 region_map;
             int nb_obj = ( create_element_region ? solid_.nb_polyhedra()
                                                  : solid_.nb_vertices() );
@@ -1072,12 +1072,18 @@ namespace
             file_ << add_spaces( 10 )
                   << xml_start_tag( "material id", material_id ) << EOL;
             file_ << add_spaces( 12 ) << CDATA_TAG_START << EOL;
-            geode::index_t iterator = 0;
-            for( const auto& [value, feature_ids] :
-                property_values_to_features )
+            std::vector< double > values;
+            values.reserve( property_values_to_features.size() );
+            for( const auto& value_features : property_values_to_features )
             {
-                const auto range_chunks =
-                    format_range_chunks( feature_ids, CHUNK_SIZE );
+                values.push_back( value_features.first );
+            }
+            absl::c_sort( values );
+            geode::index_t iterator = 0;
+            for( const auto value : values )
+            {
+                const auto range_chunks = format_range_chunks(
+                    property_values_to_features.at( value ), CHUNK_SIZE );
                 for( const auto chunk : geode::Indices{ range_chunks } )
                 {
                     file_ << add_spaces( 14 ) << value << add_spaces( 1 )

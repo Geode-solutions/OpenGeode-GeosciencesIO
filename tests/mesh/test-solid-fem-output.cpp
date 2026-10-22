@@ -570,6 +570,54 @@ namespace
             "[Test] Wrong elemental set names" );
     }
 
+    void test_deterministic_order()
+    {
+        auto solid = create_solid();
+        const std::vector< std::string > names{ "zeta", "alpha", "mu", "beta",
+            "omega", "gamma", "delta", "kappa" };
+        auto vertex_sets = create_attribute< std::vector< std::string > >(
+            solid->vertex_attribute_manager(), "Block_ID_vertex", {} );
+        for( const auto v : geode::Range{ solid->nb_vertices() } )
+        {
+            vertex_sets->set_value( v, { names[v], names[v + 3] } );
+        }
+        auto polyhedron_sets = create_attribute< std::string >(
+            solid->polyhedron_attribute_manager(), "Block_ID_polyhedron", "" );
+        polyhedron_sets->set_value( 0, "zeta" );
+        polyhedron_sets->set_value( 1, "alpha" );
+        solid->enable_facets();
+        auto aperture = create_attribute< double >(
+            solid->facets().facet_attribute_manager(),
+            "diagres_discontinuity_aperture", -1 );
+        for( const auto facet : geode::Range{ solid->facets().nb_facets() } )
+        {
+            aperture->set_value( facet, 10. - facet );
+        }
+        geode::save_tetrahedral_solid( *solid, "test_order.fem" );
+        const auto lines = read_lines( "test_order.fem" );
+        const auto nodal_sets = first_tokens( lines, "NODALSETS", 8 );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            absl::c_is_sorted( nodal_sets ), "[Test] Unsorted nodal sets" );
+        const auto element_sets = first_tokens( lines, "ELEMENTALSETS", 2 );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            element_sets == std::vector< std::string >{ "alpha", "zeta" },
+            "[Test] Unsorted elemental sets" );
+        const auto nb_facets = solid->facets().nb_facets();
+        const auto material_values =
+            first_tokens( lines, "            <![CDATA[", nb_facets );
+        std::vector< double > values;
+        for( const auto& token : material_values )
+        {
+            double value;
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                absl::SimpleAtod( token, &value ), "[Test] Wrong value" );
+            values.push_back( value );
+        }
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            values.size() == nb_facets && absl::c_is_sorted( values ),
+            "[Test] Unsorted material values" );
+    }
+
     void test_solid_fem_output()
     {
         auto tet_solid = geode::load_tetrahedral_solid< 3 >(
@@ -611,6 +659,7 @@ int main()
         test_facet_and_edge_features();
         test_features_without_valid_values();
         test_element_set_names();
+        test_deterministic_order();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }
