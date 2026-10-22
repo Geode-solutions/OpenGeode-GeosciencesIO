@@ -30,6 +30,8 @@
 #include <absl/strings/match.h>
 #include <absl/strings/str_cat.h>
 
+#include <geode/basic/logger.hpp>
+
 #include <geode/geometry/point.hpp>
 
 #include <geode/mesh/core/edged_curve.hpp>
@@ -75,6 +77,21 @@ namespace
                     nullptr, geode::OpenGeodeException::TYPE::data,
                     "[LSOOutput] Only support TetrahedralSolid3D" );
             }
+            for( const auto& surface : model_.surfaces() )
+            {
+                if( surface.mesh().nb_polygons() == 0 )
+                {
+                    geode::Logger::warning( "[LSOOutput] Surface ",
+                        surface.name().value_or( surface.id().string() ),
+                        " is empty and will not be exported" );
+                    continue;
+                }
+                geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                    surface.mesh().type_name()
+                        == geode::TriangulatedSurface3D::type_name_static(),
+                    nullptr, geode::OpenGeodeException::TYPE::data,
+                    "[LSOOutput] Only support TriangulatedSurface3D" );
+            }
         }
 
         void write_file()
@@ -100,6 +117,7 @@ namespace
             auto nb_tfaces = write_surfaces( model_.horizons(), 1 );
             nb_tfaces = write_surfaces( model_.faults(), nb_tfaces );
             nb_tfaces = write_surfaces( model_.model_boundaries(), nb_tfaces );
+            write_remaining_surfaces( nb_tfaces );
             write_regions();
         }
 
@@ -108,18 +126,33 @@ namespace
             for( const auto& block : model_.blocks() )
             {
                 file_ << "MODEL_REGION " << region_name( block ) << " ";
-                const auto& surface = *model_.boundaries( block ).begin();
-                if( sides_.regions_surface_sides.at(
-                        { block.id(), surface.id() } ) )
-                {
-                    file_ << "+";
-                }
-                else
-                {
-                    file_ << "-";
-                }
-                file_ << exported_surfaces_.at( surface.id() ) << EOL;
+                write_region_boundary( block );
+                file_ << EOL;
             }
+        }
+
+        void write_region_boundary( const geode::Block3D& block )
+        {
+            for( const auto& surface : model_.boundaries( block ) )
+            {
+                const auto tface = exported_surfaces_.find( surface.id() );
+                if( tface == exported_surfaces_.end() )
+                {
+                    continue;
+                }
+                const auto side = sides_.regions_surface_sides.find(
+                    { block.id(), surface.id() } );
+                if( side == sides_.regions_surface_sides.end() )
+                {
+                    continue;
+                }
+                file_ << ( side->second ? "+" : "-" ) << tface->second;
+                return;
+            }
+            throw geode::OpenGeodeGeosciencesIOModelException{ nullptr,
+                geode::OpenGeodeException::TYPE::data, "[LSOOutput] Block ",
+                block.name().value_or( block.id().string() ),
+                " has no oriented boundary Surface to define its region" };
         }
 
         static std::string region_name( const geode::Block3D& block )
@@ -141,7 +174,7 @@ namespace
                 bool all_exported{ true };
                 for( const auto& item_id : model_.items( component.id() ) )
                 {
-                    if( !exported_surfaces_.contains( item_id.id ) )
+                    if( is_exportable( item_id.id ) )
                     {
                         all_exported = false;
                         break;
@@ -156,26 +189,52 @@ namespace
                       << EOL;
                 for( const auto& item_id : model_.items( component.id() ) )
                 {
-                    if( !exported_surfaces_.emplace( item_id.id, nb_tfaces )
-                            .second )
+                    if( is_exportable( item_id.id ) )
                     {
-                        continue;
-                    }
-                    file_ << "TFACE " << nb_tfaces++ << EOL;
-                    const auto& surface = model_.surface( item_id.id );
-                    const auto& mesh = surface.mesh();
-                    file_ << "KEYVERTICES";
-                    write_triangle( mesh, item_id, 0 );
-                    file_ << EOL;
-                    for( const auto p : geode::Range{ mesh.nb_polygons() } )
-                    {
-                        file_ << "TRGL";
-                        write_triangle( mesh, item_id, p );
-                        file_ << EOL;
+                        write_tface( model_.surface( item_id.id ), nb_tfaces );
                     }
                 }
             }
             return nb_tfaces;
+        }
+
+        void write_remaining_surfaces( geode::index_t nb_tfaces )
+        {
+            for( const auto& surface : model_.surfaces() )
+            {
+                if( !is_exportable( surface.id() ) )
+                {
+                    continue;
+                }
+                file_ << "SURFACE "
+                      << surface.name().value_or( surface.id().string() )
+                      << EOL;
+                write_tface( surface, nb_tfaces );
+            }
+        }
+
+        bool is_exportable( const geode::uuid& surface_id ) const
+        {
+            return !exported_surfaces_.contains( surface_id )
+                   && model_.surface( surface_id ).mesh().nb_polygons() > 0;
+        }
+
+        void write_tface(
+            const geode::Surface3D& surface, geode::index_t& nb_tfaces )
+        {
+            exported_surfaces_.emplace( surface.id(), nb_tfaces );
+            file_ << "TFACE " << nb_tfaces++ << EOL;
+            const auto& mesh = surface.mesh();
+            const auto& id = surface.component_id();
+            file_ << "KEYVERTICES";
+            write_triangle( mesh, id, 0 );
+            file_ << EOL;
+            for( const auto p : geode::Range{ mesh.nb_polygons() } )
+            {
+                file_ << "TRGL";
+                write_triangle( mesh, id, p );
+                file_ << EOL;
+            }
         }
 
         void write_triangle( const geode::SurfaceMesh3D& mesh,

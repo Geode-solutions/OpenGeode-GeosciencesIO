@@ -47,9 +47,11 @@
 
 #include <geode/geometry/point.hpp>
 
+#include <geode/mesh/core/mesh_factory.hpp>
 #include <geode/mesh/core/solid_mesh.hpp>
 #include <geode/mesh/core/surface_mesh.hpp>
 #include <geode/mesh/core/tetrahedral_solid.hpp>
+#include <geode/mesh/core/triangulated_surface.hpp>
 #include <geode/mesh/io/tetrahedral_solid_input.hpp>
 #include <geode/mesh/io/tetrahedral_solid_output.hpp>
 
@@ -553,6 +555,31 @@ void test_output_vertices_outside_blocks()
     check_save_throws( model, "lso_orphan_unique_vertex.lso" );
 }
 
+void test_output_surfaces_outside_collections()
+{
+    auto model = geode::load_structural_model(
+        absl::StrCat( geode::DATA_PATH, "vri.lso" ) );
+    geode::StructuralModelBuilder builder{ model };
+    std::vector< geode::uuid > horizons;
+    for( const auto& horizon : model.horizons() )
+    {
+        horizons.push_back( horizon.id() );
+    }
+    for( const auto& horizon : horizons )
+    {
+        builder.remove_horizon( model.horizon( horizon ) );
+    }
+    builder.add_surface( geode::MeshFactory::default_impl(
+        geode::TriangulatedSurface3D::type_name_static() ) );
+    geode::save_structural_model( model, "lso_surfaces_without_horizon.lso" );
+    const auto reloaded =
+        geode::load_structural_model( "lso_surfaces_without_horizon.lso" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        reloaded.nb_surfaces() == 11 && reloaded.nb_blocks() == 2
+            && count_tetrahedra( reloaded ) == 292,
+        "Wrong reloaded model with Surfaces outside any collection" );
+}
+
 void test_tetra_properties()
 {
     const auto model = geode::load_structural_model(
@@ -617,6 +644,7 @@ int main()
         test_model_section();
         test_region_names();
         test_output_vertices_outside_blocks();
+        test_output_surfaces_outside_collections();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
