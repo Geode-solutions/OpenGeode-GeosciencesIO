@@ -123,6 +123,12 @@ namespace
             const auto axis_v =
                 geode::internal::OMFFile::axis( geometry_, "axis_v", 1 );
             const auto axis_w = axis_u.cross( axis_v );
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                axis_w.length() > geode::GLOBAL_EPSILON, nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[OMFInput] Grid surface \"",
+                geode::internal::OMFFile::name( element_ ),
+                "\" has collinear axes" );
             const auto origin = file_.origin( geometry_ );
             auto offsets = file_.read_optional_scalars( geometry_, "offset_w" );
             if( !offsets.empty() && offsets.size() != nb_nodes() )

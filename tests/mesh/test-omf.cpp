@@ -436,6 +436,48 @@ namespace
             surface->nb_polygons() == 1,
             "Degenerate triangle should be skipped" );
     }
+    template < typename Loader >
+    void check_load_throws( std::string_view message, Loader&& loader )
+    {
+        try
+        {
+            loader();
+        }
+        catch( const geode::OpenGeodeException& )
+        {
+            return;
+        }
+        geode::OpenGeodeGeosciencesIOMeshException::test( false, message );
+    }
+
+    void test_collinear_axes()
+    {
+        constexpr auto surface_file = "omf_collinear_surface_axes.omf";
+        write_omf( surface_file, R"({
+            "p": { "__class__": "Project", "elements": [ "s" ] },
+            "s": { "__class__": "SurfaceElement", "name": "grid",
+                "geometry": "sg" },
+            "sg": { "__class__": "SurfaceGridGeometry", "tensor_u": [ 1, 1 ],
+                "tensor_v": [ 1 ], "axis_u": [ 1, 0, 0 ],
+                "axis_v": [ 2, 0, 0 ] }
+        })" );
+        check_load_throws(
+            "Surface grid with collinear axes should throw", [&] {
+                return geode::load_polygonal_surface< 3 >( surface_file );
+            } );
+        constexpr auto volume_file = "omf_coplanar_volume_axes.omf";
+        write_omf( volume_file, R"({
+            "p": { "__class__": "Project", "elements": [ "v" ] },
+            "v": { "__class__": "VolumeElement", "name": "grid",
+                "geometry": "vg" },
+            "vg": { "__class__": "VolumeGridGeometry", "tensor_u": [ 1 ],
+                "tensor_v": [ 1 ], "tensor_w": [ 1 ], "axis_u": [ 1, 0, 0 ],
+                "axis_v": [ 0, 1, 0 ], "axis_w": [ 1, 1, 0 ] }
+        })" );
+        check_load_throws( "Volume grid with coplanar axes should throw", [&] {
+            return geode::load_light_regular_grid< 3 >( volume_file );
+        } );
+    }
 } // namespace
 
 int main()
@@ -454,6 +496,7 @@ int main()
         test_invalid_json_start();
         test_mixed_loadability();
         test_degenerate_elements();
+        test_collinear_axes();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

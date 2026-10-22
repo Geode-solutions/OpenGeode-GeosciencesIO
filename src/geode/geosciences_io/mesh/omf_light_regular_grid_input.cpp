@@ -117,6 +117,14 @@ namespace geode::internal
                 * omf_uniform_cell_length(
                     element, tensor, OMF_TENSOR_KEYS[axis] );
         }
+        OpenGeodeGeosciencesIOMeshException::check_exception(
+            std::fabs( OMFFile::axis( geometry, OMF_AXIS_KEYS[0], 0 )
+                    .dot( OMFFile::axis( geometry, OMF_AXIS_KEYS[1], 1 )
+                            .cross( OMFFile::axis(
+                                geometry, OMF_AXIS_KEYS[2], 2 ) ) ) )
+                > GLOBAL_EPSILON,
+            nullptr, OpenGeodeException::TYPE::data, "[OMFInput] Volume \"",
+            OMFFile::name( element ), "\" has coplanar axes" );
         LightRegularGrid3D grid{ Point3D{ file.origin( geometry ) },
             cells_number, directions };
         IdentifierBuilder{ grid }.set_name( OMFFile::name( element ) );
