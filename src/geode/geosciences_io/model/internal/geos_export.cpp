@@ -58,6 +58,7 @@
 #include <geode/geometry/nn_search.hpp>
 #include <geode/geometry/point.hpp>
 #include <geode/geometry/position.hpp>
+#include <geode/geometry/vector.hpp>
 
 #include <geode/geosciences_io/model/common.hpp>
 
@@ -312,9 +313,47 @@ namespace
 
     geode::index_t nb_table_nodes( const TableCoordinates& coordinates )
     {
-        return static_cast< geode::index_t >( coordinates[0].size()
-                                              * coordinates[1].size()
-                                              * coordinates[2].size() );
+        std::size_t nb_nodes{ 1 };
+        for( const auto& axis_coordinates : coordinates )
+        {
+            nb_nodes *= axis_coordinates.size();
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                nb_nodes < geode::NO_ID, nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[GeosExporter] Boundary condition table is too large: ",
+                coordinates[0].size(), " x ", coordinates[1].size(), " x ",
+                coordinates[2].size(), " nodes." );
+        }
+        return static_cast< geode::index_t >( nb_nodes );
+    }
+
+    // Area weighted centroid of the polygon, used by GEOS as faceCenter
+    geode::Point3D face_center(
+        const geode::SurfaceMesh3D& mesh, geode::index_t polygon_id )
+    {
+        const auto vertices = mesh.polygon_vertices( polygon_id );
+        if( vertices.size() == 3 )
+        {
+            return mesh.polygon_barycenter( polygon_id );
+        }
+        const auto& first = mesh.point( vertices[0] );
+        geode::Point3D weighted_centers;
+        double total_area{ 0 };
+        for( const auto vertex : geode::LRange{ 1, vertices.size() - 1 } )
+        {
+            const auto& second = mesh.point( vertices[vertex] );
+            const auto& third = mesh.point( vertices[vertex + 1] );
+            const auto area = geode::Vector3D{ first, second }
+                                  .cross( geode::Vector3D{ first, third } )
+                                  .length();
+            weighted_centers += ( first + second + third ) * ( area / 3. );
+            total_area += area;
+        }
+        if( total_area == 0 )
+        {
+            return mesh.polygon_barycenter( polygon_id );
+        }
+        return weighted_centers / total_area;
     }
 
     // Polygon centers flattened on the table axes holding a single coordinate
@@ -1303,7 +1342,7 @@ namespace geode::internal
         centers.reserve( mesh.nb_polygons() );
         for( const auto polygon_id : Range{ mesh.nb_polygons() } )
         {
-            centers.push_back( mesh.polygon_barycenter( polygon_id ) );
+            centers.push_back( face_center( mesh, polygon_id ) );
         }
         auto coordinates = separating_table_coordinates( centers );
         OpenGeodeGeosciencesIOModelException::check_exception(
@@ -1321,6 +1360,10 @@ namespace geode::internal
         }
         grid.node_polygons = table_node_polygons( grid.coordinates,
             table_polygon_nodes( grid.coordinates, centers ), centers );
+        Logger::info( "[GeosExporter] Boundary condition table of Surface ",
+            surface.id().string(), ": ", grid.coordinates[0].size(), " x ",
+            grid.coordinates[1].size(), " x ", grid.coordinates[2].size(),
+            " nodes" );
         return boundary_grids_.emplace( surface.id(), std::move( grid ) )
             .first->second;
     }

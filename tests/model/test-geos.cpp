@@ -68,14 +68,19 @@
 #include <geode/geometry/bounding_box.hpp>
 #include <geode/geometry/point.hpp>
 #include <geode/geometry/vector.hpp>
+#include <geode/mesh/builder/hybrid_solid_builder.hpp>
 #include <geode/mesh/builder/point_set_builder.hpp>
+#include <geode/mesh/builder/polygonal_surface_builder.hpp>
 #include <geode/mesh/builder/regular_grid_solid_builder.hpp>
 #include <geode/mesh/builder/tetrahedral_solid_builder.hpp>
 #include <geode/mesh/builder/triangulated_surface_builder.hpp>
+#include <geode/mesh/core/geode/geode_hybrid_solid.hpp>
+#include <geode/mesh/core/geode/geode_polygonal_surface.hpp>
 #include <geode/mesh/core/geode/geode_regular_grid_solid.hpp>
 #include <geode/mesh/core/geode/geode_tetrahedral_solid.hpp>
 #include <geode/mesh/core/geode/geode_triangulated_surface.hpp>
 #include <geode/mesh/core/point_set.hpp>
+#include <geode/mesh/core/polygonal_surface.hpp>
 #include <geode/mesh/core/tetrahedral_solid.hpp>
 #include <geode/mesh/io/tetrahedral_solid_input.hpp>
 
@@ -1224,6 +1229,81 @@ void test_output_directories()
     }
 }
 
+geode::BRep hexahedra_brep()
+{
+    geode::BRep model;
+    geode::BRepBuilder builder{ model };
+    const std::array< geode::Point3D, 6 > bottom_points{
+        geode::Point3D{ { 0., 0., 0. } }, geode::Point3D{ { 1., 0., 0. } },
+        geode::Point3D{ { 1., 1., 0. } }, geode::Point3D{ { 0., 1., 0. } },
+        geode::Point3D{ { 9., 0., 0. } }, geode::Point3D{ { 9., 0.01, 0. } }
+    };
+    builder.create_unique_vertices( 12 );
+    const auto& block = model.block( builder.add_block(
+        geode::OpenGeodeHybridSolid3D::impl_name_static() ) );
+    auto block_builder =
+        builder.block_mesh_builder< geode::HybridSolid3D >( block );
+    for( const auto z : { 0., 1. } )
+    {
+        for( const auto& point : bottom_points )
+        {
+            block_builder->create_point(
+                geode::Point3D{ { point.value( 0 ), point.value( 1 ), z } } );
+        }
+    }
+    block_builder->create_hexahedron( { 0, 1, 2, 3, 6, 7, 8, 9 } );
+    block_builder->create_hexahedron( { 1, 4, 5, 2, 7, 10, 11, 8 } );
+    for( const auto vertex : geode::Range{ 12 } )
+    {
+        builder.set_unique_vertex( { block.component_id(), vertex }, vertex );
+    }
+    const auto& surface = model.surface( builder.add_surface(
+        geode::OpenGeodePolygonalSurface3D::impl_name_static() ) );
+    auto surface_builder =
+        builder.surface_mesh_builder< geode::PolygonalSurface3D >( surface );
+    for( const auto vertex : geode::Indices{ bottom_points } )
+    {
+        surface_builder->create_point( bottom_points[vertex] );
+        builder.set_unique_vertex( { surface.component_id(), vertex }, vertex );
+    }
+    surface_builder->create_polygon( { 0, 1, 2, 3 } );
+    surface_builder->create_polygon( { 1, 4, 5, 2 } );
+    return model;
+}
+
+void test_boundary_table_face_centers()
+{
+    auto model = hexahedra_brep();
+    std::vector< geode::uuid > surfaces;
+    for( const auto& surface : model.surfaces() )
+    {
+        surfaces.push_back( surface.id() );
+    }
+    const auto attribute_id =
+        add_boundary_condition< geode::VariableAttribute >( model, surfaces,
+            geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "pressure", 1e7 );
+    model.surface( surfaces.front() )
+        .mesh()
+        .polygon_attribute_manager()
+        .find_attribute< geode::VariableAttribute, double >( attribute_id )
+        ->set_value( 1, 2e7 );
+    geode::BRepGeosExporter exporter( model, "face_centers" );
+    exporter.run();
+    const auto x_coordinates =
+        read_table_values( absl::StrCat( "face_centers/boundary_tables/surface",
+            model.nb_blocks(), "_xlin.geos" ) );
+    // GEOS faceCenter is the area weighted centroid of the face
+    static constexpr double FIRST_AREA{ 0.08 };
+    static constexpr double SECOND_AREA{ 8. };
+    const auto quad_center = ( FIRST_AREA * 19. / 3. + SECOND_AREA * 11. / 3. )
+                             / ( FIRST_AREA + SECOND_AREA );
+    static constexpr double CENTER_TOLERANCE{ 1e-9 };
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        x_coordinates.size() == 2 && x_coordinates[0] == 0.5
+            && std::fabs( x_coordinates[1] - quad_center ) < CENTER_TOLERANCE,
+        "[Test] Boundary table coordinates are not the face centers" );
+}
+
 int main()
 {
     try
@@ -1239,6 +1319,7 @@ int main()
         test_surface_polygons_not_on_solid_facets();
         test_run_twice();
         test_output_directories();
+        test_boundary_table_face_centers();
         test_picasso();
         test_uniform_variable_boundary_condition();
         test_variable_boundary_condition();
