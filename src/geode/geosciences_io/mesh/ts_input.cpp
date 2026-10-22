@@ -76,9 +76,12 @@ namespace
             {
                 builder_->set_name( tsurf.header.name.value() );
             }
-            for( const auto& point : tsurf.points )
+            const auto first_vertex =
+                builder_->create_vertices( tsurf.points.size() );
+            for( const auto vertex : geode::Indices{ tsurf.points } )
             {
-                builder_->create_point( point );
+                builder_->set_point(
+                    first_vertex + vertex, tsurf.points[vertex] );
             }
             if( offset == 0 )
             {

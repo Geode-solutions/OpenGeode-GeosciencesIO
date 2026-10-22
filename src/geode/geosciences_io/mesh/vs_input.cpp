@@ -74,9 +74,12 @@ namespace
             {
                 builder_->set_name( vertex_set.header.name.value() );
             }
-            for( const auto& point : vertex_set.points )
+            const auto first_vertex =
+                builder_->create_vertices( vertex_set.points.size() );
+            for( const auto vertex : geode::Indices{ vertex_set.points } )
             {
-                builder_->create_point( point );
+                builder_->set_point(
+                    first_vertex + vertex, vertex_set.points[vertex] );
             }
             std::vector< geode::index_t > inverse_vertex_mapping(
                 vertex_set.points.size() );

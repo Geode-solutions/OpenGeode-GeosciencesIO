@@ -75,9 +75,12 @@ namespace
             {
                 builder_->set_name( ecurve.header.name.value() );
             }
-            for( const auto& point : ecurve.points )
+            const auto first_vertex =
+                builder_->create_vertices( ecurve.points.size() );
+            for( const auto vertex : geode::Indices{ ecurve.points } )
             {
-                builder_->create_point( point );
+                builder_->set_point(
+                    first_vertex + vertex, ecurve.points[vertex] );
             }
             for( auto edge : ecurve.edges )
             {
