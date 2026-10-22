@@ -64,6 +64,24 @@ namespace
             curve->nb_edges() == 1, "Wrong number of edges with blank lines" );
     }
 
+    void test_invalid_segments()
+    {
+        const auto curve = load_test_file( "test_pl_invalid_segments.pl",
+            "GOCAD PLine 1\nHEADER {\nname: a\n}\nILINE\n"
+            "VRTX 1 0 0 0\nVRTX 2 1 0 0\nVRTX 3 2 0 0\nSEG 1 5\nSEG 0 1\n"
+            "SEG 2 2\nSEG 1 2\nSEG 2 3\nEND\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curve->nb_vertices() == 3,
+            "Wrong number of vertices with invalid segments" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curve->nb_edges() == 2,
+            "Wrong number of edges with invalid segments" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curve->edge_vertices( 1 )[0] == 1
+                && curve->edge_vertices( 1 )[1] == 2,
+            "Wrong edge vertices with invalid segments" );
+    }
+
     void check_curve( const geode::EdgedCurve3D& curve,
         geode::index_t nb_vertices,
         geode::index_t nb_edges )
@@ -117,6 +135,7 @@ int main()
             9395, 9395, "closed_lines." );
         // NOLINTEND(*-magic-numbers)
         test_blank_lines();
+        test_invalid_segments();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }

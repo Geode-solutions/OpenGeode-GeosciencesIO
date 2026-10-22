@@ -23,6 +23,8 @@
 
 #pragma once
 
+#include <algorithm>
+#include <deque>
 #include <optional>
 
 #include <geode/basic/attribute_manager.hpp>
@@ -121,14 +123,11 @@ namespace geode::internal
     {
         index_t tface_id( index_t vertex_id ) const
         {
-            for( const auto i : Range{ 1, tface_vertices_offset.size() } )
-            {
-                if( vertex_id < tface_vertices_offset[i] )
-                {
-                    return i - 1;
-                }
-            }
-            return tface_vertices_offset.size() - 1;
+            const auto it = std::upper_bound( tface_vertices_offset.begin(),
+                tface_vertices_offset.end(), vertex_id );
+            return static_cast< index_t >(
+                       std::distance( tface_vertices_offset.begin(), it ) )
+                   - 1;
         }
 
         index_t OFFSET_START{ 1 };

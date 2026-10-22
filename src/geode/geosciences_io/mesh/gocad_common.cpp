@@ -133,6 +133,124 @@ namespace
             "\" should have at least ", nb_tokens, " tokens" );
     }
 
+    std::optional< geode::index_t > vertex_index( geode::index_t file_id,
+        geode::index_t offset_start,
+        geode::index_t nb_points )
+    {
+        if( file_id < offset_start || file_id - offset_start >= nb_points )
+        {
+            return std::nullopt;
+        }
+        return file_id - offset_start;
+    }
+
+    void resolve_ecurve_indices( geode::internal::ECurveData& ecurve )
+    {
+        geode::index_t nb_valid{ 0 };
+        for( auto edge : ecurve.edges )
+        {
+            const auto v0 = vertex_index(
+                edge[0], ecurve.OFFSET_START, ecurve.points.size() );
+            const auto v1 = vertex_index(
+                edge[1], ecurve.OFFSET_START, ecurve.points.size() );
+            if( !v0 || !v1 || v0 == v1 )
+            {
+                geode::Logger::warning( "[PLInput] SEG ", edge[0], " ", edge[1],
+                    " references an unknown vertex or is degenerated, "
+                    "it is skipped" );
+                continue;
+            }
+            ecurve.edges[nb_valid++] = { v0.value(), v1.value() };
+        }
+        ecurve.edges.resize( nb_valid );
+    }
+
+    void resolve_tsurf_triangles( geode::internal::TSurfData& tsurf )
+    {
+        geode::index_t nb_valid{ 0 };
+        geode::index_t nb_invalid{ 0 };
+        for( const auto tface :
+            geode::Range{ tsurf.tface_triangles_offset.size() - 1 } )
+        {
+            const auto begin = tsurf.tface_triangles_offset[tface];
+            const auto end = tsurf.tface_triangles_offset[tface + 1];
+            const auto first_vertex = tsurf.tface_vertices_offset[tface];
+            const auto nb_tface_vertices =
+                tsurf.tface_vertices_offset[tface + 1] - first_vertex;
+            tsurf.tface_triangles_offset[tface] = nb_valid;
+            for( const auto triangle_id : geode::Range{ begin, end } )
+            {
+                auto triangle = tsurf.triangles[triangle_id];
+                auto is_valid = true;
+                for( auto& vertex : triangle )
+                {
+                    const auto index = vertex_index( vertex,
+                        tsurf.OFFSET_START + first_vertex, nb_tface_vertices );
+                    if( !index )
+                    {
+                        is_valid = false;
+                        break;
+                    }
+                    vertex = index.value() + first_vertex;
+                }
+                if( !is_valid )
+                {
+                    nb_invalid++;
+                    continue;
+                }
+                tsurf.triangles[nb_valid++] = triangle;
+            }
+        }
+        tsurf.tface_triangles_offset.back() = nb_valid;
+        tsurf.triangles.resize( nb_valid );
+        if( nb_invalid > 0 )
+        {
+            geode::Logger::warning( "[TSInput] ", nb_invalid,
+                " TRGL referencing vertices outside of their TFACE are "
+                "skipped" );
+        }
+    }
+
+    void resolve_tsurf_indices( geode::internal::TSurfData& tsurf )
+    {
+        resolve_tsurf_triangles( tsurf );
+        const auto nb_points = tsurf.points.size();
+        geode::index_t nb_valid{ 0 };
+        for( const auto bstone : tsurf.bstones )
+        {
+            const auto index =
+                vertex_index( bstone, tsurf.OFFSET_START, nb_points );
+            if( !index )
+            {
+                geode::Logger::warning( "[TSInput] BSTONE ", bstone,
+                    " references an unknown vertex, it is skipped" );
+                continue;
+            }
+            tsurf.bstones[nb_valid++] = index.value();
+        }
+        tsurf.bstones.resize( nb_valid );
+        nb_valid = 0;
+        for( const auto& border : tsurf.borders )
+        {
+            const auto corner =
+                vertex_index( border.corner_id, tsurf.OFFSET_START, nb_points );
+            const auto next =
+                vertex_index( border.next_id, tsurf.OFFSET_START, nb_points );
+            if( !corner || !next
+                || tsurf.tface_id( corner.value() )
+                       != tsurf.tface_id( next.value() ) )
+            {
+                geode::Logger::warning( "[TSInput] BORDER ", border.corner_id,
+                    " ", border.next_id,
+                    " references unknown vertices or vertices from different "
+                    "TFACE, it is skipped" );
+                continue;
+            }
+            tsurf.borders[nb_valid++] = { corner.value(), next.value() };
+        }
+        tsurf.borders.resize( nb_valid, { 0, 0 } );
+    }
+
     void read_ilines( std::ifstream& file, geode::internal::ECurveData& ecurve )
     {
         geode::goto_keyword( file, "ILINE" );
@@ -165,12 +283,12 @@ namespace
                     continue;
                 }
                 ecurve.edges.emplace_back( std::array< geode::index_t, 2 >{
-                    geode::string_to_index( tokens[1] ) - ecurve.OFFSET_START,
-                    geode::string_to_index( tokens[2] )
-                        - ecurve.OFFSET_START } );
+                    geode::string_to_index( tokens[1] ),
+                    geode::string_to_index( tokens[2] ) } );
             }
             else if( keyword == "END" )
             {
+                resolve_ecurve_indices( ecurve );
                 return;
             }
         }
@@ -221,10 +339,9 @@ namespace
                     continue;
                 }
                 tsurf.triangles.emplace_back( std::array< geode::index_t, 3 >{
-                    geode::string_to_index( tokens[1] ) - tsurf.OFFSET_START,
-                    geode::string_to_index( tokens[2] ) - tsurf.OFFSET_START,
-                    geode::string_to_index( tokens[3] )
-                        - tsurf.OFFSET_START } );
+                    geode::string_to_index( tokens[1] ),
+                    geode::string_to_index( tokens[2] ),
+                    geode::string_to_index( tokens[3] ) } );
             }
             else if( keyword == "BSTONE" )
             {
@@ -232,8 +349,7 @@ namespace
                 {
                     continue;
                 }
-                tsurf.bstones.push_back(
-                    geode::string_to_index( tokens[1] ) - tsurf.OFFSET_START );
+                tsurf.bstones.push_back( geode::string_to_index( tokens[1] ) );
             }
             else if( keyword == "BORDER" )
             {
@@ -241,9 +357,8 @@ namespace
                 {
                     continue;
                 }
-                tsurf.borders.emplace_back(
-                    geode::string_to_index( tokens[2] ) - tsurf.OFFSET_START,
-                    geode::string_to_index( tokens[3] ) - tsurf.OFFSET_START );
+                tsurf.borders.emplace_back( geode::string_to_index( tokens[2] ),
+                    geode::string_to_index( tokens[3] ) );
             }
             else if( keyword == "TFACE" )
             {
@@ -256,6 +371,7 @@ namespace
                 tsurf.tface_triangles_offset.push_back(
                     tsurf.triangles.size() );
                 tsurf.tface_vertices_offset.push_back( tsurf.points.size() );
+                resolve_tsurf_indices( tsurf );
                 return;
             }
         }

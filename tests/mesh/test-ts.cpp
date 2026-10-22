@@ -33,6 +33,7 @@
 #include <geode/mesh/io/triangulated_surface_input.hpp>
 #include <geode/mesh/io/triangulated_surface_output.hpp>
 
+#include <geode/geosciences_io/mesh/internal/gocad_common.hpp>
 #include <geode/geosciences_io/mesh/internal/ts_input.hpp>
 
 namespace
@@ -62,6 +63,49 @@ namespace
         geode::OpenGeodeGeosciencesIOMeshException::test(
             surface->nb_polygons() == 1,
             "Wrong number of triangles with blank lines" );
+    }
+
+    void test_invalid_indices()
+    {
+        constexpr auto content =
+            "GOCAD TSurf 1\nHEADER {\nname: invalid\n}\nTFACE\n"
+            "VRTX 1 0 0 0\nVRTX 2 1 0 0\nVRTX 3 0 1 0\nTRGL 1 2 3\n"
+            "TRGL 1 2 9\nTRGL 0 1 2\nTFACE\nVRTX 4 1 1 0\nVRTX 5 2 1 0\n"
+            "VRTX 6 1 2 0\nTRGL 4 5 6\nTRGL 3 5 6\nBSTONE 1\nBSTONE 0\n"
+            "BSTONE 42\nBORDER 7 1 2\nBORDER 8 3 4\nBORDER 9 1 10\n"
+            "BORDER 10 4 5\nEND\n";
+        const auto surface =
+            load_test_file( "test_ts_invalid_indices.ts", content );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surface->nb_vertices() == 6,
+            "Wrong number of vertices with invalid indices" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surface->nb_polygons() == 2,
+            "Wrong number of triangles with invalid indices" );
+
+        std::ifstream file{ "test_ts_invalid_indices.ts", std::ios::binary };
+        const auto tsurf = geode::internal::read_tsurf( file ).value();
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            tsurf.tface_triangles_offset.size() == 3
+                && tsurf.tface_triangles_offset[1] == 1
+                && tsurf.tface_triangles_offset[2] == 2,
+            "Wrong TFACE triangle offsets with invalid indices" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            tsurf.triangles[1] == std::array< geode::index_t, 3 >{ 3, 4, 5 },
+            "Wrong triangle with invalid indices" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            tsurf.bstones.size() == 1 && tsurf.bstones[0] == 0,
+            "Wrong BSTONE with invalid indices" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            tsurf.borders.size() == 2 && tsurf.borders[0].corner_id == 0
+                && tsurf.borders[0].next_id == 1
+                && tsurf.borders[1].corner_id == 3
+                && tsurf.borders[1].next_id == 4,
+            "Wrong BORDER with invalid indices" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            tsurf.tface_id( 2 ) == 0 && tsurf.tface_id( 3 ) == 1
+                && tsurf.tface_id( 5 ) == 1,
+            "Wrong TFACE id" );
     }
 } // namespace
 
@@ -130,6 +174,7 @@ int main()
                         geode::internal::TSInput::extension() ),
             4, 2, "test" );
         test_blank_lines();
+        test_invalid_indices();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
