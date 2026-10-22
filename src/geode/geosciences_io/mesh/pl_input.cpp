@@ -28,6 +28,7 @@
 #include <absl/algorithm/container.h>
 
 #include <geode/basic/file.hpp>
+#include <geode/basic/logger.hpp>
 
 #include <geode/geometry/point.hpp>
 
@@ -53,9 +54,16 @@ namespace
 
         void read_file()
         {
+            geode::index_t nb_objects{ 0 };
             while( const auto ecurve = geode::internal::read_ecurve( file_ ) )
             {
                 build_curve( ecurve.value() );
+                nb_objects++;
+            }
+            if( nb_objects == 0 )
+            {
+                geode::Logger::warning(
+                    "[PLInput] No GOCAD PLine found in the file" );
             }
         }
 

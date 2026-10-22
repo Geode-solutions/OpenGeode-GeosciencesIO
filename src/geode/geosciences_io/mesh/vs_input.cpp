@@ -26,6 +26,7 @@
 #include <fstream>
 
 #include <geode/basic/file.hpp>
+#include <geode/basic/logger.hpp>
 
 #include <geode/geometry/point.hpp>
 
@@ -51,10 +52,17 @@ namespace
 
         void read_file()
         {
+            geode::index_t nb_objects{ 0 };
             while( const auto vertex_set =
                        geode::internal::read_vs_points( file_ ) )
             {
                 build_point_set( vertex_set.value() );
+                nb_objects++;
+            }
+            if( nb_objects == 0 )
+            {
+                geode::Logger::warning(
+                    "[VSInput] No GOCAD VSet found in the file" );
             }
         }
 

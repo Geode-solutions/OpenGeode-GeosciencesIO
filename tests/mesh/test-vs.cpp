@@ -229,6 +229,11 @@ int main()
         test_points_normal();
         test_multiple_vset_properties();
         test_output_properties();
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            load_test_file( "test_vs_empty.vs", "GOCAD TSurf 1\nEND\n" )
+                    ->nb_vertices()
+                == 0,
+            "File without VSet should give an empty point set" );
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

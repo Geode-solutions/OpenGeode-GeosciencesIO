@@ -26,6 +26,7 @@
 #include <fstream>
 
 #include <geode/basic/file.hpp>
+#include <geode/basic/logger.hpp>
 
 #include <geode/geometry/point.hpp>
 
@@ -53,9 +54,16 @@ namespace
 
         void read_file()
         {
+            geode::index_t nb_objects{ 0 };
             while( const auto tsurf = geode::internal::read_tsurf( file_ ) )
             {
                 build_surface( tsurf.value() );
+                nb_objects++;
+            }
+            if( nb_objects == 0 )
+            {
+                geode::Logger::warning(
+                    "[TSInput] No GOCAD TSurf found in the file" );
             }
             builder_->compute_polygon_adjacencies();
         }
