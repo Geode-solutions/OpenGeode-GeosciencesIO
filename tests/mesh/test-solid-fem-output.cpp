@@ -472,6 +472,40 @@ namespace
         }
     }
 
+    void test_facet_and_edge_features()
+    {
+        auto solid = create_solid();
+        solid->enable_facets();
+        solid->enable_edges();
+        auto& facet_manager = solid->facets().facet_attribute_manager();
+        auto& edge_manager = solid->edges().edge_attribute_manager();
+        auto aperture = create_attribute< double >(
+            facet_manager, "diagres_discontinuity_aperture", -1 );
+        auto facet_conductivity = create_attribute< double >(
+            facet_manager, "diagres_conductivity", -1 );
+        auto conduit_area = create_attribute< double >(
+            edge_manager, "diagres_conduit_area", -1 );
+        auto edge_conductivity = create_attribute< double >(
+            edge_manager, "diagres_conductivity", -1 );
+        const auto facet =
+            solid->facets().facet_from_vertices( { 0, 1, 2 } ).value();
+        aperture->set_value( facet, 0.5 );
+        facet_conductivity->set_value( facet, 5 );
+        const auto edge = solid->edges().edge_from_vertices( { 0, 3 } ).value();
+        conduit_area->set_value( edge, 0.75 );
+        edge_conductivity->set_value( edge, 9 );
+        geode::save_tetrahedral_solid( *solid, "test_facet_edge_features.fem" );
+        const auto lines = read_lines( "test_facet_edge_features.fem" );
+        const auto area = read_material( lines, "AREA" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            area.size() == 2 && area.at( 1 ) == 0.5 && area.at( 2 ) == 0.75,
+            "[Test] Wrong AREA material with facet and edge features" );
+        const auto cond = read_material( lines, "COND" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            cond.size() == 2 && cond.at( 1 ) == 5 && cond.at( 2 ) == 9,
+            "[Test] Wrong COND material with facet and edge features" );
+    }
+
     void test_solid_fem_output()
     {
         auto tet_solid = geode::load_tetrahedral_solid< 3 >(
@@ -510,6 +544,7 @@ int main()
         test_double_precision();
         test_distribution_counts();
         test_multi_chunk_material();
+        test_facet_and_edge_features();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }

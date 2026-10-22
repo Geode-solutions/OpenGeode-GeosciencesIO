@@ -1140,7 +1140,7 @@ namespace
                 {
                     const auto& property1D =
                         features.features1D_groups.front()
-                            .properties[aperture_property_index.value()];
+                            .properties[area_property_index.value()];
                     combine_maps(
                         values_to_features, property1D.values_to_features );
                 }
