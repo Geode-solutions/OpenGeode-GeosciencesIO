@@ -62,17 +62,19 @@ namespace
         {
             for( auto* layer : dataset().GetLayers() )
             {
-                if( layer->GetGeomType() == OGRwkbGeometryType::wkbPoint )
+                const auto type = wkbFlatten( layer->GetGeomType() );
+                if( type == OGRwkbGeometryType::wkbPoint
+                    || type == OGRwkbGeometryType::wkbMultiPoint )
                 {
                     create_corner( *layer );
                 }
-                else if( layer->GetGeomType()
-                         == OGRwkbGeometryType::wkbLineString )
+                else if( type == OGRwkbGeometryType::wkbLineString
+                         || type == OGRwkbGeometryType::wkbMultiLineString )
                 {
                     create_line( *layer );
                 }
-                else if( layer->GetGeomType()
-                         == OGRwkbGeometryType::wkbPolygon )
+                else if( type == OGRwkbGeometryType::wkbPolygon
+                         || type == OGRwkbGeometryType::wkbMultiPolygon )
                 {
                     create_surface( *layer );
                 }
@@ -94,10 +96,17 @@ namespace
                     geometry, nullptr, geode::OpenGeodeException::TYPE::data,
                     "[SHPInput::create_corner] Failed to retrieve geometry "
                     "data" );
-                if( geometry->getGeometryType()
-                    == OGRwkbGeometryType::wkbPoint )
+                const auto type = wkbFlatten( geometry->getGeometryType() );
+                if( type == OGRwkbGeometryType::wkbPoint )
                 {
                     read_point( *geometry->toPoint(), layer.GetName() );
+                }
+                else if( type == OGRwkbGeometryType::wkbMultiPoint )
+                {
+                    for( const auto* point : *geometry->toMultiPoint() )
+                    {
+                        read_point( *point, layer.GetName() );
+                    }
                 }
                 else
                 {
@@ -131,13 +140,12 @@ namespace
                     geometry, nullptr, geode::OpenGeodeException::TYPE::data,
                     "[SHPInput::create_line] Failed to retrieve geometry "
                     "data" );
-                if( geometry->getGeometryType()
-                    == OGRwkbGeometryType::wkbLineString )
+                const auto type = wkbFlatten( geometry->getGeometryType() );
+                if( type == OGRwkbGeometryType::wkbLineString )
                 {
                     read_line( *geometry->toLineString(), line );
                 }
-                else if( geometry->getGeometryType()
-                         == OGRwkbGeometryType::wkbMultiLineString )
+                else if( type == OGRwkbGeometryType::wkbMultiLineString )
                 {
                     for( const auto* line_string :
                         *geometry->toMultiLineString() )
@@ -222,13 +230,12 @@ namespace
                     geometry, nullptr, geode::OpenGeodeException::TYPE::data,
                     "[SHPInput::create_surface] Failed to retrieve geometry "
                     "data" );
-                if( geometry->getGeometryType()
-                    == OGRwkbGeometryType::wkbPolygon )
+                const auto type = wkbFlatten( geometry->getGeometryType() );
+                if( type == OGRwkbGeometryType::wkbPolygon )
                 {
                     read_polygon( *geometry->toPolygon(), surface );
                 }
-                else if( geometry->getGeometryType()
-                         == OGRwkbGeometryType::wkbMultiPolygon )
+                else if( type == OGRwkbGeometryType::wkbMultiPolygon )
                 {
                     for( const auto* polygon : *geometry->toMultiPolygon() )
                     {

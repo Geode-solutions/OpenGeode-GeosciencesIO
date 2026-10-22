@@ -169,6 +169,27 @@ namespace
                 "Wrong Corner mesh" );
         }
     }
+    void test_geometry_variants()
+    {
+        const auto points = geode::load_section( write_shapefile(
+            "shp_multi_points_z", wkbMultiPoint25D,
+            { "MULTIPOINT Z ((0 0 1),(1 0 2))", "MULTIPOINT Z ((2 3 4))" } ) );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            points.nb_corners() == 3, "Wrong number of MultiPoint corners" );
+        const auto lines = geode::load_section( write_shapefile( "shp_lines_z",
+            wkbLineString25D, { "LINESTRING Z (0 0 1,1 0 2,1 1 3)" } ) );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            lines.nb_lines() == 1
+                && ( *lines.lines().begin() ).mesh().nb_edges() == 2,
+            "Wrong LineString Z" );
+        const auto polygons =
+            geode::load_section( write_shapefile( "shp_polygons_m", wkbPolygonM,
+                { "POLYGON M ((0 0 1,1 0 2,1 1 3,0 0 1))" } ) );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            polygons.nb_surfaces() == 1
+                && ( *polygons.surfaces().begin() ).mesh().nb_polygons() == 1,
+            "Wrong Polygon M" );
+    }
 } // namespace
 
 int main()
@@ -196,6 +217,7 @@ int main()
 
         test_degenerated_parts();
         test_points();
+        test_geometry_variants();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
