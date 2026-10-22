@@ -924,6 +924,42 @@ void test_structural_model_block_without_unit()
         "StratigraphicUnit" );
 }
 
+void test_structural_model_block_in_two_units()
+{
+    geode::StructuralModel model{ tetrahedra_brep(
+        2, geode::Point3D{ { 0., 0., 0. } } ) };
+    geode::StructuralModelBuilder builder{ model };
+    const auto& first_unit =
+        model.stratigraphic_unit( builder.add_stratigraphic_unit() );
+    const auto& second_unit =
+        model.stratigraphic_unit( builder.add_stratigraphic_unit() );
+    std::vector< geode::uuid > block_ids;
+    for( const auto& block : model.blocks() )
+    {
+        block_ids.push_back( block.id() );
+    }
+    builder.add_block_in_stratigraphic_unit(
+        model.block( block_ids[0] ), first_unit );
+    builder.add_block_in_stratigraphic_unit(
+        model.block( block_ids[0] ), second_unit );
+    builder.add_block_in_stratigraphic_unit(
+        model.block( block_ids[1] ), second_unit );
+    std::vector< geode::uuid > unit_ids;
+    for( const auto& unit : model.stratigraphic_units() )
+    {
+        unit_ids.push_back( unit.id() );
+    }
+    geode::StructuralModelGeosExporter exporter( model, "two_units" );
+    exporter.run();
+    const auto regions = vtu_cell_values< geode::index_t >(
+        "two_units/two_units.vtu", "attribute" );
+    const auto first_region = unit_ids.front() == first_unit.id() ? 0u : 1u;
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        regions.size() == 2 && regions[1] == ( first_region == 0 ? 1u : 0u )
+            && ( regions[0] == 0 || regions[0] == 1 ),
+        "[Test] Wrong regions for a Block in two StratigraphicUnits" );
+}
+
 int main()
 {
     try
@@ -933,6 +969,7 @@ int main()
         geode::OpenGeodeIOModelLibrary::initialize();
         test_constant_block_properties();
         test_structural_model_block_without_unit();
+        test_structural_model_block_in_two_units();
         test_picasso();
         test_uniform_variable_boundary_condition();
         test_variable_boundary_condition();
