@@ -463,7 +463,8 @@ namespace geode::internal
                     dynamic_cast< const TableRelativePermeability* >(
                         material.relative_permeability.get() ) )
             {
-                const auto& table = relperm->tables().front();
+                const auto tables = relperm->tables();
+                const auto& table = tables.front();
                 tables_.push_back( { absl::StrCat( "relperm_", material.name,
                                          "_wetting" ),
                     table.wetting_kr.saturations, table.wetting_kr.values } );
@@ -480,7 +481,8 @@ namespace geode::internal
                     dynamic_cast< const TableCapillaryPressure* >(
                         material.capillary_pressure.get() ) )
             {
-                const auto& table = capillary->tables().front();
+                const auto tables = capillary->tables();
+                const auto& table = tables.front();
                 tables_.push_back(
                     { absl::StrCat( "cappres_", material.name, "_pc" ),
                         table.pressure.saturations, table.pressure.values } );
@@ -584,8 +586,9 @@ namespace geode::internal
                     regions, "CellElementRegion", region.name );
                 set_attribute(
                     node, "cellBlocks", absl::StrCat( "{ ", region.id, " }" ) );
+                const auto materials = problem_.materials();
                 const auto& material =
-                    problem_.materials()[material_of_region_[region.id]];
+                    materials[material_of_region_[region.id]];
                 set_attribute( node, "materialList",
                     geos_names( material_list( material ) ) );
             }
@@ -774,7 +777,8 @@ namespace geode::internal
         void write_material(
             pugi::xml_node& constitutive, index_t material_id ) const
         {
-            const auto& material = problem_.materials()[material_id];
+            const auto materials = problem_.materials();
+            const auto& material = materials[material_id];
             auto rock = add_named_child( constitutive,
                 "CompressibleSolidConstantPermeability",
                 absl::StrCat( "rock_", material.name ) );
