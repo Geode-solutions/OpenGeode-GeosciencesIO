@@ -194,8 +194,8 @@ geode::index_t count_occurrences(
 {
     geode::index_t nb_occurrences{ 0 };
     for( auto position = content.find( pattern );
-         position != std::string_view::npos;
-         position = content.find( pattern, position + pattern.size() ) )
+        position != std::string_view::npos;
+        position = content.find( pattern, position + pattern.size() ) )
     {
         nb_occurrences++;
     }
@@ -1037,8 +1037,7 @@ void test_geos_checker_model()
                                        ->name()
                                        .value();
         geode::AttributeValues< double > values;
-        static_cast< void >(
-            block.mesh()
+        static_cast< void >( block.mesh()
                 .polyhedron_attribute_manager()
                 .create_attribute< geode::VariableAttribute, double >(
                     absl::StrCat( porosity_name, "_0" ), values, {} ) );

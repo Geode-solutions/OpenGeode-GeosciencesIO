@@ -44,7 +44,7 @@ namespace geode
             const PhysicalProblem& problem,
             std::string_view files_directory )
             : internal::GeosExporterImpl< StructuralModel >(
-                files_directory, model, problem )
+                  files_directory, model, problem )
         {
         }
         virtual ~Impl() = default;

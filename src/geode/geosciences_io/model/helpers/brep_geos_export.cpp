@@ -41,7 +41,7 @@ namespace geode
             const PhysicalProblem& problem,
             std::string_view files_directory )
             : internal::GeosExporterImpl< BRep >(
-                files_directory, brep, problem )
+                  files_directory, brep, problem )
         {
         }
         virtual ~Impl() = default;
