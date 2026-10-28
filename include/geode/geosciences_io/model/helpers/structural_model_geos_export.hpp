@@ -61,6 +61,13 @@ namespace geode
          */
         void set_physical_problem( const PhysicalProblem& problem );
 
+        /*!
+         * Checks the model, the wells and the problem first, with the rules
+         * of check_physical_problem_simulation( problem, model, "geos" ),
+         * then writes the files.
+         * @exception OpenGeodeException listing every issue, before any
+         * file or directory is written
+         */
         void run();
 
     private:

@@ -153,13 +153,6 @@ namespace geode::internal
         std::vector< double > values;
     };
 
-    struct GeosPorosityGroup
-    {
-        double compressibility{ 0 };
-        double reference_pressure{ 0 };
-        double default_porosity{ 0 };
-    };
-
     class GeosSimulationWriter::Impl
     {
     public:
@@ -280,13 +273,10 @@ namespace geode::internal
                 const std::vector< std::string > parts =
                     absl::StrSplit( key, absl::MaxSplits( '/', 1 ) );
                 const auto& xpath = roles.at( parts[0] );
-                const auto nodes = problem_node.select_nodes( xpath.c_str() );
-                if( nodes.empty() )
-                {
-                    Logger::warning( "[GeosExporter] Solver option ", key,
-                        " ignored: no ", parts[0], " node in the deck" );
-                }
-                for( const auto& selected : nodes )
+                // Options without a deck node (vtk without VTK output) are
+                // reported by the GEOS simulation check
+                for( const auto& selected :
+                    problem_node.select_nodes( xpath.c_str() ) )
                 {
                     auto node = selected.node();
                     set_attribute( node, parts[1], value );
@@ -336,33 +326,9 @@ namespace geode::internal
 
         void build_porosity_groups()
         {
-            for( const auto& material : problem_.materials() )
-            {
-                const GeosPorosityGroup group{ material.pore_compressibility,
-                    material.reference_pressure,
-                    material.porosity.value_or(
-                        context_.mean_porosity.value_or( 0 ) ) };
-                material_porosity_group_.push_back( porosity_group( group ) );
-            }
-        }
-
-        index_t porosity_group( const GeosPorosityGroup& group )
-        {
-            const auto imported = context_.porosity_array.has_value();
-            for( const auto group_id : Indices{ porosity_groups_ } )
-            {
-                const auto& existing = porosity_groups_[group_id];
-                if( existing.compressibility == group.compressibility
-                    && existing.reference_pressure == group.reference_pressure
-                    && ( imported
-                         || existing.default_porosity
-                                == group.default_porosity ) )
-                {
-                    return group_id;
-                }
-            }
-            porosity_groups_.push_back( group );
-            return static_cast< index_t >( porosity_groups_.size() - 1 );
+            auto groups = geos_porosity_groups( problem_, context_ );
+            porosity_groups_ = std::move( groups.groups );
+            material_porosity_group_ = std::move( groups.material_groups );
         }
 
         void build_permeability_groups()
@@ -372,8 +338,8 @@ namespace geode::internal
                 const auto components =
                     context_.permeability_array
                         ? material.permeability.value_or(
-                              context_.mean_permeability.value_or(
-                                  std::array< double, 3 >{ 0, 0, 0 } ) )
+                            context_.mean_permeability.value_or(
+                                std::array< double, 3 >{ 0, 0, 0 } ) )
                         : material.permeability.value();
                 material_permeability_group_.push_back(
                     permeability_group( components ) );
@@ -414,9 +380,8 @@ namespace geode::internal
             for( const auto group_id : Indices{ porosity_groups_ } )
             {
                 imported_fields_.push_back( { porosity,
-                    porosity_groups_.size() == 1
-                        ? porosity.name
-                        : absl::StrCat( porosity.name, "_", group_id ),
+                    geos_porosity_vtu_name( porosity.name, group_id,
+                        static_cast< index_t >( porosity_groups_.size() ) ),
                     absl::StrCat(
                         "porosity_", group_id, "_referencePorosity" ) } );
             }
@@ -987,9 +952,8 @@ namespace geode::internal
         void write_outputs( pugi::xml_node& problem_node ) const
         {
             const auto& output = problem_.output();
-            const auto has_vtk = output.frequency || !output.times.empty();
-            const auto has_restart =
-                output.restart || output.restart_frequency.has_value();
+            const auto has_vtk = geos_writes_vtk_output( output );
+            const auto has_restart = geos_writes_restart_output( output );
             if( !has_vtk && !has_restart )
             {
                 return;
@@ -1019,6 +983,56 @@ namespace geode::internal
         std::vector< GeosImportedField > imported_fields_;
         std::vector< GeosTableFunction > tables_;
     };
+
+    GeosPorosityGroups geos_porosity_groups(
+        const PhysicalProblem& problem, const GeosDeckContext& context )
+    {
+        GeosPorosityGroups result;
+        const auto imported = context.porosity_array.has_value();
+        for( const auto& material : problem.materials() )
+        {
+            const GeosPorosityGroup group{ material.pore_compressibility,
+                material.reference_pressure,
+                material.porosity.value_or(
+                    context.mean_porosity.value_or( 0 ) ) };
+            const auto existing = absl::c_find_if(
+                result.groups, [&group, imported]( const auto& other ) {
+                    return other.compressibility == group.compressibility
+                           && other.reference_pressure
+                                  == group.reference_pressure
+                           && ( imported
+                                || other.default_porosity
+                                       == group.default_porosity );
+                } );
+            result.material_groups.push_back(
+                static_cast< index_t >( existing - result.groups.begin() ) );
+            if( existing == result.groups.end() )
+            {
+                result.groups.push_back( group );
+            }
+        }
+        return result;
+    }
+
+    bool geos_writes_vtk_output( const OutputSettings& output )
+    {
+        return output.frequency || !output.times.empty();
+    }
+
+    bool geos_writes_restart_output( const OutputSettings& output )
+    {
+        return output.restart || output.restart_frequency.has_value();
+    }
+
+    std::string geos_porosity_vtu_name(
+        std::string_view name, index_t group, index_t nb_groups )
+    {
+        if( nb_groups == 1 )
+        {
+            return to_string( name );
+        }
+        return absl::StrCat( name, "_", group );
+    }
 
     GeosSimulationWriter::GeosSimulationWriter( const PhysicalProblem& problem,
         const GeosDeckContext& context,

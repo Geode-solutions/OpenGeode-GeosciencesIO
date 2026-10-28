@@ -38,6 +38,11 @@
 
 #include <geode/geosciences_io/model/common.hpp>
 
+namespace geode
+{
+    class BRep;
+} // namespace geode
+
 namespace geode::internal
 {
     /// GEOS cell region made of the model cells whose region attribute is id
@@ -47,6 +52,8 @@ namespace geode::internal
         std::string name;
         std::string component_name;
         uuid component_id;
+        /// Blocks merged into this region
+        std::vector< uuid > blocks;
     };
 
     /// Cell attribute of the exported mesh
@@ -60,23 +67,22 @@ namespace geode::internal
     struct GeosDeckContext
     {
         std::vector< GeosRegion > solid_regions;
-        /// Block, StratigraphicUnit or collection uuid -> GEOS region ids
-        absl::flat_hash_map< uuid, std::vector< index_t > > regions_by_uuid;
-        /// Blocks merged with other Blocks into one GEOS region (e.g. the
-        /// Blocks of a StratigraphicUnit) -> that region id
-        absl::flat_hash_map< uuid, index_t > merged_blocks;
+        /// GEOS region id of each Block
+        absl::flat_hash_map< uuid, index_t > block_regions;
+        /// Regions guessed from a BRep, not given by the exporter
+        bool regions_are_inferred{ false };
         /// Cell array and mean value of the porosity PhysicalProperty
         std::optional< GeosCellArray > porosity_array;
         std::optional< double > mean_porosity;
         /// Cell array and mean value of the permeability PhysicalProperty
         std::optional< GeosCellArray > permeability_array;
         std::optional< std::array< double, 3 > > mean_permeability;
-        /// Phases of the boundary fluid fraction PhysicalProperties
+        /// Phases of the boundary fluid fractions carried by Surfaces
         std::vector< PHASE > boundary_fraction_phases;
+        /// Boundary pressure carried by at least one Surface
         bool has_boundary_pressure{ false };
+        /// Boundary temperature carried by at least one Surface
         bool has_boundary_temperature{ false };
-        /// Names of the well perforation sets given to the exporter
-        std::vector< std::string > well_names;
     };
 
     /// Model array imported in GEOS, possibly copied under a new VTU name
@@ -100,11 +106,13 @@ namespace geode::internal
     };
 
     /*!
-     * Assigns items to regions: items with regions first, then the default
-     * item (no region) to the remaining regions.
+     * Assigns items to regions: items with regions first (the first one
+     * wins), then the default item (no region) to the remaining regions. An
+     * item region must cover whole GEOS regions.
      */
-    [[nodiscard]] GeosRegionAssignment assign_geos_regions(
+    [[nodiscard]] GeosRegionAssignment assign_geos_regions( const BRep& model,
         const GeosDeckContext& context,
         absl::Span< const absl::Span< const uuid > > item_regions,
+        absl::Span< const std::string > item_names,
         std::string_view item_kind );
 } // namespace geode::internal

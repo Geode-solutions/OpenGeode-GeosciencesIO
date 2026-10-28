@@ -38,6 +38,8 @@
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/constant_attribute.hpp>
 #include <geode/basic/logger.hpp>
+#include <geode/basic/logger_client.hpp>
+#include <geode/basic/logger_manager.hpp>
 #include <geode/basic/range.hpp>
 #include <geode/basic/variable_attribute.hpp>
 #include <geode/tests_config.hpp>
@@ -56,6 +58,7 @@
 #include <geode/geosciences/simulation/core/saturation_functions.hpp>
 #include <geode/geosciences/simulation/core/schedule.hpp>
 #include <geode/geosciences/simulation/core/source_term.hpp>
+#include <geode/geosciences/simulation/helpers/physical_problem_simulation.hpp>
 
 #include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.hpp>
 #include <geode/geosciences/explicit/representation/builder/structural_model_builder.hpp>
@@ -69,9 +72,12 @@
 #include <geode/io/mesh/common.hpp>
 #include <geode/io/model/common.hpp>
 #include <geode/mesh/builder/point_set_builder.hpp>
+#include <geode/mesh/builder/regular_grid_solid_builder.hpp>
+#include <geode/mesh/builder/surface_mesh_builder.hpp>
 #include <geode/mesh/core/point_set.hpp>
 
 #include <geode/mesh/core/geode/geode_point_set.hpp>
+#include <geode/mesh/core/geode/geode_regular_grid_solid.hpp>
 #include <geode/mesh/core/hybrid_solid.hpp>
 
 #include <geode/mesh/core/surface_mesh.hpp>
@@ -181,8 +187,8 @@ geode::index_t count_occurrences(
 {
     geode::index_t nb_occurrences{ 0 };
     for( auto position = content.find( pattern );
-        position != std::string_view::npos;
-        position = content.find( pattern, position + pattern.size() ) )
+         position != std::string_view::npos;
+         position = content.find( pattern, position + pattern.size() ) )
     {
         nb_occurrences++;
     }
@@ -642,6 +648,9 @@ void test_toy_model_thermal()
             std::vector< geode::uuid >{}, 1e7, 300. ) );
     // Small first step: the boundary temperature jump is stiff on small cells
     builder.set_schedule( { 0., 1e5, 10., 1e4 } );
+    geode::OutputSettings output;
+    output.frequency = 5e4;
+    builder.set_output( output );
 
     geode::BRepGeosExporter exporter( model, "toy_model_thermal" );
     exporter.set_physical_problem( problem );
@@ -663,6 +672,7 @@ void check_export_failure( const geode::BRep& model,
     const geode::PhysicalProblem& problem,
     std::string_view keyword )
 {
+    std::filesystem::remove_all( "grid_geos_failure" );
     geode::BRepGeosExporter exporter( model, "grid_geos_failure" );
     exporter.set_physical_problem( problem );
     try
@@ -675,6 +685,9 @@ void check_export_failure( const geode::BRep& model,
             absl::StrContains( exception.what(), keyword ),
             "[Test] Export error does not mention \"", keyword,
             "\": ", exception.what() );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            !std::filesystem::exists( "grid_geos_failure" ),
+            "[Test] A failed export should not create its directory" );
         return;
     }
     throw geode::OpenGeodeGeosciencesIOModelException{ nullptr,
@@ -696,6 +709,61 @@ public:
         return "TestFluid";
     }
 };
+
+bool has_issue(
+    absl::Span< const std::string > issues, std::string_view keyword )
+{
+    return absl::c_any_of( issues, [keyword]( const std::string& issue ) {
+        return absl::StrContains( issue, keyword );
+    } );
+}
+
+void check_geos_error( const geode::PhysicalProblem& problem,
+    const geode::BRep& model,
+    std::string_view keyword )
+{
+    const auto report =
+        geode::check_physical_problem_simulation( problem, model, "geos" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        has_issue( report.errors, keyword ), "[Test] No GEOS error with \"",
+        keyword, "\": ", report.string() );
+}
+
+void check_no_geos_error( const geode::PhysicalProblem& problem,
+    const geode::BRep& model,
+    std::string_view keyword )
+{
+    const auto report =
+        geode::check_physical_problem_simulation( problem, model, "geos" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        !has_issue( report.errors, keyword ),
+        "[Test] Unexpected GEOS error "
+        "with \"",
+        keyword, "\": ", report.string() );
+}
+
+void check_geos_warning( const geode::PhysicalProblem& problem,
+    const geode::BRep& model,
+    std::string_view keyword )
+{
+    const auto report =
+        geode::check_physical_problem_simulation( problem, model, "geos" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        has_issue( report.warnings, keyword ), "[Test] No GEOS warning with \"",
+        keyword, "\": ", report.string() );
+}
+
+void check_no_geos_warning( const geode::PhysicalProblem& problem,
+    const geode::BRep& model,
+    std::string_view keyword )
+{
+    const auto report =
+        geode::check_physical_problem_simulation( problem, model, "geos" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        !has_issue( report.warnings, keyword ),
+        "[Test] Unexpected GEOS warning with \"", keyword,
+        "\": ", report.string() );
+}
 
 void test_geos_rules()
 {
@@ -737,34 +805,63 @@ void test_geos_rules()
         check_export_failure( model, problem, "carry no energy" );
     }
     {
-        // Without its source term, which needs wells given to the exporter
+        // Without its source term, which needs wells given to the exporter.
+        // The gas fraction of the model is ignored by an oil-water fluid.
         auto problem = spe10_reference_problem( model );
         geode::PhysicalProblemBuilder{ problem }.remove_source_term( 0 );
-        check_export_failure( model, problem, "the fluid has no gas phase" );
+        check_geos_warning(
+            problem, model, "boundary_gas_fraction is ignored by GEOS" );
+        check_no_geos_error( problem, model, "has no gas phase" );
     }
+}
+
+const geode::Block3D& first_block( const geode::BRep& model )
+{
+    for( const auto& block : model.blocks() )
+    {
+        return block;
+    }
+    throw geode::OpenGeodeGeosciencesIOModelException{ nullptr,
+        geode::OpenGeodeException::TYPE::internal, "[Test] No Block" };
 }
 
 void test_structural_model_regions()
 {
     geode::StructuralModel model{ geode::load_brep( absl::StrCat(
-        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) ) };
+        geode::DATA_PATH, "adaptive_brep_perm_and_poro.og_brep" ) ) };
     add_spe10_boundary_conditions( model );
     add_spe10_gas_fraction( model );
     geode::StructuralModelBuilder model_builder{ model };
     const auto& unit_id = model_builder.add_stratigraphic_unit();
     const auto& unit = model.stratigraphic_unit( unit_id );
-    std::optional< geode::uuid > unit_block;
     for( const auto& block : model.blocks() )
     {
         model_builder.add_block_in_stratigraphic_unit( block, unit );
-        unit_block = block.id();
-        break;
     }
     auto problem = spe10_problem( model );
+    // The model has no porosity and permeability properties
+    auto reservoir = problem.materials()[0];
+    reservoir.porosity = 0.2;
+    reservoir.permeability = std::array< double, 3 >{ 1e-13, 1e-13, 1e-14 };
+    geode::PhysicalProblemBuilder{ problem }.set_material( 0, reservoir );
     auto unit_material = spe10_material( "unit", 1e-10 );
-    unit_material.regions = { unit_block.value() };
+    unit_material.porosity = reservoir.porosity;
+    unit_material.permeability = reservoir.permeability;
+    unit_material.regions = { first_block( model ).id() };
     const auto unit_material_id =
         geode::PhysicalProblemBuilder{ problem }.add_material( unit_material );
+    const auto report =
+        geode::check_physical_problem_simulation( problem, model, "geos" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        report.is_simulable()
+            && absl::c_any_of( report.warnings,
+                []( const std::string& warning ) {
+                    return absl::StrContains(
+                        warning, "covers only part of the GEOS region" );
+                } ),
+        "[Test] The public check should only warn about a Block merged in a "
+        "StratigraphicUnit region: ",
+        report.string() );
     bool has_thrown{ false };
     try
     {
@@ -777,7 +874,8 @@ void test_structural_model_regions()
     {
         has_thrown = true;
         geode::OpenGeodeGeosciencesIOModelException::test(
-            absl::StrContains( exception.what(), "is part of the GEOS region" ),
+            absl::StrContains(
+                exception.what(), "covers only part of the GEOS region" ),
             "[Test] A Block merged in a StratigraphicUnit region should be "
             "reported: ",
             exception.what() );
@@ -796,8 +894,716 @@ void test_structural_model_regions()
         "structural_model_regions/structural_model_regions_simulation.xml" );
     geode::OpenGeodeGeosciencesIOModelException::test(
         absl::StrContains( deck, "rock_unit" )
-            && absl::StrContains( deck, "rock_reservoir" ),
-        "[Test] StructuralModel deck should use both materials" );
+            && count_occurrences( deck, "<CellElementRegion" ) == 1,
+        "[Test] StructuralModel deck should merge the unit Blocks" );
+}
+
+geode::BRep spe10_reference_model()
+{
+    auto model = geode::load_brep( absl::StrCat(
+        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+    add_spe10_reference_boundary_conditions( model );
+    return model;
+}
+
+template < typename T >
+geode::uuid add_block_property( geode::BRep& model,
+    geode::PHYSICAL_PROPERTY_NAME property,
+    std::string_view name,
+    T value,
+    geode::AttributeProperties properties = {} )
+{
+    geode::AttributeValues< T > values;
+    values.default_value = value;
+    const geode::uuid attribute_id;
+    for( const auto& block : model.blocks() )
+    {
+        block.mesh()
+            .polyhedron_attribute_manager()
+            .create_attribute< geode::VariableAttribute, T >(
+                name, attribute_id, values, properties );
+    }
+    geode::BRepBuilder{ model }.set_physical_property(
+        property, geode::Block3D::component_type_static(), attribute_id );
+    return attribute_id;
+}
+
+void test_geos_checker_problem()
+{
+    const auto model = spe10_reference_model();
+    auto problem = spe10_reference_problem( model );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::SimulationCheckerFactory::has_creator( "geos" ),
+        "[Test] GEOS checker should be registered" );
+    const auto report =
+        geode::check_physical_problem_simulation( problem, model, "GEOS" );
+    geode::OpenGeodeGeosciencesIOModelException::test( report.is_simulable(),
+        "[Test] SPE10 reference should be simulable: ", report.string() );
+    for( const auto* keyword : { "Source term well source is not checked",
+             "porosity is only a GEOS default" } )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            has_issue( report.warnings, keyword ), "[Test] Missing warning ",
+            keyword, ": ", report.string() );
+    }
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        !geode::is_physical_problem_simulable( problem, model, "unknown" ),
+        "[Test] Unknown simulator should not be simulable" );
+
+    geode::PhysicalProblemBuilder builder{ problem };
+    geode::OutputSettings restart_only;
+    restart_only.restart = true;
+    builder.set_output( restart_only );
+    builder.set_solver_option( "geos", "vtk/plotLevel", "2" );
+    builder.set_solver_option( "geos", "nonlinear/bad attribute", "1" );
+    check_geos_warning( problem, model, "the problem has no VTK output" );
+    check_geos_error( problem, model, "is not an XML attribute name" );
+    builder.set_output( geode::OutputSettings{} );
+    check_geos_error( problem, model, "The problem has no output" );
+
+    auto named = spe10_reference_problem( model );
+    auto fluid = spe10_reference_fluid();
+    auto renamed = std::make_shared< geode::DeadOilFluid >(
+        std::vector< geode::PHASE >{ geode::PHASE::oil, geode::PHASE::water },
+        std::vector< geode::FluidComponent >{
+            { "dead oil", 114e-3 }, { "water", 18e-3 } },
+        std::vector< double >{ 800.0, 1022.0 },
+        std::vector< geode::HydrocarbonPvtTable >{
+            fluid->hydrocarbon_pvt().begin(), fluid->hydrocarbon_pvt().end() },
+        fluid->water_pvt() );
+    auto flow = std::make_shared< geode::MultiphaseFlow >();
+    flow->set_fluid( renamed );
+    geode::PhysicalProblemBuilder{ named }.set_flow( flow );
+    check_geos_error( named, model, "Fluid component name \"dead oil\"" );
+}
+
+void test_geos_checker_model()
+{
+    const auto problem = spe10_reference_problem( spe10_reference_model() );
+    {
+        auto model = spe10_reference_model();
+        add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::permeability,
+            "scalar_permeability", 1e-14 );
+        check_geos_error(
+            problem, model, "must store std::array< double, 3 > values" );
+    }
+    {
+        auto model = spe10_reference_model();
+        add_block_property(
+            model, geode::PHYSICAL_PROPERTY_NAME::porosity, "attribute", 0.2 );
+        check_geos_error( problem, model, "is already used in the GEOS mesh" );
+    }
+    {
+        auto model = spe10_reference_model();
+        add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::porosity,
+            "bad_porosity", 2. );
+        check_geos_error( problem, model, "values outside (0, 1]" );
+    }
+    {
+        auto model = spe10_reference_model();
+        static_cast< void >( geode::BRepBuilder{ model }.add_block() );
+        check_geos_error( problem, model, "has no polyhedron" );
+    }
+    {
+        auto model = spe10_reference_model();
+        geode::BRepBuilder{ model }.set_physical_property(
+            geode::PHYSICAL_PROPERTY_NAME::boundary_gas_fraction,
+            geode::Surface3D::component_type_static(), geode::uuid{} );
+        check_geos_warning(
+            problem, model, "No Surface carries a boundary_gas_fraction" );
+    }
+    {
+        auto model = spe10_reference_model();
+        auto two_models = spe10_reference_problem( model );
+        auto other = spe10_reference_material();
+        other.name = "other";
+        other.pore_compressibility = 2e-10;
+        other.regions = { first_block( model ).id() };
+        static_cast< void >(
+            geode::PhysicalProblemBuilder{ two_models }.add_material( other ) );
+        const auto& porosity_id =
+            model
+                .physical_property_info(
+                    geode::PHYSICAL_PROPERTY_NAME::porosity )
+                .attribute_id;
+        const auto& block = first_block( model );
+        const auto porosity_name = block.mesh()
+                                       .polyhedron_attribute_manager()
+                                       .find_generic_attribute( porosity_id )
+                                       ->name()
+                                       .value();
+        geode::AttributeValues< double > values;
+        static_cast< void >(
+            block.mesh()
+                .polyhedron_attribute_manager()
+                .create_attribute< geode::VariableAttribute, double >(
+                    absl::StrCat( porosity_name, "_0" ), values, {} ) );
+        // Only the imported arrays are written in the GEOS mesh
+        check_no_geos_error(
+            two_models, model, "is needed for a copy of the porosity" );
+        add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::permeability,
+            absl::StrCat( porosity_name, "_1" ),
+            std::array< double, 3 >{ 1e-13, 1e-13, 1e-13 } );
+        check_geos_error(
+            two_models, model, "is needed for a copy of the porosity" );
+    }
+    {
+        auto model = spe10_reference_model();
+        geode::AttributeProperties time_step;
+        time_step.time = 1.;
+        add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::porosity,
+            "porosity_step", 0.2, time_step );
+        check_geos_error(
+            problem, model, "porosity attribute is a time series step" );
+    }
+    {
+        auto model = spe10_reference_model();
+        add_block_property(
+            model, geode::PHYSICAL_PROPERTY_NAME::porosity, "bad name!", 0.2 );
+        check_geos_error( problem, model,
+            "Block attribute name \"bad name!\" must only contain" );
+    }
+    {
+        auto model = geode::load_brep( absl::StrCat(
+            geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+        const auto surfaces = all_surfaces( model );
+        add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+            geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "bc_pressure",
+            2.7579e7 );
+        add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+            geode::PHYSICAL_PROPERTY_NAME::boundary_oil_fraction, "bc_oil",
+            0.5 );
+        add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+            geode::PHYSICAL_PROPERTY_NAME::boundary_water_fraction, "bc_water",
+            0.2 );
+        check_geos_error(
+            problem, model, "boundary fluid fractions do not sum to 1" );
+    }
+}
+
+geode::PhysicalProblem toy_problem( bool thermal )
+{
+    geode::PhysicalProblem problem;
+    geode::PhysicalProblemBuilder builder{ problem };
+    auto fluid = std::make_shared< geode::SinglePhaseFluid >(
+        std::vector< geode::PHASE >{ geode::PHASE::water },
+        std::vector< geode::FluidComponent >{ { "water", 18e-3 } }, 1000., 1e-3,
+        5e-10, 0., 1e7, geode::FluidThermalProperties{ 4180., 2e-4, 0. } );
+    auto flow = std::make_shared< geode::SinglePhaseFlow >();
+    flow->set_fluid( fluid );
+    builder.set_flow( flow );
+    geode::Material rock;
+    rock.name = "rock";
+    rock.porosity = 0.2;
+    rock.permeability = std::array< double, 3 >{ 1e-13, 1e-13, 1e-14 };
+    if( thermal )
+    {
+        builder.set_thermal( geode::ThermalParameters{ 300. } );
+        rock.thermal = geode::RockThermalProperties{ 2e6, { 2.5, 2.5, 2.5 } };
+    }
+    builder.add_material( rock );
+    builder.add_initial_condition(
+        std::make_shared< geode::UniformInitialCondition >(
+            std::vector< geode::uuid >{}, 1e7, 300. ) );
+    builder.set_schedule( { 0., 1e5, 10., 1e4 } );
+    geode::OutputSettings output;
+    output.frequency = 5e4;
+    builder.set_output( output );
+    return problem;
+}
+
+geode::BRep load_toy_model()
+{
+    return geode::load_brep( absl::StrCat(
+        geode::DATA_PATH, "adaptive_brep_perm_and_poro.og_brep" ) );
+}
+
+// Surface outside the Blocks, its vertices have no unique vertex
+geode::uuid add_floating_surface( geode::BRep& model,
+    absl::Span< const geode::Point3D > points,
+    absl::Span< const std::array< geode::index_t, 3 > > triangles )
+{
+    geode::BRepBuilder builder{ model };
+    const auto surface_id = builder.add_surface();
+    auto mesh_builder =
+        builder.surface_mesh_builder( model.surface( surface_id ) );
+    for( const auto& point : points )
+    {
+        mesh_builder->create_point( point );
+    }
+    for( const auto& triangle : triangles )
+    {
+        mesh_builder->create_polygon( triangle );
+    }
+    return surface_id;
+}
+
+void test_geos_checker_mesh()
+{
+    {
+        geode::BRep model;
+        geode::BRepBuilder builder{ model };
+        const auto& block_id = builder.add_block(
+            geode::OpenGeodeRegularGrid3D::impl_name_static() );
+        builder
+            .block_mesh_builder< geode::RegularGrid3D >(
+                model.block( block_id ) )
+            ->initialize_grid(
+                geode::Point3D{ { 0., 0., 0. } }, { 2, 2, 2 }, 1. );
+        check_geos_error( toy_problem( false ), model,
+            "The Block meshes merge into a RegularGrid3D" );
+    }
+    {
+        auto model = load_toy_model();
+        const auto problem = toy_problem( false );
+        check_no_geos_error( problem, model, "are not Block" );
+        const std::array< geode::Point3D, 3 > points{ geode::Point3D{
+                                                          { 1e4, 1e4, 1e4 } },
+            geode::Point3D{ { 1e4 + 1, 1e4, 1e4 } },
+            geode::Point3D{ { 1e4, 1e4 + 1, 1e4 } } };
+        const std::array< std::array< geode::index_t, 3 >, 1 > triangles{
+            { { 0, 1, 2 } }
+        };
+        const auto surface_id =
+            add_floating_surface( model, points, triangles );
+        check_geos_error( problem, model,
+            "polygon vertices which are not Block polyhedron vertices" );
+        check_no_geos_error(
+            problem, model, "unique vertices are not Block vertices" );
+        geode::BRepBuilder builder{ model };
+        const auto first_unique_vertex = builder.create_unique_vertices( 3 );
+        const auto& surface = model.surface( surface_id );
+        for( const auto vertex : geode::Range{ 3 } )
+        {
+            builder.set_unique_vertex( { surface.component_id(), vertex },
+                first_unique_vertex + vertex );
+        }
+        check_geos_error(
+            problem, model, "3 unique vertices are not Block vertices" );
+        check_geos_error( problem, model,
+            "polygon vertices which are not Block polyhedron vertices" );
+    }
+}
+
+// Pressure and oil fraction on the given Surfaces, water fraction on the
+// water Surfaces
+void add_multiphase_boundary_conditions( geode::BRep& model,
+    absl::Span< const geode::uuid > surfaces,
+    absl::Span< const geode::uuid > water_surfaces )
+{
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "bc_pressure",
+        2.7579e7 );
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_oil_fraction, "bc_oil",
+        0.9995 );
+    add_boundary_condition< geode::ConstantAttribute >( model, water_surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_water_fraction, "bc_water",
+        0.0005 );
+}
+
+std::shared_ptr< geode::Co2BrineFluid > co2_brine_fluid(
+    geode::CO2_BRINE_CORRELATION correlation,
+    std::vector< double > density_coefficients,
+    std::vector< double > viscosity_coefficients,
+    geode::ValidityRange pressures = { 1e6, 5e7, 1e6 },
+    geode::ValidityRange temperatures = { 290., 400., 10. } )
+{
+    return std::make_shared< geode::Co2BrineFluid >(
+        std::vector< geode::PHASE >{ geode::PHASE::gas, geode::PHASE::water },
+        std::vector< geode::FluidComponent >{
+            { "co2", 44e-3 }, { "water", 18e-3 } },
+        correlation, 1., pressures, temperatures,
+        std::move( density_coefficients ),
+        std::move( viscosity_coefficients ) );
+}
+
+geode::PhysicalProblem co2_brine_problem(
+    const geode::BRep& model, std::shared_ptr< geode::Co2BrineFluid > fluid )
+{
+    auto problem = spe10_reference_problem( model );
+    auto flow = std::make_shared< geode::MultiphaseFlow >(
+        geode::COMPOSITION_BASIS::mass );
+    flow->set_fluid( std::move( fluid ) );
+    geode::PhysicalProblemBuilder{ problem }.set_flow( flow );
+    return problem;
+}
+
+// GEOS writes the materials covering no Block too
+void test_geos_checker_unused_material()
+{
+    // No rock property in the model: materials give every value
+    const auto model =
+        geode::load_brep( absl::StrCat( geode::DATA_PATH, "picasso.og_brep" ) );
+    auto problem = toy_problem( false );
+    auto rock = problem.materials()[0];
+    auto unused = rock;
+    for( const auto& block : model.blocks() )
+    {
+        rock.regions.push_back( block.id() );
+    }
+    unused.name = "unused";
+    unused.permeability.reset();
+    geode::PhysicalProblemBuilder builder{ problem };
+    builder.set_material( 0, rock );
+    static_cast< void >( builder.add_material( unused ) );
+    check_geos_warning( problem, model, "Material unused covers no Block" );
+    const auto report =
+        geode::check_physical_problem_simulation( problem, model, "geos" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        report.errors.size() == 1
+            && has_issue(
+                report.errors, "Material unused needs a permeability" ),
+        "[Test] The unused material permeability should be the only error: ",
+        report.string() );
+}
+
+// Values of properties GEOS does not write are not checked
+void test_geos_checker_ignored_boundary_values()
+{
+    auto model = load_toy_model();
+    add_boundary_condition< geode::ConstantAttribute >( model,
+        all_surfaces( model ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_temperature, "celsius", -5. );
+    const auto isothermal = toy_problem( false );
+    check_geos_warning( isothermal, model,
+        "boundary_temperature is ignored by GEOS single phase" );
+    check_no_geos_error( isothermal, model, "values outside" );
+    check_geos_error( toy_problem( true ), model, "values outside ]0, +inf[" );
+}
+
+void test_geos_checker_problem_warnings()
+{
+    const auto model = spe10_reference_model();
+    {
+        // The SPE10 values are inside the dead oil PVT pressures
+        auto problem = spe10_reference_problem( model );
+        check_no_geos_warning(
+            problem, model, "outside the fluid validity range" );
+        geode::PhysicalProblemBuilder builder{ problem };
+        builder.remove_initial_condition( 0 );
+        builder.add_initial_condition(
+            std::make_shared< geode::UniformInitialCondition >(
+                std::vector< geode::uuid >{}, 1e8, 300.,
+                std::vector< double >{ 0.9995, 0.0005 } ) );
+        check_geos_warning( problem, model,
+            "Initial condition #0 pressure is outside the fluid validity "
+            "range" );
+        auto high_pressure_model = geode::load_brep( absl::StrCat(
+            geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+        const auto surfaces = all_surfaces( high_pressure_model );
+        add_multiphase_boundary_conditions(
+            high_pressure_model, surfaces, surfaces );
+        check_no_geos_warning( spe10_reference_problem( high_pressure_model ),
+            high_pressure_model, "Boundary pressures are outside" );
+        add_boundary_condition< geode::ConstantAttribute >( high_pressure_model,
+            surfaces, geode::PHYSICAL_PROPERTY_NAME::boundary_pressure,
+            "bc_pressure_2", 1e8 );
+        check_geos_warning( spe10_reference_problem( high_pressure_model ),
+            high_pressure_model,
+            "Boundary pressures are outside the fluid validity range" );
+    }
+    {
+        const auto wide = co2_brine_problem( model,
+            co2_brine_fluid( geode::CO2_BRINE_CORRELATION::phillips, {}, {} ) );
+        check_no_geos_warning(
+            wide, model, "outside the fluid validity range" );
+        // The SPE10 pressures and temperatures are outside these ranges
+        const auto narrow = co2_brine_problem(
+            model, co2_brine_fluid( geode::CO2_BRINE_CORRELATION::phillips, {},
+                       {}, { 1e6, 2e7, 1e6 }, { 310., 400., 10. } ) );
+        for( const auto* keyword :
+            { "Boundary pressures are outside the fluid validity range",
+                "Boundary temperatures are outside the fluid validity range",
+                "Initial condition #0 pressure is outside the fluid validity "
+                "range",
+                "Initial condition #0 temperature is outside the fluid "
+                "validity range" } )
+        {
+            check_geos_warning( narrow, model, keyword );
+        }
+    }
+    {
+        check_geos_warning(
+            co2_brine_problem(
+                model, co2_brine_fluid( geode::CO2_BRINE_CORRELATION::phillips,
+                           { 1., 2. }, {} ) ),
+            model,
+            "Co2BrineFluid Ezrokhi coefficients are ignored by the Phillips "
+            "correlation" );
+        check_geos_warning(
+            co2_brine_problem(
+                model, co2_brine_fluid( geode::CO2_BRINE_CORRELATION::ezrokhi,
+                           { 1., 2. }, {} ) ),
+            model,
+            "Co2BrineFluid Ezrokhi correlation without density or viscosity "
+            "coefficients" );
+        check_no_geos_warning(
+            co2_brine_problem(
+                model, co2_brine_fluid( geode::CO2_BRINE_CORRELATION::ezrokhi,
+                           { 1., 2. }, { 3., 4. } ) ),
+            model, "Ezrokhi" );
+    }
+    {
+        auto toy_model = load_toy_model();
+        add_boundary_condition< geode::ConstantAttribute >( toy_model,
+            east_surfaces( toy_model ),
+            geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "bc_pressure",
+            2e7 );
+        auto problem = toy_problem( false );
+        check_no_geos_warning( problem, toy_model, "Material rock" );
+        auto rock = problem.materials()[0];
+        rock.relative_permeability =
+            spe10_reference_material().relative_permeability;
+        rock.thermal = geode::RockThermalProperties{ 2e6, { 2.5, 2.5, 2.5 } };
+        geode::PhysicalProblemBuilder{ problem }.set_material( 0, rock );
+        check_geos_warning( problem, toy_model,
+            "Material rock saturation functions are ignored by single phase "
+            "GEOS simulations" );
+        check_geos_warning( problem, toy_model,
+            "Material rock thermal properties are ignored by isothermal GEOS "
+            "simulations" );
+        check_no_geos_warning(
+            toy_problem( true ), toy_model, "thermal properties are ignored" );
+        check_no_geos_warning(
+            problem, toy_model, "nothing drives the flow in the GEOS deck" );
+        check_geos_warning( problem, load_toy_model(),
+            "The model has no boundary_pressure PhysicalProperty: nothing "
+            "drives the flow in the GEOS deck" );
+    }
+}
+
+void test_geos_checker_boundaries()
+{
+    {
+        auto model = load_toy_model();
+        const auto surfaces = east_surfaces( model );
+        add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+            geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "bc_pressure",
+            2e7 );
+        add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+            geode::PHYSICAL_PROPERTY_NAME::boundary_oil_fraction, "bc_oil",
+            1. );
+        check_geos_warning( toy_problem( false ), model,
+            "boundary_oil_fraction is ignored by GEOS single phase" );
+        check_geos_error( toy_problem( true ), model,
+            "need both a boundary pressure and a boundary temperature" );
+        add_boundary_condition< geode::ConstantAttribute >( model,
+            all_surfaces( model ),
+            geode::PHYSICAL_PROPERTY_NAME::boundary_temperature,
+            "bc_temperature", 330. );
+        check_geos_error(
+            toy_problem( true ), model, "but not boundary_pressure" );
+        // Single phase isothermal decks ignore the boundary temperatures
+        check_no_geos_error(
+            toy_problem( false ), model, "these properties must be given" );
+        check_geos_warning( toy_problem( false ), model,
+            "boundary_temperature is ignored by GEOS single phase" );
+    }
+    {
+        auto model = load_toy_model();
+        const auto surfaces = all_surfaces( model );
+        const std::vector< geode::uuid > other_surfaces{ surfaces.begin() + 1,
+            surfaces.end() };
+        add_multiphase_boundary_conditions( model, surfaces, other_surfaces );
+        check_geos_error( spe10_reference_problem( model ), model,
+            "carries boundary_pressure, boundary_oil_fraction but not "
+            "boundary_water_fraction" );
+    }
+    {
+        // Isothermal multiphase decks take the boundary temperatures given
+        // on the model, so they must be on every pressure Surface
+        auto model = load_toy_model();
+        const auto surfaces = all_surfaces( model );
+        add_multiphase_boundary_conditions( model, surfaces, surfaces );
+        const auto problem = spe10_reference_problem( model );
+        check_no_geos_error( problem, model, "these properties must be given" );
+        add_boundary_condition< geode::ConstantAttribute >( model,
+            std::vector< geode::uuid >{ surfaces.front() },
+            geode::PHYSICAL_PROPERTY_NAME::boundary_temperature,
+            "bc_temperature", 300. );
+        check_geos_error( problem, model,
+            "carries boundary_pressure, boundary_oil_fraction, "
+            "boundary_water_fraction but not boundary_temperature" );
+    }
+    {
+        auto model = load_toy_model();
+        const auto problem = toy_problem( false );
+        // Two triangles sharing the (1, 1, 0) center
+        const std::array< geode::Point3D, 6 > points{
+            geode::Point3D{ { 0., 0., 0. } }, geode::Point3D{ { 3., 0., 0. } },
+            geode::Point3D{ { 0., 3., 0. } }, geode::Point3D{ { 2., 2., 0. } },
+            geode::Point3D{ { 1., -1., 0. } }, geode::Point3D{ { 0., 2., 0. } }
+        };
+        const std::array< std::array< geode::index_t, 3 >, 2 > triangles{
+            { { 0, 1, 2 }, { 3, 4, 5 } }
+        };
+        const auto surface_id =
+            add_floating_surface( model, points, triangles );
+        const auto attribute_id =
+            add_boundary_condition< geode::VariableAttribute >( model,
+                std::vector< geode::uuid >{ surface_id },
+                geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "bc_pressure",
+                2e7 );
+        check_no_geos_error(
+            problem, model, "GEOS tables cannot tell them apart" );
+        model.surface( surface_id )
+            .mesh()
+            .polygon_attribute_manager()
+            .find_attribute< geode::VariableAttribute, double >( attribute_id )
+            ->set_value( 1, 3e7 );
+        check_geos_error(
+            problem, model, "GEOS tables cannot tell them apart" );
+    }
+}
+
+void check_well_failure( std::string_view name,
+    const geode::Point3D& point,
+    std::string_view keyword )
+{
+    const auto model = spe10_reference_model();
+    auto problem = spe10_reference_problem( model );
+    geode::PhysicalProblemBuilder{ problem }.remove_source_term( 0 );
+    geode::BRepGeosExporter exporter( model, "grid_geos_well_failure" );
+    exporter.set_physical_problem( problem );
+    auto point_set = geode::PointSet3D::create(
+        geode::OpenGeodePointSet3D::impl_name_static() );
+    geode::PointSetBuilder3D::create( *point_set )->create_point( point );
+    exporter.add_well_perforations( *point_set, name );
+    try
+    {
+        exporter.run();
+    }
+    catch( const geode::OpenGeodeException& exception )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            absl::StrContains( exception.what(), keyword ),
+            "[Test] Well error does not mention \"", keyword,
+            "\": ", exception.what() );
+        return;
+    }
+    throw geode::OpenGeodeGeosciencesIOModelException{ nullptr,
+        geode::OpenGeodeException::TYPE::internal, "[Test] Export with ",
+        keyword, " should fail" };
+}
+
+class WarningRecorder final : public geode::LoggerClient
+{
+public:
+    explicit WarningRecorder( std::vector< std::string >& warnings )
+        : warnings_( warnings )
+    {
+    }
+
+    void trace( const std::string& /*unused*/ ) override {}
+
+    void debug( const std::string& /*unused*/ ) override {}
+
+    void info( const std::string& /*unused*/ ) override {}
+
+    void warning( const std::string& message ) override
+    {
+        warnings_.push_back( message );
+    }
+
+    void error( const std::string& /*unused*/ ) override {}
+
+    void critical( const std::string& /*unused*/ ) override {}
+
+private:
+    std::vector< std::string >& warnings_;
+};
+
+std::vector< std::string >& logged_warnings()
+{
+    static std::vector< std::string > warnings;
+    static const auto& client = geode::LoggerManager::register_client(
+        std::make_unique< WarningRecorder >( warnings ) );
+    geode_unused( client );
+    return warnings;
+}
+
+void test_geos_checker_wells()
+{
+    {
+        const auto model = spe10_reference_model();
+        auto problem = spe10_reference_problem( model );
+        geode::PhysicalProblemBuilder{ problem }.remove_source_term( 0 );
+        geode::BRepGeosExporter exporter( model, "grid_geos_partial_well" );
+        exporter.set_physical_problem( problem );
+        auto point_set = geode::PointSet3D::create(
+            geode::OpenGeodePointSet3D::impl_name_static() );
+        auto builder = geode::PointSetBuilder3D::create( *point_set );
+        builder->create_point( geode::Point3D{ { 185.93, 336.8, 0.305 } } );
+        builder->create_point( geode::Point3D{ { 1e5, 1e5, 1e5 } } );
+        exporter.add_well_perforations( *point_set, "partial" );
+        auto& warnings = logged_warnings();
+        warnings.clear();
+        exporter.run();
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            has_issue( warnings, "Well partial: 1 of 2 perforations are "
+                                 "outside the Blocks and ignored" ),
+            "[Test] Missing warning on the perforation outside the Blocks" );
+    }
+    check_well_failure( "bad name", geode::Point3D{ { 185.93, 336.8, 0.305 } },
+        "Well name \"bad name\"" );
+    check_well_failure( "outside", geode::Point3D{ { 1e5, 1e5, 1e5 } },
+        "has no perforation in a Block" );
+}
+
+void test_geos_deck_boundary_temperature()
+{
+    {
+        auto model = geode::load_brep( absl::StrCat(
+            geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+        const auto surfaces = all_surfaces( model );
+        add_multiphase_boundary_conditions( model, surfaces, surfaces );
+        auto problem = spe10_reference_problem( model );
+        geode::PhysicalProblemBuilder{ problem }.remove_source_term( 0 );
+        geode::BRepGeosExporter exporter( model, "spe10_isothermal" );
+        exporter.set_physical_problem( problem );
+        exporter.run();
+        const auto deck =
+            read_file( "spe10_isothermal/spe10_isothermal_simulation.xml" );
+        const auto node_start =
+            deck.find( R"(name="boundaryTemperature_isothermal")" );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            node_start != std::string::npos,
+            "[Test] Isothermal multiphase deck misses the boundary "
+            "temperature of its initial conditions" );
+        // Initial temperature on the faces of the boundary pressure
+        const auto node = deck.substr(
+            node_start, deck.find( "/>", node_start ) - node_start );
+        for( const auto* pattern : { R"(fieldName="temperature")",
+                 R"(scale="300")", R"(setNames="{ 1 }")" } )
+        {
+            geode::OpenGeodeGeosciencesIOModelException::test(
+                absl::StrContains( node, pattern ),
+                "[Test] Isothermal boundary temperature misses ", pattern );
+        }
+    }
+    {
+        auto model = load_toy_model();
+        const auto surfaces = east_surfaces( model );
+        add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+            geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "bc_pressure",
+            2e7 );
+        add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+            geode::PHYSICAL_PROPERTY_NAME::boundary_temperature,
+            "bc_temperature", 330. );
+        const auto problem = toy_problem( false );
+        geode::BRepGeosExporter exporter( model, "toy_model_isothermal" );
+        exporter.set_physical_problem( problem );
+        exporter.run();
+        const auto deck = read_file(
+            "toy_model_isothermal/toy_model_isothermal_simulation.xml" );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            absl::StrContains( deck, "name=\"boundaryPressure_0\"" )
+                && !absl::StrContains( deck, "boundaryTemperature" )
+                && count_occurrences( deck, "objectPath=\"faceManager\"" ) == 1,
+            "[Test] Single phase isothermal deck should not write the "
+            "boundary temperature" );
+    }
 }
 
 int main()
@@ -814,6 +1620,15 @@ int main()
         test_toy_model_thermal();
         test_geos_rules();
         test_structural_model_regions();
+        test_geos_checker_problem();
+        test_geos_checker_model();
+        test_geos_checker_mesh();
+        test_geos_checker_unused_material();
+        test_geos_checker_ignored_boundary_values();
+        test_geos_checker_problem_warnings();
+        test_geos_checker_boundaries();
+        test_geos_checker_wells();
+        test_geos_deck_boundary_temperature();
         geode::Logger::info( "TEST SUCCESS" );
 
         return 0;

@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include <array>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -35,7 +36,10 @@
 
 namespace geode
 {
+    class BRep;
+    class FluidModel;
     class PhysicalProblem;
+    struct SimulationReport;
     struct SourceTerm;
 } // namespace geode
 
@@ -69,30 +73,44 @@ namespace geode::internal
     [[nodiscard]] std::string geos_source_term_name(
         const SourceTerm& source_term );
 
-    /// Material of each solid region, with the assignment issues
+    /*!
+     * Material of each solid region, with the regions covering part of a
+     * GEOS region as issues
+     */
     [[nodiscard]] GeosRegionAssignment assign_geos_materials(
-        const PhysicalProblem& problem, const GeosDeckContext& context );
-
-    /// Initial condition of each solid region, with the assignment issues
-    [[nodiscard]] GeosRegionAssignment assign_geos_initial_conditions(
-        const PhysicalProblem& problem, const GeosDeckContext& context );
-
-    /*!
-     * GEOS-specific checks of a problem that need no model data, only the
-     * names of the well perforations given to the exporter (simulator
-     * independent checks are done by validate_physical_problem).
-     * Returns one message per issue, empty if valid.
-     */
-    [[nodiscard]] std::vector< std::string > validate_geos_problem(
         const PhysicalProblem& problem,
-        absl::Span< const std::string > well_names );
+        const BRep& model,
+        const GeosDeckContext& context );
+
+    /// Initial condition of each solid region, assigned as materials are
+    [[nodiscard]] GeosRegionAssignment assign_geos_initial_conditions(
+        const PhysicalProblem& problem,
+        const BRep& model,
+        const GeosDeckContext& context );
+
+    /// Pressures covered by the fluid tables, if bounded
+    [[nodiscard]] std::optional< std::array< double, 2 > >
+        geos_fluid_pressure_range( const FluidModel& fluid );
+
+    /// Temperatures covered by the fluid tables, if bounded
+    [[nodiscard]] std::optional< std::array< double, 2 > >
+        geos_fluid_temperature_range( const FluidModel& fluid );
 
     /*!
-     * GEOS-specific checks of a problem against the model data of the deck
-     * (region assignments are checked by assign_geos_materials and
-     * assign_geos_initial_conditions).
-     * Returns one message per issue, empty if valid.
+     * GEOS-specific checks of a problem that need no model data (simulator
+     * independent checks are done by validate_physical_problem). Without
+     * well names, source term wells are reported as warnings.
      */
-    [[nodiscard]] std::vector< std::string > validate_geos_deck(
-        const PhysicalProblem& problem, const GeosDeckContext& context );
+    void validate_geos_problem( const PhysicalProblem& problem,
+        std::optional< absl::Span< const std::string > > well_names,
+        SimulationReport& report );
+
+    /*!
+     * GEOS-specific checks of a problem against the boundary conditions of
+     * the model (region assignments are checked by assign_geos_materials and
+     * assign_geos_initial_conditions)
+     */
+    void validate_geos_deck( const PhysicalProblem& problem,
+        const GeosDeckContext& context,
+        SimulationReport& report );
 } // namespace geode::internal

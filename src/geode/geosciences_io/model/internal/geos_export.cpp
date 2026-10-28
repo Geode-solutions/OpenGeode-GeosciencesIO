@@ -80,8 +80,10 @@
 #include <geode/geosciences/simulation/core/flow_model.hpp>
 #include <geode/geosciences/simulation/core/fluid.hpp>
 #include <geode/geosciences/simulation/core/physical_problem.hpp>
-#include <geode/geosciences/simulation/helpers/physical_problem_validation.hpp>
+#include <geode/geosciences_io/model/internal/geos_boundary_conditions.hpp>
 #include <geode/geosciences_io/model/internal/geos_export.hpp>
+#include <geode/geosciences_io/model/internal/geos_regions.hpp>
+#include <geode/geosciences_io/model/internal/geos_simulation_checker.hpp>
 #include <geode/geosciences_io/model/internal/geos_simulation_validation.hpp>
 #include <geode/geosciences_io/model/internal/geos_simulation_writer.hpp>
 #include <geode/geosciences_io/model/internal/geos_xml.hpp>
@@ -140,76 +142,8 @@ namespace
         writer.write_file();
     }
 
-    struct GeosBoundaryField
-    {
-        std::string_view field_name;
-        std::string_view name_prefix;
-    };
-
-    const absl::linked_hash_map< geode::PHYSICAL_PROPERTY_NAME,
-        GeosBoundaryField >
-        BOUNDARY_CONDITION_GEOS_FIELDS{
-            { geode::PHYSICAL_PROPERTY_NAME::boundary_pressure,
-                { "pressure", "boundaryPressure" } },
-            { geode::PHYSICAL_PROPERTY_NAME::boundary_temperature,
-                { "temperature", "boundaryTemperature" } },
-        };
-
-    struct GeosFluidFraction
-    {
-        std::string_view fluid;
-        geode::PHASE phase;
-        // Component index used without PhysicalProblem
-        geode::local_index_t legacy_component;
-    };
-
-    const absl::linked_hash_map< geode::PHYSICAL_PROPERTY_NAME,
-        GeosFluidFraction >
-        FLUID_FRACTION_GEOS_NAMES{
-            { geode::PHYSICAL_PROPERTY_NAME::boundary_oil_fraction,
-                { "oil", geode::PHASE::oil, 0 } },
-            { geode::PHYSICAL_PROPERTY_NAME::boundary_gas_fraction,
-                { "gas", geode::PHASE::gas, 1 } },
-            { geode::PHYSICAL_PROPERTY_NAME::boundary_water_fraction,
-                { "water", geode::PHASE::water, 2 } },
-        };
-
-    // GEOS component of a boundary phase fraction: the component carried by
-    // the phase in the problem fluid, or a fixed oil=0, gas=1, water=2 index
-    // without PhysicalProblem
-    std::optional< geode::local_index_t > boundary_fraction_component(
-        const geode::PhysicalProblem* problem,
-        const GeosFluidFraction& fraction )
-    {
-        if( problem == nullptr )
-        {
-            return fraction.legacy_component;
-        }
-        if( !problem->has_flow() || !problem->flow().has_fluid() )
-        {
-            return std::nullopt;
-        }
-        const auto component =
-            geode::phase_component( problem->fluid(), fraction.phase );
-        if( !component )
-        {
-            return std::nullopt;
-        }
-        return static_cast< geode::local_index_t >( component.value() );
-    }
-
-    void check_no_issue( absl::Span< const std::string > issues )
-    {
-        geode::OpenGeodeGeosciencesIOModelException::check_exception(
-            issues.empty(), nullptr, geode::OpenGeodeException::TYPE::data,
-            "[GeosExporter] Cannot write the GEOS simulation deck:\n - ",
-            absl::StrJoin( issues, "\n - " ) );
-    }
-
     constexpr auto BOUNDARY_TABLES_DIRECTORY = "boundary_tables";
     constexpr std::array< std::string_view, 3 > AXIS_NAMES{ "x", "y", "z" };
-
-    using TableCoordinates = std::array< std::vector< double >, 3 >;
 
     // Value of the attribute on each Surface polygon, reduced to a single value
     // for a ConstantAttribute
@@ -261,179 +195,6 @@ namespace
         } );
     }
 
-    // Sorted coordinates of the given polygon centers along an axis, the ones
-    // closer than GLOBAL_EPSILON being merged
-    std::vector< double > axis_coordinates(
-        absl::Span< const geode::Point3D > centers,
-        absl::Span< const geode::index_t > polygons,
-        geode::local_index_t axis )
-    {
-        std::vector< double > values;
-        values.reserve( polygons.size() );
-        for( const auto polygon_id : polygons )
-        {
-            values.push_back( centers[polygon_id].value( axis ) );
-        }
-        absl::c_sort( values );
-        values.erase( std::unique( values.begin(), values.end(),
-                          []( double kept, double value ) {
-                              return value - kept <= geode::GLOBAL_EPSILON;
-                          } ),
-            values.end() );
-        return values;
-    }
-
-    // Replicates GEOS TableFunction nearest lookup along one axis
-    geode::index_t geos_nearest_index(
-        absl::Span< const double > coordinates, double input )
-    {
-        if( input <= coordinates.front() )
-        {
-            return 0;
-        }
-        const auto last =
-            static_cast< geode::index_t >( coordinates.size() - 1 );
-        if( input >= coordinates.back() )
-        {
-            return last;
-        }
-        const auto upper = static_cast< geode::index_t >(
-            absl::c_lower_bound( coordinates, input ) - coordinates.begin() );
-        if( input - coordinates[upper - 1] <= coordinates[upper] - input )
-        {
-            return upper - 1;
-        }
-        return upper;
-    }
-
-    geode::index_t nb_table_nodes( const TableCoordinates& coordinates )
-    {
-        return static_cast< geode::index_t >( coordinates[0].size()
-                                              * coordinates[1].size()
-                                              * coordinates[2].size() );
-    }
-
-    // Polygon centers flattened on the table axes holding a single coordinate
-    std::vector< geode::Point3D > table_projected_centers(
-        const TableCoordinates& coordinates,
-        absl::Span< const geode::Point3D > centers )
-    {
-        std::vector< geode::Point3D > projected_centers{ centers.begin(),
-            centers.end() };
-        for( const auto axis : geode::LRange{ 3 } )
-        {
-            if( coordinates[axis].size() != 1 )
-            {
-                continue;
-            }
-            for( auto& center : projected_centers )
-            {
-                center.set_value( axis, coordinates[axis].front() );
-            }
-        }
-        return projected_centers;
-    }
-
-    // Polygon whose value is stored at each table node, in Fortran order.
-    // Nodes looked up by no polygon center take the value of the closest one.
-    std::vector< geode::index_t > table_node_polygons(
-        const TableCoordinates& coordinates,
-        absl::Span< const geode::index_t > polygon_nodes,
-        absl::Span< const geode::Point3D > centers )
-    {
-        const auto nb_nodes = nb_table_nodes( coordinates );
-        std::vector< geode::index_t > node_polygons( nb_nodes, geode::NO_ID );
-        for( const auto polygon_id : geode::Indices{ polygon_nodes } )
-        {
-            node_polygons[polygon_nodes[polygon_id]] = polygon_id;
-        }
-        if( polygon_nodes.size() == nb_nodes )
-        {
-            return node_polygons;
-        }
-        const geode::NNSearch3D search{ table_projected_centers(
-            coordinates, centers ) };
-        const auto nb_x = coordinates[0].size();
-        const auto nb_xy = nb_x * coordinates[1].size();
-        for( const auto node : geode::Range{ nb_nodes } )
-        {
-            if( node_polygons[node] != geode::NO_ID )
-            {
-                continue;
-            }
-            node_polygons[node] = search.closest_neighbor(
-                geode::Point3D{ { coordinates[0][node % nb_x],
-                    coordinates[1][( node / nb_x ) % coordinates[1].size()],
-                    coordinates[2][node / nb_xy] } } );
-        }
-        return node_polygons;
-    }
-
-    std::vector< geode::index_t > table_polygon_nodes(
-        const TableCoordinates& coordinates,
-        absl::Span< const geode::Point3D > centers )
-    {
-        const auto nb_x = coordinates[0].size();
-        const auto nb_xy = nb_x * coordinates[1].size();
-        std::vector< geode::index_t > polygon_nodes;
-        polygon_nodes.reserve( centers.size() );
-        for( const auto& center : centers )
-        {
-            polygon_nodes.push_back(
-                geos_nearest_index( coordinates[0], center.value( 0 ) )
-                + geos_nearest_index( coordinates[1], center.value( 1 ) ) * nb_x
-                + geos_nearest_index( coordinates[2], center.value( 2 ) )
-                      * nb_xy );
-        }
-        return polygon_nodes;
-    }
-
-    std::vector< geode::index_t > polygons_sharing_node(
-        absl::Span< const geode::index_t > polygon_nodes )
-    {
-        absl::flat_hash_map< geode::index_t, geode::index_t > node_counts;
-        for( const auto node : polygon_nodes )
-        {
-            node_counts[node]++;
-        }
-        std::vector< geode::index_t > polygons;
-        for( const auto polygon_id : geode::Indices{ polygon_nodes } )
-        {
-            if( node_counts.at( polygon_nodes[polygon_id] ) > 1 )
-            {
-                polygons.push_back( polygon_id );
-            }
-        }
-        return polygons;
-    }
-
-    // Adds the x, y and z axes until every polygon center is looked up by
-    // GEOS on its own node. Each added axis only gets the coordinates of the
-    // polygons still sharing a node, which keeps the table small.
-    std::optional< TableCoordinates > separating_table_coordinates(
-        absl::Span< const geode::Point3D > centers )
-    {
-        TableCoordinates coordinates;
-        for( const auto axis : geode::LRange{ 3 } )
-        {
-            coordinates[axis] = { centers.front().value( axis ) };
-        }
-        std::vector< geode::index_t > colliding_polygons( centers.size() );
-        absl::c_iota( colliding_polygons, 0 );
-        for( const auto axis : geode::LRange{ 3 } )
-        {
-            coordinates[axis] =
-                axis_coordinates( centers, colliding_polygons, axis );
-            colliding_polygons = polygons_sharing_node(
-                table_polygon_nodes( coordinates, centers ) );
-            if( colliding_polygons.empty() )
-            {
-                return coordinates;
-            }
-        }
-        return std::nullopt;
-    }
-
     void write_table_values(
         const std::string& filename, absl::Span< const double > values )
     {
@@ -479,8 +240,6 @@ namespace
 
 namespace geode::internal
 {
-    constexpr auto REGION_ID_ATTRIBUTE_NAME = "attribute";
-
     const absl::linked_hash_map< PHYSICAL_PROPERTY_NAME, std::string_view >
         PHYSICAL_PROPERTY_GEOS_NAMES{
             { PHYSICAL_PROPERTY_NAME::permeability, "rockPerm_permeability" },
@@ -546,23 +305,11 @@ namespace geode::internal
           },
           prefix_{ filename_without_extension( files_directory ).string() }
     {
-        if( std::filesystem::path{ to_string( files_directory ) }
-                .is_relative() )
-        {
-            std::filesystem::create_directory(
-                std::filesystem::current_path() / files_directory_ );
-        }
-        else
-        {
-            std::filesystem::create_directory( files_directory_ );
-        }
     }
 
     template < typename Model >
     void GeosExporterImpl< Model >::convert_model()
     {
-        auto curve_conversion = convert_brep_into_curve( model_ );
-        model_curve_ = std::move( std::get< 0 >( curve_conversion ) );
         std::tie( model_solid_, model2solid_ ) =
             convert_brep_into_solid( model_ );
         AttributeValues< index_t > region_attribute_values;
@@ -575,7 +322,7 @@ namespace geode::internal
         region_attribute_id_ =
             model_solid_->polyhedron_attribute_manager()
                 .template create_attribute< VariableAttribute, index_t >(
-                    REGION_ID_ATTRIBUTE_NAME, region_attribute_values,
+                    GEOS_REGION_ATTRIBUTE_NAME, region_attribute_values,
                     region_attribute_properties );
         region_attribute_ = model_solid_->polyhedron_attribute_manager()
                                 .find_attribute< VariableAttribute, index_t >(
@@ -595,6 +342,7 @@ namespace geode::internal
     template < typename Model >
     void GeosExporterImpl< Model >::write_files() const
     {
+        std::filesystem::create_directory( files_directory_ );
         pugi::xml_document doc_xml;
         auto pb_node = doc_xml.append_child( "Problem" );
 
@@ -654,10 +402,7 @@ namespace geode::internal
     template < typename Model >
     void GeosExporterImpl< Model >::prepare_export()
     {
-        if( problem_ != nullptr )
-        {
-            validate_problem();
-        }
+        check_export();
         convert_model();
         const auto nb_solid_regions = initialize_solid_region_attribute();
         initialize_surface_cells( nb_solid_regions );
@@ -681,11 +426,34 @@ namespace geode::internal
     }
 
     template < typename Model >
+    void GeosExporterImpl< Model >::check_export()
+    {
+        std::vector< GeosWell > wells;
+        for( const auto well_id : Indices{ well_perforations_ } )
+        {
+            wells.push_back(
+                { well_names_[well_id], *well_perforations_[well_id] } );
+        }
+        auto check = check_geos_export( model_, geos_region_context( model_ ),
+            problem_, absl::Span< const GeosWell >{ wells } );
+        OpenGeodeGeosciencesIOModelException::check_exception(
+            check.report.is_simulable(), nullptr,
+            OpenGeodeException::TYPE::data,
+            "[GeosExporter] Cannot write the GEOS simulation deck:\n",
+            check.report.string() );
+        for( const auto& warning : check.report.warnings )
+        {
+            Logger::warning( "[GeosExporter] ", warning );
+        }
+        context_ = std::move( check.context );
+        materials_ = std::move( check.materials );
+        initial_conditions_ = std::move( check.initial_conditions );
+    }
+
+    template < typename Model >
     index_t GeosExporterImpl< Model >::initialize_solid_region_attribute()
     {
-        region_definitions_ = create_region_definitions( model_ );
-        add_block_collection_regions();
-        const auto& block_regions = region_definitions_.block_regions;
+        const auto& block_regions = context_.block_regions;
         for( const auto polyhedron_id : Range( model_solid_->nb_polyhedra() ) )
         {
             const auto& block_id =
@@ -698,33 +466,7 @@ namespace geode::internal
                 block_id.string(), " belongs to no region." );
             region_attribute_->set_value( polyhedron_id, region->second );
         }
-        return static_cast< index_t >( region_definitions_.regions.size() );
-    }
-
-    template < typename Model >
-    void GeosExporterImpl< Model >::add_block_collection_regions()
-    {
-        for( const auto& collection : model_.block_collections() )
-        {
-            std::vector< index_t > collection_regions;
-            bool has_merged_block{ false };
-            for( const auto& block :
-                model_.block_collection_items( collection ) )
-            {
-                if( region_definitions_.merged_blocks.contains( block.id() ) )
-                {
-                    has_merged_block = true;
-                    break;
-                }
-                collection_regions.push_back(
-                    region_definitions_.block_regions.at( block.id() ) );
-            }
-            if( !has_merged_block )
-            {
-                region_definitions_.regions_by_uuid.emplace(
-                    collection.id(), std::move( collection_regions ) );
-            }
-        }
+        return static_cast< index_t >( context_.solid_regions.size() );
     }
 
     template < typename Model >
@@ -884,7 +626,7 @@ namespace geode::internal
             specification_node.append_attribute( "setNames" )
                 .set_value( absl::StrCat(
                     "{ ", absl::StrJoin( condition.region_ids, ", " ), " }" )
-                        .c_str() );
+                                .c_str() );
         }
     }
 
@@ -907,32 +649,12 @@ namespace geode::internal
                             absl::StrAppend( out, "./", file );
                         } ),
                     " }" )
-                        .c_str() );
+                                .c_str() );
             function_node.append_attribute( "voxelFile" )
                 .set_value( absl::StrCat( "./", table.voxel_file ).c_str() );
             function_node.append_attribute( "interpolation" )
                 .set_value( "nearest" );
         }
-    }
-
-    template < typename Model >
-    bool GeosExporterImpl< Model >::check_property_name(
-        std::string_view property_name ) const
-    {
-        for( const auto& block : model_.blocks() )
-        {
-            if( !block.mesh()
-                    .polyhedron_attribute_manager()
-                    .attribute_ids_matching_name( property_name )
-                    .has_value() )
-            {
-                Logger::info( "The property ", property_name,
-                    " will not be exported because it is not defined on "
-                    "every block of the model." );
-                return false;
-            }
-        }
-        return true;
     }
 
     template < typename Model >
@@ -950,23 +672,21 @@ namespace geode::internal
                 model_, *model_solid_, model2solid_, property_info );
             imported_fields_.emplace_back(
                 std::move( attribute_name ), to_string( geos_name ) );
-            if( property == PHYSICAL_PROPERTY_NAME::porosity )
-            {
-                porosity_attribute_id_ = property_info.attribute_id;
-            }
-            else
-            {
-                permeability_attribute_id_ = property_info.attribute_id;
-            }
         }
     }
 
     template < typename Model >
     void GeosExporterImpl< Model >::transfer_boundary_conditions()
     {
-        for( const auto& [property, field] : BOUNDARY_CONDITION_GEOS_FIELDS )
+        const auto used = geos_boundary_properties( problem_ );
+        const auto is_exported = [this, &used](
+                                     PHYSICAL_PROPERTY_NAME property ) {
+            return absl::c_linear_search( used, property )
+                   && model_.has_physical_property( property );
+        };
+        for( const auto& [property, field] : geos_boundary_condition_fields() )
         {
-            if( !model_.has_physical_property( property ) )
+            if( !is_exported( property ) )
             {
                 continue;
             }
@@ -974,15 +694,14 @@ namespace geode::internal
                 boundary_condition_attribute_id( model_, property ),
                 field.field_name, field.name_prefix, std::nullopt );
         }
-        for( const auto& [property, fraction] : FLUID_FRACTION_GEOS_NAMES )
+        for( const auto& [property, fraction] : geos_fluid_fractions() )
         {
-            if( !model_.has_physical_property( property ) )
+            if( !is_exported( property ) )
             {
                 continue;
             }
-            boundary_fraction_phases_.push_back( fraction.phase );
             const auto component =
-                boundary_fraction_component( problem_, fraction );
+                geos_boundary_fraction_component( problem_, fraction );
             if( !component )
             {
                 // Reported by validate_geos_deck
@@ -1214,92 +933,42 @@ namespace geode::internal
     }
 
     template < typename Model >
-    GeosDeckContext GeosExporterImpl< Model >::build_deck_context() const
+    void GeosExporterImpl< Model >::compute_mean_rock_properties()
     {
-        GeosDeckContext context;
-        context.solid_regions = region_definitions_.regions;
-        context.regions_by_uuid = region_definitions_.regions_by_uuid;
-        context.merged_blocks = region_definitions_.merged_blocks;
         const auto& manager = model_solid_->polyhedron_attribute_manager();
         const auto nb_polyhedra = model_solid_->nb_polyhedra();
-        if( porosity_attribute_id_ )
+        if( context_.porosity_array )
         {
             const auto attribute = manager.find_generic_attribute(
-                porosity_attribute_id_.value() );
-            context.porosity_array =
-                GeosCellArray{ porosity_attribute_id_.value(),
-                    attribute->name().value() };
-            context.mean_porosity =
+                context_.porosity_array->attribute_id );
+            context_.mean_porosity =
                 mean_attribute_item( *attribute, nb_polyhedra, 0 );
         }
-        if( permeability_attribute_id_ )
+        if( context_.permeability_array )
         {
             const auto attribute = manager.find_generic_attribute(
-                permeability_attribute_id_.value() );
-            context.permeability_array =
-                GeosCellArray{ permeability_attribute_id_.value(),
-                    attribute->name().value() };
+                context_.permeability_array->attribute_id );
             std::array< double, 3 > mean{ 0, 0, 0 };
-            const auto is_isotropic = attribute->nb_items() < 3;
             for( const auto axis : LRange{ 3 } )
             {
-                mean[axis] = mean_attribute_item(
-                    *attribute, nb_polyhedra, is_isotropic ? 0 : axis );
+                mean[axis] =
+                    mean_attribute_item( *attribute, nb_polyhedra, axis );
             }
-            context.mean_permeability = mean;
+            context_.mean_permeability = mean;
         }
-        context.boundary_fraction_phases = boundary_fraction_phases_;
-        context.has_boundary_pressure = model_.has_physical_property(
-            PHYSICAL_PROPERTY_NAME::boundary_pressure );
-        context.has_boundary_temperature = model_.has_physical_property(
-            PHYSICAL_PROPERTY_NAME::boundary_temperature );
-        context.well_names = well_names_;
-        return context;
-    }
-
-    template < typename Model >
-    void GeosExporterImpl< Model >::validate_problem() const
-    {
-        auto issues = validate_physical_problem( *problem_ );
-        for( auto& issue :
-            validate_physical_problem_regions( *problem_, model_ ) )
-        {
-            issues.push_back( std::move( issue ) );
-        }
-        for( auto& issue : validate_geos_problem( *problem_, well_names_ ) )
-        {
-            issues.push_back( std::move( issue ) );
-        }
-        check_no_issue( issues );
     }
 
     template < typename Model >
     void GeosExporterImpl< Model >::prepare_simulation()
     {
-        context_ = build_deck_context();
-        auto issues = validate_geos_deck( *problem_, context_ );
-        const auto materials = assign_geos_materials( *problem_, context_ );
-        const auto initial_conditions =
-            assign_geos_initial_conditions( *problem_, context_ );
-        for( const auto* assignment : { &materials, &initial_conditions } )
-        {
-            issues.insert( issues.end(), assignment->issues.begin(),
-                assignment->issues.end() );
-        }
-        check_no_issue( issues );
-        if( !context_.has_boundary_pressure )
-        {
-            Logger::warning(
-                "[GeosExporter] The model has no boundary pressure: "
-                "nothing drives the flow in the GEOS deck." );
-        }
+        compute_mean_rock_properties();
         if( const auto temperature =
                 geos_default_boundary_temperature( *problem_, context_ ) )
         {
             add_isothermal_boundary_temperature( temperature.value() );
         }
-        writer_ = std::make_unique< GeosSimulationWriter >(
-            *problem_, context_, materials, initial_conditions );
+        writer_ = std::make_unique< GeosSimulationWriter >( *problem_, context_,
+            materials_.value(), initial_conditions_.value() );
     }
 
     template < typename Model >
