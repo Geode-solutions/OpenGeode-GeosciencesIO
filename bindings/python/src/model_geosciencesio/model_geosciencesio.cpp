@@ -21,15 +21,9 @@
  *
  */
 
-#include <string_view>
-
-#include <geode/mesh/core/point_set.hpp>
-
-#include <geode/geosciences/explicit/representation/core/structural_model.hpp>
-#include <geode/geosciences_io/model/helpers/brep_geos_export.hpp>
-#include <geode/geosciences_io/model/helpers/structural_model_geos_export.hpp>
-
 #include <pybind11/pybind11.h>
+
+#include <geode/geosciences_io/model/common.hpp>
 
 PYBIND11_MODULE( opengeode_geosciencesio_py_model, module )
 {
@@ -38,22 +32,4 @@ PYBIND11_MODULE( opengeode_geosciencesio_py_model, module )
         module, "OpenGeodeGeosciencesIOModelLibrary" )
         .def( "initialize",
             &geode::OpenGeodeGeosciencesIOModelLibrary::initialize );
-
-    pybind11::class_< geode::BRepGeosExporter >( module, "BRepGeosExporter" )
-        .def( pybind11::init< const geode::BRep&, std::string_view >() )
-        .def( "add_well_perforations",
-            static_cast< void ( geode::BRepGeosExporter::* )(
-                const geode::PointSet3D&, std::string_view ) >(
-                &geode::BRepGeosExporter::add_well_perforations ) )
-        .def( "run", &geode::BRepGeosExporter::run );
-
-    pybind11::class_< geode::StructuralModelGeosExporter >(
-        module, "StructuralModelGeosExporter" )
-        .def( pybind11::init< const geode::StructuralModel&,
-            std::string_view >() )
-        .def( "add_well_perforations",
-            static_cast< void ( geode::StructuralModelGeosExporter::* )(
-                const geode::PointSet3D&, std::string_view ) >(
-                &geode::StructuralModelGeosExporter::add_well_perforations ) )
-        .def( "run", &geode::StructuralModelGeosExporter::run );
 }
