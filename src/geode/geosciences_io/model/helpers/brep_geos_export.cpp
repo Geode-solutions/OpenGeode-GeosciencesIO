@@ -37,16 +37,20 @@ namespace geode
 
     public:
         Impl() = delete;
-        Impl( const BRep& brep, std::string_view files_directory )
-            : internal::GeosExporterImpl< BRep >( files_directory, brep )
+        Impl( const BRep& brep,
+            const PhysicalProblem& problem,
+            std::string_view files_directory )
+            : internal::GeosExporterImpl< BRep >(
+                files_directory, brep, problem )
         {
         }
         virtual ~Impl() = default;
     };
 
-    BRepGeosExporter::BRepGeosExporter(
-        const BRep& brep, std::string_view files_directory )
-        : impl_( brep, files_directory )
+    BRepGeosExporter::BRepGeosExporter( const BRep& brep,
+        const PhysicalProblem& problem,
+        std::string_view files_directory )
+        : impl_( brep, problem, files_directory )
     {
     }
 
@@ -56,12 +60,6 @@ namespace geode
         const PointSet3D& well_perforation, std::string_view name )
     {
         impl_->add_well_perforations( well_perforation, name );
-    }
-
-    void BRepGeosExporter::set_physical_problem(
-        const PhysicalProblem& problem )
-    {
-        impl_->set_physical_problem( problem );
     }
 
     void BRepGeosExporter::run()

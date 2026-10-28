@@ -61,8 +61,6 @@ namespace geode::internal
     {
         std::string_view fluid;
         PHASE phase;
-        /// Component index used without PhysicalProblem
-        local_index_t legacy_component;
     };
 
     /// Phase of each boundary fluid fraction property
@@ -70,22 +68,19 @@ namespace geode::internal
         GeosFluidFraction >&
         geos_fluid_fractions();
 
-    /*!
-     * GEOS component of a boundary phase fraction: the component carried by
-     * the phase in the problem fluid, or a fixed oil=0, gas=1, water=2 index
-     * without PhysicalProblem
-     */
+    /// GEOS component of a boundary phase fraction: the component carried by
+    /// the phase in the problem fluid
     [[nodiscard]] std::optional< local_index_t >
         geos_boundary_fraction_component(
-            const PhysicalProblem* problem, const GeosFluidFraction& fraction );
+            const PhysicalProblem& problem, const GeosFluidFraction& fraction );
 
     /*!
      * Boundary condition properties the GEOS solver of the problem uses:
      * pressure, temperature if thermal or multiphase, and the fraction of
-     * every fluid phase if multiphase. Every property without problem.
+     * every fluid phase if multiphase.
      */
     [[nodiscard]] std::vector< PHYSICAL_PROPERTY_NAME >
-        geos_boundary_properties( const PhysicalProblem* problem );
+        geos_boundary_properties( const PhysicalProblem& problem );
 
     using TableCoordinates = std::array< std::vector< double >, 3 >;
 

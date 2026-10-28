@@ -240,15 +240,8 @@ namespace
 
 namespace geode::internal
 {
-    const absl::linked_hash_map< PHYSICAL_PROPERTY_NAME, std::string_view >
-        PHYSICAL_PROPERTY_GEOS_NAMES{
-            { PHYSICAL_PROPERTY_NAME::permeability, "rockPerm_permeability" },
-            { PHYSICAL_PROPERTY_NAME::porosity,
-                "rockPorosity_referencePorosity" },
-        };
-
     template < typename Model >
-    std::string transfer_block_attribute( const Model& model,
+    void transfer_block_attribute( const Model& model,
         SolidMesh3D& solid,
         const ModelToMeshMappings& model2solid,
         const PhysicalProperties::Info& property_info )
@@ -293,17 +286,19 @@ namespace geode::internal
             OpenGeodeException::TYPE::data,
             "[GeosExporter] Physical property attribute ",
             attribute_id.string(), " has no name." );
-        return attribute->name().value();
     }
 
     template < typename Model >
     GeosExporterImpl< Model >::GeosExporterImpl(
-        std::string_view files_directory, const Model& model )
+        std::string_view files_directory,
+        const Model& model,
+        const PhysicalProblem& problem )
         : model_( model ),
           files_directory_{
               std::filesystem::path{ to_string( files_directory ) }.string()
           },
-          prefix_{ filename_without_extension( files_directory ).string() }
+          prefix_{ filename_without_extension( files_directory ).string() },
+          problem_( problem )
     {
     }
 
@@ -333,13 +328,6 @@ namespace geode::internal
     GeosExporterImpl< Model >::~GeosExporterImpl() = default;
 
     template < typename Model >
-    void GeosExporterImpl< Model >::set_physical_problem(
-        const PhysicalProblem& problem )
-    {
-        problem_ = &problem;
-    }
-
-    template < typename Model >
     void GeosExporterImpl< Model >::write_files() const
     {
         std::filesystem::create_directory( files_directory_ );
@@ -356,25 +344,7 @@ namespace geode::internal
             write_well_perforation_file();
         }
 
-        if( writer_ )
-        {
-            write_simulation_sections( pb_node );
-        }
-        else
-        {
-            if( !boundary_conditions_.empty() )
-            {
-                auto field_specifications_node =
-                    pb_node.append_child( "FieldSpecifications" );
-                write_boundary_conditions( field_specifications_node );
-            }
-
-            if( !boundary_tables_.empty() )
-            {
-                auto functions_node = pb_node.append_child( "Functions" );
-                write_boundary_functions( functions_node );
-            }
-        }
+        write_simulation_sections( pb_node );
         if( !boundary_tables_.empty() )
         {
             write_boundary_table_files();
@@ -408,10 +378,7 @@ namespace geode::internal
         initialize_surface_cells( nb_solid_regions );
         transfer_physical_properties();
         transfer_boundary_conditions();
-        if( problem_ != nullptr )
-        {
-            prepare_simulation();
-        }
+        prepare_simulation();
     }
 
     template < typename Model >
@@ -560,41 +527,20 @@ namespace geode::internal
             to_string( prefix() ).c_str() );
         vtk_mesh_node.append_attribute( "file" ).set_value(
             absl::StrCat( "./", file_vtu ).c_str() );
-        if( writer_ )
+        std::vector< std::string > vtu_names;
+        std::vector< std::string > geos_names_list;
+        for( const auto& field : writer_->imported_fields() )
         {
-            std::vector< std::string > vtu_names;
-            std::vector< std::string > geos_names_list;
-            for( const auto& field : writer_->imported_fields() )
-            {
-                vtu_names.push_back( field.vtu_name );
-                geos_names_list.push_back( field.geos_name );
-            }
-            if( !vtu_names.empty() )
-            {
-                set_attribute(
-                    vtk_mesh_node, "fieldsToImport", geos_names( vtu_names ) );
-                set_attribute( vtk_mesh_node, "fieldNamesInGEOS",
-                    geos_names( geos_names_list ) );
-            }
-            return;
+            vtu_names.push_back( field.vtu_name );
+            geos_names_list.push_back( field.geos_name );
         }
-        if( imported_fields_.empty() )
+        if( !vtu_names.empty() )
         {
-            return;
+            set_attribute(
+                vtk_mesh_node, "fieldsToImport", geos_names( vtu_names ) );
+            set_attribute( vtk_mesh_node, "fieldNamesInGEOS",
+                geos_names( geos_names_list ) );
         }
-        const auto join_fields = [this]( bool vtu_names ) {
-            return absl::StrCat( "{ ",
-                absl::StrJoin( imported_fields_, ", ",
-                    [vtu_names]( std::string* out, const auto& field ) {
-                        absl::StrAppend(
-                            out, vtu_names ? field.first : field.second );
-                    } ),
-                " }" );
-        };
-        vtk_mesh_node.append_attribute( "fieldsToImport" )
-            .set_value( join_fields( true ).c_str() );
-        vtk_mesh_node.append_attribute( "fieldNamesInGEOS" )
-            .set_value( join_fields( false ).c_str() );
     }
 
     template < typename Model >
@@ -660,18 +606,15 @@ namespace geode::internal
     template < typename Model >
     void GeosExporterImpl< Model >::transfer_physical_properties()
     {
-        for( const auto& [property, geos_name] : PHYSICAL_PROPERTY_GEOS_NAMES )
+        for( const auto property : { PHYSICAL_PROPERTY_NAME::permeability,
+                 PHYSICAL_PROPERTY_NAME::porosity } )
         {
             if( !model_.has_physical_property( property ) )
             {
                 continue;
             }
-            const auto& property_info =
-                model_.physical_property_info( property );
-            auto attribute_name = transfer_block_attribute(
-                model_, *model_solid_, model2solid_, property_info );
-            imported_fields_.emplace_back(
-                std::move( attribute_name ), to_string( geos_name ) );
+            transfer_block_attribute( model_, *model_solid_, model2solid_,
+                model_.physical_property_info( property ) );
         }
     }
 
@@ -896,10 +839,6 @@ namespace geode::internal
     void GeosExporterImpl< Model >::duplicate_imported_fields(
         AttributeManager& cell_attributes ) const
     {
-        if( !writer_ )
-        {
-            return;
-        }
         for( const auto& field : writer_->imported_fields() )
         {
             if( !field.is_copy() )
@@ -963,12 +902,12 @@ namespace geode::internal
     {
         compute_mean_rock_properties();
         if( const auto temperature =
-                geos_default_boundary_temperature( *problem_, context_ ) )
+                geos_default_boundary_temperature( problem_, context_ ) )
         {
             add_isothermal_boundary_temperature( temperature.value() );
         }
-        writer_ = std::make_unique< GeosSimulationWriter >( *problem_, context_,
-            materials_.value(), initial_conditions_.value() );
+        writer_ = std::make_unique< GeosSimulationWriter >(
+            problem_, context_, materials_, initial_conditions_ );
     }
 
     template < typename Model >

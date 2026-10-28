@@ -59,20 +59,19 @@ namespace geode::internal
         SimulationReport report;
         /// Regions and model data of the deck, mean values excepted
         GeosDeckContext context;
-        /// Region assignments, only with a problem
-        std::optional< GeosRegionAssignment > materials;
-        std::optional< GeosRegionAssignment > initial_conditions;
+        GeosRegionAssignment materials;
+        GeosRegionAssignment initial_conditions;
     };
 
     /*!
      * Every check of a GEOS export, done on the model without converting it:
-     * model meshes and properties, then the problem if any. Without wells,
-     * source term wells are not checked.
+     * model meshes and properties, then the problem. Without wells, source
+     * term wells are not checked.
      * @param[in] regions Context holding the GEOS regions of the exporter
      */
     [[nodiscard]] GeosExportCheck check_geos_export( const BRep& model,
         GeosDeckContext regions,
-        const PhysicalProblem* problem,
+        const PhysicalProblem& problem,
         std::optional< absl::Span< const GeosWell > > wells );
 
     /*!

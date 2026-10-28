@@ -118,7 +118,7 @@ namespace
     public:
         GeosExportChecker( const geode::BRep& model,
             geode::internal::GeosDeckContext regions,
-            const geode::PhysicalProblem* problem,
+            const geode::PhysicalProblem& problem,
             std::optional< absl::Span< const geode::internal::GeosWell > >
                 wells )
             : model_( model ), problem_( problem ), wells_( wells )
@@ -128,11 +128,8 @@ namespace
 
         geode::internal::GeosExportCheck run()
         {
-            if( problem_ != nullptr )
-            {
-                geode::check_physical_problem_consistency(
-                    *problem_, model_, report() );
-            }
+            geode::check_physical_problem_consistency(
+                problem_, model_, report() );
             check_mesh();
             check_rock_properties();
             check_boundary_properties();
@@ -140,10 +137,7 @@ namespace
             {
                 check_wells();
             }
-            if( problem_ != nullptr )
-            {
-                check_problem();
-            }
+            check_problem();
             return std::move( result_ );
         }
 
@@ -160,14 +154,14 @@ namespace
 
         [[nodiscard]] bool has_fluid() const
         {
-            return problem_->has_flow() && problem_->flow().has_fluid();
+            return problem_.has_flow() && problem_.flow().has_fluid();
         }
 
         [[nodiscard]] bool is_multiphase() const
         {
             return has_fluid()
                    && dynamic_cast< const geode::MultiphaseFlow* >(
-                          &problem_->flow() )
+                          &problem_.flow() )
                           != nullptr;
         }
 
@@ -447,8 +441,8 @@ namespace
                 well_names = absl::Span< const std::string >{ well_names_ };
             }
             geode::internal::validate_geos_problem(
-                *problem_, well_names, report() );
-            if( !problem_->materials().empty() )
+                problem_, well_names, report() );
+            if( !problem_.materials().empty() )
             {
                 check_material_rock_values();
             }
@@ -459,18 +453,18 @@ namespace
             }
             check_problem_boundary_conditions();
             geode::internal::validate_geos_deck(
-                *problem_, context(), report() );
+                problem_, context(), report() );
             check_porosity_copies();
         }
 
         void check_material_rock_values()
         {
             geode::check_rock_property_availability(
-                *problem_, model_, *porosity_, report() );
+                problem_, model_, *porosity_, report() );
             geode::check_rock_property_availability(
-                *problem_, model_, *permeability_, report() );
+                problem_, model_, *permeability_, report() );
             check_unused_material_rock_values();
-            for( const auto& material : problem_->materials() )
+            for( const auto& material : problem_.materials() )
             {
                 if( porosity_->is_carried() && material.porosity )
                 {
@@ -492,11 +486,11 @@ namespace
         {
             absl::flat_hash_set< geode::index_t > used;
             for( const auto& [block, material] :
-                geode::physical_problem_block_materials( *problem_, model_ ) )
+                geode::physical_problem_block_materials( problem_, model_ ) )
             {
                 used.insert( material );
             }
-            const auto materials = problem_->materials();
+            const auto materials = problem_.materials();
             for( const auto material_id : geode::Indices{ materials } )
             {
                 if( used.contains( material_id ) )
@@ -523,12 +517,12 @@ namespace
         void check_region_assignments()
         {
             result_.materials = geode::internal::assign_geos_materials(
-                *problem_, model_, context() );
+                problem_, model_, context() );
             result_.initial_conditions =
                 geode::internal::assign_geos_initial_conditions(
-                    *problem_, model_, context() );
-            for( const auto* assignment : { &result_.materials.value(),
-                     &result_.initial_conditions.value() } )
+                    problem_, model_, context() );
+            for( const auto* assignment :
+                { &result_.materials, &result_.initial_conditions } )
             {
                 for( const auto& issue : assignment->issues )
                 {
@@ -576,7 +570,7 @@ namespace
 
         void check_boundary_ranges()
         {
-            const auto& fluid = problem_->fluid();
+            const auto& fluid = problem_.fluid();
             const auto& pressure =
                 boundary_coverage( PHYSICAL_PROPERTY_NAME::boundary_pressure );
             const auto pressures =
@@ -664,7 +658,7 @@ namespace
                 return;
             }
             const auto nb_groups = static_cast< geode::index_t >(
-                geode::internal::geos_porosity_groups( *problem_, context() )
+                geode::internal::geos_porosity_groups( problem_, context() )
                     .groups.size() );
             if( nb_groups < 2 )
             {
@@ -690,7 +684,7 @@ namespace
 
     private:
         const geode::BRep& model_;
-        const geode::PhysicalProblem* problem_;
+        const geode::PhysicalProblem& problem_;
         std::optional< absl::Span< const geode::internal::GeosWell > > wells_;
         geode::internal::GeosExportCheck result_;
         std::optional< geode::PhysicalPropertyCoverage > porosity_;
@@ -707,7 +701,7 @@ namespace geode::internal
 {
     GeosExportCheck check_geos_export( const BRep& model,
         GeosDeckContext regions,
-        const PhysicalProblem* problem,
+        const PhysicalProblem& problem,
         std::optional< absl::Span< const GeosWell > > wells )
     {
         return GeosExportChecker{ model, std::move( regions ), problem, wells }
@@ -718,7 +712,7 @@ namespace geode::internal
         const PhysicalProblem& problem, const BRep& model ) const
     {
         return check_geos_export( model, geos_inferred_region_context( model ),
-            &problem, std::nullopt )
+            problem, std::nullopt )
             .report;
     }
 } // namespace geode::internal

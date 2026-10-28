@@ -28,7 +28,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include <absl/container/flat_hash_map.h>
@@ -76,8 +75,10 @@ namespace geode::internal
 
     public:
         GeosExporterImpl() = delete;
-        GeosExporterImpl(
-            std::string_view files_directory, const Model& model );
+        /// The problem must outlive the export
+        GeosExporterImpl( std::string_view files_directory,
+            const Model& model,
+            const PhysicalProblem& problem );
         virtual ~GeosExporterImpl();
 
         void prepare_export();
@@ -85,10 +86,6 @@ namespace geode::internal
 
         void add_well_perforations(
             const PointSet3D& perforations, std::string_view name );
-
-        /// Writes a full simulation deck instead of the mesh and boundary
-        /// conditions only. The problem must outlive the export.
-        void set_physical_problem( const PhysicalProblem& problem );
 
     protected:
         std::string_view files_directory() const;
@@ -172,7 +169,6 @@ namespace geode::internal
         std::string files_directory_;
         std::string prefix_;
 
-        std::vector< std::pair< std::string, std::string > > imported_fields_{};
         std::vector< BoundaryCondition > boundary_conditions_{};
         absl::flat_hash_map< uuid, BoundaryGrid > boundary_grids_{};
         std::vector< BoundaryTable > boundary_tables_{};
@@ -180,10 +176,10 @@ namespace geode::internal
         std::vector< std::unique_ptr< PointSet3D > > well_perforations_{};
         std::vector< std::string > well_names_{};
 
-        const PhysicalProblem* problem_{ nullptr };
+        const PhysicalProblem& problem_;
         GeosDeckContext context_{};
-        std::optional< GeosRegionAssignment > materials_{};
-        std::optional< GeosRegionAssignment > initial_conditions_{};
+        GeosRegionAssignment materials_{};
+        GeosRegionAssignment initial_conditions_{};
         std::unique_ptr< GeosSimulationWriter > writer_{};
     };
 } // namespace geode::internal

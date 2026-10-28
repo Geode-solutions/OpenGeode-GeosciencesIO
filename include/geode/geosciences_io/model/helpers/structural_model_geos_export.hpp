@@ -45,21 +45,19 @@ namespace geode
 
     public:
         StructuralModelGeosExporter() = delete;
-        StructuralModelGeosExporter(
-            const StructuralModel& model, std::string_view files_directory );
+        /*!
+         * Writes the simulation deck (mesh, wells, boundary conditions,
+         * solvers, fluid, rock, initial conditions, events) of the problem.
+         * The model and the problem must outlive the exporter.
+         */
+        StructuralModelGeosExporter( const StructuralModel& model,
+            const PhysicalProblem& problem,
+            std::string_view files_directory );
 
         ~StructuralModelGeosExporter();
 
         void add_well_perforations(
             const PointSet3D& well_perforations, std::string_view name );
-
-        /*!
-         * Writes a full simulation deck (solvers, fluid, rock, initial
-         * conditions, events) described by the problem. Without it, only the
-         * mesh, wells and boundary conditions are written.
-         * The problem must outlive run().
-         */
-        void set_physical_problem( const PhysicalProblem& problem );
 
         /*!
          * Checks the model, the wells and the problem first, with the rules

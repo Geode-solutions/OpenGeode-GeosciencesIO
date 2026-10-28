@@ -90,6 +90,10 @@
 #include <geode/model/representation/io/brep_input.hpp>
 
 std::string read_file( const std::string& filename );
+geode::index_t count_occurrences(
+    std::string_view content, std::string_view pattern );
+geode::PhysicalProblem spe10_reference_problem( const geode::BRep& model );
+geode::PhysicalProblem toy_problem( bool thermal );
 
 std::vector< geode::uuid > east_surfaces( const geode::BRep& model )
 {
@@ -149,15 +153,18 @@ void test_picasso()
     add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
         geode::PHYSICAL_PROPERTY_NAME::boundary_water_fraction,
         "water_fraction", 0.0005 );
-    geode::BRepGeosExporter exporter( model, "picasso" );
+    // Oil and water fluid, without the source term well
+    auto problem = spe10_reference_problem( model );
+    geode::PhysicalProblemBuilder{ problem }.remove_source_term( 0 );
+    geode::BRepGeosExporter exporter( model, problem, "picasso" );
     exporter.run();
     const auto deck = read_file( "picasso/picasso_simulation.xml" );
     geode::OpenGeodeGeosciencesIOModelException::test(
-        absl::StrContains( deck, "component=\"0\"" )
-            && absl::StrContains( deck, "component=\"2\"" )
-            && !absl::StrContains( deck, "component=\"1\"" ),
-        "[Test] Boundary fractions must use the fixed oil=0, water=2 "
-        "component indices" );
+        count_occurrences( deck, "boundaryComposition_oil" ) == 1
+            && count_occurrences( deck, "boundaryComposition_water" ) == 1
+            && !absl::StrContains( deck, "component=\"2\"" ),
+        "[Test] Boundary fractions must use the components of the problem "
+        "fluid" );
 }
 
 std::string read_file( const std::string& filename )
@@ -243,7 +250,8 @@ void test_uniform_variable_boundary_condition()
     const auto surfaces = east_surfaces( model );
     add_boundary_condition< geode::VariableAttribute >( model, surfaces,
         geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "pressure", 1e7 );
-    geode::BRepGeosExporter exporter( model, "picasso_uniform" );
+    const auto problem = toy_problem( false );
+    geode::BRepGeosExporter exporter( model, problem, "picasso_uniform" );
     exporter.run();
     const auto xml =
         read_file( "picasso_uniform/picasso_uniform_simulation.xml" );
@@ -338,7 +346,8 @@ void test_variable_boundary_condition()
             geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "pressure", 0. );
     const auto pressure_range =
         set_depth_pressures( model, surfaces, attribute_id );
-    geode::BRepGeosExporter exporter( model, "picasso_variable" );
+    const auto problem = toy_problem( false );
+    geode::BRepGeosExporter exporter( model, problem, "picasso_variable" );
     exporter.run();
 
     const auto xml =
@@ -568,8 +577,7 @@ void test_spe10_reference()
         geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
     add_spe10_reference_boundary_conditions( model );
     const auto problem = spe10_reference_problem( model );
-    geode::BRepGeosExporter exporter( model, "spe10_reference" );
-    exporter.set_physical_problem( problem );
+    geode::BRepGeosExporter exporter( model, problem, "spe10_reference" );
     add_spe10_wells( exporter );
     exporter.run();
     const auto deck =
@@ -652,8 +660,7 @@ void test_toy_model_thermal()
     output.frequency = 5e4;
     builder.set_output( output );
 
-    geode::BRepGeosExporter exporter( model, "toy_model_thermal" );
-    exporter.set_physical_problem( problem );
+    geode::BRepGeosExporter exporter( model, problem, "toy_model_thermal" );
     exporter.run();
     const auto deck =
         read_file( "toy_model_thermal/toy_model_thermal_simulation.xml" );
@@ -673,8 +680,7 @@ void check_export_failure( const geode::BRep& model,
     std::string_view keyword )
 {
     std::filesystem::remove_all( "grid_geos_failure" );
-    geode::BRepGeosExporter exporter( model, "grid_geos_failure" );
-    exporter.set_physical_problem( problem );
+    geode::BRepGeosExporter exporter( model, problem, "grid_geos_failure" );
     try
     {
         exporter.run();
@@ -866,8 +872,7 @@ void test_structural_model_regions()
     try
     {
         geode::StructuralModelGeosExporter exporter(
-            model, "structural_model_failure" );
-        exporter.set_physical_problem( problem );
+            model, problem, "structural_model_failure" );
         exporter.run();
     }
     catch( const geode::OpenGeodeException& exception )
@@ -887,8 +892,7 @@ void test_structural_model_regions()
     geode::PhysicalProblemBuilder{ problem }.set_material(
         unit_material_id, unit_material );
     geode::StructuralModelGeosExporter exporter(
-        model, "structural_model_regions" );
-    exporter.set_physical_problem( problem );
+        model, problem, "structural_model_regions" );
     exporter.run();
     const auto deck = read_file(
         "structural_model_regions/structural_model_regions_simulation.xml" );
@@ -1464,8 +1468,8 @@ void check_well_failure( std::string_view name,
     const auto model = spe10_reference_model();
     auto problem = spe10_reference_problem( model );
     geode::PhysicalProblemBuilder{ problem }.remove_source_term( 0 );
-    geode::BRepGeosExporter exporter( model, "grid_geos_well_failure" );
-    exporter.set_physical_problem( problem );
+    geode::BRepGeosExporter exporter(
+        model, problem, "grid_geos_well_failure" );
     auto point_set = geode::PointSet3D::create(
         geode::OpenGeodePointSet3D::impl_name_static() );
     geode::PointSetBuilder3D::create( *point_set )->create_point( point );
@@ -1529,8 +1533,8 @@ void test_geos_checker_wells()
         const auto model = spe10_reference_model();
         auto problem = spe10_reference_problem( model );
         geode::PhysicalProblemBuilder{ problem }.remove_source_term( 0 );
-        geode::BRepGeosExporter exporter( model, "grid_geos_partial_well" );
-        exporter.set_physical_problem( problem );
+        geode::BRepGeosExporter exporter(
+            model, problem, "grid_geos_partial_well" );
         auto point_set = geode::PointSet3D::create(
             geode::OpenGeodePointSet3D::impl_name_static() );
         auto builder = geode::PointSetBuilder3D::create( *point_set );
@@ -1560,8 +1564,7 @@ void test_geos_deck_boundary_temperature()
         add_multiphase_boundary_conditions( model, surfaces, surfaces );
         auto problem = spe10_reference_problem( model );
         geode::PhysicalProblemBuilder{ problem }.remove_source_term( 0 );
-        geode::BRepGeosExporter exporter( model, "spe10_isothermal" );
-        exporter.set_physical_problem( problem );
+        geode::BRepGeosExporter exporter( model, problem, "spe10_isothermal" );
         exporter.run();
         const auto deck =
             read_file( "spe10_isothermal/spe10_isothermal_simulation.xml" );
@@ -1592,8 +1595,8 @@ void test_geos_deck_boundary_temperature()
             geode::PHYSICAL_PROPERTY_NAME::boundary_temperature,
             "bc_temperature", 330. );
         const auto problem = toy_problem( false );
-        geode::BRepGeosExporter exporter( model, "toy_model_isothermal" );
-        exporter.set_physical_problem( problem );
+        geode::BRepGeosExporter exporter(
+            model, problem, "toy_model_isothermal" );
         exporter.run();
         const auto deck = read_file(
             "toy_model_isothermal/toy_model_isothermal_simulation.xml" );

@@ -40,17 +40,21 @@ namespace geode
 
     public:
         Impl() = delete;
-        Impl( const StructuralModel& model, std::string_view files_directory )
+        Impl( const StructuralModel& model,
+            const PhysicalProblem& problem,
+            std::string_view files_directory )
             : internal::GeosExporterImpl< StructuralModel >(
-                files_directory, model )
+                files_directory, model, problem )
         {
         }
         virtual ~Impl() = default;
     };
 
     StructuralModelGeosExporter::StructuralModelGeosExporter(
-        const StructuralModel& model, std::string_view files_directory )
-        : impl_( model, files_directory )
+        const StructuralModel& model,
+        const PhysicalProblem& problem,
+        std::string_view files_directory )
+        : impl_( model, problem, files_directory )
     {
     }
 
@@ -60,12 +64,6 @@ namespace geode
         const PointSet3D& well_perforation, std::string_view name )
     {
         impl_->add_well_perforations( well_perforation, name );
-    }
-
-    void StructuralModelGeosExporter::set_physical_problem(
-        const PhysicalProblem& problem )
-    {
-        impl_->set_physical_problem( problem );
     }
 
     void StructuralModelGeosExporter::run()

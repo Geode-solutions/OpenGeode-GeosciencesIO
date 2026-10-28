@@ -155,28 +155,24 @@ namespace geode::internal
             GeosFluidFraction >
             fractions{
                 { PHYSICAL_PROPERTY_NAME::boundary_oil_fraction,
-                    { "oil", PHASE::oil, 0 } },
+                    { "oil", PHASE::oil } },
                 { PHYSICAL_PROPERTY_NAME::boundary_gas_fraction,
-                    { "gas", PHASE::gas, 1 } },
+                    { "gas", PHASE::gas } },
                 { PHYSICAL_PROPERTY_NAME::boundary_water_fraction,
-                    { "water", PHASE::water, 2 } },
+                    { "water", PHASE::water } },
             };
         return fractions;
     }
 
     std::optional< local_index_t > geos_boundary_fraction_component(
-        const PhysicalProblem* problem, const GeosFluidFraction& fraction )
+        const PhysicalProblem& problem, const GeosFluidFraction& fraction )
     {
-        if( problem == nullptr )
-        {
-            return fraction.legacy_component;
-        }
-        if( !problem->has_flow() || !problem->flow().has_fluid() )
+        if( !problem.has_flow() || !problem.flow().has_fluid() )
         {
             return std::nullopt;
         }
         const auto component =
-            phase_component( problem->fluid(), fraction.phase );
+            phase_component( problem.fluid(), fraction.phase );
         if( !component )
         {
             return std::nullopt;
@@ -185,40 +181,30 @@ namespace geode::internal
     }
 
     std::vector< PHYSICAL_PROPERTY_NAME > geos_boundary_properties(
-        const PhysicalProblem* problem )
+        const PhysicalProblem& problem )
     {
         std::vector< PHYSICAL_PROPERTY_NAME > properties{
             PHYSICAL_PROPERTY_NAME::boundary_pressure
         };
-        if( problem == nullptr )
-        {
-            properties.push_back(
-                PHYSICAL_PROPERTY_NAME::boundary_temperature );
-            for( const auto& [property, fraction] : geos_fluid_fractions() )
-            {
-                properties.push_back( property );
-            }
-            return properties;
-        }
-        if( !problem->has_flow() )
+        if( !problem.has_flow() )
         {
             return properties;
         }
         const auto is_multiphase =
-            dynamic_cast< const MultiphaseFlow* >( &problem->flow() ) != nullptr;
-        if( is_multiphase || problem->thermal() )
+            dynamic_cast< const MultiphaseFlow* >( &problem.flow() ) != nullptr;
+        if( is_multiphase || problem.thermal() )
         {
             properties.push_back(
                 PHYSICAL_PROPERTY_NAME::boundary_temperature );
         }
-        if( !is_multiphase || !problem->flow().has_fluid() )
+        if( !is_multiphase || !problem.flow().has_fluid() )
         {
             return properties;
         }
         for( const auto& [property, fraction] : geos_fluid_fractions() )
         {
             if( absl::c_linear_search(
-                    problem->fluid().phases(), fraction.phase ) )
+                    problem.fluid().phases(), fraction.phase ) )
             {
                 properties.push_back( property );
             }
