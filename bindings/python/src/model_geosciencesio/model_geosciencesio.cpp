@@ -35,8 +35,6 @@
 PYBIND11_MODULE( opengeode_geosciencesio_py_model, module )
 {
     module.doc() = "OpenGeode-GeosciencesIO Python binding for model";
-    pybind11::module::import( "opengeode_geosciences_py_explicit" );
-    pybind11::module::import( "opengeode_geosciences_py_simulation" );
     pybind11::class_< geode::OpenGeodeGeosciencesIOModelLibrary >(
         module, "OpenGeodeGeosciencesIOModelLibrary" )
         .def( "initialize",
