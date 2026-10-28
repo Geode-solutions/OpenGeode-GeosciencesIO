@@ -23,6 +23,10 @@
 
 #pragma once
 
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include <absl/types/span.h>
 
 #include <geode/basic/pimpl.hpp>
@@ -36,6 +40,7 @@ namespace pugi
 
 namespace geode
 {
+    struct OutputSettings;
     class PhysicalProblem;
 } // namespace geode
 
@@ -48,6 +53,36 @@ namespace geode::internal
 
 namespace geode::internal
 {
+    struct GeosPorosityGroup
+    {
+        double compressibility{ 0 };
+        double reference_pressure{ 0 };
+        double default_porosity{ 0 };
+    };
+
+    struct GeosPorosityGroups
+    {
+        /// Distinct GEOS porosity models
+        std::vector< GeosPorosityGroup > groups;
+        /// Porosity model of each material
+        std::vector< index_t > material_groups;
+    };
+
+    /// Materials sharing compressibility and reference pressure share a model
+    [[nodiscard]] GeosPorosityGroups geos_porosity_groups(
+        const PhysicalProblem& problem, const GeosDeckContext& context );
+
+    /// The deck has a VTK output node
+    [[nodiscard]] bool geos_writes_vtk_output( const OutputSettings& output );
+
+    /// The deck has a restart output node
+    [[nodiscard]] bool geos_writes_restart_output(
+        const OutputSettings& output );
+
+    /// VTU name of the porosity array imported by a porosity model
+    [[nodiscard]] std::string geos_porosity_vtu_name(
+        std::string_view name, index_t group, index_t nb_groups );
+
     /*!
      * Translates a validated PhysicalProblem into the GEOS deck sections that
      * do not depend on the mesh export. Every solid region must have a

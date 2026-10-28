@@ -28,7 +28,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include <absl/container/flat_hash_map.h>
@@ -52,10 +51,8 @@ namespace pugi
 namespace geode
 {
     FORWARD_DECLARATION_DIMENSION_CLASS( PointSet );
-    FORWARD_DECLARATION_DIMENSION_CLASS( EdgedCurve );
     FORWARD_DECLARATION_DIMENSION_CLASS( SolidMesh );
     ALIAS_3D( PointSet );
-    ALIAS_3D( EdgedCurve );
     ALIAS_3D( SolidMesh );
     FORWARD_DECLARATION_DIMENSION_CLASS( Surface );
     ALIAS_3D( Surface );
@@ -78,8 +75,10 @@ namespace geode::internal
 
     public:
         GeosExporterImpl() = delete;
-        GeosExporterImpl(
-            std::string_view files_directory, const Model& model );
+        /// The problem must outlive the export
+        GeosExporterImpl( std::string_view files_directory,
+            const Model& model,
+            const PhysicalProblem& problem );
         virtual ~GeosExporterImpl();
 
         void prepare_export();
@@ -88,55 +87,34 @@ namespace geode::internal
         void add_well_perforations(
             const PointSet3D& perforations, std::string_view name );
 
-        /// Writes a full simulation deck instead of the mesh and boundary
-        /// conditions only. The problem must outlive the export.
-        void set_physical_problem( const PhysicalProblem& problem );
-
     protected:
         std::string_view files_directory() const;
         std::string_view prefix() const;
 
+        void check_export();
         void convert_model();
         index_t initialize_solid_region_attribute();
-        void add_block_collection_regions();
         void initialize_surface_cells( index_t first_surface_region_id );
-        struct RegionDefinitions
-        {
-            /// Region id of each Block
-            absl::flat_hash_map< uuid, index_t > block_regions;
-            /// Regions indexed by id
-            std::vector< GeosRegion > regions;
-            /// Regions covered by each Block, StratigraphicUnit or collection
-            absl::flat_hash_map< uuid, std::vector< index_t > > regions_by_uuid;
-            /// Blocks merged with other Blocks into one region -> that region
-            absl::flat_hash_map< uuid, index_t > merged_blocks;
-        };
-
-        [[nodiscard]] virtual RegionDefinitions create_region_definitions(
-            const Model& model ) const = 0;
 
         void write_well_perforations_boxes( pugi::xml_node& root ) const;
         void write_mesh_files( pugi::xml_node& root ) const;
         void write_boundary_conditions( pugi::xml_node& root ) const;
         void write_boundary_functions( pugi::xml_node& root ) const;
 
-        bool check_property_name( std::string_view property_name ) const;
         void transfer_physical_properties();
         void transfer_boundary_conditions();
         void transfer_boundary_condition( const uuid& attribute_id,
             std::string_view field_name,
             std::string_view name_prefix,
             std::optional< local_index_t > component );
-        void delete_mapping_attributes();
 
         std::string write_solid_file() const;
         void duplicate_imported_fields(
             AttributeManager& cell_attributes ) const;
-        void validate_problem() const;
         void prepare_simulation();
 
         void add_isothermal_boundary_temperature( double temperature );
-        [[nodiscard]] GeosDeckContext build_deck_context() const;
+        void compute_mean_rock_properties();
         void write_simulation_sections( pugi::xml_node& problem_node ) const;
         void write_well_perforation_file() const;
         void write_boundary_table_files() const;
@@ -178,7 +156,6 @@ namespace geode::internal
 
     private:
         const Model& model_;
-        std::unique_ptr< EdgedCurve3D > model_curve_{};
         std::unique_ptr< SolidMesh3D > model_solid_{};
         ModelToMeshMappings model2solid_;
 
@@ -192,7 +169,6 @@ namespace geode::internal
         std::string files_directory_;
         std::string prefix_;
 
-        std::vector< std::pair< std::string, std::string > > imported_fields_{};
         std::vector< BoundaryCondition > boundary_conditions_{};
         absl::flat_hash_map< uuid, BoundaryGrid > boundary_grids_{};
         std::vector< BoundaryTable > boundary_tables_{};
@@ -200,12 +176,10 @@ namespace geode::internal
         std::vector< std::unique_ptr< PointSet3D > > well_perforations_{};
         std::vector< std::string > well_names_{};
 
-        RegionDefinitions region_definitions_{};
-        std::optional< uuid > porosity_attribute_id_{};
-        std::optional< uuid > permeability_attribute_id_{};
-        std::vector< PHASE > boundary_fraction_phases_{};
-        const PhysicalProblem* problem_{ nullptr };
+        const PhysicalProblem& problem_;
         GeosDeckContext context_{};
+        GeosRegionAssignment materials_{};
+        GeosRegionAssignment initial_conditions_{};
         std::unique_ptr< GeosSimulationWriter > writer_{};
     };
 } // namespace geode::internal

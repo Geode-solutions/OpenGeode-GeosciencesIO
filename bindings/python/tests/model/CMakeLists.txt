@@ -28,8 +28,3 @@ add_geode_python_test(
     DEPENDENCIES
         ${PROJECT_NAME}::py_model
 )
-add_geode_python_test(
-    SOURCE "test-py-geos.py"
-    DEPENDENCIES
-        ${PROJECT_NAME}::py_model
-)

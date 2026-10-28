@@ -55,4 +55,10 @@ namespace geode::internal
         pugi::xml_node& node, std::string_view attribute, double value );
 
     void add_comment( pugi::xml_node& node, std::string_view comment );
+
+    /// Non-empty name made of letters, digits, '_' and '-'
+    [[nodiscard]] bool is_geos_name( std::string_view name );
+
+    /// XML attribute name: a letter or '_', then letters, digits or '_'
+    [[nodiscard]] bool is_xml_attribute_name( std::string_view name );
 } // namespace geode::internal

@@ -23,6 +23,9 @@
 
 #include <geode/geosciences_io/model/internal/geos_xml.hpp>
 
+#include <algorithm>
+#include <cctype>
+
 #include <pugixml.hpp>
 
 #include <absl/strings/str_cat.h>
@@ -74,5 +77,33 @@ namespace geode::internal
     {
         node.append_child( pugi::node_comment )
             .set_value( absl::StrCat( " ", comment, " " ).c_str() );
+    }
+
+    bool is_geos_name( std::string_view name )
+    {
+        return !name.empty()
+               && std::all_of( name.begin(), name.end(), []( char character ) {
+                      return std::isalnum(
+                                 static_cast< unsigned char >( character ) )
+                                 != 0
+                             || character == '_' || character == '-';
+                  } );
+    }
+
+    bool is_xml_attribute_name( std::string_view name )
+    {
+        const auto is_letter = []( char character ) {
+            return std::isalpha( static_cast< unsigned char >( character ) )
+                       != 0
+                   || character == '_';
+        };
+        return !name.empty() && is_letter( name.front() )
+               && std::all_of(
+                   name.begin(), name.end(), [&is_letter]( char character ) {
+                       return is_letter( character )
+                              || std::isdigit(
+                                     static_cast< unsigned char >( character ) )
+                                     != 0;
+                   } );
     }
 } // namespace geode::internal

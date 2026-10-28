@@ -45,20 +45,26 @@ namespace geode
 
     public:
         BRepGeosExporter() = delete;
-        BRepGeosExporter( const BRep& brep, std::string_view files_directory );
+        /*!
+         * Writes the simulation deck (mesh, wells, boundary conditions,
+         * solvers, fluid, rock, initial conditions, events) of the problem.
+         * The model and the problem must outlive the exporter.
+         */
+        BRepGeosExporter( const BRep& brep,
+            const PhysicalProblem& problem,
+            std::string_view files_directory );
         ~BRepGeosExporter();
 
         void add_well_perforations(
             const PointSet3D& well_perforations, std::string_view name );
 
         /*!
-         * Writes a full simulation deck (solvers, fluid, rock, initial
-         * conditions, events) described by the problem. Without it, only the
-         * mesh, wells and boundary conditions are written.
-         * The problem must outlive run().
+         * Checks the model, the wells and the problem first, with the rules
+         * of check_physical_problem_simulation( problem, model, "geos" ),
+         * then writes the files.
+         * @exception OpenGeodeException listing every issue, before any
+         * file or directory is written
          */
-        void set_physical_problem( const PhysicalProblem& problem );
-
         void run();
 
     private:

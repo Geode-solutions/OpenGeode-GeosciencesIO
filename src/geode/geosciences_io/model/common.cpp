@@ -33,10 +33,12 @@
 #include <geode/geosciences/explicit/representation/io/structural_model_output.hpp>
 #include <geode/geosciences/implicit/representation/io/horizons_stack_input.hpp>
 #include <geode/geosciences/simulation/common.hpp>
+#include <geode/geosciences/simulation/helpers/physical_problem_simulation.hpp>
 
 #include <geode/geosciences_io/mesh/common.hpp>
 
 #include <geode/geosciences_io/model/internal/brep_fem_output.hpp>
+#include <geode/geosciences_io/model/internal/geos_simulation_checker.hpp>
 #include <geode/geosciences_io/model/internal/horizons_stack_skua_input.hpp>
 #include <geode/geosciences_io/model/internal/lso_input.hpp>
 #include <geode/geosciences_io/model/internal/lso_output.hpp>
@@ -86,6 +88,13 @@ namespace
             geode::internal::BRepFemOutput::extension().data() );
     }
 
+    void register_simulation_checker()
+    {
+        geode::SimulationCheckerFactory::register_creator<
+            geode::internal::GeosSimulationChecker >(
+            geode::internal::GEOS_SIMULATOR_KEY );
+    }
+
     void register_horizons_stack_input()
     {
         geode::HorizonsStackInputFactory< 2 >::register_creator<
@@ -110,6 +119,7 @@ namespace geode
         register_section_input();
         register_brep_output();
         register_horizons_stack_input();
+        register_simulation_checker();
         GDALAllRegister();
     }
 } // namespace geode

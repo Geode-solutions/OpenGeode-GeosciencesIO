@@ -22,13 +22,9 @@
  */
 #include <string_view>
 
-#include <absl/container/flat_hash_map.h>
-#include <absl/strings/str_cat.h>
-
 #include <geode/geosciences_io/model/helpers/brep_geos_export.hpp>
 
 #include <geode/geosciences_io/model/internal/geos_export.hpp>
-#include <geode/model/mixin/core/block.hpp>
 #include <geode/model/representation/core/brep.hpp>
 
 #include <geode/basic/pimpl_impl.hpp>
@@ -41,35 +37,20 @@ namespace geode
 
     public:
         Impl() = delete;
-        Impl( const BRep& brep, std::string_view files_directory )
-            : internal::GeosExporterImpl< BRep >( files_directory, brep )
+        Impl( const BRep& brep,
+            const PhysicalProblem& problem,
+            std::string_view files_directory )
+            : internal::GeosExporterImpl< BRep >(
+                  files_directory, brep, problem )
         {
         }
         virtual ~Impl() = default;
-
-    protected:
-        [[nodiscard]] RegionDefinitions create_region_definitions(
-            const BRep& model ) const final
-        {
-            RegionDefinitions definitions;
-            for( const auto& block : model.blocks() )
-            {
-                const auto region_id =
-                    static_cast< index_t >( definitions.regions.size() );
-                definitions.regions.push_back(
-                    { region_id, absl::StrCat( "region_", region_id ),
-                        block.name().value_or( block.id().string() ),
-                        block.id() } );
-                definitions.block_regions.emplace( block.id(), region_id );
-                definitions.regions_by_uuid[block.id()].push_back( region_id );
-            }
-            return definitions;
-        }
     };
 
-    BRepGeosExporter::BRepGeosExporter(
-        const BRep& brep, std::string_view files_directory )
-        : impl_( brep, files_directory )
+    BRepGeosExporter::BRepGeosExporter( const BRep& brep,
+        const PhysicalProblem& problem,
+        std::string_view files_directory )
+        : impl_( brep, problem, files_directory )
     {
     }
 
@@ -79,12 +60,6 @@ namespace geode
         const PointSet3D& well_perforation, std::string_view name )
     {
         impl_->add_well_perforations( well_perforation, name );
-    }
-
-    void BRepGeosExporter::set_physical_problem(
-        const PhysicalProblem& problem )
-    {
-        impl_->set_physical_problem( problem );
     }
 
     void BRepGeosExporter::run()
