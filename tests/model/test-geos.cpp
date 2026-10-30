@@ -1016,8 +1016,9 @@ constexpr std::array< double, 3 > KIRSCH_STRESS{ 11.25e6, 9e6, 15e6 };
 
 using StressTensor = std::array< double, 6 >;
 
-// Cell values of a 6 component array in the raw appended data of a VTU file
-std::vector< StressTensor > read_vtu_tensors(
+// Cell values in the raw appended data of a VTU file
+template < typename T >
+std::vector< T > read_vtu_cell_values(
     const std::string& filename, std::string_view name )
 {
     const auto content = read_file( filename );
@@ -1035,10 +1036,16 @@ std::vector< StressTensor > read_vtu_tensors(
         content.find( '_', content.find( "<AppendedData" ) ) + 1 + offset;
     std::uint64_t nb_bytes{ 0 };
     std::memcpy( &nb_bytes, content.data() + data_position, sizeof nb_bytes );
-    std::vector< StressTensor > tensors( nb_bytes / sizeof( StressTensor ) );
-    std::memcpy( tensors.data(),
+    std::vector< T > values( nb_bytes / sizeof( T ) );
+    std::memcpy( values.data(),
         content.data() + data_position + sizeof nb_bytes, nb_bytes );
-    return tensors;
+    return values;
+}
+
+std::vector< StressTensor > read_vtu_tensors(
+    const std::string& filename, std::string_view name )
+{
+    return read_vtu_cell_values< StressTensor >( filename, name );
 }
 
 void check_tensor_exported( absl::Span< const StressTensor > tensors,
@@ -1111,6 +1118,49 @@ void test_layered_initial_stress()
     for( const auto& tensor : expected )
     {
         check_tensor_exported( tensors, tensor, "Layered stress" );
+    }
+}
+
+// One ConstantAttribute value per Block, as for a layered material
+void test_layered_bulk_modulus()
+{
+    auto model = geode::load_brep( absl::StrCat(
+        geode::DATA_PATH, "adaptive_brep_perm_and_poro.og_brep" ) );
+    add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::shear_modulus,
+        "shear_modulus", SHEAR_MODULUS );
+    add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::density,
+        "density", ROCK_DENSITY );
+    add_roller_displacements( model, true );
+    const geode::uuid attribute_id;
+    std::vector< double > expected;
+    double bulk_modulus{ BULK_MODULUS };
+    for( const auto& block : model.blocks() )
+    {
+        geode::AttributeValues< double > values;
+        values.default_value = bulk_modulus;
+        block.mesh()
+            .polyhedron_attribute_manager()
+            .create_attribute< geode::ConstantAttribute, double >(
+                "bulk_modulus", attribute_id, values, {} );
+        expected.push_back( bulk_modulus );
+        bulk_modulus += SHEAR_MODULUS;
+    }
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        expected.size() > 1, "[Test] Layered bulk modulus needs two Blocks" );
+    geode::BRepBuilder{ model }.set_physical_property(
+        geode::PHYSICAL_PROPERTY_NAME::bulk_modulus,
+        geode::Block3D::component_type_static(), attribute_id );
+    const auto problem = mechanics_problem( model );
+    geode::BRepGeosExporter exporter( model, "layered_bulk_modulus" );
+    exporter.set_physical_problem( problem );
+    exporter.run();
+    const auto exported = read_vtu_cell_values< double >(
+        "layered_bulk_modulus/layered_bulk_modulus.vtu", "bulk_modulus" );
+    for( const auto value : expected )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            absl::c_linear_search( exported, value ), "[Test] Bulk modulus ",
+            value, " missing in the exported mesh" );
     }
 }
 
@@ -1232,6 +1282,7 @@ int main()
         test_initial_stress();
         test_shear_stress_only();
         test_layered_initial_stress();
+        test_layered_bulk_modulus();
         test_mechanics_failures();
         geode::Logger::info( "TEST SUCCESS" );
 

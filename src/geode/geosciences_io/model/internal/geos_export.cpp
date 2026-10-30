@@ -638,6 +638,41 @@ namespace geode::internal
         }
     }
 
+    template < typename T >
+    void create_typed_variable_attribute( const AttributeBase& block_attribute,
+        AttributeManager& solid_manager,
+        const uuid& attribute_id )
+    {
+        solid_manager.create_attribute< VariableAttribute, T >(
+            block_attribute.name().value(), attribute_id,
+            AttributeValues< T >{}, block_attribute.properties() );
+    }
+
+    // Importing a ConstantAttribute into a missing attribute creates a
+    // ConstantAttribute, then each Block overwrites the previous Block value
+    void create_variable_attribute( const AttributeManager& block_manager,
+        AttributeManager& solid_manager,
+        const uuid& attribute_id )
+    {
+        const auto block_attribute =
+            block_manager.find_generic_attribute( attribute_id );
+        if( !block_attribute->name() )
+        {
+            return;
+        }
+        const auto type = block_manager.attribute_type( attribute_id );
+        if( type == typeid( double ).name() )
+        {
+            create_typed_variable_attribute< double >(
+                *block_attribute, solid_manager, attribute_id );
+        }
+        else if( type == typeid( std::array< double, 3 > ).name() )
+        {
+            create_typed_variable_attribute< std::array< double, 3 > >(
+                *block_attribute, solid_manager, attribute_id );
+        }
+    }
+
     template < typename Model >
     std::string transfer_block_attribute( const Model& model,
         SolidMesh3D& solid,
@@ -664,6 +699,11 @@ namespace geode::internal
                 "[GeosExporter] Physical property attribute ",
                 attribute_id.string(), " is missing on Block ",
                 block.id().string(), "." );
+            if( !solid_manager.attribute_exists( attribute_id ) )
+            {
+                create_variable_attribute(
+                    block_manager, solid_manager, attribute_id );
+            }
             GenericMapping< index_t > block2solid;
             for( const auto polyhedron_id : Range( block_mesh.nb_polyhedra() ) )
             {
