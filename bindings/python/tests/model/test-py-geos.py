@@ -72,6 +72,93 @@ def test_brep_export(data_dir):
     )
 
 
+def add_block_property(model, property, name, value):
+    attribute_id = opengeode.uuid()
+    values = opengeode.AttributeValuesDouble()
+    values.default_value = value
+    for block in model.blocks():
+        manager = block.mesh().polyhedron_attribute_manager()
+        manager.create_attribute_variable_double(
+            name, attribute_id, values, opengeode.AttributeProperties()
+        )
+    opengeode.BRepBuilder(model).set_physical_property(
+        property, opengeode.Block3D.component_type_static(), attribute_id
+    )
+
+
+def surfaces_on_face(model, axis, side):
+    return [
+        surface
+        for surface in model.surfaces()
+        if abs(surface.mesh().bounding_box().min().value(axis) - side) < 1e-3
+        and abs(surface.mesh().bounding_box().max().value(axis) - side) < 1e-3
+    ]
+
+
+# Gravity on a cube whose sides slide and whose bottom is fixed vertically
+def test_mechanics_export(data_dir):
+    model = opengeode.load_brep(
+        os.path.join(data_dir, "adaptive_brep_perm_and_poro.og_brep")
+    )
+    for name, value in [
+        ("bulk_modulus", 5.5556e9),
+        ("shear_modulus", 4.16667e9),
+        ("density", 2650.0),
+    ]:
+        add_block_property(
+            model, getattr(opengeode.PHYSICAL_PROPERTY_NAME, name), name, value
+        )
+    free = float("nan")
+    displacement_id = opengeode.uuid()
+    for axis, side, displacement in [
+        (0, 0.0, [0.0, free, free]),
+        (0, 40.0, [0.0, free, free]),
+        (1, 0.0, [free, 0.0, free]),
+        (1, 40.0, [free, 0.0, free]),
+        (2, 0.0, [free, free, 0.0]),
+    ]:
+        values = opengeode.AttributeValuesArrayDouble3()
+        values.default_value = displacement
+        for surface in surfaces_on_face(model, axis, side):
+            manager = surface.mesh().polygon_attribute_manager()
+            manager.create_attribute_constant_arraydouble3(
+                "displacement",
+                displacement_id,
+                values,
+                opengeode.AttributeProperties(),
+            )
+    opengeode.BRepBuilder(model).set_physical_property(
+        opengeode.PHYSICAL_PROPERTY_NAME.boundary_displacement,
+        opengeode.Surface3D.component_type_static(),
+        displacement_id,
+    )
+    stress_id = opengeode.uuid()
+    stress = opengeode.AttributeValuesArrayDouble3()
+    stress.default_value = [11.25e6, 9e6, 15e6]
+    for block in model.blocks():
+        manager = block.mesh().polyhedron_attribute_manager()
+        manager.create_attribute_constant_arraydouble3(
+            "initial_stress", stress_id, stress, opengeode.AttributeProperties()
+        )
+    opengeode.BRepBuilder(model).set_physical_property(
+        opengeode.PHYSICAL_PROPERTY_NAME.initial_stress,
+        opengeode.Block3D.component_type_static(),
+        stress_id,
+    )
+    problem = geosciences.PhysicalProblem()
+    builder = geosciences.PhysicalProblemBuilder(problem)
+    builder.set_name("gravity")
+    builder.set_model_id(model.id())
+    builder.set_solid_mechanics(geosciences.SolidMechanics())
+    builder.set_schedule(geosciences.Schedule(0.0, 1.0, 1.0))
+    exporter = geosciences_io.BRepGeosExporter(model, "python_gravity")
+    exporter.set_physical_problem(problem)
+    exporter.run()
+    with open("python_gravity/python_gravity_simulation.xml") as deck:
+        if "solid_stress" not in deck.read():
+            raise ValueError("[Test] Mechanics deck misses the initial stress")
+
+
 def test_structural_model_export(data_dir):
     model = geosciences.load_structural_model(os.path.join(data_dir, "test.lso"))
     geosciences_io.BRepGeosExporter(model, "brep_to_geos")
@@ -83,4 +170,5 @@ if __name__ == "__main__":
     test_dir = os.path.dirname(__file__)
     data_dir = os.path.abspath(os.path.join(test_dir, "../../../../tests/data"))
     test_brep_export(data_dir)
+    test_mechanics_export(data_dir)
     test_structural_model_export(data_dir)

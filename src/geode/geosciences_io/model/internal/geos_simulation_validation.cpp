@@ -24,13 +24,17 @@
 #include <geode/geosciences_io/model/internal/geos_simulation_validation.hpp>
 
 #include <algorithm>
+#include <array>
 #include <optional>
+#include <string_view>
 
 #include <absl/algorithm/container.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_split.h>
 
 #include <geode/basic/range.hpp>
+
+#include <geode/geometry/vector.hpp>
 
 #include <geode/geosciences/simulation/core/flow_model.hpp>
 #include <geode/geosciences/simulation/core/fluid.hpp>
@@ -80,6 +84,11 @@ namespace
         std::vector< std::string > check_problem(
             absl::Span< const std::string > well_names )
         {
+            if( problem_.solid_mechanics() )
+            {
+                check_solver_options();
+                return std::move( issues_ );
+            }
             if( !has_fluid() )
             {
                 return std::move( issues_ );
@@ -96,12 +105,23 @@ namespace
         std::vector< std::string > check_deck(
             const geode::internal::GeosDeckContext& context )
         {
+            if( problem_.solid_mechanics() )
+            {
+                check_mechanics_properties( context );
+                check_mechanics_boundary_conditions( context );
+                return std::move( issues_ );
+            }
             if( !has_fluid() )
             {
                 return std::move( issues_ );
             }
             check_rock_properties( context );
             check_boundary_conditions( context );
+            if( context.has_mechanics_boundary )
+            {
+                add_issue( "Displacement and traction boundary conditions need "
+                           "solid mechanics" );
+            }
             return std::move( issues_ );
         }
 
@@ -289,6 +309,61 @@ namespace
             }
         }
 
+        void check_mechanics_property(
+            const std::optional< geode::internal::GeosCellProperty >& property,
+            std::string_view name,
+            bool is_zero_valid )
+        {
+            if( !property )
+            {
+                add_issue( "GEOS solid mechanics needs a ", name,
+                    " physical property on the model Blocks" );
+                return;
+            }
+            if( property->min < 0 || ( !is_zero_valid && property->min == 0 ) )
+            {
+                add_issue( "The ", name, " physical property must be ",
+                    is_zero_valid ? "non-negative" : "positive",
+                    " (minimum is ", property->min, ")" );
+            }
+        }
+
+        void check_mechanics_properties(
+            const geode::internal::GeosDeckContext& context )
+        {
+            check_mechanics_property(
+                context.bulk_modulus, "bulk_modulus", false );
+            check_mechanics_property(
+                context.shear_modulus, "shear_modulus", false );
+            if( problem_.gravity().length() > 0 || context.density )
+            {
+                check_mechanics_property( context.density, "density", true );
+            }
+        }
+
+        void check_mechanics_boundary_conditions(
+            const geode::internal::GeosDeckContext& context )
+        {
+            if( context.has_flow_boundary )
+            {
+                add_issue( "Pressure, temperature and fluid fraction boundary "
+                           "conditions need a flow model" );
+            }
+            static constexpr std::array< std::string_view, 3 > AXES{ "x", "y",
+                "z" };
+            for( const auto axis : geode::LRange{ 3 } )
+            {
+                if( !context.displacement_axes[axis] )
+                {
+                    add_issue( "GEOS solid mechanics needs a displacement "
+                               "imposed along ",
+                        AXES[axis],
+                        " on at least one Surface to prevent rigid body "
+                        "motions" );
+                }
+            }
+        }
+
         void check_solver_options()
         {
             const auto& roles = geode::internal::geos_solver_option_roles();
@@ -471,10 +546,9 @@ namespace geode::internal
         static const absl::flat_hash_map< std::string, std::string > roles{
             { "solvers", "/Problem/Solvers" },
             { "flow", "/Problem/Solvers/*[@name='flow']" },
-            { "nonlinear",
-                "/Problem/Solvers/*[@name='flow']/NonlinearSolverParameters" },
-            { "linear",
-                "/Problem/Solvers/*[@name='flow']/LinearSolverParameters" },
+            { "mechanics", "/Problem/Solvers/*[@name='mechanics']" },
+            { "nonlinear", "/Problem/Solvers/*/NonlinearSolverParameters" },
+            { "linear", "/Problem/Solvers/*/LinearSolverParameters" },
             { "mesh", "/Problem/Mesh/VTKMesh" },
             { "tpfa", "/Problem/NumericalMethods/FiniteVolume/"
                       "TwoPointFluxApproximation" },

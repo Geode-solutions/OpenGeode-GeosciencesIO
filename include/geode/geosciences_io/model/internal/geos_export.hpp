@@ -40,6 +40,7 @@
 #include <geode/mesh/core/surface_mesh.hpp>
 
 #include <geode/model/helpers/convert_to_mesh.hpp>
+#include <geode/model/mixin/core/physical_properties.hpp>
 
 #include <geode/geosciences_io/model/common.hpp>
 #include <geode/geosciences_io/model/internal/geos_deck_context.hpp>
@@ -122,11 +123,12 @@ namespace geode::internal
 
         bool check_property_name( std::string_view property_name ) const;
         void transfer_physical_properties();
+        void transfer_mechanics_properties();
+        void transfer_initial_stress();
         void transfer_boundary_conditions();
-        void transfer_boundary_condition( const uuid& attribute_id,
-            std::string_view field_name,
-            std::string_view name_prefix,
-            std::optional< local_index_t > component );
+        void transfer_mechanics_boundary_conditions();
+        void transfer_displacements( const uuid& attribute_id );
+        void transfer_tractions( const uuid& attribute_id );
         void delete_mapping_attributes();
 
         std::string write_solid_file() const;
@@ -142,6 +144,13 @@ namespace geode::internal
         void write_boundary_table_files() const;
 
     private:
+        enum struct BOUNDARY_KIND
+        {
+            field,
+            vector_traction,
+            normal_traction
+        };
+
         struct BoundaryCondition
         {
             std::string name;
@@ -150,7 +159,17 @@ namespace geode::internal
             std::vector< index_t > region_ids;
             double scale{ 0. };
             std::optional< std::string > function_name;
+            BOUNDARY_KIND kind{ BOUNDARY_KIND::field };
+            std::string object_path{ "faceManager" };
+            std::optional< std::array< double, 3 > > direction;
         };
+
+        /// Scales the Surface values by factor: uniform Surfaces sharing a
+        /// value are grouped, the others get a table
+        void transfer_boundary_condition( const uuid& attribute_id,
+            std::string_view name_prefix,
+            const BoundaryCondition& prototype,
+            double factor );
 
         // GEOS TableFunction grid of a Surface, built from its polygon centers
         // so that each polygon is looked up on its own node
@@ -203,6 +222,10 @@ namespace geode::internal
         RegionDefinitions region_definitions_{};
         std::optional< uuid > porosity_attribute_id_{};
         std::optional< uuid > permeability_attribute_id_{};
+        absl::flat_hash_map< PHYSICAL_PROPERTY_NAME, uuid >
+            mechanics_attribute_ids_{};
+        std::optional< uuid > initial_stress_attribute_id_{};
+        std::array< bool, 3 > displacement_axes_{ false, false, false };
         std::vector< PHASE > boundary_fraction_phases_{};
         const PhysicalProblem* problem_{ nullptr };
         GeosDeckContext context_{};
