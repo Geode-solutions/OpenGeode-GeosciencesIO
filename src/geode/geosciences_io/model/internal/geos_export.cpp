@@ -582,6 +582,36 @@ namespace geode::internal
 
     using StressTensor = std::array< double, 6 >;
 
+    // Factor converting model stresses and normal tractions to GEOS, which
+    // counts tensions positively
+    double geos_stress_factor( const PhysicalProblem& problem )
+    {
+        return problem.solid_mechanics()->sign_convention
+                       == STRESS_SIGN_CONVENTION::compression_positive
+                   ? -1.
+                   : 1.;
+    }
+
+    void scale_stress_tensors( VariableAttribute< StressTensor >& tensors,
+        index_t nb_polyhedra,
+        double factor )
+    {
+        if( factor == 1. )
+        {
+            return;
+        }
+        for( const auto polyhedron : Range{ nb_polyhedra } )
+        {
+            tensors.modify_value(
+                polyhedron, [factor]( StressTensor& tensor_value ) {
+                    for( auto& component : tensor_value )
+                    {
+                        component *= factor;
+                    }
+                } );
+        }
+    }
+
     // Block values are read one by one: importing one ConstantAttribute per
     // Block onto the solid would keep only the last Block value.
     template < typename Model >
@@ -628,10 +658,9 @@ namespace geode::internal
                 tensor.modify_value(
                     polyhedra_mapping.in2out( block_polyhedron ),
                     [&value, first_component]( StressTensor& tensor_value ) {
-                        // GEOS counts tractions positively
                         for( const auto axis : LRange{ 3 } )
                         {
-                            tensor_value[first_component + axis] = -value[axis];
+                            tensor_value[first_component + axis] = value[axis];
                         }
                     } );
             }
@@ -1225,6 +1254,13 @@ namespace geode::internal
                 model_.physical_property_info( property ), name,
                 first_component, *tensor );
         }
+        if( initial_stress_attribute_id_ )
+        {
+            scale_stress_tensors(
+                *manager.template find_attribute< VariableAttribute,
+                    StressTensor >( initial_stress_attribute_id_.value() ),
+                model_solid_->nb_polyhedra(), geos_stress_factor( *problem_ ) );
+        }
     }
 
     template < typename Model >
@@ -1290,7 +1326,7 @@ namespace geode::internal
             transfer_boundary_condition(
                 boundary_condition_attribute_id(
                     model_, PHYSICAL_PROPERTY_NAME::boundary_normal_traction ),
-                "normalTraction", prototype, -1. );
+                "normalTraction", prototype, geos_stress_factor( *problem_ ) );
         }
     }
 
@@ -1723,6 +1759,11 @@ namespace geode::internal
             issues.push_back( std::move( issue ) );
         }
         check_no_issue( issues );
+        for( const auto& warning :
+            physical_problem_warnings( *problem_, model_ ) )
+        {
+            Logger::warning( "[GeosExporter] ", warning );
+        }
     }
 
     template < typename Model >

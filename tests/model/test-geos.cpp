@@ -1164,6 +1164,40 @@ void test_layered_bulk_modulus()
     }
 }
 
+// Model values already follow the GEOS convention: nothing is converted
+void test_tension_positive()
+{
+    auto model = elastic_cube();
+    add_displacement( model, boundary_surfaces( model, 0, false ),
+        geode::uuid{}, { 0., 0., 0. } );
+    add_boundary_condition< geode::ConstantAttribute >( model,
+        boundary_surfaces( model, 2, true ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_normal_traction,
+        "normal_traction", -TRACTION );
+    add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::initial_stress,
+        "initial_stress",
+        std::array< double, 3 >{
+            -KIRSCH_STRESS[0], -KIRSCH_STRESS[1], -KIRSCH_STRESS[2] } );
+    auto problem = mechanics_problem( model );
+    geode::PhysicalProblemBuilder builder{ problem };
+    builder.set_gravity( geode::Vector3D{ { 0., 0., 0. } } );
+    builder.set_solid_mechanics(
+        { geode::SOLID_MECHANICS_LAW::linear_elastic_isotropic,
+            geode::STRESS_SIGN_CONVENTION::tension_positive } );
+    geode::BRepGeosExporter exporter( model, "tension_positive" );
+    exporter.set_physical_problem( problem );
+    exporter.run();
+    check_deck_patterns(
+        read_file( "tension_positive/tension_positive_simulation.xml" ),
+        { "tractionType=\"normal\"", "scale=\"-1000000\"" },
+        "Tension positive" );
+    check_tensor_exported(
+        read_vtu_tensors(
+            "tension_positive/tension_positive.vtu", "initial_stress_tensor" ),
+        { -KIRSCH_STRESS[0], -KIRSCH_STRESS[1], -KIRSCH_STRESS[2], 0., 0., 0. },
+        "Tension positive" );
+}
+
 void test_shear_stress_only()
 {
     auto model = elastic_cube();
@@ -1283,6 +1317,7 @@ int main()
         test_shear_stress_only();
         test_layered_initial_stress();
         test_layered_bulk_modulus();
+        test_tension_positive();
         test_mechanics_failures();
         geode::Logger::info( "TEST SUCCESS" );
 
