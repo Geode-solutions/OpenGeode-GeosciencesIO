@@ -225,7 +225,6 @@ namespace geode::internal
         absl::flat_hash_map< PHYSICAL_PROPERTY_NAME, uuid >
             mechanics_attribute_ids_{};
         std::optional< uuid > initial_stress_attribute_id_{};
-        std::array< bool, 3 > displacement_axes_{ false, false, false };
         std::vector< PHASE > boundary_fraction_phases_{};
         const PhysicalProblem* problem_{ nullptr };
         GeosDeckContext context_{};

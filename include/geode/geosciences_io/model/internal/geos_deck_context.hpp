@@ -56,12 +56,11 @@ namespace geode::internal
         std::string name;
     };
 
-    /// Cell array of a PhysicalProperty with its mean and minimum values
+    /// Cell array of a PhysicalProperty with its mean value
     struct GeosCellProperty
     {
         GeosCellArray array;
         double mean{ 0 };
-        double min{ 0 };
     };
 
     /// Model data needed to translate a PhysicalProblem into a GEOS deck
@@ -83,18 +82,12 @@ namespace geode::internal
         std::vector< PHASE > boundary_fraction_phases;
         bool has_boundary_pressure{ false };
         bool has_boundary_temperature{ false };
-        /// Pressure, temperature or fluid fraction boundary conditions
-        bool has_flow_boundary{ false };
-        /// Displacement or traction boundary conditions
-        bool has_mechanics_boundary{ false };
         std::optional< GeosCellProperty > bulk_modulus;
         std::optional< GeosCellProperty > shear_modulus;
         std::optional< GeosCellProperty > density;
         /// Initial stress tensor (xx, yy, zz, yz, xz, xy) in the GEOS sign
         /// convention: negative values are compressions
         std::optional< GeosCellArray > initial_stress;
-        /// Axes along which a Surface has an imposed displacement
-        std::array< bool, 3 > displacement_axes{ false, false, false };
         /// Names of the well perforation sets given to the exporter
         std::vector< std::string > well_names;
     };

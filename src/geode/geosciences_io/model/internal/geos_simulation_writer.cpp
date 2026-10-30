@@ -595,13 +595,7 @@ namespace geode::internal
                 solver, "targetRegions", geos_names( region_names() ) );
             set_real_attribute(
                 solver, "initialDt", problem_.schedule().initial_time_step );
-            auto nonlinear = solver.append_child( "NonlinearSolverParameters" );
-            set_attribute( nonlinear, "newtonTol", "1e-6" );
-            set_attribute( nonlinear, "newtonMaxIter", "15" );
-            auto linear = solver.append_child( "LinearSolverParameters" );
-            set_attribute( linear, "solverType", "gmres" );
-            set_attribute( linear, "preconditionerType", "amg" );
-            set_attribute( linear, "krylovTol", "1e-8" );
+            write_solver_parameters( solver );
         }
 
         void write_solver_parameters( pugi::xml_node& solver ) const
@@ -609,9 +603,12 @@ namespace geode::internal
             auto nonlinear = solver.append_child( "NonlinearSolverParameters" );
             set_attribute( nonlinear, "newtonTol", "1e-6" );
             set_attribute( nonlinear, "newtonMaxIter", "15" );
-            set_attribute( nonlinear, "maxTimeStepCuts", "10" );
+            if( problem_.has_flow() )
+            {
+                set_attribute( nonlinear, "maxTimeStepCuts", "10" );
+            }
             auto linear = solver.append_child( "LinearSolverParameters" );
-            if( is_multiphase() )
+            if( problem_.has_flow() && is_multiphase() )
             {
                 set_attribute( linear, "solverType", "fgmres" );
                 set_attribute( linear, "preconditionerType", "mgr" );
@@ -620,6 +617,10 @@ namespace geode::internal
             }
             set_attribute( linear, "solverType", "gmres" );
             set_attribute( linear, "preconditionerType", "amg" );
+            if( !problem_.has_flow() )
+            {
+                set_attribute( linear, "krylovTol", "1e-8" );
+            }
         }
 
         [[nodiscard]] std::vector< std::string > material_list(

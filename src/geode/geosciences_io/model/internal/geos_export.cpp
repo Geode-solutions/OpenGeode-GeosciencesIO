@@ -274,35 +274,56 @@ namespace
         return values;
     }
 
-    bool is_uniform( absl::Span< const double > values )
+    template < typename T >
+    bool is_uniform( absl::Span< const T > values )
     {
-        return absl::c_all_of( values, [&values]( double value ) {
+        return absl::c_all_of( values, [&values]( const T& value ) {
             return value == values.front();
         } );
     }
 
-    // Free displacement components are NaN, which equals no value
-    bool same_components( const std::array< double, 3 >& first,
-        const std::array< double, 3 >& second )
+    template < typename T >
+    struct VariableSurface
     {
-        for( const auto axis : geode::LRange{ 3 } )
-        {
-            if( first[axis] != second[axis]
-                && !(
-                    std::isnan( first[axis] ) && std::isnan( second[axis] ) ) )
-            {
-                return false;
-            }
-        }
-        return true;
-    }
+        const geode::Surface3D* surface;
+        geode::index_t region_id;
+        std::vector< T > values;
+    };
 
-    bool is_uniform( absl::Span< const std::array< double, 3 > > values )
+    // Boundary condition values of the Surfaces: regions of the uniform
+    // Surfaces grouped by value, and the other Surfaces with their values
+    template < typename T >
+    struct SurfaceValueGroups
     {
-        return absl::c_all_of(
-            values, [&values]( const std::array< double, 3 >& value ) {
-                return same_components( value, values.front() );
-            } );
+        absl::linked_hash_map< T, std::vector< geode::index_t > >
+            uniform_regions;
+        std::vector< VariableSurface< T > > variable_surfaces;
+    };
+
+    template < typename T, typename Model >
+    SurfaceValueGroups< T > group_surface_values( const Model& model,
+        const absl::flat_hash_map< geode::uuid, geode::index_t >&
+            surface_regions,
+        const geode::uuid& attribute_id )
+    {
+        SurfaceValueGroups< T > groups;
+        for( const auto& surface : model.surfaces() )
+        {
+            auto values = surface_values< T >( surface, attribute_id );
+            if( !values )
+            {
+                continue;
+            }
+            const auto region_id = surface_regions.at( surface.id() );
+            if( is_uniform< T >( values.value() ) )
+            {
+                groups.uniform_regions[values->front()].push_back( region_id );
+                continue;
+            }
+            groups.variable_surfaces.push_back(
+                { &surface, region_id, std::move( values.value() ) } );
+        }
+        return groups;
     }
 
     std::vector< double > axis_values(
@@ -517,32 +538,20 @@ namespace
         return nb_elements == 0 ? 0. : sum / nb_elements;
     }
 
-    // Mean and minimum of a scalar cell attribute over the first elements,
-    // read in double precision when the attribute stores doubles
-    std::pair< double, double > attribute_mean_and_min(
-        const geode::AttributeManager& manager,
+    // Mean of a double cell attribute over the first elements, in double
+    // precision
+    double double_attribute_mean( const geode::AttributeManager& manager,
         const geode::uuid& attribute_id,
         geode::index_t nb_elements )
     {
-        const auto is_double =
-            manager.attribute_type( attribute_id ) == typeid( double ).name();
-        const auto generic = manager.find_generic_attribute( attribute_id );
-        const auto typed =
-            is_double
-                ? manager.find_read_only_attribute< double >( attribute_id )
-                : nullptr;
+        const auto attribute =
+            manager.find_read_only_attribute< double >( attribute_id );
         double sum{ 0 };
-        double min{ std::numeric_limits< double >::max() };
         for( const auto element : geode::Range{ nb_elements } )
         {
-            const auto value = is_double
-                                   ? typed->value( element )
-                                   : static_cast< double >(
-                                         generic->generic_value( element ) );
-            sum += value;
-            min = std::min( min, value );
+            sum += attribute->value( element );
         }
-        return { nb_elements == 0 ? 0. : sum / nb_elements, min };
+        return nb_elements == 0 ? 0. : sum / nb_elements;
     }
 
     template < typename Model >
@@ -592,26 +601,6 @@ namespace geode::internal
                    : 1.;
     }
 
-    void scale_stress_tensors( VariableAttribute< StressTensor >& tensors,
-        index_t nb_polyhedra,
-        double factor )
-    {
-        if( factor == 1. )
-        {
-            return;
-        }
-        for( const auto polyhedron : Range{ nb_polyhedra } )
-        {
-            tensors.modify_value(
-                polyhedron, [factor]( StressTensor& tensor_value ) {
-                    for( auto& component : tensor_value )
-                    {
-                        component *= factor;
-                    }
-                } );
-        }
-    }
-
     // Block values are read one by one: importing one ConstantAttribute per
     // Block onto the solid would keep only the last Block value.
     template < typename Model >
@@ -620,6 +609,7 @@ namespace geode::internal
         const PhysicalProperties::Info& property_info,
         std::string_view name,
         local_index_t first_component,
+        double factor,
         VariableAttribute< StressTensor >& tensor )
     {
         const auto& attribute_id = property_info.attribute_id;
@@ -657,10 +647,12 @@ namespace geode::internal
                 const auto& value = stress->value( polyhedron_id );
                 tensor.modify_value(
                     polyhedra_mapping.in2out( block_polyhedron ),
-                    [&value, first_component]( StressTensor& tensor_value ) {
+                    [&value, first_component, factor](
+                        StressTensor& tensor_value ) {
                         for( const auto axis : LRange{ 3 } )
                         {
-                            tensor_value[first_component + axis] = value[axis];
+                            tensor_value[first_component + axis] =
+                                factor * value[axis];
                         }
                     } );
             }
@@ -1228,6 +1220,7 @@ namespace geode::internal
     void GeosExporterImpl< Model >::transfer_initial_stress()
     {
         auto& manager = model_solid_->polyhedron_attribute_manager();
+        const auto factor = geos_stress_factor( *problem_ );
         // Index of the first tensor component given by each property
         for( const auto& [property, name, first_component] :
             { std::tuple{ PHYSICAL_PROPERTY_NAME::initial_stress,
@@ -1252,15 +1245,7 @@ namespace geode::internal
                 StressTensor >( initial_stress_attribute_id_.value() );
             transfer_stress_components( model_, model2solid_,
                 model_.physical_property_info( property ), name,
-                first_component, *tensor );
-        }
-        if( initial_stress_attribute_id_ )
-        {
-            scale_stress_tensors(
-                *manager
-                    .template find_attribute< VariableAttribute, StressTensor >(
-                        initial_stress_attribute_id_.value() ),
-                model_solid_->nb_polyhedra(), geos_stress_factor( *problem_ ) );
+                first_component, factor, *tensor );
         }
     }
 
@@ -1327,7 +1312,8 @@ namespace geode::internal
             transfer_boundary_condition(
                 boundary_condition_attribute_id(
                     model_, PHYSICAL_PROPERTY_NAME::boundary_normal_traction ),
-                "normalTraction", prototype, geos_stress_factor( *problem_ ) );
+                "boundaryNormalTraction", prototype,
+                geos_stress_factor( *problem_ ) );
         }
     }
 
@@ -1346,11 +1332,8 @@ namespace geode::internal
             {
                 continue;
             }
-            OpenGeodeGeosciencesIOModelException::check_exception(
-                is_uniform( values.value() ), nullptr,
-                OpenGeodeException::TYPE::data,
-                "[GeosExporter] Displacement boundary condition on Surface ",
-                surface.id().string(), " must be the same on every polygon." );
+            // Uniform on the Surface: checked by
+            // validate_physical_problem_properties
             const auto& displacement = values->front();
             const auto region_id = surface_regions_.at( surface.id() );
             for( const auto axis : LRange{ 3 } )
@@ -1361,16 +1344,17 @@ namespace geode::internal
                 }
                 value_regions[{ axis, displacement[axis] }].push_back(
                     region_id );
-                displacement_axes_[axis] = true;
             }
         }
+        std::array< index_t, 3 > axis_condition_ids{ 0, 0, 0 };
         for( auto& [axis_value, region_ids] : value_regions )
         {
+            const auto axis = axis_value.first;
             BoundaryCondition condition;
             condition.name = absl::StrCat( "boundaryDisplacement_",
-                AXIS_NAMES[axis_value.first], "_", region_ids.front() );
+                AXIS_NAMES[axis], "_", axis_condition_ids[axis]++ );
             condition.field_name = "totalDisplacement";
-            condition.component = axis_value.first;
+            condition.component = axis;
             condition.region_ids = std::move( region_ids );
             condition.scale = axis_value.second;
             condition.object_path = "nodeManager";
@@ -1382,41 +1366,35 @@ namespace geode::internal
     void GeosExporterImpl< Model >::transfer_tractions(
         const uuid& attribute_id )
     {
-        absl::linked_hash_map< std::array< double, 3 >, std::vector< index_t > >
-            vector_regions;
-        for( const auto& surface : model_.surfaces() )
+        auto groups = group_surface_values< std::array< double, 3 > >(
+            model_, surface_regions_, attribute_id );
+        for( const auto& variable : groups.variable_surfaces )
         {
-            const auto values = surface_values< std::array< double, 3 > >(
-                surface, attribute_id );
-            if( !values )
-            {
-                continue;
-            }
-            const auto region_id = surface_regions_.at( surface.id() );
-            if( is_uniform( values.value() ) )
-            {
-                vector_regions[values->front()].push_back( region_id );
-                continue;
-            }
             for( const auto axis : LRange{ 3 } )
             {
-                const auto name = absl::StrCat(
-                    "traction_", AXIS_NAMES[axis], "_surface", region_id );
+                const auto values = axis_values( variable.values, axis );
+                if( absl::c_all_of( values, []( double value ) {
+                        return value == 0;
+                    } ) )
+                {
+                    continue;
+                }
                 BoundaryCondition condition;
+                condition.name = absl::StrCat( "boundaryTraction_",
+                    AXIS_NAMES[axis], "_surface", variable.region_id );
                 condition.kind = BOUNDARY_KIND::vector_traction;
                 condition.direction = std::array< double, 3 >{ 0, 0, 0 };
                 condition.direction->at( axis ) = 1;
                 condition.function_name = add_boundary_table(
-                    surface, axis_values( values.value(), axis ), name );
-                condition.name = name;
-                condition.region_ids = { region_id };
+                    *variable.surface, values, condition.name );
+                condition.region_ids = { variable.region_id };
                 // The table stores the actual values, hence a unit scale
                 condition.scale = 1.;
                 boundary_conditions_.push_back( std::move( condition ) );
             }
         }
         index_t condition_id{ 0 };
-        for( auto& [traction, region_ids] : vector_regions )
+        for( auto& [traction, region_ids] : groups.uniform_regions )
         {
             const Vector3D vector{ traction };
             const auto norm = vector.length();
@@ -1425,7 +1403,8 @@ namespace geode::internal
                 continue;
             }
             BoundaryCondition condition;
-            condition.name = absl::StrCat( "traction_", condition_id++ );
+            condition.name =
+                absl::StrCat( "boundaryTraction_", condition_id++ );
             condition.kind = BOUNDARY_KIND::vector_traction;
             const auto direction = vector / norm;
             condition.direction = std::array< double, 3 >{ direction.value( 0 ),
@@ -1443,40 +1422,31 @@ namespace geode::internal
         const BoundaryCondition& prototype,
         double factor )
     {
-        absl::linked_hash_map< double, std::vector< index_t > > value_regions;
-        for( const auto& surface : model_.surfaces() )
+        auto groups =
+            group_surface_values< double >( model_, surface_regions_, attribute_id );
+        for( auto& variable : groups.variable_surfaces )
         {
-            auto values = surface_values< double >( surface, attribute_id );
-            if( !values )
-            {
-                continue;
-            }
-            for( auto& value : values.value() )
+            for( auto& value : variable.values )
             {
                 value *= factor;
             }
-            const auto region_id = surface_regions_.at( surface.id() );
-            if( is_uniform( values.value() ) )
-            {
-                value_regions[values->front()].push_back( region_id );
-                continue;
-            }
             auto condition = prototype;
-            condition.name = absl::StrCat( name_prefix, "_surface", region_id );
-            condition.function_name =
-                add_boundary_table( surface, values.value(), condition.name );
-            condition.region_ids = { region_id };
+            condition.name =
+                absl::StrCat( name_prefix, "_surface", variable.region_id );
+            condition.function_name = add_boundary_table(
+                *variable.surface, variable.values, condition.name );
+            condition.region_ids = { variable.region_id };
             // The table stores the actual values, hence a unit scale
             condition.scale = 1.;
             boundary_conditions_.push_back( std::move( condition ) );
         }
         index_t condition_id{ 0 };
-        for( auto& [value, region_ids] : value_regions )
+        for( auto& [value, region_ids] : groups.uniform_regions )
         {
             auto condition = prototype;
             condition.name = absl::StrCat( name_prefix, "_", condition_id++ );
             condition.region_ids = std::move( region_ids );
-            condition.scale = value;
+            condition.scale = factor * value;
             boundary_conditions_.push_back( std::move( condition ) );
         }
     }
@@ -1696,14 +1666,12 @@ namespace geode::internal
         }
         for( const auto& [property, attribute_id] : mechanics_attribute_ids_ )
         {
-            const auto [mean, min] =
-                attribute_mean_and_min( manager, attribute_id, nb_polyhedra );
             GeosCellProperty cell_property{
                 GeosCellArray{ attribute_id,
                     manager.find_generic_attribute( attribute_id )
                         ->name()
                         .value() },
-                mean, min
+                double_attribute_mean( manager, attribute_id, nb_polyhedra )
             };
             if( property == PHYSICAL_PROPERTY_NAME::bulk_modulus )
             {
@@ -1724,24 +1692,11 @@ namespace geode::internal
                 GeosCellArray{ initial_stress_attribute_id_.value(),
                     INITIAL_STRESS_TENSOR };
         }
-        context.displacement_axes = displacement_axes_;
         context.boundary_fraction_phases = boundary_fraction_phases_;
         context.has_boundary_pressure = model_.has_physical_property(
             PHYSICAL_PROPERTY_NAME::boundary_pressure );
         context.has_boundary_temperature = model_.has_physical_property(
             PHYSICAL_PROPERTY_NAME::boundary_temperature );
-        context.has_flow_boundary = context.has_boundary_pressure
-                                    || context.has_boundary_temperature
-                                    || !boundary_fraction_phases_.empty();
-        for( const auto property :
-            { PHYSICAL_PROPERTY_NAME::boundary_displacement,
-                PHYSICAL_PROPERTY_NAME::boundary_traction,
-                PHYSICAL_PROPERTY_NAME::boundary_normal_traction } )
-        {
-            context.has_mechanics_boundary =
-                context.has_mechanics_boundary
-                || model_.has_physical_property( property );
-        }
         context.well_names = well_names_;
         return context;
     }
@@ -1752,6 +1707,11 @@ namespace geode::internal
         auto issues = validate_physical_problem( *problem_ );
         for( auto& issue :
             validate_physical_problem_regions( *problem_, model_ ) )
+        {
+            issues.push_back( std::move( issue ) );
+        }
+        for( auto& issue :
+            validate_physical_problem_properties( *problem_, model_ ) )
         {
             issues.push_back( std::move( issue ) );
         }

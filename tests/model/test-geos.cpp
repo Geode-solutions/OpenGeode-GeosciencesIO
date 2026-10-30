@@ -1002,12 +1002,14 @@ void test_tractions()
     check_deck_patterns( deck,
         { "tractionType=\"normal\"", "scale=\"-1000000\"",
             "tractionType=\"vector\"", "direction=\"{ 0, 1, 0 }\"",
-            "scale=\"1000000\"", "traction_x_surface", "traction_y_surface",
-            "traction_z_surface" },
+            "scale=\"1000000\"", "boundaryNormalTraction_0",
+            "boundaryTraction_0", "boundaryTraction_y_surface" },
         "Tractions" );
+    // The variable tractions only have a y component
     geode::OpenGeodeGeosciencesIOModelException::test(
-        count_occurrences( deck, "<Traction" )
-            == 2 + 3 * variable_surfaces.size(),
+        count_occurrences( deck, "<Traction" ) == 2 + variable_surfaces.size()
+            && !absl::StrContains( deck, "boundaryTraction_x_surface" )
+            && !absl::StrContains( deck, "boundaryTraction_z_surface" ),
         "[Test] Wrong number of tractions" );
 }
 
@@ -1249,7 +1251,7 @@ void test_mechanics_failures()
         add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::bulk_modulus,
             "negative_bulk_modulus", -1. );
         check_export_failure( model, mechanics_problem( model ),
-            "bulk_modulus physical property must be positive" );
+            "without a positive bulk_modulus" );
     }
     {
         auto model = elastic_cube();
@@ -1258,7 +1260,7 @@ void test_mechanics_failures()
             east_surfaces( model ),
             geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "pressure", 1e7 );
         check_export_failure(
-            model, mechanics_problem( model ), "need a flow model" );
+            model, mechanics_problem( model ), "needs a flow model" );
     }
     {
         auto model = elastic_cube();
@@ -1268,6 +1270,16 @@ void test_mechanics_failures()
         flow->set_fluid( three_phase_dead_oil() );
         geode::PhysicalProblemBuilder{ problem }.set_flow( flow );
         check_export_failure( model, problem, "poromechanics" );
+    }
+    {
+        auto model = elastic_cube();
+        add_roller_displacements( model, true );
+        add_boundary_condition< geode::ConstantAttribute >( model,
+            boundary_surfaces( model, 2, true ),
+            geode::PHYSICAL_PROPERTY_NAME::boundary_traction, "nan_traction",
+            std::array< double, 3 >{ 0., FREE, TRACTION } );
+        check_export_failure(
+            model, mechanics_problem( model ), "must be finite" );
     }
     {
         auto model = elastic_cube();
@@ -1292,8 +1304,8 @@ void test_mechanics_failures()
             .find_attribute< geode::VariableAttribute,
                 std::array< double, 3 > >( attribute_id )
             ->set_value( 0, { 1., FREE, FREE } );
-        check_export_failure( model, mechanics_problem( model ),
-            "must be the same on every polygon" );
+        check_export_failure(
+            model, mechanics_problem( model ), "must be uniform" );
     }
 }
 
