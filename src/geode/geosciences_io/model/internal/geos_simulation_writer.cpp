@@ -26,6 +26,7 @@
 #include <array>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <pugixml.hpp>
@@ -58,8 +59,11 @@ namespace
 {
     constexpr auto FLUID_MODEL_NAME = "fluid";
     constexpr auto FLOW_SOLVER_NAME = "flow";
+    constexpr auto MECHANICS_SOLVER_NAME = "mechanics";
     constexpr auto TPFA_NAME = "tpfa";
+    constexpr auto FINITE_ELEMENT_NAME = "FE1";
     constexpr auto NULL_SOLID_NAME = "nullSolid";
+    constexpr auto ELASTIC_SOLID_NAME = "solid";
     constexpr auto VTK_OUTPUT_NAME = "vtkOutput";
     constexpr auto RESTART_OUTPUT_NAME = "restartOutput";
 
@@ -172,6 +176,11 @@ namespace geode::internal
               material_of_region_( assigned_items( materials ) ),
               condition_of_region_( assigned_items( initial_conditions ) )
         {
+            if( !problem_.has_flow() )
+            {
+                build_mechanics_imported_fields();
+                return;
+            }
             build_porosity_groups();
             build_permeability_groups();
             build_imported_fields();
@@ -191,6 +200,19 @@ namespace geode::internal
             set_attribute( solvers, "gravityVector",
                 geos_array( { gravity.value( 0 ), gravity.value( 1 ),
                     gravity.value( 2 ) } ) );
+            if( !problem_.has_flow() )
+            {
+                write_mechanics_solver( solvers );
+                auto finite_elements =
+                    problem_node.append_child( "NumericalMethods" )
+                        .append_child( "FiniteElements" );
+                auto space = add_named_child( finite_elements,
+                    "FiniteElementSpace", FINITE_ELEMENT_NAME );
+                set_attribute( space, "order", "1" );
+                write_mechanics_element_regions( problem_node );
+                write_mechanics_constitutive( problem_node );
+                return;
+            }
             write_flow_solver( solvers );
             auto finite_volume = problem_node.append_child( "NumericalMethods" )
                                      .append_child( "FiniteVolume" );
@@ -203,6 +225,10 @@ namespace geode::internal
         void write_initial_conditions(
             pugi::xml_node& field_specifications ) const
         {
+            if( !problem_.has_flow() )
+            {
+                return;
+            }
             for( const auto& region : context_.solid_regions )
             {
                 const auto* condition =
@@ -262,7 +288,9 @@ namespace geode::internal
             auto solver_event = add_named_child(
                 events, "PeriodicEvent", "solverApplications" );
             set_attribute( solver_event, "target",
-                absl::StrCat( "/Solvers/", FLOW_SOLVER_NAME ) );
+                absl::StrCat( "/Solvers/", problem_.has_flow()
+                                               ? FLOW_SOLVER_NAME
+                                               : MECHANICS_SOLVER_NAME ) );
             if( schedule.max_time_step )
             {
                 set_real_attribute( solver_event, "maxEventDt",
@@ -422,6 +450,29 @@ namespace geode::internal
             }
         }
 
+        void build_mechanics_imported_fields()
+        {
+            for( const auto& [property, geos_field] :
+                { std::pair{ &context_.bulk_modulus, "bulkModulus" },
+                    std::pair{ &context_.shear_modulus, "shearModulus" },
+                    std::pair{ &context_.density, "density" } } )
+            {
+                if( !property->has_value() )
+                {
+                    continue;
+                }
+                const auto& array = property->value().array;
+                imported_fields_.push_back( { array, array.name,
+                    absl::StrCat( ELASTIC_SOLID_NAME, "_", geos_field ) } );
+            }
+            if( context_.initial_stress )
+            {
+                const auto& array = context_.initial_stress.value();
+                imported_fields_.push_back( { array, array.name,
+                    absl::StrCat( ELASTIC_SOLID_NAME, "_stress" ) } );
+            }
+        }
+
         void build_tables()
         {
             if( const auto* dead_oil =
@@ -533,14 +584,31 @@ namespace geode::internal
             write_solver_parameters( solver );
         }
 
+        void write_mechanics_solver( pugi::xml_node& solvers ) const
+        {
+            auto solver = add_named_child(
+                solvers, "SolidMechanicsLagrangianFEM", MECHANICS_SOLVER_NAME );
+            set_attribute( solver, "logLevel", "1" );
+            set_attribute( solver, "timeIntegrationOption", "QuasiStatic" );
+            set_attribute( solver, "discretization", FINITE_ELEMENT_NAME );
+            set_attribute(
+                solver, "targetRegions", geos_names( region_names() ) );
+            set_real_attribute(
+                solver, "initialDt", problem_.schedule().initial_time_step );
+            write_solver_parameters( solver );
+        }
+
         void write_solver_parameters( pugi::xml_node& solver ) const
         {
             auto nonlinear = solver.append_child( "NonlinearSolverParameters" );
             set_attribute( nonlinear, "newtonTol", "1e-6" );
             set_attribute( nonlinear, "newtonMaxIter", "15" );
-            set_attribute( nonlinear, "maxTimeStepCuts", "10" );
+            if( problem_.has_flow() )
+            {
+                set_attribute( nonlinear, "maxTimeStepCuts", "10" );
+            }
             auto linear = solver.append_child( "LinearSolverParameters" );
-            if( is_multiphase() )
+            if( problem_.has_flow() && is_multiphase() )
             {
                 set_attribute( linear, "solverType", "fgmres" );
                 set_attribute( linear, "preconditionerType", "mgr" );
@@ -549,6 +617,10 @@ namespace geode::internal
             }
             set_attribute( linear, "solverType", "gmres" );
             set_attribute( linear, "preconditionerType", "amg" );
+            if( !problem_.has_flow() )
+            {
+                set_attribute( linear, "krylovTol", "1e-8" );
+            }
         }
 
         [[nodiscard]] std::vector< std::string > material_list(
@@ -592,6 +664,38 @@ namespace geode::internal
                 set_attribute( node, "materialList",
                     geos_names( material_list( material ) ) );
             }
+        }
+
+        void write_mechanics_element_regions(
+            pugi::xml_node& problem_node ) const
+        {
+            auto regions = problem_node.append_child( "ElementRegions" );
+            for( const auto& region : context_.solid_regions )
+            {
+                add_comment( regions,
+                    absl::StrCat( region.name, ": ", region.component_name,
+                        " (", region.component_id.string(), ")" ) );
+                auto node = add_named_child(
+                    regions, "CellElementRegion", region.name );
+                set_attribute(
+                    node, "cellBlocks", absl::StrCat( "{ ", region.id, " }" ) );
+                set_attribute( node, "materialList",
+                    absl::StrCat( "{ ", ELASTIC_SOLID_NAME, " }" ) );
+            }
+        }
+
+        // Imported cell properties override the defaults, set to their means
+        void write_mechanics_constitutive( pugi::xml_node& problem_node ) const
+        {
+            auto constitutive = problem_node.append_child( "Constitutive" );
+            auto solid = add_named_child(
+                constitutive, "ElasticIsotropic", ELASTIC_SOLID_NAME );
+            set_real_attribute( solid, "defaultDensity",
+                context_.density ? context_.density->mean : 0. );
+            set_real_attribute(
+                solid, "defaultBulkModulus", context_.bulk_modulus->mean );
+            set_real_attribute(
+                solid, "defaultShearModulus", context_.shear_modulus->mean );
         }
 
         void write_constitutive( pugi::xml_node& problem_node ) const
