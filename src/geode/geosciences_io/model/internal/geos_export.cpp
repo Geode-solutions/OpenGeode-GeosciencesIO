@@ -1422,8 +1422,8 @@ namespace geode::internal
         const BoundaryCondition& prototype,
         double factor )
     {
-        auto groups =
-            group_surface_values< double >( model_, surface_regions_, attribute_id );
+        auto groups = group_surface_values< double >(
+            model_, surface_regions_, attribute_id );
         for( auto& variable : groups.variable_surfaces )
         {
             for( auto& value : variable.values )
