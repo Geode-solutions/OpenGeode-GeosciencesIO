@@ -538,7 +538,7 @@ namespace
             const auto value = is_double
                                    ? typed->value( element )
                                    : static_cast< double >(
-                                       generic->generic_value( element ) );
+                                         generic->generic_value( element ) );
             sum += value;
             min = std::min( min, value );
         }
@@ -1110,7 +1110,7 @@ namespace geode::internal
                 specification_node.append_attribute( "direction" )
                     .set_value( absl::StrFormat( "{ %.15g, %.15g, %.15g }",
                         direction[0], direction[1], direction[2] )
-                                    .c_str() );
+                            .c_str() );
             }
             if( condition.component )
             {
@@ -1128,7 +1128,7 @@ namespace geode::internal
             specification_node.append_attribute( "setNames" )
                 .set_value( absl::StrCat(
                     "{ ", absl::StrJoin( condition.region_ids, ", " ), " }" )
-                                .c_str() );
+                        .c_str() );
         }
     }
 
@@ -1151,7 +1151,7 @@ namespace geode::internal
                             absl::StrAppend( out, "./", file );
                         } ),
                     " }" )
-                                .c_str() );
+                        .c_str() );
             function_node.append_attribute( "voxelFile" )
                 .set_value( absl::StrCat( "./", table.voxel_file ).c_str() );
             function_node.append_attribute( "interpolation" )
@@ -1166,9 +1166,9 @@ namespace geode::internal
         for( const auto& block : model_.blocks() )
         {
             if( !block.mesh()
-                     .polyhedron_attribute_manager()
-                     .attribute_ids_matching_name( property_name )
-                     .has_value() )
+                    .polyhedron_attribute_manager()
+                    .attribute_ids_matching_name( property_name )
+                    .has_value() )
             {
                 Logger::info( "The property ", property_name,
                     " will not be exported because it is not defined on "
@@ -1257,8 +1257,9 @@ namespace geode::internal
         if( initial_stress_attribute_id_ )
         {
             scale_stress_tensors(
-                *manager.template find_attribute< VariableAttribute,
-                    StressTensor >( initial_stress_attribute_id_.value() ),
+                *manager
+                    .template find_attribute< VariableAttribute, StressTensor >(
+                        initial_stress_attribute_id_.value() ),
                 model_solid_->nb_polyhedra(), geos_stress_factor( *problem_ ) );
         }
     }

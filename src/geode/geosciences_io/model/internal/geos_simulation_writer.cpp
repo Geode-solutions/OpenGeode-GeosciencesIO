@@ -400,8 +400,8 @@ namespace geode::internal
                 const auto components =
                     context_.permeability_array
                         ? material.permeability.value_or(
-                            context_.mean_permeability.value_or(
-                                std::array< double, 3 >{ 0, 0, 0 } ) )
+                              context_.mean_permeability.value_or(
+                                  std::array< double, 3 >{ 0, 0, 0 } ) )
                         : material.permeability.value();
                 material_permeability_group_.push_back(
                     permeability_group( components ) );
