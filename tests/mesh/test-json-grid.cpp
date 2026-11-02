@@ -122,7 +122,7 @@ void test_unordered_records()
     constexpr auto filename = "unordered_grid.json";
     write_file( filename, R"({
         "grid_df": [
-            { "x": 2, "y": 1, "z": 6, "value": 112 },
+            { "x": 2, "y": 1, "z": 6, "value": 112, "label": "a" },
             { "x": 0, "y": 0, "z": 5, "value": 0 },
             { "x": 0, "y": 1, "z": 6, "value": 110 },
             { "x": 2, "y": 0, "z": 5, "value": 2 },
@@ -141,6 +141,11 @@ void test_unordered_records()
         "Wrong number of cells for unordered grid" );
     geode::OpenGeodeGeosciencesIOMeshException::test(
         grid.name() == "unordered", "Wrong name for unordered grid" );
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        !grid.grid_vertex_attribute_manager()
+            .attribute_ids_matching_name( "label" )
+            .has_value(),
+        "String values should be ignored" );
     const auto attribute = find_attribute< double >( grid, "value" );
     for( const auto vertex : geode::Range{ grid.nb_grid_vertices() } )
     {
@@ -155,7 +160,10 @@ void test_unordered_records()
 
 void test_invalid_grid( std::string_view filename, std::string_view content )
 {
-    write_file( filename, content );
+    if( !content.empty() )
+    {
+        write_file( filename, content );
+    }
     try
     {
         [[maybe_unused]] const auto grid =
@@ -201,6 +209,78 @@ void test_invalid_grids()
     })" );
 }
 
+void test_overflowing_grid()
+{
+    // 131072 x 32769 x 1 vertices wraps to 131072 in 32 bits, the number of
+    // records
+    constexpr auto filename = "overflowing_grid.json";
+    {
+        std::ofstream file{ filename };
+        file << "{\"grid_df\":[";
+        for( const auto record : geode::Range{ 131072 } )
+        {
+            file << ( record == 0 ? "" : "," ) << "{\"x\":" << record
+                 << ",\"y\":" << record % 32769 << ",\"z\":0}";
+        }
+        file << "]}";
+    }
+    test_invalid_grid( filename, "" );
+}
+
+void test_sparse_attributes()
+{
+    // Each record has its own attribute key: values are stored per record
+    constexpr auto filename = "sparse_attributes_grid.json";
+    {
+        std::ofstream file{ filename };
+        file << "{\"grid_df\":[";
+        for( const auto record : geode::Range{ 1000 } )
+        {
+            file << ( record == 0 ? "" : "," ) << "{\"x\":" << record % 10
+                 << ",\"y\":" << ( record / 10 ) % 10
+                 << ",\"z\":" << record / 100 << ",\"key" << record
+                 << "\":" << record << "}";
+        }
+        file << "]}";
+    }
+    const auto grid = geode::load_light_regular_grid< 3 >( filename );
+    for( const auto record : { 0, 1, 517, 999 } )
+    {
+        const auto attribute =
+            find_attribute< double >( grid, absl::StrCat( "key", record ) );
+        const auto vertex =
+            grid.vertex_index( { static_cast< geode::index_t >( record % 10 ),
+                static_cast< geode::index_t >( ( record / 10 ) % 10 ),
+                static_cast< geode::index_t >( record / 100 ) } );
+        for( const auto other : geode::Range{ grid.nb_grid_vertices() } )
+        {
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                attribute->has_value( other ) == ( other == vertex ),
+                "Only one vertex should have a value for key", record );
+        }
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            attribute->value( vertex ) == record, "Wrong value for key",
+            record );
+    }
+}
+
+void test_truncated_after_grid()
+{
+    constexpr auto filename = "truncated_after_grid.json";
+    write_file( filename, R"({
+        "grid_df": [
+            { "x": 0, "y": 0, "z": 0 }, { "x": 1, "y": 0, "z": 0 },
+            { "x": 0, "y": 1, "z": 0 }, { "x": 1, "y": 1, "z": 0 },
+            { "x": 0, "y": 0, "z": 1 }, { "x": 1, "y": 0, "z": 1 },
+            { "x": 0, "y": 1, "z": 1 }, { "x": 1, "y": 1, "z": 1 }
+        ],
+        "name": )" );
+    const auto grid = geode::load_light_regular_grid< 3 >( filename );
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        grid.nb_grid_vertices() == 8,
+        "Grid before the parse error should be loaded" );
+}
+
 int main()
 {
     try
@@ -219,6 +299,9 @@ int main()
 
         test_unordered_records();
         test_invalid_grids();
+        test_overflowing_grid();
+        test_sparse_attributes();
+        test_truncated_after_grid();
 
         geode::Logger::info( "[TEST SUCCESS]" );
 

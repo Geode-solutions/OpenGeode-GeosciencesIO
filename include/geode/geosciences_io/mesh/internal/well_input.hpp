@@ -55,21 +55,27 @@ namespace geode::internal
             std::string line;
             while( std::getline( file_, line ) )
             {
-                builder_->create_point( read_coord( line ) );
+                const auto tokens = string_split( line );
+                if( tokens.empty() || tokens.front().front() == '#' )
+                {
+                    continue;
+                }
+                builder_->create_point( read_coord( tokens, line ) );
             }
-            for( const auto pt_id : Range{ curve_.nb_vertices() - 1 } )
+            for( index_t pt_id = 1; pt_id < curve_.nb_vertices(); pt_id++ )
             {
-                builder_->create_edge( pt_id, pt_id + 1 );
+                builder_->create_edge( pt_id - 1, pt_id );
             }
         }
 
     private:
-        geode::Point3D read_coord( std::string_view line ) const
+        geode::Point3D read_coord( absl::Span< const std::string_view > tokens,
+            std::string_view line ) const
         {
-            const auto tokens = string_split( line );
             OpenGeodeGeosciencesIOMeshException::check_exception(
                 tokens.size() == 3, nullptr, OpenGeodeException::TYPE::data,
-                "[WellInput::read_coord] Wrong number of tokens" );
+                "[WellInput::read_coord] Line \"", line,
+                "\" should have 3 coordinates" );
             return Point3D{ { string_to_double( tokens[0] ),
                 string_to_double( tokens[1] ),
                 string_to_double( tokens[2] ) } };

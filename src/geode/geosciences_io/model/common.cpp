@@ -28,6 +28,8 @@
 #include <geode/mesh/io/regular_grid_input.hpp>
 #include <geode/mesh/io/triangulated_surface_input.hpp>
 
+#include <geode/io/mesh/common.hpp>
+
 #include <geode/geosciences/explicit/common.hpp>
 #include <geode/geosciences/explicit/representation/io/structural_model_input.hpp>
 #include <geode/geosciences/explicit/representation/io/structural_model_output.hpp>
@@ -105,6 +107,7 @@ namespace geode
         OpenGeodeGeosciencesImplicitLibrary::initialize();
         OpenGeodeGeosciencesSimulationLibrary::initialize();
         OpenGeodeGeosciencesIOMeshLibrary::initialize();
+        OpenGeodeIOMeshLibrary::initialize();
         register_structural_model_input();
         register_structural_model_output();
         register_section_input();

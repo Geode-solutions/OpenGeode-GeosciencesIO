@@ -23,6 +23,8 @@
 
 #include <geode/geosciences_io/model/internal/geos_xml.hpp>
 
+#include <cstdlib>
+
 #include <pugixml.hpp>
 
 #include <absl/strings/str_cat.h>
@@ -33,7 +35,17 @@ namespace geode::internal
 {
     std::string geos_real( double value )
     {
-        return absl::StrFormat( "%.15g", value );
+        static constexpr int MIN_DIGITS{ 15 };
+        static constexpr int MAX_DIGITS{ 17 };
+        for( auto digits = MIN_DIGITS; digits < MAX_DIGITS; digits++ )
+        {
+            auto text = absl::StrFormat( "%.*g", digits, value );
+            if( std::strtod( text.c_str(), nullptr ) == value )
+            {
+                return text;
+            }
+        }
+        return absl::StrFormat( "%.*g", MAX_DIGITS, value );
     }
 
     std::string geos_array( absl::Span< const double > values )

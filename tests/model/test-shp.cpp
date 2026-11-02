@@ -23,13 +23,218 @@
 
 #include <geode/tests_config.hpp>
 
+#include <string>
+#include <vector>
+
+#include <absl/strings/str_cat.h>
+
+#include <ogrsf_frmts.h>
+
 #include <geode/basic/assert.hpp>
 #include <geode/basic/logger.hpp>
+#include <geode/basic/string.hpp>
 
+#include <geode/mesh/core/edged_curve.hpp>
+#include <geode/mesh/core/point_set.hpp>
+#include <geode/mesh/core/surface_mesh.hpp>
+
+#include <geode/model/mixin/core/corner.hpp>
+#include <geode/model/mixin/core/line.hpp>
+#include <geode/model/mixin/core/surface.hpp>
 #include <geode/model/representation/core/section.hpp>
 #include <geode/model/representation/io/section_input.hpp>
 
 #include <geode/geosciences_io/model/common.hpp>
+
+namespace
+{
+    std::string write_shapefile( std::string_view name,
+        OGRwkbGeometryType type,
+        const std::vector< std::string >& wkts )
+    {
+        GDALAllRegister();
+        const auto filename = absl::StrCat( name, ".shp" );
+        auto* driver =
+            GetGDALDriverManager()->GetDriverByName( "ESRI Shapefile" );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            driver != nullptr, "Shapefile driver not found" );
+        driver->Delete( filename.c_str() );
+        GDALDatasetUniquePtr dataset{ driver->Create(
+            filename.c_str(), 0, 0, 0, GDT_Unknown, nullptr ) };
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            dataset != nullptr, "Cannot create ", filename );
+        auto* layer = dataset->CreateLayer(
+            geode::to_string( name ).c_str(), nullptr, type, nullptr );
+        for( const auto& wkt : wkts )
+        {
+            OGRFeature feature{ layer->GetLayerDefn() };
+            if( !wkt.empty() )
+            {
+                OGRGeometry* geometry{ nullptr };
+                OGRGeometryFactory::createFromWkt(
+                    wkt.c_str(), nullptr, &geometry );
+                geode::OpenGeodeGeosciencesIOModelException::test(
+                    geometry != nullptr, "Invalid WKT ", wkt );
+                feature.SetGeometryDirectly( geometry );
+            }
+            geode::OpenGeodeGeosciencesIOModelException::test(
+                layer->CreateFeature( &feature ) == OGRERR_NONE,
+                "Cannot write feature ", wkt );
+        }
+        return filename;
+    }
+
+    void check_section_vertices( const geode::Section& section )
+    {
+        for( const auto& line : section.lines() )
+        {
+            const auto& mesh = line.mesh();
+            for( const auto v : geode::Range{ mesh.nb_vertices() } )
+            {
+                geode::OpenGeodeGeosciencesIOModelException::test(
+                    section.unique_vertex( { line.component_id(), v } )
+                        != geode::NO_ID,
+                    "Line vertex without unique vertex" );
+            }
+            for( const auto e : geode::Range{ mesh.nb_edges() } )
+            {
+                geode::OpenGeodeGeosciencesIOModelException::test(
+                    mesh.edge_vertex( { e, 0 } ) != mesh.edge_vertex( { e, 1 } )
+                        && mesh.edge_vertex( { e, 1 } ) < mesh.nb_vertices(),
+                    "Degenerated or invalid Line edge" );
+            }
+        }
+        for( const auto& surface : section.surfaces() )
+        {
+            const auto& mesh = surface.mesh();
+            for( const auto v : geode::Range{ mesh.nb_vertices() } )
+            {
+                geode::OpenGeodeGeosciencesIOModelException::test(
+                    section.unique_vertex( { surface.component_id(), v } )
+                        != geode::NO_ID,
+                    "Surface vertex without unique vertex" );
+            }
+            for( const auto p : geode::Range{ mesh.nb_polygons() } )
+            {
+                geode::OpenGeodeGeosciencesIOModelException::test(
+                    mesh.nb_polygon_vertices( p ) >= 3,
+                    "Degenerated Surface polygon" );
+            }
+        }
+    }
+
+    void test_degenerated_parts()
+    {
+        const auto lines = geode::load_section(
+            write_shapefile( "shp_degenerated_lines", wkbLineString,
+                { "LINESTRING (0 0)", "LINESTRING (0 0,0 0)",
+                    "LINESTRING (0 0,1 0,2 1)" } ) );
+        check_section_vertices( lines );
+        geode::index_t nb_edges{ 0 };
+        for( const auto& line : lines.lines() )
+        {
+            nb_edges += line.mesh().nb_edges();
+        }
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            nb_edges == 2, "Wrong number of edges with degenerated lines" );
+
+        const auto polygons = geode::load_section(
+            write_shapefile( "shp_degenerated_polygons", wkbPolygon,
+                { "POLYGON ((0 0,1 1,0 0))",
+                    "POLYGON ((0 0,1 0,1 1,0 1,0 0))" } ) );
+        check_section_vertices( polygons );
+        geode::index_t nb_polygons{ 0 };
+        for( const auto& surface : polygons.surfaces() )
+        {
+            nb_polygons += surface.mesh().nb_polygons();
+        }
+        geode::OpenGeodeGeosciencesIOModelException::test( nb_polygons == 1,
+            "Wrong number of polygons with degenerated polygons" );
+    }
+    void test_points()
+    {
+        const auto section = geode::load_section( write_shapefile( "shp_points",
+            wkbPoint, { "POINT (0 0)", "POINT (1 0)", "POINT (2 3)" } ) );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            section.nb_corners() == 3, "Wrong number of corners" );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            section.nb_unique_vertices() == 3,
+            "Wrong number of unique vertices" );
+        for( const auto& corner : section.corners() )
+        {
+            geode::OpenGeodeGeosciencesIOModelException::test(
+                corner.mesh().nb_vertices() == 1
+                    && section.unique_vertex( { corner.component_id(), 0 } )
+                           != geode::NO_ID,
+                "Wrong Corner mesh" );
+        }
+    }
+    void test_geometry_variants()
+    {
+        const auto points = geode::load_section( write_shapefile(
+            "shp_multi_points_z", wkbMultiPoint25D,
+            { "MULTIPOINT Z ((0 0 1),(1 0 2))", "MULTIPOINT Z ((2 3 4))" } ) );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            points.nb_corners() == 3, "Wrong number of MultiPoint corners" );
+        const auto lines = geode::load_section( write_shapefile( "shp_lines_z",
+            wkbLineString25D, { "LINESTRING Z (0 0 1,1 0 2,1 1 3)" } ) );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            lines.nb_lines() == 1
+                && ( *lines.lines().begin() ).mesh().nb_edges() == 2,
+            "Wrong LineString Z" );
+        const auto polygons =
+            geode::load_section( write_shapefile( "shp_polygons_m", wkbPolygonM,
+                { "POLYGON M ((0 0 1,1 0 2,1 1 3,0 0 1))" } ) );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            polygons.nb_surfaces() == 1
+                && ( *polygons.surfaces().begin() ).mesh().nb_polygons() == 1,
+            "Wrong Polygon M" );
+    }
+    void test_null_geometries()
+    {
+        const auto points =
+            geode::load_section( write_shapefile( "shp_null_points", wkbPoint,
+                { "POINT (0 0)", "", "POINT (1 1)" } ) );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            points.nb_corners() == 2,
+            "Wrong number of corners with null geometry" );
+        const auto lines = geode::load_section( write_shapefile(
+            "shp_null_lines", wkbLineString, { "", "LINESTRING (0 0,1 1)" } ) );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            lines.nb_lines() == 1, "Wrong number of lines with null geometry" );
+        const auto polygons =
+            geode::load_section( write_shapefile( "shp_null_polygons",
+                wkbPolygon, { "", "POLYGON ((0 0,1 0,1 1,0 0))" } ) );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            polygons.nb_surfaces() == 1,
+            "Wrong number of surfaces with null geometry" );
+    }
+    void test_polygon_holes()
+    {
+        const auto section = geode::load_section( write_shapefile(
+            "shp_polygon_hole", wkbPolygon,
+            { "POLYGON ((0 0,10 0,10 10,0 10,0 0),(4 4,4 6,6 6,6 4,4 4))" } ) );
+        check_section_vertices( section );
+        const auto& mesh = ( *section.surfaces().begin() ).mesh();
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            mesh.nb_vertices() == 4 && mesh.nb_polygons() == 1,
+            "Polygon hole should not create overlapping polygons" );
+    }
+    void test_additional_files()
+    {
+        const auto shz_files = geode::section_additional_files(
+            absl::StrCat( geode::DATA_PATH, "toulouse.shz" ) );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            shz_files.mandatory_files.empty(),
+            "No additional file should be required for .shz" );
+        const auto shp_files = geode::section_additional_files(
+            absl::StrCat( geode::DATA_PATH, "test.shp" ) );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            shp_files.mandatory_files.size() == 1
+                && shp_files.mandatory_files.front().is_missing == false,
+            "Wrong additional files for .shp" );
+    }
+} // namespace
 
 int main()
 {
@@ -39,7 +244,7 @@ int main()
         const auto section = geode::load_section(
             absl::StrCat( geode::DATA_PATH, "toulouse.shz" ) );
         geode::OpenGeodeGeosciencesIOModelException::test(
-            section.nb_corners() == 7, "Wrong number of corners" );
+            section.nb_corners() == 51718, "Wrong number of corners" );
         geode::OpenGeodeGeosciencesIOModelException::test(
             section.nb_lines() == 10, "Wrong number of lines" );
         geode::OpenGeodeGeosciencesIOModelException::test(
@@ -53,6 +258,13 @@ int main()
             section2.nb_lines() == 0, "Wrong number of lines" );
         geode::OpenGeodeGeosciencesIOModelException::test(
             section2.nb_surfaces() == 1, "Wrong number of surfaces" );
+
+        test_degenerated_parts();
+        test_points();
+        test_geometry_variants();
+        test_null_geometries();
+        test_polygon_holes();
+        test_additional_files();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

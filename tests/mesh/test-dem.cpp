@@ -26,12 +26,26 @@
 #include <geode/basic/assert.hpp>
 #include <geode/basic/logger.hpp>
 
+#include <geode/geometry/point.hpp>
+#include <geode/geometry/vector.hpp>
+
 #include <geode/mesh/core/polygonal_surface.hpp>
 
 #include <geode/mesh/io/polygonal_surface_input.hpp>
 #include <geode/mesh/io/polygonal_surface_output.hpp>
 
 #include <geode/geosciences_io/mesh/common.hpp>
+
+void check_normals( const geode::PolygonalSurface3D& surface )
+{
+    for( const auto p : geode::Range{ surface.nb_polygons() } )
+    {
+        const auto normal = surface.polygon_normal( p );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            normal && normal->value( 2 ) > 0,
+            "Polygon normal should be upward" );
+    }
+}
 
 int main()
 {
@@ -49,6 +63,7 @@ int main()
             "Number of polygons in the loaded Surface is not correct" );
         geode::save_polygonal_surface(
             *surface, "bathy_IrishSea_DEM.og_psf3d" );
+        check_normals( *surface );
 
         geode::Logger::info( "[TEST SUCCESS]" );
 

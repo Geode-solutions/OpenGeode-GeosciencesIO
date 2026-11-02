@@ -25,7 +25,10 @@
 
 #include <fstream>
 
+#include <absl/algorithm/container.h>
+
 #include <geode/basic/file.hpp>
+#include <geode/basic/logger.hpp>
 
 #include <geode/geometry/point.hpp>
 
@@ -51,9 +54,16 @@ namespace
 
         void read_file()
         {
+            geode::index_t nb_objects{ 0 };
             while( const auto ecurve = geode::internal::read_ecurve( file_ ) )
             {
                 build_curve( ecurve.value() );
+                nb_objects++;
+            }
+            if( nb_objects == 0 )
+            {
+                geode::Logger::warning(
+                    "[PLInput] No GOCAD PLine found in the file" );
             }
         }
 
@@ -61,13 +71,16 @@ namespace
         void build_curve( const geode::internal::ECurveData& ecurve )
         {
             const auto offset = curve_.nb_vertices();
-            if( ecurve.header.name )
+            if( ecurve.header.name && !curve_.name() )
             {
                 builder_->set_name( ecurve.header.name.value() );
             }
-            for( const auto& point : ecurve.points )
+            const auto first_vertex =
+                builder_->create_vertices( ecurve.points.size() );
+            for( const auto vertex : geode::Indices{ ecurve.points } )
             {
-                builder_->create_point( point );
+                builder_->set_point(
+                    first_vertex + vertex, ecurve.points[vertex] );
             }
             for( auto edge : ecurve.edges )
             {
@@ -77,6 +90,14 @@ namespace
                 }
                 builder_->create_edge( edge[0], edge[1] );
             }
+            std::vector< geode::index_t > inverse_vertex_mapping(
+                ecurve.points.size() );
+            absl::c_iota( inverse_vertex_mapping, 0 );
+            geode::internal::create_attributes(
+                ecurve.vertices_properties_header,
+                ecurve.vertices_attribute_values,
+                curve_.vertex_attribute_manager(), ecurve.points.size(),
+                inverse_vertex_mapping, offset );
         }
 
     private:

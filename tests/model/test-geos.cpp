@@ -64,12 +64,25 @@
 #include <geode/geosciences_io/model/helpers/brep_geos_export.hpp>
 #include <geode/geosciences_io/model/helpers/structural_model_geos_export.hpp>
 
+#include <absl/strings/str_split.h>
 #include <geode/geometry/bounding_box.hpp>
 #include <geode/geometry/point.hpp>
-#include <geode/io/mesh/common.hpp>
-#include <geode/io/model/common.hpp>
+#include <geode/geometry/vector.hpp>
+#include <geode/mesh/builder/hybrid_solid_builder.hpp>
 #include <geode/mesh/builder/point_set_builder.hpp>
+#include <geode/mesh/builder/polygonal_surface_builder.hpp>
+#include <geode/mesh/builder/regular_grid_solid_builder.hpp>
+#include <geode/mesh/builder/tetrahedral_solid_builder.hpp>
+#include <geode/mesh/builder/triangulated_surface_builder.hpp>
+#include <geode/mesh/core/geode/geode_hybrid_solid.hpp>
+#include <geode/mesh/core/geode/geode_polygonal_surface.hpp>
+#include <geode/mesh/core/geode/geode_regular_grid_solid.hpp>
+#include <geode/mesh/core/geode/geode_tetrahedral_solid.hpp>
+#include <geode/mesh/core/geode/geode_triangulated_surface.hpp>
 #include <geode/mesh/core/point_set.hpp>
+#include <geode/mesh/core/polygonal_surface.hpp>
+#include <geode/mesh/core/tetrahedral_solid.hpp>
+#include <geode/mesh/io/tetrahedral_solid_input.hpp>
 
 #include <geode/mesh/core/geode/geode_point_set.hpp>
 #include <geode/mesh/core/hybrid_solid.hpp>
@@ -566,6 +579,8 @@ void test_spe10_reference()
     exporter.set_physical_problem( problem );
     add_spe10_wells( exporter );
     exporter.run();
+    // A second run must write the same deck
+    exporter.run();
     const auto deck =
         read_file( "spe10_reference/spe10_reference_simulation.xml" );
     for( const auto* pattern :
@@ -596,8 +611,8 @@ void test_spe10_reference()
     // Perforation boxes of the reference grid_geos_simulation.xml
     for( const auto* pattern : { "name=\"source\"", "name=\"sink1\"",
              "name=\"sink2\"", "name=\"sink3\"", "name=\"sink4\"",
-             "xMin=\"{182.88, 335.28, -0.0001}\"",
-             "xMax=\"{188.976, 338.328, 1.2201}\"" } )
+             "xMin=\"{182.8799, 335.2799, -9.999999999999999e-05}\"",
+             "xMax=\"{188.9761, 338.32809999999995, 1.2201}\"" } )
     {
         geode::OpenGeodeGeosciencesIOModelException::test(
             absl::StrContains( deck, pattern ), "[Test] ", pattern,
@@ -800,13 +815,599 @@ void test_structural_model_regions()
         "[Test] StructuralModel deck should use both materials" );
 }
 
+geode::BRep tetrahedra_brep(
+    geode::index_t nb_blocks, const geode::Point3D& origin )
+{
+    geode::BRep model;
+    geode::BRepBuilder builder{ model };
+    builder.create_unique_vertices( 4 * nb_blocks );
+    for( const auto block_id : geode::Range{ nb_blocks } )
+    {
+        const auto& block = model.block( builder.add_block(
+            geode::OpenGeodeTetrahedralSolid3D::impl_name_static() ) );
+        auto mesh_builder =
+            builder.block_mesh_builder< geode::TetrahedralSolid3D >( block );
+        auto x = origin.value( 0 ) + 2. * block_id;
+        mesh_builder->create_point(
+            geode::Point3D{ { x, origin.value( 1 ), origin.value( 2 ) } } );
+        mesh_builder->create_point( geode::Point3D{
+            { x + 1., origin.value( 1 ), origin.value( 2 ) } } );
+        mesh_builder->create_point( geode::Point3D{
+            { x, origin.value( 1 ) + 1., origin.value( 2 ) } } );
+        mesh_builder->create_point( geode::Point3D{
+            { x, origin.value( 1 ), origin.value( 2 ) + 1. } } );
+        mesh_builder->create_tetrahedron( { 0, 1, 2, 3 } );
+        for( const auto vertex : geode::LRange{ 4 } )
+        {
+            builder.set_unique_vertex(
+                { block.component_id(), vertex }, 4 * block_id + vertex );
+        }
+    }
+    return model;
+}
+
+template < template < typename > class Attribute, typename T >
+geode::uuid add_block_property( geode::BRep& model,
+    geode::PHYSICAL_PROPERTY_NAME property,
+    std::string_view name,
+    absl::Span< const T > block_values )
+{
+    const geode::uuid attribute_id;
+    geode::index_t block_id{ 0 };
+    for( const auto& block : model.blocks() )
+    {
+        geode::AttributeValues< T > values;
+        values.default_value = block_values[block_id++];
+        block.mesh()
+            .polyhedron_attribute_manager()
+            .create_attribute< Attribute, T >( name, attribute_id, values, {} );
+    }
+    geode::BRepBuilder{ model }.set_physical_property(
+        property, geode::Block3D::component_type_static(), attribute_id );
+    return attribute_id;
+}
+
+template < typename T >
+std::vector< T > vtu_cell_values(
+    std::string_view filename, std::string_view attribute_name )
+{
+    const auto solid = geode::load_tetrahedral_solid< 3 >( filename );
+    const auto& manager = solid->polyhedron_attribute_manager();
+    const auto ids = manager.attribute_ids_matching_name( attribute_name );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        ids.has_value() && ids->size() == 1, "[Test] No attribute ",
+        attribute_name, " in ", filename );
+    const auto attribute =
+        manager.find_read_only_attribute< T >( ids->front() );
+    std::vector< T > values;
+    for( const auto polyhedron : geode::Range{ solid->nb_polyhedra() } )
+    {
+        values.push_back( attribute->value( polyhedron ) );
+    }
+    return values;
+}
+
+void test_constant_block_properties()
+{
+    auto model = tetrahedra_brep( 3, geode::Point3D{ { 0., 0., 0. } } );
+    const std::array< double, 3 > porosities{ 0.1, 0.2, 0.3 };
+    add_block_property< geode::ConstantAttribute, double >(
+        model, geode::PHYSICAL_PROPERTY_NAME::porosity, "poro", porosities );
+    geode::BRepGeosExporter exporter( model, "constant_blocks" );
+    exporter.run();
+    const auto values = vtu_cell_values< double >(
+        "constant_blocks/constant_blocks.vtu", "poro" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        values.size() == porosities.size(),
+        "[Test] Wrong number of exported cells" );
+    for( const auto block : geode::Indices{ porosities } )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            values[block] == porosities[block],
+            "[Test] Wrong porosity exported for Block ", block, ": ",
+            values[block] );
+    }
+}
+
+void test_structural_model_block_without_unit()
+{
+    geode::StructuralModel model{ tetrahedra_brep(
+        3, geode::Point3D{ { 0., 0., 0. } } ) };
+    geode::StructuralModelBuilder builder{ model };
+    const auto& unit =
+        model.stratigraphic_unit( builder.add_stratigraphic_unit() );
+    std::vector< geode::uuid > block_ids;
+    for( const auto& block : model.blocks() )
+    {
+        block_ids.push_back( block.id() );
+    }
+    builder.add_block_in_stratigraphic_unit(
+        model.block( block_ids[0] ), unit );
+    builder.add_block_in_stratigraphic_unit(
+        model.block( block_ids[2] ), unit );
+    geode::StructuralModelGeosExporter exporter( model, "unit_regions" );
+    exporter.run();
+    const auto regions = vtu_cell_values< geode::index_t >(
+        "unit_regions/unit_regions.vtu", "attribute" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        regions == std::vector< geode::index_t >{ 0, 1, 0 },
+        "[Test] Wrong regions for a StructuralModel Block in no "
+        "StratigraphicUnit" );
+}
+
+void test_structural_model_block_in_two_units()
+{
+    geode::StructuralModel model{ tetrahedra_brep(
+        2, geode::Point3D{ { 0., 0., 0. } } ) };
+    geode::StructuralModelBuilder builder{ model };
+    const auto& first_unit =
+        model.stratigraphic_unit( builder.add_stratigraphic_unit() );
+    const auto& second_unit =
+        model.stratigraphic_unit( builder.add_stratigraphic_unit() );
+    std::vector< geode::uuid > block_ids;
+    for( const auto& block : model.blocks() )
+    {
+        block_ids.push_back( block.id() );
+    }
+    builder.add_block_in_stratigraphic_unit(
+        model.block( block_ids[0] ), first_unit );
+    builder.add_block_in_stratigraphic_unit(
+        model.block( block_ids[0] ), second_unit );
+    builder.add_block_in_stratigraphic_unit(
+        model.block( block_ids[1] ), second_unit );
+    std::vector< geode::uuid > unit_ids;
+    for( const auto& unit : model.stratigraphic_units() )
+    {
+        unit_ids.push_back( unit.id() );
+    }
+    geode::StructuralModelGeosExporter exporter( model, "two_units" );
+    exporter.run();
+    const auto regions = vtu_cell_values< geode::index_t >(
+        "two_units/two_units.vtu", "attribute" );
+    const auto first_region = unit_ids.front() == first_unit.id() ? 0u : 1u;
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        regions.size() == 2 && regions[1] == ( first_region == 0 ? 1u : 0u )
+            && ( regions[0] == 0 || regions[0] == 1 ),
+        "[Test] Wrong regions for a Block in two StratigraphicUnits" );
+}
+
+std::unique_ptr< geode::PointSet3D > well_points(
+    absl::Span< const geode::Point3D > points )
+{
+    auto point_set = geode::PointSet3D::create(
+        geode::OpenGeodePointSet3D::impl_name_static() );
+    auto builder = geode::PointSetBuilder3D::create( *point_set );
+    for( const auto& point : points )
+    {
+        builder->create_point( point );
+    }
+    return point_set;
+}
+
+std::array< double, 3 > box_corner(
+    std::string_view xml, std::string_view well, std::string_view corner )
+{
+    const auto box = xml.find( absl::StrCat( "name=\"", well, "\"" ) );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        box != std::string_view::npos, "[Test] No Box for well ", well );
+    const auto start =
+        xml.find( absl::StrCat( corner, "=\"{" ), box ) + corner.size() + 3;
+    std::string values{ xml.substr( start, xml.find( '}', start ) - start ) };
+    absl::c_replace( values, ',', ' ' );
+    std::istringstream stream{ values };
+    std::array< double, 3 > coordinates;
+    for( auto& coordinate : coordinates )
+    {
+        stream >> coordinate;
+    }
+    return coordinates;
+}
+
+void test_well_perforation_boxes()
+{
+    static constexpr double BOX_TOLERANCE{ 1e-3 };
+    const geode::Point3D origin{ { 512345.67, 6234567.89, -2000. } };
+    auto model = tetrahedra_brep( 2, origin );
+    geode::BRepGeosExporter exporter( model, "large_coordinates" );
+    exporter.add_well_perforations(
+        *well_points( { origin + geode::Point3D{ { 2.2, 0.2, 0.2 } } } ),
+        "inside" );
+    // In the bounding box of the first tetrahedron but outside of it
+    exporter.add_well_perforations(
+        *well_points( { origin + geode::Point3D{ { 0.9, 0.9, 0.9 } } } ),
+        "outside" );
+    exporter.run();
+    const auto xml =
+        read_file( "large_coordinates/large_coordinates_simulation.xml" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        count_occurrences( xml, "<Box" ) == 1,
+        "[Test] Only the well inside the model should have a Box" );
+    const auto min = box_corner( xml, "inside", "xMin" );
+    const auto max = box_corner( xml, "inside", "xMax" );
+    const std::array< double, 3 > expected_min{ origin.value( 0 ) + 2.,
+        origin.value( 1 ), origin.value( 2 ) };
+    for( const auto axis : geode::LRange{ 3 } )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            std::fabs( min[axis] - expected_min[axis] ) < BOX_TOLERANCE
+                && std::fabs( max[axis] - expected_min[axis] - 1. )
+                       < BOX_TOLERANCE,
+            "[Test] Wrong well Box coordinate along axis ", axis, ": ",
+            min[axis], " ", max[axis] );
+    }
+}
+
+void add_triangle_surface( geode::BRep& model,
+    const std::array< std::pair< geode::index_t, geode::index_t >, 3 >&
+        block_vertices )
+{
+    std::vector< geode::uuid > block_ids;
+    for( const auto& block : model.blocks() )
+    {
+        block_ids.push_back( block.id() );
+    }
+    geode::BRepBuilder builder{ model };
+    const auto& surface = model.surface( builder.add_surface(
+        geode::OpenGeodeTriangulatedSurface3D::impl_name_static() ) );
+    auto mesh_builder =
+        builder.surface_mesh_builder< geode::TriangulatedSurface3D >( surface );
+    for( const auto vertex : geode::LRange{ 3 } )
+    {
+        const auto& [block, block_vertex] = block_vertices[vertex];
+        const auto& block_mesh = model.block( block_ids[block] ).mesh();
+        mesh_builder->create_point( block_mesh.point( block_vertex ) );
+        builder.set_unique_vertex( { surface.component_id(), vertex },
+            model.unique_vertex(
+                { model.block( block_ids[block] ).component_id(),
+                    block_vertex } ) );
+    }
+    mesh_builder->create_triangle( { 0, 1, 2 } );
+}
+
+void test_boundary_condition_scale_precision()
+{
+    auto model = tetrahedra_brep( 1, geode::Point3D{ { 0., 0., 0. } } );
+    add_triangle_surface( model, { { { 0, 0 }, { 0, 1 }, { 0, 2 } } } );
+    std::vector< geode::uuid > surfaces;
+    for( const auto& surface : model.surfaces() )
+    {
+        surfaces.push_back( surface.id() );
+    }
+    const auto pressure = 1e7 / 3.;
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "pressure",
+        pressure );
+    geode::BRepGeosExporter exporter( model, "scale_precision" );
+    exporter.run();
+    const auto xml =
+        read_file( "scale_precision/scale_precision_simulation.xml" );
+    const auto start = xml.find( "scale=\"" ) + 7;
+    const auto scale = std::stod( xml.substr( start ) );
+    geode::OpenGeodeGeosciencesIOModelException::test( scale == pressure,
+        "[Test] Boundary condition scale is not exact: ", scale );
+}
+
+void test_regular_grid_blocks()
+{
+    geode::BRep model;
+    geode::BRepBuilder builder{ model };
+    const auto& block = model.block( builder.add_block(
+        geode::OpenGeodeRegularGrid3D::impl_name_static() ) );
+    builder.block_mesh_builder< geode::RegularGrid3D >( block )
+        ->initialize_grid( geode::Point3D{ { 0., 0., 0. } }, { 1, 1, 1 }, 1. );
+    const auto nb_vertices = block.mesh().nb_vertices();
+    builder.create_unique_vertices( nb_vertices );
+    for( const auto vertex : geode::Range{ nb_vertices } )
+    {
+        builder.set_unique_vertex( { block.component_id(), vertex }, vertex );
+    }
+    try
+    {
+        geode::BRepGeosExporter exporter( model, "regular_grid" );
+        exporter.run();
+    }
+    catch( const geode::OpenGeodeException& exception )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            std::string_view{ exception.what() }.find( "[GeosExporter]" )
+                != std::string_view::npos,
+            "[Test] Wrong exception for RegularGrid Blocks: ",
+            exception.what() );
+        return;
+    }
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        false, "[Test] Export of RegularGrid Blocks should throw" );
+}
+
+std::vector< std::string > xml_list(
+    std::string_view xml, std::string_view attribute )
+{
+    const auto start = xml.find( absl::StrCat( attribute, "=\"{ " ) );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        start != std::string_view::npos, "[Test] No ", attribute, " in XML" );
+    const auto first = start + attribute.size() + 4;
+    return absl::StrSplit(
+        xml.substr( first, xml.find( " }", first ) - first ), ", " );
+}
+
+void test_property_names_clash()
+{
+    auto model = tetrahedra_brep( 2, geode::Point3D{ { 0., 0., 0. } } );
+    const std::array< double, 2 > porosities{ 0.1, 0.2 };
+    const std::array< double, 2 > permeabilities{ 10., 20. };
+    add_block_property< geode::VariableAttribute, double >( model,
+        geode::PHYSICAL_PROPERTY_NAME::porosity, "attribute", porosities );
+    add_block_property< geode::VariableAttribute, double >( model,
+        geode::PHYSICAL_PROPERTY_NAME::permeability, "attribute",
+        permeabilities );
+    geode::BRepGeosExporter exporter( model, "names_clash" );
+    exporter.run();
+    const auto xml = read_file( "names_clash/names_clash_simulation.xml" );
+    const auto vtu_names = xml_list( xml, "fieldsToImport" );
+    const auto geos_names = xml_list( xml, "fieldNamesInGEOS" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        vtu_names.size() == 2 && geos_names.size() == 2,
+        "[Test] Wrong number of imported fields" );
+    for( const auto field : geode::LRange{ 2 } )
+    {
+        const auto values = vtu_cell_values< double >(
+            "names_clash/names_clash.vtu", vtu_names[field] );
+        const auto& expected =
+            geos_names[field] == "rockPorosity_referencePorosity"
+                ? porosities
+                : permeabilities;
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            values.size() == 2 && values[0] == expected[0]
+                && values[1] == expected[1],
+            "[Test] Wrong values for field ", vtu_names[field] );
+    }
+}
+
+void check_nb_vtu_cells(
+    const geode::BRep& model, std::string_view name, geode::index_t nb_cells )
+{
+    geode::BRepGeosExporter exporter( model, name );
+    exporter.run();
+    const auto vtu = read_file( absl::StrCat( name, "/", name, ".vtu" ) );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        count_occurrences(
+            vtu, absl::StrCat( "NumberOfCells=\"", nb_cells, "\"" ) )
+            == 1,
+        "[Test] Wrong number of cells in ", name, ".vtu" );
+}
+
+void test_surface_polygons_not_on_solid_facets()
+{
+    auto model = tetrahedra_brep( 2, geode::Point3D{ { 0., 0., 0. } } );
+    add_triangle_surface( model, { { { 0, 0 }, { 0, 1 }, { 0, 2 } } } );
+    check_nb_vtu_cells( model, "surface_facet", 3 );
+    add_triangle_surface( model, { { { 0, 1 }, { 0, 2 }, { 1, 0 } } } );
+    // Only the Surface polygons on solid facets should be exported
+    check_nb_vtu_cells( model, "surface_not_facet", 3 );
+}
+
+void test_run_twice()
+{
+    auto model = tetrahedra_brep( 2, geode::Point3D{ { 0., 0., 0. } } );
+    add_triangle_surface( model, { { { 0, 0 }, { 0, 1 }, { 0, 2 } } } );
+    const std::array< double, 2 > porosities{ 0.1, 0.2 };
+    add_block_property< geode::ConstantAttribute, double >(
+        model, geode::PHYSICAL_PROPERTY_NAME::porosity, "poro", porosities );
+    std::vector< geode::uuid > surfaces;
+    for( const auto& surface : model.surfaces() )
+    {
+        surfaces.push_back( surface.id() );
+    }
+    add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "pressure", 1e7 );
+    geode::BRepGeosExporter exporter( model, "run_twice" );
+    exporter.run();
+    exporter.run();
+    const auto xml = read_file( "run_twice/run_twice_simulation.xml" );
+    const auto vtu = read_file( "run_twice/run_twice.vtu" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        count_occurrences( xml, "objectPath=" ) == 1
+            && xml_list( xml, "fieldsToImport" ).size() == 1
+            && count_occurrences( vtu, "NumberOfCells=\"3\"" ) == 1,
+        "[Test] Running the exporter twice should give the same files" );
+}
+
+void test_output_directories()
+{
+    const auto model = tetrahedra_brep( 1, geode::Point3D{ { 0., 0., 0. } } );
+    geode::BRepGeosExporter trailing_exporter( model, "trailing_slash/" );
+    trailing_exporter.run();
+    geode::BRepGeosExporter nested_exporter( model, "nested/./directory" );
+    nested_exporter.run();
+    for( const auto& file : { "trailing_slash/trailing_slash_simulation.xml",
+             "trailing_slash/trailing_slash.vtu",
+             "nested/directory/directory_simulation.xml",
+             "nested/directory/directory.vtu" } )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            std::filesystem::exists( file ), "[Test] Missing file ", file );
+    }
+}
+
+geode::BRep hexahedra_brep()
+{
+    geode::BRep model;
+    geode::BRepBuilder builder{ model };
+    const std::array< geode::Point3D, 6 > bottom_points{
+        geode::Point3D{ { 0., 0., 0. } }, geode::Point3D{ { 1., 0., 0. } },
+        geode::Point3D{ { 1., 1., 0. } }, geode::Point3D{ { 0., 1., 0. } },
+        geode::Point3D{ { 9., 0., 0. } }, geode::Point3D{ { 9., 0.01, 0. } }
+    };
+    builder.create_unique_vertices( 12 );
+    const auto& block = model.block( builder.add_block(
+        geode::OpenGeodeHybridSolid3D::impl_name_static() ) );
+    auto block_builder =
+        builder.block_mesh_builder< geode::HybridSolid3D >( block );
+    for( const auto z : { 0., 1. } )
+    {
+        for( const auto& point : bottom_points )
+        {
+            block_builder->create_point(
+                geode::Point3D{ { point.value( 0 ), point.value( 1 ), z } } );
+        }
+    }
+    block_builder->create_hexahedron( { 0, 1, 2, 3, 6, 7, 8, 9 } );
+    block_builder->create_hexahedron( { 1, 4, 5, 2, 7, 10, 11, 8 } );
+    for( const auto vertex : geode::Range{ 12 } )
+    {
+        builder.set_unique_vertex( { block.component_id(), vertex }, vertex );
+    }
+    const auto& surface = model.surface( builder.add_surface(
+        geode::OpenGeodePolygonalSurface3D::impl_name_static() ) );
+    auto surface_builder =
+        builder.surface_mesh_builder< geode::PolygonalSurface3D >( surface );
+    for( const auto vertex : geode::Indices{ bottom_points } )
+    {
+        surface_builder->create_point( bottom_points[vertex] );
+        builder.set_unique_vertex( { surface.component_id(), vertex }, vertex );
+    }
+    surface_builder->create_polygon( { 0, 1, 2, 3 } );
+    surface_builder->create_polygon( { 1, 4, 5, 2 } );
+    return model;
+}
+
+void test_boundary_table_face_centers()
+{
+    auto model = hexahedra_brep();
+    std::vector< geode::uuid > surfaces;
+    for( const auto& surface : model.surfaces() )
+    {
+        surfaces.push_back( surface.id() );
+    }
+    const auto attribute_id =
+        add_boundary_condition< geode::VariableAttribute >( model, surfaces,
+            geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "pressure", 1e7 );
+    model.surface( surfaces.front() )
+        .mesh()
+        .polygon_attribute_manager()
+        .find_attribute< geode::VariableAttribute, double >( attribute_id )
+        ->set_value( 1, 2e7 );
+    geode::BRepGeosExporter exporter( model, "face_centers" );
+    exporter.run();
+    const auto x_coordinates =
+        read_table_values( absl::StrCat( "face_centers/boundary_tables/surface",
+            model.nb_blocks(), "_xlin.geos" ) );
+    // GEOS faceCenter is the area weighted centroid of the face
+    static constexpr double FIRST_AREA{ 0.08 };
+    static constexpr double SECOND_AREA{ 8. };
+    const auto quad_center = ( FIRST_AREA * 19. / 3. + SECOND_AREA * 11. / 3. )
+                             / ( FIRST_AREA + SECOND_AREA );
+    static constexpr double CENTER_TOLERANCE{ 1e-9 };
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        x_coordinates.size() == 2 && x_coordinates[0] == 0.5
+            && std::fabs( x_coordinates[1] - quad_center ) < CENTER_TOLERANCE,
+        "[Test] Boundary table coordinates are not the face centers" );
+}
+
+void test_property_missing_on_block()
+{
+    auto model = tetrahedra_brep( 2, geode::Point3D{ { 0., 0., 0. } } );
+    const geode::uuid attribute_id;
+    geode::AttributeValues< double > values;
+    values.default_value = 0.1;
+    for( const auto& block : model.blocks() )
+    {
+        block.mesh()
+            .polyhedron_attribute_manager()
+            .create_attribute< geode::VariableAttribute, double >(
+                "poro", attribute_id, values, {} );
+        break;
+    }
+    geode::BRepBuilder{ model }.set_physical_property(
+        geode::PHYSICAL_PROPERTY_NAME::porosity,
+        geode::Block3D::component_type_static(), attribute_id );
+    geode::BRepGeosExporter exporter( model, "missing_property" );
+    exporter.run();
+    const auto xml =
+        read_file( "missing_property/missing_property_simulation.xml" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        count_occurrences( xml, "fieldsToImport" ) == 0,
+        "[Test] A property missing on a Block should not be exported" );
+}
+
+void test_names_in_geos_lists()
+{
+    auto model = tetrahedra_brep( 1, geode::Point3D{ { 0., 0., 0. } } );
+    const std::array< double, 1 > porosities{ 0.1 };
+    add_block_property< geode::ConstantAttribute, double >( model,
+        geode::PHYSICAL_PROPERTY_NAME::porosity, "rock {poro, eff}",
+        porosities );
+    geode::BRepGeosExporter exporter( model, "list_names" );
+    try
+    {
+        exporter.add_well_perforations(
+            *well_points( { geode::Point3D{ { 0.1, 0.1, 0.1 } } } ),
+            "well, 1" );
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            false, "[Test] A well name with a comma should be rejected" );
+    }
+    catch( const geode::OpenGeodeException& exception )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            std::string_view{ exception.what() }.find( "[GeosExporter]" )
+                != std::string_view::npos,
+            "[Test] Wrong exception for a well name with a comma: ",
+            exception.what() );
+    }
+    exporter.run();
+    const auto xml = read_file( "list_names/list_names_simulation.xml" );
+    const auto fields = xml_list( xml, "fieldsToImport" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        fields.size() == 1 && fields.front() == "rock__poro__eff_",
+        "[Test] Wrong exported name for a property with separators" );
+    const auto values = vtu_cell_values< double >(
+        "list_names/list_names.vtu", fields.front() );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        values.size() == 1 && values.front() == porosities.front(),
+        "[Test] Wrong values for a property with separators" );
+}
+
+void test_source_well_outside_model()
+{
+    auto model = geode::load_brep( absl::StrCat(
+        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+    add_spe10_reference_boundary_conditions( model );
+    const auto problem = spe10_reference_problem( model );
+    geode::BRepGeosExporter exporter( model, "source_outside" );
+    exporter.set_physical_problem( problem );
+    // The source term well has no perforation inside the model
+    add_vertical_well( exporter, "source", -1000., -1000. );
+    add_vertical_well( exporter, "sink1", 3.048, 1.524 );
+    exporter.run();
+    const auto deck =
+        read_file( "source_outside/source_outside_simulation.xml" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        !absl::StrContains( deck, "{ source }" )
+            && !absl::StrContains( deck, "<SourceFlux" )
+            && count_occurrences( deck, "<Box" ) == 1,
+        "[Test] The source term of a well outside the model should be "
+        "skipped" );
+}
+
 int main()
 {
     try
     {
         geode::OpenGeodeGeosciencesIOModelLibrary::initialize();
-        geode::OpenGeodeIOMeshLibrary::initialize();
-        geode::OpenGeodeIOModelLibrary::initialize();
+        test_well_perforation_boxes();
+        test_constant_block_properties();
+        test_structural_model_block_without_unit();
+        test_structural_model_block_in_two_units();
+        test_boundary_condition_scale_precision();
+        test_regular_grid_blocks();
+        test_property_names_clash();
+        test_surface_polygons_not_on_solid_facets();
+        test_run_twice();
+        test_output_directories();
+        test_boundary_table_face_centers();
+        test_property_missing_on_block();
+        test_names_in_geos_lists();
+        test_source_well_outside_model();
         test_picasso();
         test_uniform_variable_boundary_condition();
         test_variable_boundary_condition();

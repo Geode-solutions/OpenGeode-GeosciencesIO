@@ -51,9 +51,10 @@ namespace geode::internal
             const auto points =
                 file.read_points( file.geometry( element ), "vertices" );
             const auto first = point_set->nb_vertices();
-            for( const auto& point : points )
+            builder->create_vertices( static_cast< index_t >( points.size() ) );
+            for( const auto point : Indices{ points } )
             {
-                builder->create_point( point );
+                builder->set_point( first + point, points[point] );
             }
             file.read_data( element, "vertices",
                 static_cast< index_t >( points.size() ), manager,
