@@ -28,6 +28,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -240,8 +241,8 @@ geode::index_t count_occurrences(
 {
     geode::index_t nb_occurrences{ 0 };
     for( auto position = content.find( pattern );
-        position != std::string_view::npos;
-        position = content.find( pattern, position + pattern.size() ) )
+         position != std::string_view::npos;
+         position = content.find( pattern, position + pattern.size() ) )
     {
         nb_occurrences++;
     }
@@ -1039,7 +1040,11 @@ template < typename T >
 std::vector< T > read_vtu_cell_values(
     const std::string& filename, std::string_view name )
 {
-    const auto content = read_file( filename );
+    std::ifstream file{ filename, std::ios::binary };
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        file.good(), "[Test] Cannot open file ", filename );
+    const std::string content{ std::istreambuf_iterator< char >{ file },
+        std::istreambuf_iterator< char >{} };
     const auto name_position =
         content.find( absl::StrCat( "Name=\"", name, "\"" ) );
     geode::OpenGeodeGeosciencesIOModelException::test(
