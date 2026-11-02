@@ -127,6 +127,11 @@ void test_pixel_orientation()
     const auto grid = geode::load_light_regular_grid< 2 >( filename );
     const auto colors = find_named_attribute< geode::RGBColor >(
         grid.cell_attribute_manager(), "RGB_data" );
+    const auto band = find_named_attribute< double >(
+        grid.cell_attribute_manager(), "band_1" );
+    // Pixel values increase in row major order and colors are rescaled
+    // values, so the red channel must increase in the same order
+    int previous_red{ -1 };
     for( const auto row : geode::Range{ 2 } )
     {
         for( const auto column : geode::Range{ 3 } )
@@ -134,8 +139,13 @@ void test_pixel_orientation()
             const auto cell =
                 grid.cell_index( find_pixel_cell( grid, row, column ) );
             geode::OpenGeodeGeosciencesIOMeshException::test(
-                colors->value( cell ).red() == values[row * 3 + column],
-                "Wrong color for pixel ", row, " ", column );
+                band->value( cell ) == values[row * 3 + column],
+                "Wrong band value for pixel ", row, " ", column );
+            const int red = colors->value( cell ).red();
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                red > previous_red, "Wrong color for pixel ", row, " ",
+                column );
+            previous_red = red;
         }
     }
 }
