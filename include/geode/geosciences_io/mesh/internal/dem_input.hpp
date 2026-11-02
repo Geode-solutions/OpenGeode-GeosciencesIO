@@ -23,6 +23,8 @@
 
 #pragma once
 
+#include <absl/types/span.h>
+
 #include <geode/geosciences_io/mesh/common.hpp>
 
 #include <geode/mesh/io/polygonal_surface_input.hpp>
@@ -67,6 +69,7 @@ namespace geode::internal
      * vertex per pixel center with the pixel value as elevation (no data
      * pixels are skipped) and one quad between four neighboring pixels.
      */
-    void read_elevation_raster(
-        std::string_view filename, PolygonalSurface3D& surface );
+    void read_elevation_raster( std::string_view filename,
+        absl::Span< const char* const > allowed_drivers,
+        PolygonalSurface3D& surface );
 } // namespace geode::internal

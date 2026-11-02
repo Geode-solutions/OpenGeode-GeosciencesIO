@@ -23,6 +23,8 @@
 
 #include <geode/geosciences_io/mesh/internal/polytiff_input.hpp>
 
+#include <array>
+
 #include <geode/mesh/core/polygonal_surface.hpp>
 
 #include <gdal_priv.h>
@@ -31,25 +33,30 @@
 
 #include <geode/geosciences_io/mesh/internal/dem_input.hpp>
 
+namespace
+{
+    constexpr std::array< const char*, 1 > POLYTIFF_DRIVERS{ "GTiff" };
+} // namespace
+
 namespace geode::internal
 {
     std::unique_ptr< PolygonalSurface3D > PolyTIFFInput::read(
         const MeshImpl& impl )
     {
         auto surface = PolygonalSurface3D::create( impl );
-        read_elevation_raster( filename(), *surface );
+        read_elevation_raster( filename(), POLYTIFF_DRIVERS, *surface );
         return surface;
     }
 
     auto PolyTIFFInput::additional_files() const -> AdditionalFiles
     {
-        detail::GDALFile reader{ filename() };
+        detail::GDALFile reader{ filename(), POLYTIFF_DRIVERS };
         return reader.additional_files< AdditionalFiles >();
     }
 
     Percentage PolyTIFFInput::is_loadable() const
     {
-        detail::GDALFile reader{ this->filename() };
+        detail::GDALFile reader{ this->filename(), POLYTIFF_DRIVERS };
         if( !reader.is_coordinate_system_loadable()
             || reader.dataset().GetRasterCount() == 0 )
         {

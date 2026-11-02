@@ -24,5 +24,6 @@ add_geode_python_binding(
         "model_geosciencesio.cpp"
     DEPENDENCIES
         OpenGeode-Geosciences::explicit
+        OpenGeode-Geosciences::simulation
         ${PROJECT_NAME}::model
 )

@@ -23,6 +23,7 @@
 
 #include <geode/geosciences_io/mesh/internal/dem_input.hpp>
 
+#include <array>
 #include <cmath>
 
 #include <gdal.h>
@@ -40,12 +41,15 @@
 
 namespace
 {
+    constexpr std::array< const char*, 1 > DEM_DRIVERS{ "USGSDEM" };
+
     class DEMInputImpl : public geode::detail::GDALFile
     {
     public:
-        DEMInputImpl(
-            geode::PolygonalSurface3D& surface, std::string_view filename )
-            : geode::detail::GDALFile{ filename },
+        DEMInputImpl( geode::PolygonalSurface3D& surface,
+            std::string_view filename,
+            absl::Span< const char* const > allowed_drivers )
+            : geode::detail::GDALFile{ filename, allowed_drivers },
               builder_{ geode::PolygonalSurfaceBuilder3D::create( surface ) }
         {
         }
@@ -184,26 +188,27 @@ namespace geode::internal
     std::unique_ptr< PolygonalSurface3D > DEMInput::read( const MeshImpl& impl )
     {
         auto surface = PolygonalSurface3D::create( impl );
-        read_elevation_raster( this->filename(), *surface );
+        read_elevation_raster( this->filename(), DEM_DRIVERS, *surface );
         return surface;
     }
 
-    void read_elevation_raster(
-        std::string_view filename, PolygonalSurface3D& surface )
+    void read_elevation_raster( std::string_view filename,
+        absl::Span< const char* const > allowed_drivers,
+        PolygonalSurface3D& surface )
     {
-        DEMInputImpl reader{ surface, filename };
+        DEMInputImpl reader{ surface, filename, allowed_drivers };
         reader.read_file();
     }
 
     auto DEMInput::additional_files() const -> AdditionalFiles
     {
-        detail::GDALFile reader{ this->filename() };
+        detail::GDALFile reader{ this->filename(), DEM_DRIVERS };
         return reader.additional_files< AdditionalFiles >();
     }
 
     Percentage DEMInput::is_loadable() const
     {
-        detail::GDALFile reader{ this->filename() };
+        detail::GDALFile reader{ this->filename(), DEM_DRIVERS };
         if( !reader.is_coordinate_system_loadable() )
         {
             return Percentage{ 0 };

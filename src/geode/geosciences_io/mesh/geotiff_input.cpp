@@ -23,6 +23,7 @@
 
 #include <geode/geosciences_io/mesh/internal/geotiff_input.hpp>
 
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -51,11 +52,14 @@
 
 namespace
 {
+    constexpr std::array< const char*, 1 > GEOTIFF_DRIVERS{ "GTiff" };
+
     class GEOTIFFInputImpl : public geode::detail::GDALFile
     {
     public:
         GEOTIFFInputImpl( std::string_view filename )
-            : geode::detail::GDALFile{ filename }, filename_{ filename }
+            : geode::detail::GDALFile{ filename, GEOTIFF_DRIVERS },
+              filename_{ filename }
         {
         }
 
@@ -213,7 +217,7 @@ namespace geode::internal
         {
             return raster_percent;
         }
-        detail::GDALFile reader{ this->filename() };
+        detail::GDALFile reader{ this->filename(), GEOTIFF_DRIVERS };
         if( !reader.is_coordinate_system_loadable() )
         {
             return Percentage{ 0 };
@@ -223,7 +227,7 @@ namespace geode::internal
 
     auto GEOTIFFInput::additional_files() const -> AdditionalFiles
     {
-        detail::GDALFile reader{ this->filename() };
+        detail::GDALFile reader{ this->filename(), GEOTIFF_DRIVERS };
         return reader.additional_files< AdditionalFiles >();
     }
 } // namespace geode::internal
