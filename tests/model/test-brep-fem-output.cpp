@@ -45,8 +45,6 @@
 #include <geode/mesh/core/surface_mesh.hpp>
 #include <geode/mesh/core/tetrahedral_solid.hpp>
 
-#include <geode/geosciences_io/model/internal/brep_fem_output.hpp>
-
 #include <geode/mesh/io/tetrahedral_solid_input.hpp>
 
 #include <geode/model/helpers/convert_to_mesh.hpp>
@@ -202,7 +200,7 @@ namespace
     {
         try
         {
-            geode::internal::BRepFemOutput{ filename }.write( brep );
+            geode::save_brep( brep, filename );
         }
         catch( const geode::OpenGeodeException& )
         {
@@ -422,9 +420,8 @@ namespace
     void test_non_tetrahedral_brep()
     {
         geode::BRep empty_brep;
-        geode::internal::BRepFemOutput output{ "test_empty_brep.fem" };
         geode::OpenGeodeGeosciencesIOModelException::test(
-            !output.is_saveable( empty_brep ),
+            !geode::is_brep_saveable( empty_brep, "test_empty_brep.fem" ),
             "[Test] BRep without Block should not be saveable" );
         geode::OpenGeodeGeosciencesIOModelException::test(
             write_throws( empty_brep, "test_empty_brep.fem" ),
@@ -448,7 +445,7 @@ namespace
             builder.set_unique_vertex( { block.component_id(), v }, v );
         }
         geode::OpenGeodeGeosciencesIOModelException::test(
-            !output.is_saveable( brep ),
+            !geode::is_brep_saveable( brep, "test_hybrid_brep.fem" ),
             "[Test] BRep with non tetrahedral Block should not be saveable" );
         geode::OpenGeodeGeosciencesIOModelException::test(
             write_throws( brep, "test_hybrid_brep.fem" ),
