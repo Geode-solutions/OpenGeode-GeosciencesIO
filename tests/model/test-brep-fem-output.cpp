@@ -52,8 +52,11 @@
 #include <geode/model/mixin/core/line.hpp>
 #include <geode/model/mixin/core/surface.hpp>
 #include <geode/model/representation/builder/brep_builder.hpp>
+#include <geode/model/representation/core/brep.hpp>
 #include <geode/model/representation/io/brep_input.hpp>
 #include <geode/model/representation/io/brep_output.hpp>
+
+#include <geode/geosciences_io/model/common.hpp>
 
 namespace
 {
