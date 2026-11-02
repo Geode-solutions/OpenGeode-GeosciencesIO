@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <string_view>
 
 #include <absl/algorithm/container.h>
 #include <absl/strings/str_cat.h>
@@ -80,6 +81,11 @@ namespace
         std::vector< std::string > check_problem(
             absl::Span< const std::string > well_names )
         {
+            if( problem_.solid_mechanics() )
+            {
+                check_solver_options();
+                return std::move( issues_ );
+            }
             if( !has_fluid() )
             {
                 return std::move( issues_ );
@@ -96,7 +102,9 @@ namespace
         std::vector< std::string > check_deck(
             const geode::internal::GeosDeckContext& context )
         {
-            if( !has_fluid() )
+            // Solid mechanics data are checked by
+            // validate_physical_problem_properties
+            if( problem_.solid_mechanics() || !has_fluid() )
             {
                 return std::move( issues_ );
             }
@@ -471,10 +479,9 @@ namespace geode::internal
         static const absl::flat_hash_map< std::string, std::string > roles{
             { "solvers", "/Problem/Solvers" },
             { "flow", "/Problem/Solvers/*[@name='flow']" },
-            { "nonlinear",
-                "/Problem/Solvers/*[@name='flow']/NonlinearSolverParameters" },
-            { "linear",
-                "/Problem/Solvers/*[@name='flow']/LinearSolverParameters" },
+            { "mechanics", "/Problem/Solvers/*[@name='mechanics']" },
+            { "nonlinear", "/Problem/Solvers/*/NonlinearSolverParameters" },
+            { "linear", "/Problem/Solvers/*/LinearSolverParameters" },
             { "mesh", "/Problem/Mesh/VTKMesh" },
             { "tpfa", "/Problem/NumericalMethods/FiniteVolume/"
                       "TwoPointFluxApproximation" },
