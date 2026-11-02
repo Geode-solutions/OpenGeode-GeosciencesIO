@@ -26,9 +26,14 @@
 
 #include <geode/tests_config.hpp>
 
+#include <filesystem>
+#include <fstream>
+
 #include <geode/basic/assert.hpp>
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/logger.hpp>
+
+#include <geode/geometry/point.hpp>
 
 #include <geode/mesh/core/regular_grid_solid.hpp>
 #include <geode/mesh/io/regular_grid_input.hpp>
@@ -67,6 +72,144 @@ void test_grid_input()
         third_value, " where it should be 7.21909" );
 }
 
+namespace
+{
+    std::unique_ptr< geode::RegularGrid3D > load_test_voxet(
+        std::string_view name,
+        std::string_view geometry,
+        std::string_view data )
+    {
+        const auto data_name = absl::StrCat( name, "__ascii@@" );
+        {
+            std::ofstream file{ data_name, std::ios::binary };
+            file << data;
+        }
+        const auto filename = absl::StrCat( name, ".vo" );
+        {
+            std::ofstream file{ filename, std::ios::binary };
+            file << "GOCAD Voxet 1\nHEADER {\nname: " << name << "\n}\n"
+                 << geometry << "ASCII_DATA_FILE " << data_name
+                 << "\nPROPERTY 1 p\nEND\n";
+        }
+        return geode::load_regular_grid< 3 >( filename );
+    }
+
+    constexpr auto SIMPLE_GEOMETRY =
+        "AXIS_O 0 0 0\nAXIS_U 1 0 0\nAXIS_V 0 1 0\nAXIS_W 0 0 1\n"
+        "AXIS_MIN 0 0 0\nAXIS_MAX 1 1 1\nAXIS_N 2 2 2\n";
+
+    double cell_value( const geode::RegularGrid3D& grid,
+        geode::index_t i,
+        geode::index_t j,
+        geode::index_t k )
+    {
+        const auto& manager = grid.cell_attribute_manager();
+        const auto attribute = manager.find_read_only_attribute< double >(
+            manager.attribute_ids_matching_name( "p" ).value().front() );
+        return attribute->value( grid.cell_index( { i, j, k } ) );
+    }
+
+    void test_cells_outside_grid()
+    {
+        const auto grid = load_test_voxet( "test_vo_outside", SIMPLE_GEOMETRY,
+            "*\n* I J K p\n*\n0 0 0 1\n2 0 0 2\n0 5 0 3\n0 0 1000000 4\n"
+            "1 1 1 5\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            cell_value( *grid, 0, 0, 0 ) == 1
+                && cell_value( *grid, 1, 1, 1 ) == 5,
+            "[TEST] Wrong values with cells outside of the grid" );
+    }
+
+    void test_data_file_format()
+    {
+        const auto grid = load_test_voxet( "test_vo_blank", SIMPLE_GEOMETRY,
+            "*\n\n# comment\n* I J K p\n*\n0 0 0 1\n\n1 1 1 5\n0 1\n"
+            "1 0 0 2\n\n\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            cell_value( *grid, 0, 0, 0 ) == 1
+                && cell_value( *grid, 1, 1, 1 ) == 5
+                && cell_value( *grid, 1, 0, 0 ) == 2,
+            "[TEST] Wrong values with blank lines in data file" );
+
+        auto has_thrown = false;
+        try
+        {
+            load_test_voxet(
+                "test_vo_no_columns", SIMPLE_GEOMETRY, "*\n*\n*\n0 0 0 1\n" );
+        }
+        catch( const geode::OpenGeodeException& exception )
+        {
+            geode::Logger::info( "Expected exception: ", exception.what() );
+            has_thrown = true;
+        }
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            has_thrown, "[TEST] Data file without column header should throw" );
+    }
+
+    void test_data_file_location()
+    {
+        std::filesystem::create_directories( "test_vo_dir" );
+        {
+            std::ofstream file{ "test_vo_dir/data@@", std::ios::binary };
+            file << "* I J K p\n0 0 0 7\n";
+        }
+        const auto absolute_data =
+            std::filesystem::absolute( "test_vo_dir/data@@" ).string();
+        for( const auto& data_name :
+            { std::string{ "data@@" }, absolute_data } )
+        {
+            const auto filename = absl::StrCat( "test_vo_dir/voxet_",
+                data_name == absolute_data ? "absolute" : "relative", ".vo" );
+            {
+                std::ofstream file{ filename, std::ios::binary };
+                file << "GOCAD Voxet 1\nHEADER {\nname: v\n}\n"
+                     << SIMPLE_GEOMETRY << "ASCII_DATA_FILE " << data_name
+                     << "\nEND\n";
+            }
+            const auto additional_files =
+                geode::regular_grid_additional_files< 3 >( filename );
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                additional_files.mandatory_files.size() == 1
+                    && !additional_files.has_additional_files(),
+                "[TEST] Data file should be found next to the Voxet" );
+            const auto grid = geode::load_regular_grid< 3 >( filename );
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                cell_value( *grid, 0, 0, 0 ) == 7,
+                "[TEST] Wrong value read from data file ", data_name );
+        }
+    }
+
+    void test_geometry()
+    {
+        const auto grid = geode::load_regular_grid< 3 >(
+            absl::StrCat( geode::DATA_PATH, "test.vo" ) );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            grid->cell_barycenter( { 0, 0, 0 } )
+                    .inexact_equal( geode::Point3D{ { 0, 0, 0 } } )
+                && grid->cell_barycenter( { 9, 9, 9 } )
+                    .inexact_equal( geode::Point3D{ { 900, 900, 900 } } ),
+            "[TEST] Wrong test.vo geometry" );
+
+        const auto rotated = load_test_voxet( "test_vo_rotated",
+            "GOCAD_ORIGINAL_COORDINATE_SYSTEM\nZPOSITIVE Depth\n"
+            "END_ORIGINAL_COORDINATE_SYSTEM\nAXIS_O 10 20 30\nAXIS_U 0 4 0\n"
+            "AXIS_V -4 0 0\nAXIS_W 0 0 8\nAXIS_MIN 0 0 0.5\nAXIS_MAX 1 1 1\n"
+            "AXIS_N 3 5 2\n",
+            "*\n* I J K p\n*\n0 0 0 1\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            rotated->nb_cells_in_direction( 0 ) == 3
+                && rotated->nb_cells_in_direction( 1 ) == 5
+                && rotated->nb_cells_in_direction( 2 ) == 2,
+            "[TEST] Wrong rotated voxet size" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            rotated->cell_barycenter( { 0, 0, 0 } )
+                    .inexact_equal( geode::Point3D{ { 10, 20, -34 } } )
+                && rotated->cell_barycenter( { 2, 4, 1 } )
+                    .inexact_equal( geode::Point3D{ { 6, 24, -38 } } ),
+            "[TEST] Wrong rotated voxet geometry" );
+    }
+} // namespace
+
 int main()
 {
     try
@@ -74,6 +217,10 @@ int main()
         geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
         geode::Logger::set_level( geode::Logger::LEVEL::debug );
         test_grid_input();
+        test_cells_outside_grid();
+        test_geometry();
+        test_data_file_format();
+        test_data_file_location();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

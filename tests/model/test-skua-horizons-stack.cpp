@@ -23,6 +23,8 @@
 
 #include <geode/tests_config.hpp>
 
+#include <fstream>
+
 #include <geode/basic/assert.hpp>
 #include <geode/basic/filename.hpp>
 #include <geode/basic/logger.hpp>
@@ -30,6 +32,7 @@
 #include <geode/geosciences/explicit/mixin/core/horizon.hpp>
 #include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.hpp>
 #include <geode/geosciences/implicit/representation/core/horizons_stack.hpp>
+#include <geode/geosciences/implicit/representation/io/horizons_stack_input.hpp>
 #include <geode/geosciences/implicit/representation/io/horizons_stack_output.hpp>
 #include <geode/geosciences_io/model/internal/horizons_stack_skua_input.hpp>
 
@@ -86,6 +89,108 @@ void test_file()
         horizons_stack, "test_horizons_stack_import.og_hst3d" );
 }
 
+void write_file( std::string_view filename, std::string_view content )
+{
+    std::ofstream file{ geode::to_string( filename ) };
+    file << content;
+}
+
+void test_is_loadable()
+{
+    write_file( "skua_no_indent.xml", "<UserObjects>\n"
+                                      "<LocalStratigraphicColumn>\n"
+                                      "</LocalStratigraphicColumn>\n"
+                                      "</UserObjects>\n" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::is_horizons_stack_loadable< 3 >( "skua_no_indent.xml" ).value()
+            == 1,
+        "[TEST] Column without indentation should be loadable" );
+    write_file( "skua_one_line.xml",
+        "<UserObjects><LocalStratigraphicColumn version=\"2.0\">"
+        "</LocalStratigraphicColumn></UserObjects>\n" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::is_horizons_stack_loadable< 3 >( "skua_one_line.xml" ).value()
+            == 1,
+        "[TEST] Column on a single line should be loadable" );
+    write_file( "skua_no_column.xml", "<UserObjects>\n</UserObjects>\n" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::is_horizons_stack_loadable< 3 >( "skua_no_column.xml" ).value()
+            == 0,
+        "[TEST] File without column should not be loadable" );
+}
+
+void test_optional_attributes()
+{
+    write_file( "skua_no_base_names.xml", "<UserObjects>\n"
+                                          " <LocalStratigraphicColumn>\n"
+                                          "  <name>column</name>\n"
+                                          "  <units>\n"
+                                          "   <unit>\n"
+                                          "    <name>unit</name>\n"
+                                          "    <top><name>top</name></top>\n"
+                                          "    <base><name>base</name></base>\n"
+                                          "   </unit>\n"
+                                          "  </units>\n"
+                                          " </LocalStratigraphicColumn>\n"
+                                          "</UserObjects>\n" );
+    const auto horizons_stack =
+        geode::load_horizons_stack< 3 >( "skua_no_base_names.xml" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        horizons_stack.nb_horizons() == 2
+            && horizons_stack.nb_stratigraphic_units() >= 1,
+        "[TEST] Column without use_base_names should be loaded" );
+}
+
+void test_missing_column()
+{
+    write_file( "skua_missing_column.xml",
+        "<UserObjects>\n <Other/>\n</UserObjects>\n" );
+    try
+    {
+        geode_unused(
+            geode::load_horizons_stack< 3 >( "skua_missing_column.xml" ) );
+    }
+    catch( const geode::OpenGeodeException& )
+    {
+        return;
+    }
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        false, "[TEST] File without column should throw" );
+}
+
+void test_unnamed_horizons()
+{
+    write_file( "skua_unnamed_horizons.xml",
+        "<UserObjects>\n"
+        " <LocalStratigraphicColumn>\n"
+        "  <name>column</name>\n"
+        "  <units>\n"
+        "   <unit>\n"
+        "    <name>unit1</name>\n"
+        "    <top><name></name></top>\n"
+        "    <base><name>middle</name></base>\n"
+        "   </unit>\n"
+        "   <unit>\n"
+        "    <name>unit2</name>\n"
+        "    <top><name>middle</name></top>\n"
+        "    <base><name> </name></base>\n"
+        "   </unit>\n"
+        "  </units>\n"
+        " </LocalStratigraphicColumn>\n"
+        "</UserObjects>\n" );
+    const auto horizons_stack =
+        geode::load_horizons_stack< 3 >( "skua_unnamed_horizons.xml" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        horizons_stack.nb_horizons() == 3,
+        "[TEST] Unnamed horizons should not be merged" );
+    for( const auto& horizon : horizons_stack.horizons() )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            !horizon.name().value().empty(),
+            "[TEST] Unnamed horizons should be given a name" );
+    }
+}
+
 int main()
 {
     try
@@ -94,6 +199,10 @@ int main()
 
         geode::Logger::info( "Reading stratigraphic column file." );
         test_file();
+        test_is_loadable();
+        test_optional_attributes();
+        test_missing_column();
+        test_unnamed_horizons();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

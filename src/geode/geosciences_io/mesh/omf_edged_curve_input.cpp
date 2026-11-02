@@ -56,9 +56,10 @@ namespace geode::internal
                 file.read_elements< 2 >( geometry, "segments", nb_points );
             const auto first_vertex = curve->nb_vertices();
             const auto first_edge = curve->nb_edges();
-            for( const auto& point : points )
+            builder->create_vertices( static_cast< index_t >( points.size() ) );
+            for( const auto point : Indices{ points } )
             {
-                builder->create_point( point );
+                builder->set_point( first_vertex + point, points[point] );
             }
             std::vector< index_t > segment_edges( segments.size(), NO_ID );
             for( const auto segment : Indices{ segments } )

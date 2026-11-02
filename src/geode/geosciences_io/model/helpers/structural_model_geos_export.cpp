@@ -34,6 +34,7 @@
 
 #include <geode/geosciences/explicit/representation/core/structural_model.hpp>
 
+#include <geode/basic/logger.hpp>
 #include <geode/basic/pimpl_impl.hpp>
 
 #include <geode/model/mixin/core/block.hpp>
@@ -66,7 +67,16 @@ namespace geode
                 for( const auto& block :
                     model.stratigraphic_unit_items( unit ) )
                 {
-                    definitions.block_regions.emplace( block.id(), region_id );
+                    if( !definitions.block_regions
+                            .emplace( block.id(), region_id )
+                            .second )
+                    {
+                        Logger::warning( "[StructuralModelGeosExporter] Block ",
+                            block.id().string(),
+                            " belongs to several StratigraphicUnits, only the "
+                            "first one is used as its region." );
+                        continue;
+                    }
                     definitions.merged_blocks.emplace( block.id(), region_id );
                 }
             }

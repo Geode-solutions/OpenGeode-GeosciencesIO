@@ -40,6 +40,7 @@ add_geode_test(
         OpenGeode::mesh
         OpenGeode-IO::mesh
         ${PROJECT_NAME}::mesh
+        GDAL::GDAL
 )
 add_geode_test(
     SOURCE "test-json-grid.cpp"
@@ -80,6 +81,7 @@ add_geode_test(
         OpenGeode::mesh
         OpenGeode-IO::mesh
         ${PROJECT_NAME}::mesh
+        GDAL::GDAL
 )
 add_geode_test(
     SOURCE "test-ts.cpp"

@@ -93,22 +93,30 @@ namespace
 
         void read_paths( const geode::Point3D& ref )
         {
-            auto line = geode::goto_keyword( file_, "PATH" );
-            while( std::getline( file_, line ) )
+            auto line = geode::goto_keyword( file_, "PATH " );
+            auto is_first_path = true;
+            do
             {
-                if( !geode::string_starts_with( line, "PATH" ) )
+                const auto tokens = geode::string_split( line );
+                if( tokens.empty() || tokens.front() != "PATH" )
                 {
                     return;
                 }
-                auto translation = read_coord( line, 2 );
+                const auto translation = read_coord( line, 2 );
                 geode::Point3D point;
                 point.set_value( 0, translation.value( 1 ) + ref.value( 0 ) );
                 point.set_value( 1, translation.value( 2 ) + ref.value( 1 ) );
                 point.set_value( 2, translation.value( 0 )
                                         * ( crs_.z_sign_positive ? 1. : -1. ) );
+                const auto is_ref = is_first_path && point.inexact_equal( ref );
+                is_first_path = false;
+                if( is_ref )
+                {
+                    continue;
+                }
                 const auto id = builder_->create_point( point );
                 builder_->create_edge( id - 1, id );
-            }
+            } while( std::getline( file_, line ) );
         }
 
     private:

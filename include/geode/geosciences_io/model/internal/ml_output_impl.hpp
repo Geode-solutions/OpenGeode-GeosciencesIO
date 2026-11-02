@@ -25,6 +25,8 @@
 
 #include <fstream>
 #include <functional>
+#include <limits>
+#include <locale>
 #include <optional>
 #include <string>
 #include <vector>
@@ -79,22 +81,6 @@ namespace geode::internal
         return true;
     }
 
-    inline std::optional< PolygonEdge > get_one_border_edge(
-        const SurfaceMesh3D& mesh )
-    {
-        for( const auto p : Range{ mesh.nb_polygons() } )
-        {
-            for( const auto e : LRange{ 3 } )
-            {
-                if( mesh.is_edge_on_border( { p, e } ) )
-                {
-                    return PolygonEdge{ p, e };
-                }
-            }
-        }
-        return std::nullopt;
-    }
-
     template < typename Model >
     class MLOutputImpl
     {
@@ -102,6 +88,10 @@ namespace geode::internal
         static constexpr index_t OFFSET_START{ 1 };
         static constexpr char EOL{ '\n' };
         static constexpr char SPACE{ ' ' };
+        // Unclassified Surfaces are not on the model boundary (ModelBoundaries
+        // are built before export if missing): exported with a neutral type
+        // so that they are not reloaded as ModelBoundaries
+        static constexpr auto UNCLASSIFIED_TYPE = "none";
 
         virtual ~MLOutputImpl() = default;
 
@@ -115,6 +105,7 @@ namespace geode::internal
             }
             internal::write_header( file_, header );
             internal::write_CRS( file_, {} );
+            warn_unexported_components();
             assign_surfaces_to_tsurfs();
             write_model_components();
             write_model_surfaces();
@@ -132,6 +123,44 @@ namespace geode::internal
             OpenGeodeGeosciencesIOModelException::check_exception( file_.good(),
                 nullptr, OpenGeodeException::TYPE::data,
                 "[MLOutput] Error while opening file: ", filename );
+            // Exact round-trip of coordinates
+            file_.imbue( std::locale::classic() );
+            file_.precision( std::numeric_limits< double >::max_digits10 );
+        }
+
+        /*!
+         * Only Surface border Lines and their Corners can be described in a
+         * .ml file
+         */
+        void warn_unexported_components() const
+        {
+            index_t nb_isolated_corners{ 0 };
+            for( const auto& corner : model_.corners() )
+            {
+                if( model_.nb_incidences( corner.id() ) == 0 )
+                {
+                    nb_isolated_corners++;
+                }
+            }
+            if( nb_isolated_corners > 0 )
+            {
+                Logger::warning( "[MLOutput] ", nb_isolated_corners,
+                    " Corners bounding no Line have not been exported" );
+            }
+            index_t nb_embedded_lines{ 0 };
+            for( const auto& line : model_.lines() )
+            {
+                if( model_.nb_embeddings( line.id() ) > 0 )
+                {
+                    nb_embedded_lines++;
+                }
+            }
+            if( nb_embedded_lines > 0 )
+            {
+                Logger::warning( "[MLOutput] ", nb_embedded_lines,
+                    " Lines internal to a Surface or a Block may not have "
+                    "been exported" );
+            }
         }
 
         index_t& component_id()
@@ -158,6 +187,15 @@ namespace geode::internal
          */
         void assign_surfaces_to_tsurfs()
         {
+            for( const auto& surface : model_.surfaces() )
+            {
+                if( surface.mesh().nb_polygons() == 0 )
+                {
+                    Logger::warning( "[MLOutput] Surface ",
+                        component_name( surface ),
+                        " has no polygon. It has not been exported" );
+                }
+            }
             for( const auto& boundary : model_.model_boundaries() )
             {
                 assign_surfaces(
@@ -175,6 +213,12 @@ namespace geode::internal
             auto& surfaces = owned_surfaces_[collection.id()];
             for( const auto& item : items )
             {
+                if( item.mesh().nb_polygons() == 0 )
+                {
+                    // Also excluded from unclassified Surfaces
+                    assigned_surfaces_.insert( item.id() );
+                    continue;
+                }
                 if( !assigned_surfaces_.insert( item.id() ).second )
                 {
                     Logger::warning( "[MLOutput] A Surface from ",
@@ -197,21 +241,46 @@ namespace geode::internal
             return owned_surfaces_.at( collection_id );
         }
 
+        void write_point( const Point3D& point )
+        {
+            file_ << point.value( 0 ) << SPACE << point.value( 1 ) << SPACE
+                  << point.value( 2 );
+        }
+
         template < typename Component >
         void write_key_triangle( const Component& component )
         {
             const auto& mesh = component.mesh();
             for( const auto v : LRange{ 3 } )
             {
-                file_ << SPACE << SPACE
-                      << mesh.point( mesh.polygon_vertex( { 0, v } ) ).string()
-                      << EOL;
+                file_ << SPACE << SPACE;
+                write_point( mesh.point( mesh.polygon_vertex( { 0, v } ) ) );
+                file_ << EOL;
             }
         }
 
         virtual void write_geological_tsurfs() = 0;
 
-        virtual std::vector< uuid > unclassified_tsurfs() const = 0;
+        /*!
+         * Surfaces not owned by any exported collection: each one is
+         * exported as its own TSURF
+         */
+        std::vector< uuid > unclassified_tsurfs() const
+        {
+            std::vector< uuid > result;
+            for( const auto& surface : model_.surfaces() )
+            {
+                if( surface.mesh().nb_polygons() == 0 )
+                {
+                    continue;
+                }
+                if( !assigned_surfaces_.contains( surface.id() ) )
+                {
+                    result.push_back( surface.id() );
+                }
+            }
+            return result;
+        }
 
         void write_tsurfs()
         {
@@ -257,7 +326,7 @@ namespace geode::internal
             for( const auto& surface_id : unclassified_surfaces_ )
             {
                 const auto& surface = model_.surface( surface_id );
-                file_ << "TFACE " << component_id_ << SPACE << "boundary"
+                file_ << "TFACE " << component_id_ << SPACE << UNCLASSIFIED_TYPE
                       << SPACE << tsurf_name( surface ) << EOL;
                 write_key_triangle( surface );
                 components_.emplace( surface_id, component_id_++ );
@@ -301,6 +370,10 @@ namespace geode::internal
                 index_t counter{ 0 };
                 for( const auto& surface : model_.boundaries( region ) )
                 {
+                    if( !components_.contains( surface.id() ) )
+                    {
+                        continue;
+                    }
                     const auto sign = sides_.regions_surface_sides.at(
                                           { region.id(), surface.id() } )
                                           ? '+'
@@ -315,6 +388,10 @@ namespace geode::internal
                 }
                 for( const auto& surface : model_.internal_surfaces( region ) )
                 {
+                    if( !components_.contains( surface.id() ) )
+                    {
+                        continue;
+                    }
                     file_ << "+" << components_.at( surface.id() ) << SPACE
                           << SPACE;
                     counter++;
@@ -352,8 +429,9 @@ namespace geode::internal
             const auto& mesh = surface.mesh();
             for( const auto v : Range{ mesh.nb_vertices() } )
             {
-                file_ << "VRTX " << current_offset + v << SPACE
-                      << mesh.point( v ).string() << EOL;
+                file_ << "VRTX " << current_offset + v << SPACE;
+                write_point( mesh.point( v ) );
+                file_ << EOL;
             }
             for( const auto t : Range{ mesh.nb_polygons() } )
             {
@@ -400,22 +478,28 @@ namespace geode::internal
             const index_t current_offset,
             std::vector< std::array< index_t, 2 > >& line_starts ) const
         {
-            // todo several times to process all border edges
+            // Each border loop (outer border, holes) is walked once
             const auto& mesh = surface.mesh();
-            const auto first_on_border = get_one_border_edge( mesh );
-            if( !first_on_border )
+            std::vector< bool > visited( 3 * mesh.nb_polygons(), false );
+            for( const auto p : Range{ mesh.nb_polygons() } )
             {
-                return;
-            }
-            process_surface_edge(
-                surface, first_on_border.value(), current_offset, line_starts );
-
-            auto cur = mesh.previous_on_border( first_on_border.value() );
-            while( cur != first_on_border )
-            {
-                process_surface_edge(
-                    surface, cur, current_offset, line_starts );
-                cur = mesh.previous_on_border( cur );
+                for( const auto e : LRange{ 3 } )
+                {
+                    const PolygonEdge first_on_border{ p, e };
+                    if( !mesh.is_edge_on_border( first_on_border )
+                        || visited[3 * p + e] )
+                    {
+                        continue;
+                    }
+                    auto cur = first_on_border;
+                    do
+                    {
+                        visited[3 * cur.polygon_id + cur.edge_id] = true;
+                        process_surface_edge(
+                            surface, cur, current_offset, line_starts );
+                        cur = mesh.previous_on_border( cur );
+                    } while( cur != first_on_border );
+                }
             }
         }
 
@@ -507,7 +591,7 @@ namespace geode::internal
                 internal::write_header( file_, header );
                 internal::write_CRS( file_, {} );
                 file_ << "GEOLOGICAL_FEATURE " << tsurf_name( surface ) << EOL;
-                file_ << "GEOLOGICAL_TYPE " << "boundary" << EOL;
+                file_ << "GEOLOGICAL_TYPE " << UNCLASSIFIED_TYPE << EOL;
                 index_t current_offset{ OFFSET_START };
                 file_ << "TFACE" << EOL;
                 current_offset = write_surface( surface, current_offset );

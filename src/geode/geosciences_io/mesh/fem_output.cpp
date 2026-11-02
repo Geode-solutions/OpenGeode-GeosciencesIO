@@ -20,9 +20,13 @@
  * SOFTWARE.
  *
  */
+#include <cmath>
 #include <fstream>
+#include <limits>
+
+#include <absl/algorithm/container.h>
+
 #include <geode/basic/attribute_manager.hpp>
-#include <geode/basic/filename.hpp>
 #include <geode/basic/io.hpp>
 #include <geode/basic/types.hpp>
 #include <geode/basic/variable_attribute.hpp>
@@ -96,6 +100,65 @@ namespace
         return results;
     }
 
+    template < typename T >
+    std::shared_ptr< geode::ReadOnlyAttribute< T > > find_typed_attribute(
+        const geode::AttributeManager& manager, std::string_view name )
+    {
+        const auto attribute_ids = manager.attribute_ids_matching_name( name );
+        if( !attribute_ids )
+        {
+            return nullptr;
+        }
+        for( const auto& attribute_id : attribute_ids.value() )
+        {
+            if( manager.attribute_type( attribute_id ) == typeid( T ).name() )
+            {
+                return manager.find_read_only_attribute< T >( attribute_id );
+            }
+        }
+        geode::Logger::warning( "[SolidFemOutput::write] Attribute ", name,
+            " is ignored: its type is not the expected one" );
+        return nullptr;
+    }
+
+    double attribute_value( const geode::ReadOnlyAttribute< double >& attribute,
+        geode::index_t element )
+    {
+        return attribute.value( element );
+    }
+
+    double attribute_value(
+        const geode::AttributeBase& attribute, geode::index_t element )
+    {
+        return attribute.generic_value( element );
+    }
+
+    // Sorts the (value, id) pairs and calls func( value, ids ) for each value,
+    // ids being sorted
+    template < typename Value, typename Func >
+    void for_each_value_group(
+        std::vector< std::pair< Value, geode::index_t > >& values_ids,
+        const Func& func )
+    {
+        absl::c_sort( values_ids );
+        std::vector< geode::index_t > ids;
+        geode::index_t group_start{ 0 };
+        for( const auto i : geode::Indices{ values_ids } )
+        {
+            if( values_ids[i].first != values_ids[group_start].first )
+            {
+                func( values_ids[group_start].first, ids );
+                ids.clear();
+                group_start = i;
+            }
+            ids.push_back( values_ids[i].second );
+        }
+        if( !ids.empty() )
+        {
+            func( values_ids[group_start].first, ids );
+        }
+    }
+
     std::string add_spaces( geode::index_t n )
     {
         return std::string( n, SPACE );
@@ -120,6 +183,7 @@ namespace
             std::string_view filename, const geode::TetrahedralSolid3D& solid )
             : file_{ geode::to_string( filename ) }, solid_( solid )
         {
+            file_.precision( std::numeric_limits< double >::max_digits10 );
             geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                 file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "Error while opening file: ", filename );
@@ -128,12 +192,6 @@ namespace
         void write_file()
         {
             geode::Logger::info( "[SolidFemOutput::write] Writing fem file." );
-            const auto directories =
-                geode::filepath_without_filename( "filename" );
-            if( !directories.empty() )
-            {
-                std::filesystem::create_directories( directories );
-            }
             write_problem();
             write_class();
             write_dimension();
@@ -206,8 +264,9 @@ namespace
             }
         }
 
+        template < typename Value >
         void write_chunks( absl::Span< const geode::index_t > elements,
-            std::string attribute_value,
+            const Value& attribute_value,
             geode::index_t max_chunk_size )
         {
             for( const auto& range_chunk :
@@ -219,82 +278,87 @@ namespace
             }
         }
 
-        void write_chunks( absl::Span< const geode::index_t > elements,
-            double attribute_value,
-            geode::index_t max_chunk_size )
-        {
-            write_chunks(
-                elements, std::to_string( attribute_value ), max_chunk_size );
-        }
-
-        void write_property( geode::AttributeBase& attribute )
+        void write_property(
+            geode::AttributeBase& attribute, geode::index_t nb_elements )
         {
             file_ << attribute.name().value() << EOL;
-            absl::flat_hash_map< double, std::vector< geode::index_t > >
-                attribute_distribution =
-                    create_attribute_distribution( attribute );
-            std::vector< double > values;
-            values.reserve( attribute_distribution.size() );
-            for( auto val : attribute_distribution )
-            {
-                values.push_back( val.first );
-            }
-            absl::c_sort( values );
-            for( const auto value : values )
-            {
-                write_chunks(
-                    attribute_distribution[value], value, CHUNK_SIZE );
-            }
+            auto values_ids =
+                attribute.type() == typeid( double ).name()
+                    ? attribute_values_ids(
+                          dynamic_cast<
+                              const geode::ReadOnlyAttribute< double >& >(
+                              attribute ),
+                          nb_elements )
+                    : attribute_values_ids( attribute, nb_elements );
+            for_each_value_group( values_ids,
+                [this]( double value, absl::Span< const geode::index_t > ids ) {
+                    write_chunks( ids, value, CHUNK_SIZE );
+                } );
         }
 
-        absl::flat_hash_map< double, std::vector< geode::index_t > >
-            create_attribute_distribution( geode::AttributeBase& attribute )
+        template < typename Attribute >
+        std::vector< std::pair< double, geode::index_t > > attribute_values_ids(
+            const Attribute& attribute, geode::index_t nb_elements )
         {
-            absl::flat_hash_map< double, std::vector< geode::index_t > >
-                att_dist;
-            for( const auto elem : geode::Range{ solid_.nb_polyhedra() } )
+            std::vector< std::pair< double, geode::index_t > > values_ids;
+            values_ids.reserve( nb_elements );
+            for( const auto elem : geode::Range{ nb_elements } )
             {
-                const auto value = attribute.generic_value( elem );
-                if( att_dist.contains( value ) )
+                const auto value = attribute_value( attribute, elem );
+                if( !std::isnan( value ) )
                 {
-                    att_dist[value].push_back( elem + 1 );
-                }
-                else
-                {
-                    att_dist[value] = { elem + 1 };
+                    values_ids.emplace_back( value, elem + 1 );
                 }
             }
-            return att_dist;
+            if( const auto nb_nan_values = nb_elements - values_ids.size();
+                nb_nan_values != 0 )
+            {
+                geode::Logger::warning( "[SolidFemOutput::write] ",
+                    nb_nan_values, " NaN values of attribute ",
+                    attribute.name().value(), " are not exported" );
+            }
+            return values_ids;
         }
 
-        void write_ref_nodal_dist()
+        static std::vector< std::shared_ptr< geode::AttributeBase > >
+            exported_attributes( const geode::AttributeManager& manager )
         {
-            geode::index_t nb_vertex_att{ 3 };
             std::vector< std::shared_ptr< geode::AttributeBase > > attributes;
-            attributes.reserve(
-                solid_.vertex_attribute_manager().attribute_ids().size() );
-            for( const auto id :
-                solid_.vertex_attribute_manager().attribute_ids() )
+            for( const auto& id : manager.attribute_ids() )
             {
-                const auto attribute =
-                    solid_.vertex_attribute_manager().find_generic_attribute(
-                        id );
+                auto attribute = manager.find_generic_attribute( id );
                 if( !attribute || !attribute->is_genericable()
                     || !attribute->properties().transferable )
                 {
                     continue;
                 }
-                attributes.push_back( attribute );
-                nb_vertex_att++;
+                if( attribute->nb_items() != 1 )
+                {
+                    geode::Logger::warning( "[SolidFemOutput::write] "
+                                            "Attribute ",
+                        attribute->name().value(),
+                        " is not exported: only scalar attributes are "
+                        "supported" );
+                    continue;
+                }
+                attributes.push_back( std::move( attribute ) );
             }
+            return attributes;
+        }
+
+        void write_ref_nodal_dist()
+        {
+            static constexpr geode::index_t NB_COORDINATES{ 3 };
+            const auto attributes =
+                exported_attributes( solid_.vertex_attribute_manager() );
             file_ << "REF_DIS_I" << EOL;
-            file_ << SPACE << nb_vertex_att << "," << SPACE
+            file_ << SPACE << NB_COORDINATES + attributes.size() << "," << SPACE
                   << solid_.nb_vertices() << ","
                   << " 0" << EOL;
             write_xyz_dist();
             for( const auto& attribute : attributes )
             {
-                write_property( *attribute );
+                write_property( *attribute, solid_.nb_vertices() );
             }
         }
 
@@ -361,51 +425,28 @@ namespace
         { // TODO: which properties to add?
         }
 
-        absl::flat_hash_map< double, std::vector< geode::index_t > >
-            create_coord_dist( int dim )
-        {
-            absl::flat_hash_map< double, std::vector< geode::index_t > >
-                coord_dist;
-            for( const auto vertex : geode::Range{ solid_.nb_vertices() } )
-            {
-                if( coord_dist.contains( solid_.point( vertex ).value( dim ) ) )
-                {
-                    coord_dist[solid_.point( vertex ).value( dim )].push_back(
-                        vertex );
-                }
-                else
-                {
-                    coord_dist[solid_.point( vertex ).value( dim )] = {
-                        vertex
-                    };
-                }
-            }
-            return coord_dist;
-        }
-
         void write_one_coord_component_dist(
-            const std::string& dim_name, const geode::index_t dim )
+            const std::string& dim_name, const geode::local_index_t dim )
         {
             file_ << dim_name << EOL;
-            absl::flat_hash_map< double, std::vector< geode::index_t > > dist =
-                create_coord_dist( dim );
-            std::vector< double > values;
-            values.reserve( dist.size() );
-            for( auto val = dist.begin(); val != dist.end(); ++val )
+            std::vector< std::pair< double, geode::index_t > > values_ids;
+            values_ids.reserve( solid_.nb_vertices() );
+            for( const auto vertex : geode::Range{ solid_.nb_vertices() } )
             {
-                values.push_back( val->first );
+                values_ids.emplace_back(
+                    solid_.point( vertex ).value( dim ), vertex + 1 );
             }
-            std::sort( values.begin(), values.end() );
-            for( const auto value : values )
-            {
-                std::string line = "";
-                for( const auto vertex : dist[value] )
-                {
-                    const auto vertex_id = vertex + 1;
-                    absl::StrAppend( &line, vertex_id, add_spaces( 1 ) );
-                }
-                file_ << "     " << value << "  " << line << EOL;
-            }
+            std::string line;
+            for_each_value_group(
+                values_ids, [this, &line]( double value,
+                                absl::Span< const geode::index_t > ids ) {
+                    line.clear();
+                    for( const auto vertex_id : ids )
+                    {
+                        absl::StrAppend( &line, vertex_id, add_spaces( 1 ) );
+                    }
+                    file_ << "     " << value << "  " << line << EOL;
+                } );
         }
 
         void write_xyz_dist()
@@ -417,128 +458,70 @@ namespace
 
         void write_ref_element_dist()
         {
+            const auto attributes =
+                exported_attributes( solid_.polyhedron_attribute_manager() );
             file_ << "REF_DISE_I" << EOL;
-            int nb_elem_att =
-                solid_.polyhedron_attribute_manager().attribute_ids().size()
-                - 3;
-            file_ << SPACE << nb_elem_att << "," << SPACE
+            file_ << SPACE << attributes.size() << "," << SPACE
                   << solid_.nb_polyhedra() << ","
                   << " 0" << EOL;
-            for( const auto id :
-                solid_.polyhedron_attribute_manager().attribute_ids() )
+            for( const auto& attribute : attributes )
             {
-                const auto attribute = solid_.polyhedron_attribute_manager()
-                                           .find_generic_attribute( id );
-                if( !attribute || !attribute->is_genericable()
-                    || !attribute->properties().transferable )
-                {
-                    continue;
-                }
-                write_property( *attribute );
+                write_property( *attribute, solid_.nb_polyhedra() );
             }
         }
 
         void write_nodal_sets()
         {
-            const auto block_id_vertex_attribute_ids =
-                solid_.vertex_attribute_manager().attribute_ids_matching_name(
-                    "Block_ID_vertex" );
-            if( block_id_vertex_attribute_ids.has_value() )
+            const auto attribute_v =
+                find_typed_attribute< std::vector< std::string > >(
+                    solid_.vertex_attribute_manager(), "Block_ID_vertex" );
+            if( !attribute_v )
             {
-                auto attribute_v =
-                    solid_.vertex_attribute_manager()
-                        .find_read_only_attribute< std::vector< std::string > >(
-                            block_id_vertex_attribute_ids.value().front() );
-                file_ << "NODALSETS" << EOL;
-                const auto vertex_regions =
-                    create_region_map( *attribute_v, false );
-                for( const auto& vertex_region : vertex_regions )
+                return;
+            }
+            file_ << "NODALSETS" << EOL;
+            std::vector< std::pair< std::string_view, geode::index_t > >
+                names_ids;
+            names_ids.reserve( solid_.nb_vertices() );
+            for( const auto vertex : geode::Range{ solid_.nb_vertices() } )
+            {
+                for( const auto& name : attribute_v->value( vertex ) )
                 {
-                    write_chunks( vertex_region.second,
-                        std::string{ vertex_region.first }, CHUNK_SIZE );
+                    names_ids.emplace_back( name, vertex + 1 );
                 }
             }
+            write_sets( names_ids );
         }
 
         void write_element_sets()
         {
-            const auto block_id_polyhedron_attribute_ids =
-                solid_.polyhedron_attribute_manager()
-                    .attribute_ids_matching_name( "Block_ID_polyhedron" );
-            if( block_id_polyhedron_attribute_ids.has_value() )
+            const auto attribute_p = find_typed_attribute< std::string >(
+                solid_.polyhedron_attribute_manager(), "Block_ID_polyhedron" );
+            if( !attribute_p )
             {
-                file_ << "ELEMENTALSETS" << EOL;
-                auto attribute_p =
-                    solid_.polyhedron_attribute_manager()
-                        .find_read_only_attribute< std::string >(
-                            block_id_polyhedron_attribute_ids.value().front() );
-                const auto elem_regions =
-                    create_region_map( *attribute_p, true );
-                for( const auto& elem_region : elem_regions )
-                {
-                    write_chunks( elem_region.second,
-                        std::string{ elem_region.first }, CHUNK_SIZE );
-                }
+                return;
             }
+            file_ << "ELEMENTALSETS" << EOL;
+            std::vector< std::pair< std::string_view, geode::index_t > >
+                names_ids;
+            names_ids.reserve( solid_.nb_polyhedra() );
+            for( const auto polyhedron : geode::Range{ solid_.nb_polyhedra() } )
+            {
+                names_ids.emplace_back(
+                    attribute_p->value( polyhedron ), polyhedron + 1 );
+            }
+            write_sets( names_ids );
         }
 
-        absl::flat_hash_map< std::string_view, std::vector< geode::index_t > >
-            create_region_map(
-                geode::ReadOnlyAttribute< std::string >& attribute,
-                bool create_element_region )
+        void write_sets(
+            std::vector< std::pair< std::string_view, geode::index_t > >&
+                names_ids )
         {
-            absl::flat_hash_map< std::string_view,
-                std::vector< geode::index_t > >
-                region_map;
-            geode::index_t nb_obj =
-                ( create_element_region ? solid_.nb_polyhedra()
-                                        : solid_.nb_vertices() );
-            for( const auto obj : geode::Range{ nb_obj } )
-            {
-                const auto value = attribute.value( obj );
-                if( region_map.contains( value ) )
-                {
-                    region_map[value].push_back( obj + 1 );
-                }
-                else
-                {
-                    region_map[value] = { obj + 1 };
-                }
-            }
-            return region_map;
-        }
-
-        absl::flat_hash_map< std::string_view, std::vector< geode::index_t > >
-            create_region_map(
-                geode::ReadOnlyAttribute< std::vector< std::string > >&
-                    attribute,
-                bool create_element_region )
-        {
-            absl::flat_hash_map< std::string_view,
-                std::vector< geode::index_t > >
-                region_map;
-            int nb_obj = ( create_element_region ? solid_.nb_polyhedra()
-                                                 : solid_.nb_vertices() );
-            for( const auto obj : geode::Range{ nb_obj } )
-            {
-                const auto& values = attribute.value( obj );
-                if( values.empty() )
-                {
-                    continue;
-                }
-                for( const auto& value : values )
-                {
-                    if( region_map.contains( value ) )
-                    {
-                        region_map[value].push_back( obj + 1 );
-                    }
-                    else
-                    {
-                        region_map[value] = { obj + 1 };
-                    }
-                }
-            }
-            return region_map;
+            for_each_value_group(
+                names_ids, [this]( std::string_view name,
+                               absl::Span< const geode::index_t > ids ) {
+                    write_chunks( ids, name, CHUNK_SIZE );
+                } );
         }
 
         void write_gravity()
@@ -641,71 +624,52 @@ namespace
 
             void build_discrete_features()
             {
-                if( must_build_2d_feature_groups() )
+                if( solid_.are_facets_enabled() )
                 {
-                    build_2d_feature_groups();
+                    const auto& manager =
+                        solid_.facets().facet_attribute_manager();
+                    if( const auto aperture_attribute =
+                            find_typed_attribute< double >(
+                                manager, APERTURE_ATTRIBUTE_NAME ) )
+                    {
+                        build_2d_feature_groups( *aperture_attribute,
+                            find_typed_attribute< double >(
+                                manager, CONDUCTIVITY_ATTRIBUTE_NAME )
+                                .get() );
+                    }
                 }
-                if( must_build_1d_feature_groups() )
+                if( solid_.are_edges_enabled() )
                 {
-                    build_1d_feature_groups();
+                    const auto& manager =
+                        solid_.edges().edge_attribute_manager();
+                    if( const auto conduit_area_attribute =
+                            find_typed_attribute< double >(
+                                manager, CONDUIT_AREA_ATTRIBUTE_NAME ) )
+                    {
+                        build_1d_feature_groups( *conduit_area_attribute,
+                            find_typed_attribute< double >(
+                                manager, CONDUCTIVITY_ATTRIBUTE_NAME )
+                                .get() );
+                    }
                 }
             }
 
         private:
-            bool must_build_2d_feature_groups() const
-            {
-                if( !solid_.are_facets_enabled() )
-                {
-                    return false;
-                }
-                return solid_.facets()
-                    .facet_attribute_manager()
-                    .attribute_ids_matching_name( APERTURE_ATTRIBUTE_NAME )
-                    .has_value();
-            }
-
-            void build_2d_feature_groups()
+            void build_2d_feature_groups(
+                const geode::ReadOnlyAttribute< double >& aperture_attribute,
+                const geode::ReadOnlyAttribute< double >*
+                    conductivity_attribute )
             {
                 auto& feature2D_group =
                     features_.features2D_groups.emplace_back(
                         FEATURE2D_GROUP_NAME );
-                const auto aperture_attribute_id =
-                    solid_.facets()
-                        .facet_attribute_manager()
-                        .attribute_ids_matching_name( APERTURE_ATTRIBUTE_NAME )
-                        .value()
-                        .at( 0 );
-                const auto aperture_attribute =
-                    solid_.facets()
-                        .facet_attribute_manager()
-                        .find_read_only_attribute< double >(
-                            aperture_attribute_id );
-                geode::AttributeValues< double > conductivity_attribute_values;
-                conductivity_attribute_values.default_value = -1.0;
-                conductivity_attribute_values.no_value = -1.0;
-                geode::AttributeProperties conductivity_attribute_properties;
-                conductivity_attribute_properties.assignable = false;
-                conductivity_attribute_properties.interpolable = false;
-                conductivity_attribute_properties.transferable = true;
-                const auto conductivity_attribute_id =
-                    solid_.facets()
-                        .facet_attribute_manager()
-                        .create_attribute< geode::VariableAttribute, double >(
-                            CONDUCTIVITY_ATTRIBUTE_NAME,
-                            conductivity_attribute_values,
-                            conductivity_attribute_properties );
-                const auto conductivity_attribute =
-                    solid_.facets()
-                        .facet_attribute_manager()
-                        .find_attribute< geode::VariableAttribute, double >(
-                            conductivity_attribute_id );
                 bool some_features_built{ false };
                 for( const auto facet :
                     geode::Range{ solid_.facets().nb_facets() } )
                 {
                     const auto aperture_value =
-                        aperture_attribute->value( facet );
-                    if( aperture_value < 0.0 )
+                        aperture_attribute.value( facet );
+                    if( !( aperture_value >= 0.0 ) )
                     {
                         continue;
                     }
@@ -739,7 +703,9 @@ namespace
                             .push_back( feature_id_ );
                     }
                     const auto conductivity_value =
-                        conductivity_attribute->value( facet );
+                        conductivity_attribute
+                            ? conductivity_attribute->value( facet )
+                            : -1.0;
                     if( conductivity_value > 0.0 )
                     {
                         auto conductivity_property =
@@ -768,70 +734,32 @@ namespace
                     some_features_built = true;
                     feature_id_++;
                 }
-                geode::OpenGeodeGeosciencesIOMeshException::check_exception(
-                    some_features_built, nullptr,
-                    geode::OpenGeodeException::TYPE::data,
-                    "No 2D feature built. Please verify that your "
-                    "model "
-                    "contains diagres_discontinuity_aperture "
-                    "property." );
-            }
-
-            bool must_build_1d_feature_groups() const
-            {
-                if( !solid_.are_edges_enabled() )
+                if( !some_features_built )
                 {
-                    return false;
+                    features_.features2D_groups.pop_back();
+                    geode::Logger::warning(
+                        "[SolidFemOutput::write] No 2D discrete feature "
+                        "written: no facet has a non-negative ",
+                        APERTURE_ATTRIBUTE_NAME, " value" );
                 }
-                return solid_.edges()
-                    .edge_attribute_manager()
-                    .attribute_ids_matching_name( CONDUIT_AREA_ATTRIBUTE_NAME )
-                    .has_value();
             }
 
-            void build_1d_feature_groups()
+            void build_1d_feature_groups(
+                const geode::ReadOnlyAttribute< double >&
+                    conduit_area_attribute,
+                const geode::ReadOnlyAttribute< double >*
+                    conductivity_attribute )
             {
                 auto& feature1D_group =
                     features_.features1D_groups.emplace_back(
                         FEATURE1D_GROUP_NAME );
-                const auto conduit_area_attribute_id =
-                    solid_.edges()
-                        .edge_attribute_manager()
-                        .attribute_ids_matching_name(
-                            CONDUIT_AREA_ATTRIBUTE_NAME )
-                        .value()
-                        .at( 0 );
-                const auto conduit_area_attribute =
-                    solid_.edges()
-                        .edge_attribute_manager()
-                        .find_read_only_attribute< double >(
-                            conduit_area_attribute_id );
-                geode::AttributeValues< double > conductivity_attribute_values;
-                conductivity_attribute_values.default_value = -1.0;
-                conductivity_attribute_values.no_value = -1.0;
-                geode::AttributeProperties conductivity_attribute_properties;
-                conductivity_attribute_properties.assignable = false;
-                conductivity_attribute_properties.interpolable = false;
-                conductivity_attribute_properties.transferable = true;
-                const auto conductivity_attribute_id =
-                    solid_.edges()
-                        .edge_attribute_manager()
-                        .create_attribute< geode::VariableAttribute, double >(
-                            CONDUCTIVITY_ATTRIBUTE_NAME,
-                            conductivity_attribute_values,
-                            conductivity_attribute_properties );
-                auto conductivity_attribute =
-                    solid_.edges()
-                        .edge_attribute_manager()
-                        .find_attribute< geode::VariableAttribute, double >(
-                            conductivity_attribute_id );
                 bool some_features_built{ false };
                 for( const auto edge :
                     geode::Range{ solid_.edges().nb_edges() } )
                 {
                     const auto conduit_area_value =
-                        conduit_area_attribute->value( edge );
-                    if( conduit_area_value < 0.0 )
+                        conduit_area_attribute.value( edge );
+                    if( !( conduit_area_value >= 0.0 ) )
                     {
                         continue;
                     }
@@ -866,7 +794,9 @@ namespace
                             .push_back( feature_id_ );
                     }
                     const auto conductivity_value =
-                        conductivity_attribute->value( edge );
+                        conductivity_attribute
+                            ? conductivity_attribute->value( edge )
+                            : -1.0;
                     if( conductivity_value > 0.0 )
                     {
                         auto conductivity_property =
@@ -895,11 +825,14 @@ namespace
                     some_features_built = true;
                     feature_id_++;
                 }
-                geode::OpenGeodeGeosciencesIOMeshException::check_exception(
-                    some_features_built, nullptr,
-                    geode::OpenGeodeException::TYPE::data,
-                    "No 1D feature built. Please verify that your model "
-                    "contains diagres_conduit_area property." );
+                if( !some_features_built )
+                {
+                    features_.features1D_groups.pop_back();
+                    geode::Logger::warning(
+                        "[SolidFemOutput::write] No 1D discrete feature "
+                        "written: no edge has a non-negative ",
+                        CONDUIT_AREA_ATTRIBUTE_NAME, " value" );
+                }
             }
 
         private:
@@ -1086,35 +1019,26 @@ namespace
             file_ << add_spaces( 10 )
                   << xml_start_tag( "material id", material_id ) << EOL;
             file_ << add_spaces( 12 ) << CDATA_TAG_START << EOL;
-            geode::index_t iterator = 0;
-            for( const auto& [value, feature_ids] :
-                property_values_to_features )
+            std::vector< double > values;
+            values.reserve( property_values_to_features.size() );
+            for( const auto& value_features : property_values_to_features )
             {
-                const auto range_chunks =
-                    format_range_chunks( feature_ids, CHUNK_SIZE );
-                DEBUG( range_chunks.size() );
-                if( range_chunks.size() == 1 )
+                values.push_back( value_features.first );
+            }
+            absl::c_sort( values );
+            geode::index_t iterator = 0;
+            for( const auto value : values )
+            {
+                const auto range_chunks = format_range_chunks(
+                    property_values_to_features.at( value ), CHUNK_SIZE );
+                for( const auto chunk : geode::Indices{ range_chunks } )
                 {
                     file_ << add_spaces( 14 ) << value << add_spaces( 1 )
-                          << range_chunks[0];
-                    if( iterator < property_values_to_features.size() - 1 )
+                          << range_chunks[chunk];
+                    if( chunk + 1 < range_chunks.size()
+                        || iterator + 1 < property_values_to_features.size() )
                     {
                         file_ << EOL;
-                    }
-                }
-                else
-                {
-                    for( const auto chunk :
-                        geode::Range{ range_chunks.size() } )
-                    {
-                        const auto& range_chunk = range_chunks[chunk];
-                        file_ << add_spaces( 14 ) << value << add_spaces( 1 )
-                              << range_chunk;
-                        if( iterator < property_values_to_features.size() - 1
-                            && chunk < range_chunks.size() - 1 )
-                        {
-                            file_ << EOL;
-                        }
                     }
                 }
                 iterator++;
@@ -1173,7 +1097,7 @@ namespace
                 {
                     const auto& property1D =
                         features.features1D_groups.front()
-                            .properties[aperture_property_index.value()];
+                            .properties[area_property_index.value()];
                     combine_maps(
                         values_to_features, property1D.values_to_features );
                 }

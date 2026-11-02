@@ -23,6 +23,8 @@
 
 #include <geode/tests_config.hpp>
 
+#include <fstream>
+
 #include <geode/basic/assert.hpp>
 #include <geode/basic/logger.hpp>
 
@@ -30,6 +32,68 @@
 #include <geode/mesh/io/edged_curve_input.hpp>
 
 #include <geode/geosciences_io/mesh/common.hpp>
+
+namespace
+{
+    std::unique_ptr< geode::EdgedCurve3D > load_test_file(
+        std::string_view filename, std::string_view content )
+    {
+        {
+            std::ofstream file{ geode::to_string( filename ),
+                std::ios::binary };
+            file << content;
+        }
+        return geode::load_edged_curve< 3 >( filename );
+    }
+
+    void check_curve( const geode::EdgedCurve3D& curve,
+        geode::index_t nb_vertices,
+        geode::index_t nb_edges,
+        std::string_view test_name )
+    {
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curve.nb_vertices() == nb_vertices,
+            "Wrong number of vertices: ", test_name );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curve.nb_edges() == nb_edges,
+            "Wrong number of edges: ", test_name );
+    }
+
+    void test_few_points()
+    {
+        const auto named = load_test_file( "test_well_named.dev",
+            "# WELL TRACE FROM PETREL\n# WELL NAME:   My Well 2\n#====\n\n"
+            " MD X Y Z\n#====\n0 1 2 3\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            named->name() == "My Well 2", "Wrong well name" );
+        auto has_thrown = false;
+        try
+        {
+            load_test_file( "test_well_no_z.dev",
+                "# WELL TRACE FROM PETREL\n# WELL NAME:\n#====\n"
+                " MD X Y TVD\n#====\n0 1 2 3\n" );
+        }
+        catch( const geode::OpenGeodeException& exception )
+        {
+            geode::Logger::info( "Expected exception: ", exception.what() );
+            has_thrown = true;
+        }
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            has_thrown, "Well without Z column should throw" );
+        check_curve( *load_test_file( "test_well_blank_lines.dev",
+                         "# WELL TRACE FROM PETREL\n# WELL NAME: W\n#====\n MD "
+                         "X Y Z\n#====\n0 1 2 3\n\n# comment\n1 1 2 4\n\n" ),
+            2, 1, "well with blank lines" );
+        check_curve( *load_test_file( "test_well_no_point.dev",
+                         "# WELL TRACE FROM PETREL\n# WELL NAME: W\n#====\n"
+                         " MD X Y Z\n#====\n" ),
+            0, 0, "well without point" );
+        check_curve( *load_test_file( "test_well_one_point.dev",
+                         "# WELL TRACE FROM PETREL\n# WELL NAME: W\n#====\n"
+                         " MD X Y Z\n#====\n0 1 2 3\n" ),
+            1, 0, "one point well" );
+    }
+} // namespace
 
 int main()
 {
@@ -42,6 +106,7 @@ int main()
             curve->nb_vertices() == 104, "Wrong number of vertices" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             curve->nb_edges() == 103, "Wrong number of edges" );
+        test_few_points();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

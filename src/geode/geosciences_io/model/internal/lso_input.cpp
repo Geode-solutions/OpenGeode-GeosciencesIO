@@ -25,10 +25,12 @@
 
 #include <fstream>
 
+#include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
 #include <absl/strings/match.h>
 
 #include <geode/basic/file.hpp>
+#include <geode/basic/logger.hpp>
 #include <geode/basic/string.hpp>
 #include <geode/basic/variable_attribute.hpp>
 
@@ -64,8 +66,6 @@ namespace
     public:
         static constexpr geode::index_t OFFSET_START{ 1 };
         static constexpr char EOL{ '\n' };
-        static constexpr auto BLOCK_NAME_ATTRIBUTE_NAME =
-            "geode_block_name_attribute_name";
 
         LSOInputImpl( std::string_view filename, geode::StructuralModel& model )
             : file_{ geode::to_string( filename ), std::ios::binary },
@@ -93,18 +93,6 @@ namespace
                 solid_->vertex_attribute_manager()
                     .find_attribute< geode::VariableAttribute, geode::index_t >(
                         vertex_attribute_id_id );
-            geode::AttributeValues< std::string > block_name_attribute_values;
-            block_name_attribute_values.default_value = "";
-            block_name_attribute_values.no_value = "";
-            const auto block_name_attribute_id =
-                solid_->polyhedron_attribute_manager()
-                    .create_attribute< geode::VariableAttribute, std::string >(
-                        BLOCK_NAME_ATTRIBUTE_NAME, block_name_attribute_values,
-                        attribute_properties );
-            block_name_attribute_ =
-                solid_->polyhedron_attribute_manager()
-                    .find_attribute< geode::VariableAttribute, std::string >(
-                        block_name_attribute_id );
             geode::AttributeValues< geode::uuid > facet_id_attribute_values;
             facet_id_attribute_values.default_value = default_id_;
             facet_id_attribute_values.no_value = default_id_;
@@ -128,8 +116,6 @@ namespace
         {
             solid_->vertex_attribute_manager().delete_attribute(
                 vertex_id_->id() );
-            solid_->polyhedron_attribute_manager().delete_attribute(
-                block_name_attribute_->id() );
             solid_->facets().facet_attribute_manager().delete_attribute(
                 facet_id_->id() );
             solid_->disable_facets();
@@ -163,6 +149,7 @@ namespace
             read_tetrahedra_region_indicators();
             read_surfaces();
             read_blocks();
+            check_tetrahedra_regions();
             geode::detail::build_model_boundaries( model_, builder_ );
             build_corners();
             build_lines();
@@ -196,6 +183,7 @@ namespace
                     nb_unique_vertices++;
                 }
                 const auto id = solid_builder_->create_point( point );
+                register_vertex_file_id( id );
                 vertex_id_->set_value( id, unique_id );
                 vertex_mapping_[unique_id].push_back( id );
             } while( std::getline( file_, line_ )
@@ -206,9 +194,8 @@ namespace
         std::tuple< geode::Point3D, geode::index_t > read_shared_point() const
         {
             const auto tokens = get_tokens();
-            const auto unique_id =
-                geode::string_to_index( tokens[2] ) - OFFSET_START;
-            return { solid_->point( unique_id ), unique_id };
+            const auto vertex = solid_vertex( token( tokens, 2 ) );
+            return { solid_->point( vertex ), vertex_id_->value( vertex ) };
         }
 
         geode::Point3D read_point() const
@@ -217,7 +204,8 @@ namespace
             const auto tokens = get_tokens();
             for( const auto i : geode::LRange{ 3 } )
             {
-                const auto value = geode::string_to_double( tokens[i + 2] );
+                const auto value =
+                    geode::string_to_double( token( tokens, i + 2 ) );
                 point.set_value( i, value );
             }
             point.set_value(
@@ -237,26 +225,70 @@ namespace
 
         void read_tetrahedra()
         {
-            do
+            while( is_tetrahedron_line() )
             {
                 const auto tokens = get_tokens();
                 std::array< geode::index_t, 4 > vertices;
                 for( const auto i : geode::LRange{ 4 } )
                 {
-                    vertices[i] =
-                        geode::string_to_index( tokens[i + 1] ) - OFFSET_START;
+                    vertices[i] = solid_vertex( token( tokens, i + 1 ) );
                 }
                 const auto tetra_id =
                     solid_builder_->create_tetrahedron( vertices );
+                tetrahedron_regions_.push_back( geode::NO_ID );
                 geode::internal::read_properties( tetrahedra_prop_header_,
                     tetrahedra_attributes_, tokens, 5 );
-                std::getline( file_, line_ );
-                const auto tokens2 = get_tokens();
-                block_name_attribute_->set_value(
-                    tetra_id, geode::to_string( tokens2[2] ) );
-            } while( std::getline( file_, line_ )
-                     && geode::string_starts_with( line_, "TETRA" ) );
+                if( !std::getline( file_, line_ ) )
+                {
+                    line_.clear();
+                    break;
+                }
+                if( !geode::string_starts_with( line_, "# CTETRA" ) )
+                {
+                    inspect_required_ = true;
+                    geode::Logger::warning( "[LSOInput] Missing \"# CTETRA\" "
+                                            "line after tetrahedron ",
+                        tetra_id + OFFSET_START,
+                        ", it will not be assigned to any region." );
+                    continue;
+                }
+                tetrahedron_regions_[tetra_id] =
+                    region_ids_
+                        .try_emplace(
+                            tetrahedron_region_name(), region_ids_.size() )
+                        .first->second;
+                if( !std::getline( file_, line_ ) )
+                {
+                    line_.clear();
+                }
+            }
             solid_builder_->compute_polyhedron_adjacencies();
+            region_tetrahedra_.resize( region_ids_.size() );
+            for( const auto tetra : geode::Indices{ tetrahedron_regions_ } )
+            {
+                const auto region = tetrahedron_regions_[tetra];
+                if( region != geode::NO_ID )
+                {
+                    region_tetrahedra_[region].push_back( tetra );
+                }
+            }
+        }
+
+        absl::Span< const geode::index_t > region_tetrahedra(
+            std::string_view name ) const
+        {
+            const auto it = region_ids_.find( name );
+            if( it == region_ids_.end() )
+            {
+                return {};
+            }
+            return region_tetrahedra_[it->second];
+        }
+
+        bool is_tetrahedron_line() const
+        {
+            const auto tokens = get_tokens();
+            return !tokens.empty() && tokens.front() == "TETRA";
         }
 
         void read_tetrahedra_region_indicators()
@@ -275,34 +307,85 @@ namespace
             {
                 geode::goto_keyword( file_, "MODEL" );
             }
-            std::getline( file_, line_ );
-            while( geode::string_starts_with( line_, "SURFACE" ) )
+            next_line();
+            while( !file_.eof() || !line_.empty() )
             {
-                const auto tokens = geode::string_split( line_ );
-                absl::Span< const std::string_view > remaining_tokens(
-                    &tokens[1], tokens.size() - 1 );
-                const auto h_id = builder_.add_horizon();
-                const auto& horizon = model_.horizon( h_id );
-                builder_.set_horizon_name(
-                    horizon, geode::internal::read_name( remaining_tokens ) );
-                read_tfaces( horizon );
+                if( geode::string_starts_with( line_, "SURFACE" ) )
+                {
+                    const auto tokens = get_tokens();
+                    const auto h_id = builder_.add_horizon();
+                    const auto& horizon = model_.horizon( h_id );
+                    auto name = geode::internal::read_name(
+                        absl::MakeConstSpan( tokens ).subspan( 1 ) );
+                    if( name.empty() )
+                    {
+                        name = h_id.string();
+                    }
+                    builder_.set_horizon_name( horizon, name );
+                    next_line();
+                    read_tfaces( horizon, name );
+                    continue;
+                }
+                if( is_model_section_end() )
+                {
+                    return;
+                }
+                skip_unknown_line();
             }
         }
 
-        void read_tfaces( const geode::Horizon3D& horizon )
+        bool is_model_section_end() const
         {
-            std::getline( file_, line_ );
-            while( geode::string_starts_with( line_, "TFACE" ) )
+            return geode::string_starts_with( line_, "SURFACE" )
+                   || geode::string_starts_with( line_, "MODEL_REGION" )
+                   || geode::string_starts_with( line_, "END" );
+        }
+
+        void read_tfaces(
+            const geode::Horizon3D& horizon, std::string_view name )
+        {
+            while( !file_.eof() || !line_.empty() )
             {
+                if( is_model_section_end() )
+                {
+                    return;
+                }
+                if( !geode::string_starts_with( line_, "TFACE" ) )
+                {
+                    skip_unknown_line();
+                    continue;
+                }
                 const auto id =
                     builder_.add_surface( geode::MeshFactory::default_impl(
                         geode::TriangulatedSurface3D::type_name_static() ) );
                 const auto& surface = model_.surface( id );
                 builder_.add_surface_in_horizon( surface, horizon );
-                builder_.set_surface_name( surface, horizon.name().value() );
-                std::getline( file_, line_ );
+                builder_.set_surface_name( surface, name );
+                next_line();
+                if( geode::string_starts_with( line_, "KEYVERTICES" ) )
+                {
+                    next_line();
+                }
                 read_triangles( id );
             }
+        }
+
+        void next_line()
+        {
+            if( !std::getline( file_, line_ ) )
+            {
+                line_.clear();
+            }
+        }
+
+        void skip_unknown_line()
+        {
+            if( !get_tokens().empty() )
+            {
+                geode::Logger::warning(
+                    "[LSOInput] Skipping unexpected line \"", line_, "\"" );
+            }
+            next_line();
         }
 
         void read_triangles( const geode::uuid& surface_id )
@@ -314,18 +397,17 @@ namespace
                 builder_.surface_mesh_builder< geode::TriangulatedSurface3D >(
                     surface );
             const auto component_id = surface.component_id();
-            while( std::getline( file_, line_ )
-                   && geode::string_starts_with( line_, "TRGL" ) )
+            for( ; geode::string_starts_with( line_, "TRGL" ); next_line() )
             {
                 const auto tokens = get_tokens();
                 std::array< geode::index_t, 3 > facet_vertices;
                 std::array< geode::index_t, 3 > vertices;
                 for( const auto i : geode::LRange{ 3 } )
                 {
-                    const auto value =
-                        geode::string_to_index( tokens[i + 1] ) - OFFSET_START;
+                    const auto value = solid_vertex( token( tokens, i + 1 ) );
                     facet_vertices[i] = value;
-                    const auto it = vertex_mapping.find( value );
+                    const auto unique_vertex = vertex_id_->value( value );
+                    const auto it = vertex_mapping.find( unique_vertex );
                     if( it != vertex_mapping.end() )
                     {
                         vertices[i] = it->second;
@@ -334,10 +416,10 @@ namespace
                     {
                         const auto vertex_id =
                             builder->create_point( solid_->point( value ) );
-                        vertex_mapping.emplace( value, vertex_id );
+                        vertex_mapping.emplace( unique_vertex, vertex_id );
                         vertices[i] = vertex_id;
-                        builder_.set_unique_vertex( { component_id, vertex_id },
-                            vertex_id_->value( value ) );
+                        builder_.set_unique_vertex(
+                            { component_id, vertex_id }, unique_vertex );
                     }
                 }
                 builder->create_triangle( vertices );
@@ -364,11 +446,17 @@ namespace
             const std::array< geode::index_t, 3 >& vertices ) const
         {
             std::vector< geode::index_t > facets;
-            for( const auto v0 : vertex_mapping_[vertices[0]] )
+            const auto& copies0 =
+                vertex_mapping_[vertex_id_->value( vertices[0] )];
+            const auto& copies1 =
+                vertex_mapping_[vertex_id_->value( vertices[1] )];
+            const auto& copies2 =
+                vertex_mapping_[vertex_id_->value( vertices[2] )];
+            for( const auto v0 : copies0 )
             {
-                for( const auto v1 : vertex_mapping_[vertices[1]] )
+                for( const auto v1 : copies1 )
                 {
-                    for( const auto v2 : vertex_mapping_[vertices[2]] )
+                    for( const auto v2 : copies2 )
                     {
                         if( const auto facet_id =
                                 solid_->facets().facet_from_vertices(
@@ -384,16 +472,77 @@ namespace
 
         void read_blocks()
         {
-            while( geode::string_starts_with( line_, "MODEL_REGION" ) )
+            while( !file_.eof() || !line_.empty() )
             {
+                if( geode::string_starts_with( line_, "END" ) )
+                {
+                    return;
+                }
+                if( !geode::string_starts_with( line_, "MODEL_REGION" ) )
+                {
+                    skip_unknown_line();
+                    continue;
+                }
                 const auto tokens = get_tokens();
                 const auto block_id =
                     builder_.add_block( geode::MeshFactory::default_impl(
                         geode::TetrahedralSolid3D::type_name_static() ) );
-                builder_.set_block_name( model_.block( block_id ), tokens[1] );
+                builder_.set_block_name(
+                    model_.block( block_id ), read_quoted_name( tokens, 1 ) );
                 build_block_mesh( block_id );
                 build_block_relations( block_id );
-                std::getline( file_, line_ );
+                next_line();
+            }
+        }
+
+        std::string tetrahedron_region_name() const
+        {
+            return read_quoted_name( get_tokens(), 2 );
+        }
+
+        std::string read_quoted_name(
+            absl::Span< const std::string_view > tokens,
+            geode::index_t position ) const
+        {
+            const auto first = token( tokens, position );
+            if( !absl::StartsWith( first, "\"" ) )
+            {
+                return geode::to_string( first );
+            }
+            auto last = position;
+            while( last < tokens.size()
+                   && ( !absl::EndsWith( tokens[last], "\"" )
+                        || ( last == position && first.size() == 1 ) ) )
+            {
+                last++;
+            }
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                last < tokens.size(), nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[LSOInput] Missing closing quote in line \"", line_, "\"" );
+            return geode::internal::read_name(
+                tokens.subspan( position, last - position + 1 ) );
+        }
+
+        void check_tetrahedra_regions()
+        {
+            geode::index_t nb_assigned{ 0 };
+            absl::flat_hash_set< std::string_view > region_names;
+            for( const auto& block : model_.blocks() )
+            {
+                const auto& name = block.name().value();
+                if( region_names.emplace( name ).second )
+                {
+                    nb_assigned += region_tetrahedra( name ).size();
+                }
+            }
+            const auto nb_unassigned = solid_->nb_polyhedra() - nb_assigned;
+            if( nb_unassigned > 0 )
+            {
+                inspect_required_ = true;
+                geode::Logger::warning( "[LSOInput] ", nb_unassigned,
+                    " tetrahedra do not belong to any MODEL_REGION and are "
+                    "ignored." );
             }
         }
 
@@ -404,17 +553,14 @@ namespace
                 builder_.block_mesh_builder< geode::TetrahedralSolid3D >(
                     block );
             const auto component_id = block.component_id();
-            const auto block_name = block.name();
+            const auto tetrahedra = region_tetrahedra( block.name().value() );
             absl::flat_hash_map< geode::index_t, geode::index_t >
                 vertex_mapping;
             std::vector< geode::index_t > inverse_vertex_mapping;
             std::vector< geode::index_t > inverse_tetrahedra_mapping;
-            for( const auto tetra : geode::Range{ solid_->nb_polyhedra() } )
+            inverse_tetrahedra_mapping.reserve( tetrahedra.size() );
+            for( const auto tetra : tetrahedra )
             {
-                if( block_name_attribute_->value( tetra ) != block_name )
-                {
-                    continue;
-                }
                 std::array< geode::index_t, 4 > vertices;
                 for( const auto i : geode::LRange{ 4 } )
                 {
@@ -447,7 +593,7 @@ namespace
             geode::internal::create_attributes( tetrahedra_prop_header_,
                 tetrahedra_attributes_,
                 block_mesh.polyhedron_attribute_manager(),
-                block_mesh.nb_vertices(), inverse_vertex_mapping );
+                block_mesh.nb_polyhedra(), inverse_tetrahedra_mapping );
         }
 
         absl::flat_hash_map< geode::uuid, geode::index_t > find_block_relations(
@@ -455,13 +601,9 @@ namespace
         {
             absl::flat_hash_map< geode::uuid, geode::index_t >
                 surface_relations;
-            const auto block_name = model_.block( block_id ).name();
-            for( const auto tetra : geode::Range{ solid_->nb_polyhedra() } )
+            for( const auto tetra :
+                region_tetrahedra( model_.block( block_id ).name().value() ) )
             {
-                if( block_name_attribute_->value( tetra ) != block_name )
-                {
-                    continue;
-                }
                 for( const auto f : geode::LRange{ 4 } )
                 {
                     const auto facet = solid_->facets().facet_from_vertices(
@@ -491,8 +633,19 @@ namespace
             for( const auto& relation : find_block_relations( block_id ) )
             {
                 const auto& surface = model_.surface( relation.first );
+                const auto nb_polygons = surface.mesh().nb_polygons();
+                if( relation.second % nb_polygons != 0 )
+                {
+                    inspect_required_ = true;
+                    geode::Logger::warning( "[LSOInput] Block ",
+                        block.name().value(),
+                        " is only partially conformal to surface ",
+                        surface.name().value(), " (", relation.second,
+                        " tetrahedron facets for ", nb_polygons,
+                        " triangles)." );
+                }
                 const auto nb_relations =
-                    relation.second / surface.mesh().nb_polygons();
+                    ( relation.second + nb_polygons / 2 ) / nb_polygons;
                 if( nb_relations == 1 )
                 {
                     builder_.add_surface_block_boundary_relationship(
@@ -525,6 +678,52 @@ namespace
                         mesh.polygon_edges_on_border( p ) )
                     {
                         build_corner_from_edge( mesh, component_id, border );
+                    }
+                }
+            }
+            for( const auto& surface : model_.surfaces() )
+            {
+                build_corners_on_free_border_loops( surface );
+            }
+        }
+
+        void build_corners_on_free_border_loops(
+            const geode::Surface3D& surface )
+        {
+            const auto& mesh = surface.mesh();
+            const auto component_id = surface.component_id();
+            const auto corner_type = geode::Corner3D::component_type_static();
+            const auto max_nb_edges = 3 * mesh.nb_polygons();
+            absl::flat_hash_set< geode::PolygonEdge > visited;
+            for( const auto p : geode::Range{ mesh.nb_polygons() } )
+            {
+                for( const auto& border : mesh.polygon_edges_on_border( p ) )
+                {
+                    if( visited.contains( border ) )
+                    {
+                        continue;
+                    }
+                    bool has_corner{ false };
+                    auto edge = border;
+                    geode::index_t nb_steps{ 0 };
+                    do
+                    {
+                        visited.emplace( edge );
+                        const auto unique_id =
+                            model_.unique_vertex( { component_id,
+                                mesh.polygon_edge_vertex( edge, 0 ) } );
+                        has_corner = has_corner
+                                     || model_.has_component_mesh_vertices(
+                                         unique_id, corner_type );
+                        edge = mesh.next_on_border( edge );
+                        nb_steps++;
+                    } while( edge != border && nb_steps < max_nb_edges );
+                    if( !has_corner )
+                    {
+                        const auto vertex =
+                            mesh.polygon_edge_vertex( border, 0 );
+                        create_corner( mesh.point( vertex ),
+                            model_.unique_vertex( { component_id, vertex } ) );
                     }
                 }
             }
@@ -617,6 +816,60 @@ namespace
             return geode::string_split( line_ );
         }
 
+        void register_vertex_file_id( geode::index_t vertex )
+        {
+            const auto file_id =
+                geode::string_to_index( token( get_tokens(), 1 ) );
+            if( file_vertex_ids_.empty() && file_id == vertex + OFFSET_START )
+            {
+                return;
+            }
+            if( file_vertex_ids_.empty() )
+            {
+                for( const auto previous : geode::Range{ vertex } )
+                {
+                    file_vertex_ids_.emplace(
+                        previous + OFFSET_START, previous );
+                }
+            }
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                file_vertex_ids_.emplace( file_id, vertex ).second, nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[LSOInput] Duplicated vertex id in line \"", line_, "\"" );
+        }
+
+        geode::index_t solid_vertex( std::string_view vertex_token ) const
+        {
+            const auto vertex = geode::string_to_index( vertex_token );
+            if( !file_vertex_ids_.empty() )
+            {
+                const auto it = file_vertex_ids_.find( vertex );
+                geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                    it != file_vertex_ids_.end(), nullptr,
+                    geode::OpenGeodeException::TYPE::data,
+                    "[LSOInput] Unknown vertex ", vertex_token, " in line \"",
+                    line_, "\"" );
+                return it->second;
+            }
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                vertex >= OFFSET_START
+                    && vertex - OFFSET_START < solid_->nb_vertices(),
+                nullptr, geode::OpenGeodeException::TYPE::data,
+                "[LSOInput] Unknown vertex ", vertex_token, " in line \"",
+                line_, "\"" );
+            return vertex - OFFSET_START;
+        }
+
+        std::string_view token( absl::Span< const std::string_view > tokens,
+            geode::index_t position ) const
+        {
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                position < tokens.size(), nullptr,
+                geode::OpenGeodeException::TYPE::data,
+                "[LSOInput] Missing value in line \"", line_, "\"" );
+            return tokens[position];
+        }
+
         void build_lines()
         {
             for( const auto& surface : model_.surfaces() )
@@ -705,8 +958,17 @@ namespace
             auto edge = border;
             auto unique_id = unique_id0;
             const auto corner_type = geode::Corner3D::component_type_static();
+            const auto max_nb_edges = 3 * mesh.nb_polygons();
             do
             {
+                geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                    line.mesh().nb_edges() < max_nb_edges, nullptr,
+                    geode::OpenGeodeException::TYPE::data,
+                    "[LSOInput] Cannot build a Line along the border of "
+                    "Surface ",
+                    surface.name().value_or( surface.id().string() ),
+                    ": the border never reaches a Corner (invalid surface "
+                    "topology)" );
                 edge = mesh.next_on_border( edge );
                 const auto vertex_id = mesh.polygon_edge_vertex( edge, 0 );
                 unique_id = model_.unique_vertex(
@@ -810,11 +1072,13 @@ namespace
         std::unique_ptr< geode::TetrahedralSolidBuilder3D > solid_builder_;
         std::shared_ptr< geode::VariableAttribute< geode::index_t > >
             vertex_id_;
-        std::shared_ptr< geode::VariableAttribute< std::string > >
-            block_name_attribute_;
         std::shared_ptr< geode::VariableAttribute< geode::uuid > > facet_id_;
         geode::uuid default_id_;
         std::vector< absl::InlinedVector< geode::index_t, 1 > > vertex_mapping_;
+        absl::flat_hash_map< geode::index_t, geode::index_t > file_vertex_ids_;
+        absl::flat_hash_map< std::string, geode::index_t > region_ids_;
+        std::vector< geode::index_t > tetrahedron_regions_;
+        std::vector< std::vector< geode::index_t > > region_tetrahedra_;
     };
 } // namespace
 

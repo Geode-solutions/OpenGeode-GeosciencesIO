@@ -24,6 +24,7 @@
 #include <geode/geosciences_io/mesh/internal/vs_output.hpp>
 
 #include <fstream>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -46,11 +47,14 @@ namespace
         static constexpr char SPACE{ ' ' };
         VSOutputImpl(
             std::string_view filename, const geode::PointSet3D& pointset )
-            : file_{ geode::to_string( filename ) }, pointset_( pointset )
+            : file_{ geode::to_string( filename ) },
+              pointset_( pointset ),
+              properties_( pointset.vertex_attribute_manager() )
         {
             geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                 file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "Error while opening file: ", filename );
+            file_.precision( std::numeric_limits< double >::max_digits10 );
         }
 
         void write_file()
@@ -72,56 +76,16 @@ namespace
 
         void write_prop_header()
         {
-            const auto vertex_attribute_ids =
-                pointset_.vertex_attribute_manager().attribute_ids();
-            geode::internal::PropHeaderData prop_header;
-            std::vector< geode::internal::PropClassHeaderData >
-                header_properties_data;
-            header_properties_data.reserve( vertex_attribute_ids.size() );
-            generic_att_.reserve( vertex_attribute_ids.size() );
-            if( !vertex_attribute_ids.empty() )
+            if( !properties_.empty() )
             {
                 VRTX_KEYWORD = "PVRTX";
-            }
-
-            for( const auto& attribute_id : vertex_attribute_ids )
-            {
-                const auto attribute =
-                    pointset_.vertex_attribute_manager().find_generic_attribute(
-                        attribute_id );
-                if( !attribute || !attribute->is_genericable()
-                    || !attribute->properties().transferable )
-                {
-                    continue;
-                }
-                generic_att_.push_back( attribute );
-                prop_header.names.emplace_back(
-                    geode::to_string( attribute->name().value() ) );
-                prop_header.prop_legal_ranges.push_back(
-                    { "**none**", "**none**" } );
-                prop_header.no_data_values.push_back( -99999. );
-                prop_header.property_classes.emplace_back(
-                    geode::to_string( attribute->name().value() ) );
-                prop_header.kinds.push_back( "Real Number" );
-                prop_header.property_subclass.push_back(
-                    { "QUANTITY", "Float" } );
-                prop_header.esizes.push_back( 1 );
-                prop_header.units.push_back( "unitless" );
-
-                geode::internal::PropClassHeaderData tmp_prop_class_header;
-                tmp_prop_class_header.name =
-                    geode::to_string( attribute->name().value() );
-
-                header_properties_data.push_back( tmp_prop_class_header );
-            }
-            if( !prop_header.empty() )
-            {
-                geode::internal::write_prop_header( file_, prop_header );
+                geode::internal::write_prop_header(
+                    file_, properties_.header() );
             }
             write_xyz_prop_class_header();
-            for( const auto& property_data : header_properties_data )
+            for( const auto& class_header : properties_.class_headers() )
             {
-                write_property_class_header( file_, property_data );
+                write_property_class_header( file_, class_header );
             }
         }
 
@@ -159,19 +123,18 @@ namespace
 
         void write_vrtx( const geode::index_t vertex_id )
         {
-            file_ << VRTX_KEYWORD << SPACE << vertex_id << SPACE
-                  << pointset_.point( vertex_id ).string();
-            for( const auto& att : generic_att_ )
-            {
-                file_ << SPACE << att->generic_value( vertex_id );
-            }
+            const auto& point = pointset_.point( vertex_id );
+            file_ << VRTX_KEYWORD << SPACE << vertex_id + OFFSET_START << SPACE
+                  << point.value( 0 ) << SPACE << point.value( 1 ) << SPACE
+                  << point.value( 2 );
+            properties_.write_values( file_, vertex_id );
             file_ << EOL;
         }
 
     private:
         std::ofstream file_;
         const geode::PointSet3D& pointset_;
-        std::vector< std::shared_ptr< geode::AttributeBase > > generic_att_{};
+        geode::internal::GocadVertexProperties properties_;
         std::string VRTX_KEYWORD{ "VRTX" };
     };
 } // namespace
