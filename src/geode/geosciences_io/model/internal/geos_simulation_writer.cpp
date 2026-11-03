@@ -60,6 +60,7 @@ namespace
     constexpr auto FLUID_MODEL_NAME = "fluid";
     constexpr auto FLOW_SOLVER_NAME = "flow";
     constexpr auto MECHANICS_SOLVER_NAME = "mechanics";
+    constexpr auto POROMECHANICS_SOLVER_NAME = "poromechanics";
     constexpr auto TPFA_NAME = "tpfa";
     constexpr auto FINITE_ELEMENT_NAME = "FE1";
     constexpr auto NULL_SOLID_NAME = "nullSolid";
@@ -164,6 +165,13 @@ namespace geode::internal
         double default_porosity{ 0 };
     };
 
+    enum struct SOLVER_PHYSICS
+    {
+        flow,
+        mechanics,
+        poromechanics
+    };
+
     class GeosSimulationWriter::Impl
     {
     public:
@@ -185,6 +193,11 @@ namespace geode::internal
             build_permeability_groups();
             build_imported_fields();
             build_tables();
+            if( is_poromechanics() )
+            {
+                build_mechanics_imported_fields();
+                build_poromechanics_imported_fields();
+            }
         }
 
         [[nodiscard]] absl::Span< const GeosImportedField >
@@ -203,19 +216,27 @@ namespace geode::internal
             if( !problem_.has_flow() )
             {
                 write_mechanics_solver( solvers );
-                auto finite_elements =
-                    problem_node.append_child( "NumericalMethods" )
-                        .append_child( "FiniteElements" );
-                auto space = add_named_child( finite_elements,
-                    "FiniteElementSpace", FINITE_ELEMENT_NAME );
-                set_attribute( space, "order", "1" );
+                auto numerical_methods =
+                    problem_node.append_child( "NumericalMethods" );
+                write_finite_elements( numerical_methods );
                 write_mechanics_element_regions( problem_node );
                 write_mechanics_constitutive( problem_node );
                 return;
             }
+            if( is_poromechanics() )
+            {
+                write_poromechanics_solver( solvers );
+                write_mechanics_solver( solvers );
+            }
             write_flow_solver( solvers );
-            auto finite_volume = problem_node.append_child( "NumericalMethods" )
-                                     .append_child( "FiniteVolume" );
+            auto numerical_methods =
+                problem_node.append_child( "NumericalMethods" );
+            if( is_poromechanics() )
+            {
+                write_finite_elements( numerical_methods );
+            }
+            auto finite_volume =
+                numerical_methods.append_child( "FiniteVolume" );
             add_named_child(
                 finite_volume, "TwoPointFluxApproximation", TPFA_NAME );
             write_element_regions( problem_node );
@@ -297,9 +318,7 @@ namespace geode::internal
             auto solver_event = add_named_child(
                 events, "PeriodicEvent", "solverApplications" );
             set_attribute( solver_event, "target",
-                absl::StrCat( "/Solvers/", problem_.has_flow()
-                                               ? FLOW_SOLVER_NAME
-                                               : MECHANICS_SOLVER_NAME ) );
+                absl::StrCat( "/Solvers/", solver_name() ) );
             if( schedule.max_time_step )
             {
                 set_real_attribute( solver_event, "maxEventDt",
@@ -357,6 +376,22 @@ namespace geode::internal
         [[nodiscard]] bool is_thermal() const
         {
             return problem_.thermal().has_value();
+        }
+
+        [[nodiscard]] bool is_poromechanics() const
+        {
+            return problem_.has_flow() && problem_.solid_mechanics();
+        }
+
+        // Solver run by the events
+        [[nodiscard]] std::string_view solver_name() const
+        {
+            if( is_poromechanics() )
+            {
+                return POROMECHANICS_SOLVER_NAME;
+            }
+            return problem_.has_flow() ? FLOW_SOLVER_NAME
+                                       : MECHANICS_SOLVER_NAME;
         }
 
         [[nodiscard]] static std::vector< index_t > assigned_items(
@@ -464,22 +499,55 @@ namespace geode::internal
             for( const auto& [property, geos_field] :
                 { std::pair{ &context_.bulk_modulus, "bulkModulus" },
                     std::pair{ &context_.shear_modulus, "shearModulus" },
-                    std::pair{ &context_.density, "density" } } )
+                    std::pair{ &context_.density, "density" },
+                    std::pair{ &context_.thermal_expansion,
+                        "thermalExpansionCoefficient" } } )
             {
                 if( !property->has_value() )
                 {
                     continue;
                 }
-                const auto& array = property->value().array;
-                imported_fields_.push_back( { array, array.name,
-                    absl::StrCat( ELASTIC_SOLID_NAME, "_", geos_field ) } );
+                import_field( property->value().array,
+                    absl::StrCat( ELASTIC_SOLID_NAME, "_", geos_field ) );
             }
             if( context_.initial_stress )
             {
-                const auto& array = context_.initial_stress.value();
-                imported_fields_.push_back( { array, array.name,
-                    absl::StrCat( ELASTIC_SOLID_NAME, "_stress" ) } );
+                import_field( context_.initial_stress.value(),
+                    absl::StrCat( ELASTIC_SOLID_NAME, "_stress" ) );
             }
+        }
+
+        // Each Biot porosity model imports its own grain bulk modulus and
+        // thermal expansion
+        void build_poromechanics_imported_fields()
+        {
+            for( const auto group_id : Indices{ porosity_groups_ } )
+            {
+                import_field( context_.grain_bulk_modulus->array,
+                    absl::StrCat(
+                        "porosity_", group_id, "_grainBulkModulus" ) );
+                if( context_.thermal_expansion )
+                {
+                    import_field( context_.thermal_expansion->array,
+                        absl::StrCat( "porosity_", group_id,
+                            "_thermalExpansionCoefficient" ) );
+                }
+            }
+        }
+
+        // GEOS imports a VTU array once: arrays imported several times are
+        // copied under another name
+        void import_field( const GeosCellArray& array, std::string geos_name )
+        {
+            const auto is_imported = absl::c_any_of(
+                imported_fields_, [&array]( const GeosImportedField& field ) {
+                    return field.vtu_name == array.name;
+                } );
+            auto vtu_name = is_imported
+                                ? absl::StrCat( array.name, "_", geos_name )
+                                : array.name;
+            imported_fields_.push_back(
+                { array, std::move( vtu_name ), std::move( geos_name ) } );
         }
 
         void build_tables()
@@ -590,7 +658,7 @@ namespace geode::internal
             }
             set_real_attribute(
                 solver, "initialDt", problem_.schedule().initial_time_step );
-            write_solver_parameters( solver );
+            write_solver_parameters( solver, SOLVER_PHYSICS::flow );
         }
 
         void write_mechanics_solver( pugi::xml_node& solvers ) const
@@ -604,32 +672,66 @@ namespace geode::internal
                 solver, "targetRegions", geos_names( region_names() ) );
             set_real_attribute(
                 solver, "initialDt", problem_.schedule().initial_time_step );
-            write_solver_parameters( solver );
+            write_solver_parameters( solver, SOLVER_PHYSICS::mechanics );
         }
 
-        void write_solver_parameters( pugi::xml_node& solver ) const
+        // Fully implicit: GEOS uses the initial time step and the solver
+        // parameters of the coupled solver, not those of its sub-solvers
+        void write_poromechanics_solver( pugi::xml_node& solvers ) const
+        {
+            auto solver = add_named_child( solvers,
+                is_multiphase() ? "MultiphasePoromechanics"
+                                : "SinglePhasePoromechanics",
+                POROMECHANICS_SOLVER_NAME );
+            set_attribute( solver, "logLevel", "1" );
+            set_attribute( solver, "solidSolverName", MECHANICS_SOLVER_NAME );
+            set_attribute( solver, "flowSolverName", FLOW_SOLVER_NAME );
+            set_attribute(
+                solver, "targetRegions", geos_names( region_names() ) );
+            if( is_thermal() )
+            {
+                set_attribute( solver, "isThermal", "1" );
+            }
+            set_real_attribute(
+                solver, "initialDt", problem_.schedule().initial_time_step );
+            write_solver_parameters( solver, SOLVER_PHYSICS::poromechanics );
+        }
+
+        void write_solver_parameters(
+            pugi::xml_node& solver, SOLVER_PHYSICS physics ) const
         {
             auto nonlinear = solver.append_child( "NonlinearSolverParameters" );
             set_attribute( nonlinear, "newtonTol", "1e-6" );
             set_attribute( nonlinear, "newtonMaxIter", "15" );
-            if( problem_.has_flow() )
+            if( physics != SOLVER_PHYSICS::mechanics )
             {
                 set_attribute( nonlinear, "maxTimeStepCuts", "10" );
             }
             auto linear = solver.append_child( "LinearSolverParameters" );
-            if( problem_.has_flow() && is_multiphase() )
+            if( physics == SOLVER_PHYSICS::poromechanics
+                || ( physics == SOLVER_PHYSICS::flow && is_multiphase() ) )
             {
                 set_attribute( linear, "solverType", "fgmres" );
                 set_attribute( linear, "preconditionerType", "mgr" );
-                set_attribute( linear, "krylovTol", "1e-5" );
+                set_attribute(
+                    linear, "krylovTol", is_multiphase() ? "1e-5" : "1e-8" );
                 return;
             }
             set_attribute( linear, "solverType", "gmres" );
             set_attribute( linear, "preconditionerType", "amg" );
-            if( !problem_.has_flow() )
+            if( physics == SOLVER_PHYSICS::mechanics )
             {
                 set_attribute( linear, "krylovTol", "1e-8" );
             }
+        }
+
+        void write_finite_elements( pugi::xml_node& numerical_methods ) const
+        {
+            auto finite_elements =
+                numerical_methods.append_child( "FiniteElements" );
+            auto space = add_named_child(
+                finite_elements, "FiniteElementSpace", FINITE_ELEMENT_NAME );
+            set_attribute( space, "order", "1" );
         }
 
         [[nodiscard]] std::vector< std::string > material_list(
@@ -693,10 +795,15 @@ namespace geode::internal
             }
         }
 
-        // Imported cell properties override the defaults, set to their means
         void write_mechanics_constitutive( pugi::xml_node& problem_node ) const
         {
             auto constitutive = problem_node.append_child( "Constitutive" );
+            write_elastic_solid( constitutive );
+        }
+
+        // Imported cell properties override the defaults, set to their means
+        void write_elastic_solid( pugi::xml_node& constitutive ) const
+        {
             auto solid = add_named_child(
                 constitutive, "ElasticIsotropic", ELASTIC_SOLID_NAME );
             set_real_attribute( solid, "defaultDensity",
@@ -705,13 +812,25 @@ namespace geode::internal
                 solid, "defaultBulkModulus", context_.bulk_modulus->mean );
             set_real_attribute(
                 solid, "defaultShearModulus", context_.shear_modulus->mean );
+            if( context_.thermal_expansion )
+            {
+                set_real_attribute( solid, "defaultDrainedLinearTEC",
+                    context_.thermal_expansion->mean );
+            }
         }
 
         void write_constitutive( pugi::xml_node& problem_node ) const
         {
             auto constitutive = problem_node.append_child( "Constitutive" );
             write_fluid( constitutive );
-            add_named_child( constitutive, "NullModel", NULL_SOLID_NAME );
+            if( is_poromechanics() )
+            {
+                write_elastic_solid( constitutive );
+            }
+            else
+            {
+                add_named_child( constitutive, "NullModel", NULL_SOLID_NAME );
+            }
             write_porosity_models( constitutive );
             write_permeability_models( constitutive );
             for( const auto material_id : Indices{ problem_.materials() } )
@@ -864,14 +983,37 @@ namespace geode::internal
             for( const auto group_id : Indices{ porosity_groups_ } )
             {
                 const auto& group = porosity_groups_[group_id];
-                auto node = add_named_child( constitutive, "PressurePorosity",
-                    absl::StrCat( "porosity_", group_id ) );
+                const auto name = absl::StrCat( "porosity_", group_id );
+                if( is_poromechanics() )
+                {
+                    write_biot_porosity( constitutive, name, group );
+                    continue;
+                }
+                auto node =
+                    add_named_child( constitutive, "PressurePorosity", name );
                 set_real_attribute(
                     node, "defaultReferencePorosity", group.default_porosity );
                 set_real_attribute(
                     node, "referencePressure", group.reference_pressure );
                 set_real_attribute(
                     node, "compressibility", group.compressibility );
+            }
+        }
+
+        // The porosity follows the pressure and the strain of the solid
+        void write_biot_porosity( pugi::xml_node& constitutive,
+            std::string_view name,
+            const GeosPorosityGroup& group ) const
+        {
+            auto node = add_named_child( constitutive, "BiotPorosity", name );
+            set_real_attribute(
+                node, "defaultReferencePorosity", group.default_porosity );
+            set_real_attribute( node, "defaultGrainBulkModulus",
+                context_.grain_bulk_modulus->mean );
+            if( context_.thermal_expansion )
+            {
+                set_real_attribute( node, "defaultPorosityTEC",
+                    context_.thermal_expansion->mean );
             }
         }
 
@@ -893,9 +1035,11 @@ namespace geode::internal
             const auto materials = problem_.materials();
             const auto& material = materials[material_id];
             auto rock = add_named_child( constitutive,
-                "CompressibleSolidConstantPermeability",
+                is_poromechanics() ? "PorousElasticIsotropic"
+                                   : "CompressibleSolidConstantPermeability",
                 absl::StrCat( "rock_", material.name ) );
-            set_attribute( rock, "solidModelName", NULL_SOLID_NAME );
+            set_attribute( rock, "solidModelName",
+                is_poromechanics() ? ELASTIC_SOLID_NAME : NULL_SOLID_NAME );
             set_attribute( rock, "porosityModelName",
                 absl::StrCat(
                     "porosity_", material_porosity_group_[material_id] ) );
