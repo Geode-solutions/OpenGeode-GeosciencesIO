@@ -155,6 +155,66 @@ def test_mechanics_export(data_dir):
             raise ValueError("[Test] Mechanics deck misses the initial stress")
 
 
+def test_poromechanics_export(data_dir):
+    model = opengeode.load_brep(
+        os.path.join(data_dir, "adaptive_brep_perm_and_poro.og_brep")
+    )
+    for name, value in [
+        ("bulk_modulus", 5.5556e9),
+        ("shear_modulus", 4.16667e9),
+        ("grain_density", 2650.0),
+        ("biot_coefficient", 0.8),
+    ]:
+        add_block_property(
+            model, getattr(opengeode.PHYSICAL_PROPERTY_NAME, name), name, value
+        )
+    displacement_id = opengeode.uuid()
+    for axis in range(3):
+        values = opengeode.AttributeValuesArrayDouble3()
+        values.default_value = [0.0 if index == axis else float("nan") for index in range(3)]
+        for surface in surfaces_on_face(model, axis, 0.0):
+            surface.mesh().polygon_attribute_manager().create_attribute_constant_arraydouble3(
+                "displacement", displacement_id, values, opengeode.AttributeProperties()
+            )
+    opengeode.BRepBuilder(model).set_physical_property(
+        opengeode.PHYSICAL_PROPERTY_NAME.boundary_displacement,
+        opengeode.Surface3D.component_type_static(),
+        displacement_id,
+    )
+    problem = geosciences.PhysicalProblem()
+    builder = geosciences.PhysicalProblemBuilder(problem)
+    builder.set_name("poromechanics")
+    builder.set_model_id(model.id())
+    fluid = geosciences.SinglePhaseFluid(
+        [geosciences.PHASE.water],
+        [geosciences.FluidComponent("water", 0.018)],
+        reference_density=1000.0,
+        reference_viscosity=1e-3,
+        compressibility=4.5e-10,
+        viscosibility=0.0,
+        reference_pressure=1e7,
+    )
+    flow = geosciences.SinglePhaseFlow()
+    flow.set_fluid(fluid)
+    builder.set_flow(flow)
+    builder.set_solid_mechanics(geosciences.SolidMechanics())
+    rock = geosciences.Material()
+    rock.name = "rock"
+    rock.porosity = 0.2
+    rock.permeability = [1e-13, 1e-13, 1e-13]
+    builder.add_material(rock)
+    builder.add_initial_condition(geosciences.UniformInitialCondition([], 1e7))
+    builder.set_schedule(geosciences.Schedule(0.0, 1e5, 1e3))
+    exporter = geosciences_io.BRepGeosExporter(model, "python_poromechanics")
+    exporter.set_physical_problem(problem)
+    exporter.run()
+    with open("python_poromechanics/python_poromechanics_simulation.xml") as deck:
+        content = deck.read()
+    for pattern in ["<SinglePhasePoromechanics", "<BiotPorosity", "grainBulkModulus"]:
+        if pattern not in content:
+            raise ValueError("[Test] Poromechanics deck misses " + pattern)
+
+
 def test_structural_model_export(data_dir):
     model = geosciences.load_structural_model(os.path.join(data_dir, "test.lso"))
     geosciences_io.BRepGeosExporter(model, "brep_to_geos")
@@ -167,4 +227,5 @@ if __name__ == "__main__":
     data_dir = os.path.abspath(os.path.join(test_dir, "../../../../tests/data"))
     test_brep_export(data_dir)
     test_mechanics_export(data_dir)
+    test_poromechanics_export(data_dir)
     test_structural_model_export(data_dir)
