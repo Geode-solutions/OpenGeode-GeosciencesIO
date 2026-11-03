@@ -86,6 +86,7 @@
 #include <geode/geosciences/explicit/representation/core/structural_model.hpp>
 #include <geode/geosciences/simulation/core/flow_model.hpp>
 #include <geode/geosciences/simulation/core/fluid.hpp>
+#include <geode/geosciences/simulation/core/initial_condition.hpp>
 #include <geode/geosciences/simulation/core/physical_problem.hpp>
 #include <geode/geosciences/simulation/core/solid_mechanics.hpp>
 #include <geode/geosciences/simulation/helpers/physical_problem_validation.hpp>
@@ -683,14 +684,64 @@ namespace geode::internal
         };
 
     constexpr std::array< std::pair< PHYSICAL_PROPERTY_NAME, std::string_view >,
-        3 >
+        6 >
         MECHANICS_PROPERTIES{ {
             { PHYSICAL_PROPERTY_NAME::bulk_modulus, "bulkModulus" },
             { PHYSICAL_PROPERTY_NAME::shear_modulus, "shearModulus" },
             { PHYSICAL_PROPERTY_NAME::density, "density" },
+            { PHYSICAL_PROPERTY_NAME::grain_density, "density" },
+            { PHYSICAL_PROPERTY_NAME::biot_coefficient, "biotCoefficient" },
+            { PHYSICAL_PROPERTY_NAME::thermal_expansion_coefficient,
+                "thermalExpansionCoefficient" },
         } };
 
+    // Mechanics properties of the other kind of problem are ignored
+    bool is_read_by(
+        const PhysicalProblem& problem, PHYSICAL_PROPERTY_NAME property )
+    {
+        switch( property )
+        {
+            case PHYSICAL_PROPERTY_NAME::density:
+                return !problem.has_flow();
+            case PHYSICAL_PROPERTY_NAME::grain_density:
+            case PHYSICAL_PROPERTY_NAME::biot_coefficient:
+                return problem.has_flow();
+            case PHYSICAL_PROPERTY_NAME::thermal_expansion_coefficient:
+                return problem.has_flow() && problem.thermal().has_value();
+            default:
+                return true;
+        }
+    }
+
+    std::optional< GeosCellProperty >& mechanics_context_property(
+        GeosDeckContext& context, PHYSICAL_PROPERTY_NAME property )
+    {
+        switch( property )
+        {
+            case PHYSICAL_PROPERTY_NAME::bulk_modulus:
+                return context.bulk_modulus;
+            case PHYSICAL_PROPERTY_NAME::shear_modulus:
+                return context.shear_modulus;
+            case PHYSICAL_PROPERTY_NAME::biot_coefficient:
+                return context.biot_coefficient;
+            case PHYSICAL_PROPERTY_NAME::thermal_expansion_coefficient:
+                return context.thermal_expansion;
+            case PHYSICAL_PROPERTY_NAME::density:
+            case PHYSICAL_PROPERTY_NAME::grain_density:
+                return context.density;
+            default:
+                throw OpenGeodeGeosciencesIOModelException{ nullptr,
+                    OpenGeodeException::TYPE::internal,
+                    "[GeosExporter] Physical property ",
+                    static_cast< int >( property ),
+                    " is not a mechanics property of the GEOS deck" };
+        }
+    }
+
     constexpr auto INITIAL_STRESS_TENSOR = "initial_stress_tensor";
+    constexpr auto GRAIN_BULK_MODULUS = "grain_bulk_modulus";
+    // GEOS grain bulk modulus of incompressible grains (Biot coefficient 1)
+    constexpr double INCOMPRESSIBLE_GRAIN_BULK_MODULUS{ 1e27 };
 
     using StressTensor = std::array< double, 6 >;
 
@@ -1134,6 +1185,7 @@ namespace geode::internal
         permeability_attribute_id_.reset();
         mechanics_attribute_ids_.clear();
         initial_stress_attribute_id_.reset();
+        grain_bulk_modulus_attribute_id_.reset();
         writer_.reset();
     }
 
@@ -1499,7 +1551,8 @@ namespace geode::internal
     {
         for( const auto& [property, geos_name] : MECHANICS_PROPERTIES )
         {
-            if( !model_.has_physical_property( property ) )
+            if( !model_.has_physical_property( property )
+                || !is_read_by( *problem_, property ) )
             {
                 continue;
             }
@@ -1514,12 +1567,15 @@ namespace geode::internal
                 property, property_info.attribute_id );
         }
         transfer_initial_stress();
+        if( problem_->has_flow() )
+        {
+            compute_grain_bulk_modulus();
+        }
     }
 
     template < typename Model >
     void GeosExporterImpl< Model >::transfer_initial_stress()
     {
-        auto& manager = model_solid_->polyhedron_attribute_manager();
         const auto factor = geos_stress_factor( *problem_ );
         // Index of the first tensor component given by each property
         for( const auto& [property, name, first_component] :
@@ -1532,20 +1588,102 @@ namespace geode::internal
             {
                 continue;
             }
-            if( !initial_stress_attribute_id_ )
-            {
-                AttributeValues< StressTensor > values;
-                values.default_value = { 0, 0, 0, 0, 0, 0 };
-                initial_stress_attribute_id_ =
-                    manager.template create_attribute< VariableAttribute,
-                        StressTensor >(
-                        INITIAL_STRESS_TENSOR, values, AttributeProperties{} );
-            }
-            auto tensor = manager.template find_attribute< VariableAttribute,
-                StressTensor >( initial_stress_attribute_id_.value() );
             transfer_stress_components( model_, model2solid_,
                 model_.physical_property_info( property ), name,
-                first_component, factor, *tensor );
+                first_component, factor, initial_stress_tensor() );
+        }
+        // Created even without initial stress property: build_deck_context
+        // imports it, then add_initial_pore_pressure shifts it
+        if( problem_->has_flow() )
+        {
+            initial_stress_tensor();
+        }
+    }
+
+    template < typename Model >
+    VariableAttribute< StressTensor >&
+        GeosExporterImpl< Model >::initial_stress_tensor()
+    {
+        auto& manager = model_solid_->polyhedron_attribute_manager();
+        if( !initial_stress_attribute_id_ )
+        {
+            AttributeValues< StressTensor > values;
+            values.default_value = { 0, 0, 0, 0, 0, 0 };
+            initial_stress_attribute_id_ =
+                manager.template create_attribute< VariableAttribute,
+                    StressTensor >(
+                    INITIAL_STRESS_TENSOR, values, AttributeProperties{} );
+        }
+        return *manager
+                    .template find_attribute< VariableAttribute, StressTensor >(
+                        initial_stress_attribute_id_.value() );
+    }
+
+    template < typename Model >
+    void GeosExporterImpl< Model >::compute_grain_bulk_modulus()
+    {
+        auto& manager = model_solid_->polyhedron_attribute_manager();
+        const auto bulk_modulus =
+            manager.template find_read_only_attribute< double >(
+                mechanics_attribute_ids_.at(
+                    PHYSICAL_PROPERTY_NAME::bulk_modulus ) );
+        const auto biot_coefficient =
+            manager.template find_read_only_attribute< double >(
+                mechanics_attribute_ids_.at(
+                    PHYSICAL_PROPERTY_NAME::biot_coefficient ) );
+        const auto name = unique_attribute_name(
+            manager, GRAIN_BULK_MODULUS, "grainBulkModulus" );
+        AttributeValues< double > values;
+        values.default_value = 0.;
+        grain_bulk_modulus_attribute_id_ =
+            manager.template create_attribute< VariableAttribute, double >(
+                name, values, AttributeProperties{} );
+        auto grain_bulk_modulus =
+            manager.template find_attribute< VariableAttribute, double >(
+                grain_bulk_modulus_attribute_id_.value() );
+        for( const auto polyhedron : Range{ model_solid_->nb_polyhedra() } )
+        {
+            const auto biot = biot_coefficient->value( polyhedron );
+            grain_bulk_modulus->set_value( polyhedron,
+                biot >= 1.
+                    ? INCOMPRESSIBLE_GRAIN_BULK_MODULUS
+                    : bulk_modulus->value( polyhedron ) / ( 1. - biot ) );
+        }
+    }
+
+    // GEOS poromechanics stores the stress of the solid, whose total stress
+    // is shifted by the pore pressure: solid = total + b.p
+    template < typename Model >
+    void GeosExporterImpl< Model >::add_initial_pore_pressure(
+        const GeosRegionAssignment& initial_conditions )
+    {
+        const auto biot_coefficient =
+            model_solid_->polyhedron_attribute_manager()
+                .template find_read_only_attribute< double >(
+                    mechanics_attribute_ids_.at(
+                        PHYSICAL_PROPERTY_NAME::biot_coefficient ) );
+        std::vector< double > region_pressures;
+        region_pressures.reserve( initial_conditions.region_items.size() );
+        for( const auto& condition_id : initial_conditions.region_items )
+        {
+            region_pressures.push_back(
+                dynamic_cast< const UniformInitialCondition& >(
+                    problem_->initial_condition( condition_id.value() ) )
+                    .pressure() );
+        }
+        auto& tensor = initial_stress_tensor();
+        for( const auto polyhedron : Range{ model_solid_->nb_polyhedra() } )
+        {
+            const auto shift =
+                biot_coefficient->value( polyhedron )
+                * region_pressures[region_attribute_->value( polyhedron )];
+            tensor.modify_value(
+                polyhedron, [shift]( StressTensor& tensor_value ) {
+                    for( const auto axis : LRange{ 3 } )
+                    {
+                        tensor_value[axis] += shift;
+                    }
+                } );
         }
     }
 
@@ -1976,27 +2114,25 @@ namespace geode::internal
             }
             context.mean_permeability = mean;
         }
-        for( const auto& [property, attribute_id] : mechanics_attribute_ids_ )
-        {
-            GeosCellProperty cell_property{
+        const auto cell_property = [&manager, nb_polyhedra](
+                                       const uuid& attribute_id ) {
+            return GeosCellProperty{
                 GeosCellArray{ attribute_id,
                     manager.find_generic_attribute( attribute_id )
                         ->name()
                         .value() },
                 double_attribute_mean( manager, attribute_id, nb_polyhedra )
             };
-            if( property == PHYSICAL_PROPERTY_NAME::bulk_modulus )
-            {
-                context.bulk_modulus = std::move( cell_property );
-            }
-            else if( property == PHYSICAL_PROPERTY_NAME::shear_modulus )
-            {
-                context.shear_modulus = std::move( cell_property );
-            }
-            else
-            {
-                context.density = std::move( cell_property );
-            }
+        };
+        for( const auto& [property, attribute_id] : mechanics_attribute_ids_ )
+        {
+            mechanics_context_property( context, property ) =
+                cell_property( attribute_id );
+        }
+        if( grain_bulk_modulus_attribute_id_ )
+        {
+            context.grain_bulk_modulus =
+                cell_property( grain_bulk_modulus_attribute_id_.value() );
         }
         if( initial_stress_attribute_id_ )
         {
@@ -2066,6 +2202,10 @@ namespace geode::internal
                 assignment->issues.end() );
         }
         check_no_issue( issues );
+        if( problem_->has_flow() && problem_->solid_mechanics() )
+        {
+            add_initial_pore_pressure( initial_conditions );
+        }
         if( problem_->has_flow() && !context_.has_boundary_pressure )
         {
             Logger::warning(
