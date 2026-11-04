@@ -60,6 +60,7 @@
 #include <geode/geosciences/simulation/core/schedule.hpp>
 #include <geode/geosciences/simulation/core/solid_mechanics.hpp>
 #include <geode/geosciences/simulation/core/source_term.hpp>
+#include <geode/geosciences/simulation/helpers/simulation_checker.hpp>
 
 #include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.hpp>
 #include <geode/geosciences/explicit/representation/builder/structural_model_builder.hpp>
@@ -810,6 +811,49 @@ void test_geos_rules()
         geode::PhysicalProblemBuilder{ problem }.remove_source_term( 0 );
         check_export_failure( model, problem, "the fluid has no gas phase" );
     }
+}
+
+// The registered checker does not know the exporter wells
+void test_registered_checker()
+{
+    auto model = geode::load_brep( absl::StrCat(
+        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+    add_spe10_boundary_conditions( model );
+    add_spe10_gas_fraction( model );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::SimulationCheckerFactory::has_creator( "geos" ),
+        "[Test] The GEOS checker should be registered" );
+    const auto checker = geode::SimulationCheckerFactory::create( "geos" );
+    auto problem = spe10_problem( model );
+    const auto report = checker->check( problem, model );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        report.is_simulable() && report.simulator() == "GEOS",
+        "[Test] SPE10 problem should be simulable by GEOS: ", report.string() );
+    geode::PhysicalProblemBuilder builder{ problem };
+    builder.add_source_term( { "missing", "water", 1. } );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        checker->check( problem, model ).is_simulable(),
+        "[Test] Source term wells are only checked by the exporter" );
+    auto flow = std::make_shared< geode::MultiphaseFlow >();
+    flow->set_fluid( std::make_shared< TestFluid >(
+        std::vector< geode::PHASE >{
+            geode::PHASE::oil, geode::PHASE::gas, geode::PHASE::water },
+        std::vector< geode::FluidComponent >{
+            { "oil", 0.1 }, { "gas", 0.01 }, { "water", 0.018 } } ) );
+    builder.set_flow( flow );
+    const auto unsupported = checker->check( problem, model );
+    const auto simulator_issues =
+        unsupported.issues( geode::SIMULATION_CHECK_STAGE::simulator );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        !unsupported.is_simulable()
+            && absl::c_any_of( simulator_issues,
+                []( const geode::SimulationIssue* issue ) {
+                    return issue->subject == "Fluid"
+                           && absl::StrContains(
+                               issue->message, "TestFluid is not supported" );
+                } ),
+        "[Test] An unsupported fluid is a simulator issue: ",
+        unsupported.string() );
 }
 
 void test_structural_model_regions()
@@ -2158,6 +2202,7 @@ int main()
         test_spe10_reference();
         test_toy_model_thermal();
         test_geos_rules();
+        test_registered_checker();
         test_structural_model_regions();
         test_gravity();
         test_tractions();
