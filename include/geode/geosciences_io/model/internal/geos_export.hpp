@@ -133,6 +133,10 @@ namespace geode::internal
         void transfer_physical_properties();
         void transfer_mechanics_properties();
         void transfer_initial_stress();
+        VariableAttribute< std::array< double, 6 > >& initial_stress_tensor();
+        void compute_grain_bulk_modulus();
+        void add_initial_pore_pressure(
+            const GeosRegionAssignment& initial_conditions );
         void transfer_boundary_conditions();
         void transfer_mechanics_boundary_conditions();
         void transfer_displacements( const uuid& attribute_id );
@@ -236,6 +240,7 @@ namespace geode::internal
         absl::flat_hash_map< PHYSICAL_PROPERTY_NAME, uuid >
             mechanics_attribute_ids_{};
         std::optional< uuid > initial_stress_attribute_id_{};
+        std::optional< uuid > grain_bulk_modulus_attribute_id_{};
         std::vector< PHASE > boundary_fraction_phases_{};
         const PhysicalProblem* problem_{ nullptr };
         GeosDeckContext context_{};

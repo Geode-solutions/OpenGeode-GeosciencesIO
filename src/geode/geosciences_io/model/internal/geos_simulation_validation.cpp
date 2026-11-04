@@ -81,7 +81,7 @@ namespace
         std::vector< std::string > check_problem(
             absl::Span< const std::string > well_names )
         {
-            if( problem_.solid_mechanics() )
+            if( problem_.solid_mechanics() && !problem_.has_flow() )
             {
                 check_solver_options();
                 return std::move( issues_ );
@@ -104,7 +104,7 @@ namespace
         {
             // Solid mechanics data are checked by
             // validate_physical_problem_properties
-            if( problem_.solid_mechanics() || !has_fluid() )
+            if( !has_fluid() )
             {
                 return std::move( issues_ );
             }
@@ -326,6 +326,12 @@ namespace
                     add_issue(
                         "Boundary fluid fractions need a multiphase flow" );
                 }
+                if( problem_.thermal() && context.has_boundary_pressure
+                    && !context.has_boundary_temperature )
+                {
+                    add_issue( "GEOS thermal boundary pressures need a "
+                               "boundary temperature" );
+                }
                 return;
             }
             if( !context.has_boundary_pressure )
@@ -480,6 +486,13 @@ namespace geode::internal
             { "solvers", "/Problem/Solvers" },
             { "flow", "/Problem/Solvers/*[@name='flow']" },
             { "mechanics", "/Problem/Solvers/*[@name='mechanics']" },
+            { "poromechanics", "/Problem/Solvers/*[@name='poromechanics']" },
+            { "poromechanicsNonlinear", "/Problem/Solvers/"
+                                        "*[@name='poromechanics']/"
+                                        "NonlinearSolverParameters" },
+            { "poromechanicsLinear", "/Problem/Solvers/"
+                                     "*[@name='poromechanics']/"
+                                     "LinearSolverParameters" },
             { "nonlinear", "/Problem/Solvers/*/NonlinearSolverParameters" },
             { "linear", "/Problem/Solvers/*/LinearSolverParameters" },
             { "mesh", "/Problem/Mesh/VTKMesh" },

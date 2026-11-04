@@ -84,9 +84,18 @@ namespace geode::internal
         bool has_boundary_temperature{ false };
         std::optional< GeosCellProperty > bulk_modulus;
         std::optional< GeosCellProperty > shear_modulus;
+        /// Bulk density, or grain density with flow
         std::optional< GeosCellProperty > density;
+        /// Poromechanics only (flow and solid mechanics)
+        std::optional< GeosCellProperty > biot_coefficient;
+        std::optional< GeosCellProperty > grain_bulk_modulus;
+        /// Drained linear thermal expansion coefficient, thermal
+        /// poromechanics only
+        std::optional< GeosCellProperty > thermal_expansion;
         /// Initial stress tensor (xx, yy, zz, yz, xz, xy) in the GEOS sign
-        /// convention: negative values are compressions
+        /// convention: negative values are compressions. With flow, it is
+        /// the stress of the solid: total stress + Biot coefficient x pore
+        /// pressure
         std::optional< GeosCellArray > initial_stress;
         /// Names of the well perforation sets given to the exporter
         std::vector< std::string > well_names;

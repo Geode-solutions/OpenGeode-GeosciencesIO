@@ -1286,15 +1286,6 @@ void test_mechanics_failures()
     {
         auto model = elastic_cube();
         add_roller_displacements( model, true );
-        auto problem = mechanics_problem( model );
-        auto flow = std::make_shared< geode::SinglePhaseFlow >();
-        flow->set_fluid( three_phase_dead_oil() );
-        geode::PhysicalProblemBuilder{ problem }.set_flow( flow );
-        check_export_failure( model, problem, "poromechanics" );
-    }
-    {
-        auto model = elastic_cube();
-        add_roller_displacements( model, true );
         add_boundary_condition< geode::ConstantAttribute >( model,
             boundary_surfaces( model, 2, true ),
             geode::PHYSICAL_PROPERTY_NAME::boundary_traction, "nan_traction",
@@ -1327,6 +1318,243 @@ void test_mechanics_failures()
             ->set_value( 0, { 1., FREE, FREE } );
         check_export_failure(
             model, mechanics_problem( model ), "must be uniform" );
+    }
+}
+
+constexpr double BIOT_COEFFICIENT{ 0.8 };
+constexpr double INITIAL_PRESSURE{ 1e7 };
+constexpr double THERMAL_EXPANSION{ 1e-5 };
+
+// Elastic cube of poromechanics: grain density and Biot coefficient, roller
+// displacements, drained and loaded top
+geode::BRep poroelastic_cube()
+{
+    auto model = geode::load_brep( absl::StrCat(
+        geode::DATA_PATH, "adaptive_brep_perm_and_poro.og_brep" ) );
+    add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::bulk_modulus,
+        "bulk_modulus", BULK_MODULUS );
+    add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::shear_modulus,
+        "shear_modulus", SHEAR_MODULUS );
+    add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::grain_density,
+        "grain_density", ROCK_DENSITY );
+    add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::biot_coefficient,
+        "biot_coefficient", BIOT_COEFFICIENT );
+    add_roller_displacements( model, true );
+    const auto top = boundary_surfaces( model, 2, true );
+    add_boundary_condition< geode::ConstantAttribute >( model, top,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_normal_traction,
+        "normal_traction", TRACTION );
+    add_boundary_condition< geode::ConstantAttribute >( model, top,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "pressure",
+        INITIAL_PRESSURE );
+    return model;
+}
+
+geode::Material poroelastic_material()
+{
+    geode::Material rock;
+    rock.name = "rock";
+    rock.porosity = 0.2;
+    rock.permeability = std::array< double, 3 >{ 1e-13, 1e-13, 1e-13 };
+    return rock;
+}
+
+geode::PhysicalProblem poromechanics_problem( const geode::BRep& model )
+{
+    auto problem = mechanics_problem( model );
+    geode::PhysicalProblemBuilder builder{ problem };
+    builder.set_name( "poromechanics" );
+    auto fluid = std::make_shared< geode::SinglePhaseFluid >(
+        std::vector< geode::PHASE >{ geode::PHASE::water },
+        std::vector< geode::FluidComponent >{ { "water", 18e-3 } }, 1000., 1e-3,
+        4.5e-10, 0., INITIAL_PRESSURE,
+        geode::FluidThermalProperties{ 4180., 0., 0. } );
+    auto flow = std::make_shared< geode::SinglePhaseFlow >();
+    flow->set_fluid( fluid );
+    builder.set_flow( flow );
+    builder.add_material( poroelastic_material() );
+    builder.add_initial_condition(
+        std::make_shared< geode::UniformInitialCondition >(
+            std::vector< geode::uuid >{}, INITIAL_PRESSURE, 300. ) );
+    builder.set_schedule( { 0., 1e5, 1e3, std::nullopt } );
+    geode::OutputSettings output;
+    output.frequency = 2.5e4;
+    builder.set_output( output );
+    return problem;
+}
+
+void check_absent_patterns( std::string_view deck,
+    absl::Span< const std::string_view > patterns,
+    std::string_view context )
+{
+    for( const auto& pattern : patterns )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::test(
+            !absl::StrContains( deck, pattern ), "[Test] ", context,
+            " deck should not contain ", pattern );
+    }
+}
+
+void test_poromechanics()
+{
+    const auto model = poroelastic_cube();
+    const auto problem = poromechanics_problem( model );
+    geode::BRepGeosExporter exporter( model, "poromechanics" );
+    exporter.set_physical_problem( problem );
+    exporter.run();
+    const auto deck = read_file( "poromechanics/poromechanics_simulation.xml" );
+    check_deck_patterns( deck,
+        { "<SinglePhasePoromechanics", "name=\"poromechanics\"",
+            "solidSolverName=\"mechanics\"", "flowSolverName=\"flow\"",
+            "<SolidMechanicsLagrangianFEM", "<SinglePhaseFVM",
+            "<FiniteElementSpace", "<TwoPointFluxApproximation",
+            "<PorousElasticIsotropic", "solidModelName=\"solid\"",
+            "<BiotPorosity", "defaultGrainBulkModulus=",
+            "porosity_0_grainBulkModulus", "solid_density", "solid_stress",
+            "preconditionerType=\"mgr\"", "objectPath=\"nodeManager\"",
+            "fieldName=\"pressure\"", "target=\"/Solvers/poromechanics\"" },
+        "Poromechanics" );
+    check_absent_patterns( deck,
+        { "PressurePorosity", "nullSolid",
+            "CompressibleSolidConstantPermeability", "isThermal" },
+        "Poromechanics" );
+    const auto vtu = std::string{ "poromechanics/poromechanics.vtu" };
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        absl::c_linear_search(
+            read_vtu_cell_values< double >( vtu, "grain_bulk_modulus" ),
+            BULK_MODULUS / ( 1. - BIOT_COEFFICIENT ) ),
+        "[Test] Grain bulk modulus missing in the exported mesh" );
+    // No initial stress: zero total stress, the solid carries b.p
+    const auto shift = BIOT_COEFFICIENT * INITIAL_PRESSURE;
+    check_tensor_exported( read_vtu_tensors( vtu, "initial_stress_tensor" ),
+        { shift, shift, shift, 0., 0., 0. }, "Poromechanics" );
+}
+
+void test_poromechanics_initial_stress()
+{
+    auto model = poroelastic_cube();
+    add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::initial_stress,
+        "initial_stress", KIRSCH_STRESS );
+    const auto problem = poromechanics_problem( model );
+    geode::BRepGeosExporter exporter( model, "poro_initial_stress" );
+    exporter.set_physical_problem( problem );
+    exporter.run();
+    // Total compressions plus b.p, in GEOS tension positive convention
+    const auto shift = BIOT_COEFFICIENT * INITIAL_PRESSURE;
+    check_tensor_exported(
+        read_vtu_tensors( "poro_initial_stress/poro_initial_stress.vtu",
+            "initial_stress_tensor" ),
+        { shift - KIRSCH_STRESS[0], shift - KIRSCH_STRESS[1],
+            shift - KIRSCH_STRESS[2], 0., 0., 0. },
+        "Poromechanics initial stress" );
+}
+
+void test_thermal_poromechanics()
+{
+    auto model = poroelastic_cube();
+    add_block_property( model,
+        geode::PHYSICAL_PROPERTY_NAME::thermal_expansion_coefficient,
+        "thermal_expansion", THERMAL_EXPANSION );
+    add_boundary_condition< geode::ConstantAttribute >( model,
+        boundary_surfaces( model, 2, true ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_temperature, "temperature",
+        330. );
+    auto problem = poromechanics_problem( model );
+    geode::PhysicalProblemBuilder builder{ problem };
+    builder.set_thermal( geode::ThermalParameters{ 300. } );
+    auto rock = poroelastic_material();
+    rock.thermal = geode::RockThermalProperties{ 2e6, { 2.5, 2.5, 2.5 } };
+    builder.set_material( 0, rock );
+    geode::BRepGeosExporter exporter( model, "thermal_poromechanics" );
+    exporter.set_physical_problem( problem );
+    exporter.run();
+    // GEOS imports a VTU array once: the porosity reads a copy
+    check_deck_patterns(
+        read_file(
+            "thermal_poromechanics/thermal_poromechanics_simulation.xml" ),
+        { "isThermal=\"1\"", "solidInternalEnergyModelName=\"rockEnergy_rock\"",
+            "thermalCond_rock", "defaultDrainedLinearTEC=",
+            "defaultPorosityTEC=", "thermal_expansion, ",
+            "thermal_expansion_porosity_0_thermalExpansionCoefficient",
+            "solid_thermalExpansionCoefficient",
+            "porosity_0_thermalExpansionCoefficient" },
+        "Thermal poromechanics" );
+}
+
+void test_multiphase_poromechanics()
+{
+    auto model = poroelastic_cube();
+    const auto top = boundary_surfaces( model, 2, true );
+    for( const auto& [property, name, fraction] :
+        { std::tuple{ geode::PHYSICAL_PROPERTY_NAME::boundary_oil_fraction,
+              "oil", 0.9995 },
+            std::tuple{ geode::PHYSICAL_PROPERTY_NAME::boundary_gas_fraction,
+                "gas", 0. },
+            std::tuple{ geode::PHYSICAL_PROPERTY_NAME::boundary_water_fraction,
+                "water", 0.0005 } } )
+    {
+        add_boundary_condition< geode::ConstantAttribute >(
+            model, top, property, name, fraction );
+    }
+    auto problem = spe10_problem( model );
+    geode::PhysicalProblemBuilder builder{ problem };
+    builder.set_solid_mechanics( geode::SolidMechanics{} );
+    auto material = spe10_material( "reservoir", 0. );
+    material.reference_pressure = 0;
+    material.porosity = 0.2;
+    material.permeability = std::array< double, 3 >{ 1e-13, 1e-13, 1e-13 };
+    builder.set_material( 0, material );
+    geode::BRepGeosExporter exporter( model, "multiphase_poromechanics" );
+    exporter.set_physical_problem( problem );
+    exporter.run();
+    const auto deck = read_file(
+        "multiphase_poromechanics/multiphase_poromechanics_simulation.xml" );
+    check_deck_patterns( deck,
+        { "<MultiphasePoromechanics", "<CompositionalMultiphaseFVM",
+            "<PorousElasticIsotropic", "relperm_reservoir", "<BiotPorosity" },
+        "Multiphase poromechanics" );
+}
+
+void test_poromechanics_failures()
+{
+    {
+        auto model = poroelastic_cube();
+        auto problem = poromechanics_problem( model );
+        auto rock = poroelastic_material();
+        rock.pore_compressibility = 1e-9;
+        geode::PhysicalProblemBuilder{ problem }.set_material( 0, rock );
+        check_export_failure( model, problem, "the Biot coefficient gives" );
+    }
+    {
+        auto model = poroelastic_cube();
+        add_block_property( model,
+            geode::PHYSICAL_PROPERTY_NAME::biot_coefficient, "biot_too_high",
+            1.5 );
+        check_export_failure( model, poromechanics_problem( model ),
+            "without a (0, 1] biot_coefficient" );
+    }
+    {
+        auto model = poroelastic_cube();
+        add_block_property(
+            model, geode::PHYSICAL_PROPERTY_NAME::density, "density", 2400. );
+        check_export_failure(
+            model, poromechanics_problem( model ), "is the bulk density" );
+    }
+    {
+        auto model = poroelastic_cube();
+        auto problem = poromechanics_problem( model );
+        geode::PhysicalProblemBuilder builder{ problem };
+        builder.set_thermal( geode::ThermalParameters{ 300. } );
+        auto rock = poroelastic_material();
+        rock.thermal = geode::RockThermalProperties{ 2e6, { 2.5, 2.5, 2.5 } };
+        builder.set_material( 0, rock );
+        check_export_failure(
+            model, problem, "needs a thermal_expansion_coefficient" );
+        add_block_property( model,
+            geode::PHYSICAL_PROPERTY_NAME::thermal_expansion_coefficient,
+            "thermal_expansion", THERMAL_EXPANSION );
+        check_export_failure(
+            model, problem, "pressures need a boundary temperature" );
     }
 }
 
@@ -1938,6 +2166,11 @@ int main()
         test_layered_bulk_modulus();
         test_tension_positive();
         test_mechanics_failures();
+        test_poromechanics();
+        test_poromechanics_initial_stress();
+        test_thermal_poromechanics();
+        test_multiphase_poromechanics();
+        test_poromechanics_failures();
         geode::Logger::info( "TEST SUCCESS" );
 
         return 0;
