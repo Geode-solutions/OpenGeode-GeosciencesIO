@@ -48,6 +48,11 @@ namespace geode::internal
     [[nodiscard]] std::string geos_names(
         absl::Span< const std::string > names );
 
+    // Characters splitting the items of GEOS lists "{ a, b }"
+    inline constexpr std::string_view GEOS_LIST_SEPARATORS{ " \t\n\r,{}" };
+
+    [[nodiscard]] bool is_valid_geos_list_item( std::string_view name );
+
     void set_attribute( pugi::xml_node& node,
         std::string_view attribute,
         std::string_view value );

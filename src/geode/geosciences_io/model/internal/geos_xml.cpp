@@ -63,6 +63,13 @@ namespace geode::internal
         return absl::StrCat( "{ ", absl::StrJoin( names, ", " ), " }" );
     }
 
+    bool is_valid_geos_list_item( std::string_view name )
+    {
+        return !name.empty()
+               && name.find_first_of( GEOS_LIST_SEPARATORS )
+                      == std::string_view::npos;
+    }
+
     void set_attribute( pugi::xml_node& node,
         std::string_view attribute,
         std::string_view value )
