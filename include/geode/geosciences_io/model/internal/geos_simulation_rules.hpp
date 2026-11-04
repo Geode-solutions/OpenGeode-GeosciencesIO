@@ -25,27 +25,26 @@
 
 #include <optional>
 #include <string>
-#include <string_view>
-#include <vector>
 
 #include <absl/container/flat_hash_map.h>
-#include <absl/types/span.h>
 
 #include <geode/geosciences_io/model/common.hpp>
 
 namespace geode
 {
+    class BRep;
     class PhysicalProblem;
-    class SimulationReport;
     struct SourceTerm;
 } // namespace geode
 
 namespace geode::internal
 {
-    struct GeosDeckContext;
+    struct GeosBoundaryConditions;
     struct GeosRegionAssignment;
+    struct GeosRegions;
 } // namespace geode::internal
 
+// GEOS rules shared by the deck writer and GeosSimulationChecker
 namespace geode::internal
 {
     /// XPath of the generated nodes that "geos" solver options can modify
@@ -64,35 +63,26 @@ namespace geode::internal
      * set. Returns the temperature to impose when the model has none.
      */
     [[nodiscard]] std::optional< double > geos_default_boundary_temperature(
-        const PhysicalProblem& problem, const GeosDeckContext& context );
+        const PhysicalProblem& problem,
+        const GeosBoundaryConditions& boundary_conditions );
 
     /// Name of the GEOS SourceFlux of a source term
     [[nodiscard]] std::string geos_source_term_name(
         const SourceTerm& source_term );
 
-    /// Material of each solid region, with the assignment issues
+    /*!
+     * Material of each solid region, with the materials GEOS cannot assign.
+     * Blocks covered by several materials or by none are not issues here:
+     * SimulationChecker reports them.
+     */
     [[nodiscard]] GeosRegionAssignment assign_geos_materials(
-        const PhysicalProblem& problem, const GeosDeckContext& context );
+        const PhysicalProblem& problem,
+        const BRep& model,
+        const GeosRegions& regions );
 
-    /// Initial condition of each solid region, with the assignment issues
+    /// Initial condition of each solid region, assigned as materials are
     [[nodiscard]] GeosRegionAssignment assign_geos_initial_conditions(
-        const PhysicalProblem& problem, const GeosDeckContext& context );
-
-    /*!
-     * GEOS-specific checks of a problem that need no model data, in the
-     * simulator stage. Source term wells are checked against the names of
-     * the well perforations given to the exporter, if known.
-     */
-    void check_geos_problem( const PhysicalProblem& problem,
-        std::optional< absl::Span< const std::string > > well_names,
-        SimulationReport& report );
-
-    /*!
-     * GEOS rules on the boundary conditions of the context, in the
-     * properties stage: boundary pressures, temperatures and fluid fractions
-     * GEOS needs together
-     */
-    void check_geos_boundary_conditions( const PhysicalProblem& problem,
-        const GeosDeckContext& context,
-        SimulationReport& report );
+        const PhysicalProblem& problem,
+        const BRep& model,
+        const GeosRegions& regions );
 } // namespace geode::internal

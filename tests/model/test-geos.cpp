@@ -854,6 +854,23 @@ void test_registered_checker()
                 } ),
         "[Test] An unsupported fluid is a simulator issue: ",
         unsupported.string() );
+
+    auto no_gas_model = geode::load_brep( absl::StrCat(
+        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+    add_spe10_boundary_conditions( no_gas_model );
+    const auto no_gas =
+        checker->check( spe10_problem( no_gas_model ), no_gas_model );
+    const auto property_issues =
+        no_gas.issues( geode::SIMULATION_CHECK_STAGE::properties );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        absl::c_any_of( property_issues,
+            []( const geode::SimulationIssue* issue ) {
+                return issue->subject == "boundary_gas_fraction"
+                       && absl::StrContains( issue->message,
+                           "fluid fraction for every component" );
+            } ),
+        "[Test] A missing boundary fraction is an issue of its property: ",
+        no_gas.string() );
 }
 
 void test_structural_model_regions()
@@ -889,7 +906,9 @@ void test_structural_model_regions()
     {
         has_thrown = true;
         geode::OpenGeodeGeosciencesIOModelException::test(
-            absl::StrContains( exception.what(), "is part of the GEOS region" ),
+            absl::StrContains( exception.what(), "is part of the GEOS region" )
+                && absl::StrContains(
+                    exception.what(), "instead of its Blocks" ),
             "[Test] A Block merged in a StratigraphicUnit region should be "
             "reported: ",
             exception.what() );
@@ -1335,7 +1354,7 @@ void test_mechanics_failures()
             geode::PHYSICAL_PROPERTY_NAME::boundary_traction, "nan_traction",
             std::array< double, 3 >{ 0., FREE, TRACTION } );
         check_export_failure( model, mechanics_problem( model ),
-            "boundary_traction: values outside finite values" );
+            "boundary_traction: non-finite values" );
     }
     {
         auto model = elastic_cube();

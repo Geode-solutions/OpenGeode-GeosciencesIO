@@ -35,8 +35,14 @@
 #include <geode/basic/uuid.hpp>
 
 #include <geode/geosciences/simulation/core/fluid.hpp>
+#include <geode/geosciences/simulation/helpers/simulation_report.hpp>
 
 #include <geode/geosciences_io/model/common.hpp>
+
+namespace geode
+{
+    class BRep;
+} // namespace geode
 
 namespace geode::internal
 {
@@ -48,6 +54,32 @@ namespace geode::internal
         std::string component_name;
         uuid component_id;
     };
+
+    /// GEOS cell regions of the exported Blocks
+    struct GeosRegions
+    {
+        /// Regions indexed by id
+        std::vector< GeosRegion > solid_regions;
+        /// Region id of each Block
+        absl::flat_hash_map< uuid, index_t > block_regions;
+        /// Block, StratigraphicUnit or collection uuid -> GEOS region ids
+        absl::flat_hash_map< uuid, std::vector< index_t > > regions_by_uuid;
+        /// Blocks merged with other Blocks into one GEOS region (e.g. the
+        /// Blocks of a StratigraphicUnit) -> that region id
+        absl::flat_hash_map< uuid, index_t > merged_blocks;
+    };
+
+    /// Boundary condition PhysicalProperties of the model
+    struct GeosBoundaryConditions
+    {
+        /// Phases of the boundary fluid fraction PhysicalProperties
+        std::vector< PHASE > fraction_phases;
+        bool has_pressure{ false };
+        bool has_temperature{ false };
+    };
+
+    [[nodiscard]] GeosBoundaryConditions geos_boundary_conditions(
+        const BRep& model );
 
     /// Cell attribute of the exported mesh
     struct GeosCellArray
@@ -66,22 +98,14 @@ namespace geode::internal
     /// Model data needed to translate a PhysicalProblem into a GEOS deck
     struct GeosDeckContext
     {
-        std::vector< GeosRegion > solid_regions;
-        /// Block, StratigraphicUnit or collection uuid -> GEOS region ids
-        absl::flat_hash_map< uuid, std::vector< index_t > > regions_by_uuid;
-        /// Blocks merged with other Blocks into one GEOS region (e.g. the
-        /// Blocks of a StratigraphicUnit) -> that region id
-        absl::flat_hash_map< uuid, index_t > merged_blocks;
+        GeosRegions regions;
         /// Cell array and mean value of the porosity PhysicalProperty
         std::optional< GeosCellArray > porosity_array;
         std::optional< double > mean_porosity;
         /// Cell array and mean value of the permeability PhysicalProperty
         std::optional< GeosCellArray > permeability_array;
         std::optional< std::array< double, 3 > > mean_permeability;
-        /// Phases of the boundary fluid fraction PhysicalProperties
-        std::vector< PHASE > boundary_fraction_phases;
-        bool has_boundary_pressure{ false };
-        bool has_boundary_temperature{ false };
+        GeosBoundaryConditions boundary_conditions;
         std::optional< GeosCellProperty > bulk_modulus;
         std::optional< GeosCellProperty > shear_modulus;
         /// Bulk density, or grain density with flow
@@ -118,15 +142,7 @@ namespace geode::internal
     struct GeosRegionAssignment
     {
         std::vector< std::optional< index_t > > region_items;
-        std::vector< std::string > issues;
+        /// Assignments GEOS cannot write, in the regions stage
+        std::vector< SimulationIssue > issues;
     };
-
-    /*!
-     * Assigns items to regions: items with regions first, then the default
-     * item (no region) to the remaining regions.
-     */
-    [[nodiscard]] GeosRegionAssignment assign_geos_regions(
-        const GeosDeckContext& context,
-        absl::Span< const absl::Span< const uuid > > item_regions,
-        std::string_view item_kind );
 } // namespace geode::internal

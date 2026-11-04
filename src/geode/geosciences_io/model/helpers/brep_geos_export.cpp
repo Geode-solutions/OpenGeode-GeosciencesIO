@@ -48,15 +48,15 @@ namespace geode
         virtual ~Impl() = default;
 
     protected:
-        [[nodiscard]] RegionDefinitions create_region_definitions(
+        [[nodiscard]] internal::GeosRegions create_region_definitions(
             const BRep& model ) const final
         {
-            RegionDefinitions definitions;
+            internal::GeosRegions definitions;
             for( const auto& block : model.blocks() )
             {
                 const auto region_id =
-                    static_cast< index_t >( definitions.regions.size() );
-                definitions.regions.push_back(
+                    static_cast< index_t >( definitions.solid_regions.size() );
+                definitions.solid_regions.push_back(
                     { region_id, absl::StrCat( "region_", region_id ),
                         block.name().value_or( block.id().string() ),
                         block.id() } );

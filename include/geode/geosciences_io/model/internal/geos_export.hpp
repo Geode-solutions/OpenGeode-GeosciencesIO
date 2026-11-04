@@ -108,19 +108,7 @@ namespace geode::internal
         index_t initialize_solid_region_attribute();
         void add_block_collection_regions();
         void initialize_surface_cells( index_t first_surface_region_id );
-        struct RegionDefinitions
-        {
-            /// Region id of each Block
-            absl::flat_hash_map< uuid, index_t > block_regions;
-            /// Regions indexed by id
-            std::vector< GeosRegion > regions;
-            /// Regions covered by each Block, StratigraphicUnit or collection
-            absl::flat_hash_map< uuid, std::vector< index_t > > regions_by_uuid;
-            /// Blocks merged with other Blocks into one region -> that region
-            absl::flat_hash_map< uuid, index_t > merged_blocks;
-        };
-
-        [[nodiscard]] virtual RegionDefinitions create_region_definitions(
+        [[nodiscard]] virtual GeosRegions create_region_definitions(
             const Model& model ) const = 0;
 
         void compute_well_boxes();
@@ -235,14 +223,13 @@ namespace geode::internal
         // Perforated cells box of each well, none if outside the model
         std::vector< std::optional< BoundingBox3D > > well_boxes_{};
 
-        RegionDefinitions region_definitions_{};
+        GeosRegions region_definitions_{};
         std::optional< uuid > porosity_attribute_id_{};
         std::optional< uuid > permeability_attribute_id_{};
         absl::flat_hash_map< PHYSICAL_PROPERTY_NAME, uuid >
             mechanics_attribute_ids_{};
         std::optional< uuid > initial_stress_attribute_id_{};
         std::optional< uuid > grain_bulk_modulus_attribute_id_{};
-        std::vector< PHASE > boundary_fraction_phases_{};
         const PhysicalProblem* problem_{ nullptr };
         GeosDeckContext context_{};
         std::unique_ptr< GeosSimulationWriter > writer_{};

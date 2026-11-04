@@ -39,8 +39,8 @@ namespace geode::internal
     /// What only the GEOS exporter knows about the export
     struct GeosExportData
     {
-        /// GEOS regions of the exporter (solid regions and their uuids)
-        GeosDeckContext regions;
+        /// GEOS regions of the exporter
+        GeosRegions regions;
         /// Names of the well perforation sets given to the exporter
         std::vector< std::string > well_names;
     };

@@ -94,7 +94,7 @@
 #include <geode/geosciences_io/model/internal/geos_cell_properties.hpp>
 #include <geode/geosciences_io/model/internal/geos_export.hpp>
 #include <geode/geosciences_io/model/internal/geos_simulation_checker.hpp>
-#include <geode/geosciences_io/model/internal/geos_simulation_validation.hpp>
+#include <geode/geosciences_io/model/internal/geos_simulation_rules.hpp>
 #include <geode/geosciences_io/model/internal/geos_simulation_writer.hpp>
 #include <geode/geosciences_io/model/internal/geos_xml.hpp>
 #include <geode/model/representation/core/brep.hpp>
@@ -543,7 +543,6 @@ namespace geode::internal
         boundary_conditions_.clear();
         boundary_grids_.clear();
         boundary_tables_.clear();
-        boundary_fraction_phases_.clear();
         porosity_attribute_id_.reset();
         permeability_attribute_id_.reset();
         mechanics_attribute_ids_.clear();
@@ -590,7 +589,8 @@ namespace geode::internal
             }
             block_index++;
         }
-        return static_cast< index_t >( region_definitions_.regions.size() );
+        return static_cast< index_t >(
+            region_definitions_.solid_regions.size() );
     }
 
     template < typename Model >
@@ -1076,7 +1076,6 @@ namespace geode::internal
             {
                 continue;
             }
-            boundary_fraction_phases_.push_back( fraction.phase );
             const auto component =
                 boundary_fraction_component( problem_, fraction );
             if( !component )
@@ -1139,7 +1138,7 @@ namespace geode::internal
                 continue;
             }
             // Uniform on the Surface: checked by
-            // validate_physical_problem_properties
+            // SimulationChecker::check_physical_problem_properties
             const auto& displacement = values->front();
             const auto region_id = surface_regions_.at( surface.id() );
             for( const auto axis : LRange{ 3 } )
@@ -1451,9 +1450,7 @@ namespace geode::internal
     GeosDeckContext GeosExporterImpl< Model >::build_deck_context() const
     {
         GeosDeckContext context;
-        context.solid_regions = region_definitions_.regions;
-        context.regions_by_uuid = region_definitions_.regions_by_uuid;
-        context.merged_blocks = region_definitions_.merged_blocks;
+        context.regions = region_definitions_;
         const auto& manager = model_solid_->polyhedron_attribute_manager();
         const auto nb_polyhedra = model_solid_->nb_polyhedra();
         if( porosity_attribute_id_ )
@@ -1508,11 +1505,7 @@ namespace geode::internal
                 GeosCellArray{ initial_stress_attribute_id_.value(),
                     INITIAL_STRESS_TENSOR };
         }
-        context.boundary_fraction_phases = boundary_fraction_phases_;
-        context.has_boundary_pressure = model_.has_physical_property(
-            PHYSICAL_PROPERTY_NAME::boundary_pressure );
-        context.has_boundary_temperature = model_.has_physical_property(
-            PHYSICAL_PROPERTY_NAME::boundary_temperature );
+        context.boundary_conditions = geos_boundary_conditions( model_ );
         // Only the wells perforating the model define a GEOS set
         for( const auto well_id : Indices{ well_boxes_ } )
         {
@@ -1527,15 +1520,9 @@ namespace geode::internal
     template < typename Model >
     void GeosExporterImpl< Model >::check_problem() const
     {
-        GeosExportData export_data;
-        export_data.regions.solid_regions = region_definitions_.regions;
-        export_data.regions.regions_by_uuid =
-            region_definitions_.regions_by_uuid;
-        export_data.regions.merged_blocks = region_definitions_.merged_blocks;
-        export_data.well_names = well_names_;
-        const auto report =
-            GeosSimulationChecker{ std::move( export_data ) }.check(
-                *problem_, model_ );
+        const auto report = GeosSimulationChecker{
+            GeosExportData{ region_definitions_, well_names_ }
+        }.check( *problem_, model_ );
         OpenGeodeGeosciencesIOModelException::check_exception(
             report.is_simulable(), nullptr, OpenGeodeException::TYPE::data,
             "[GeosExporter] Cannot write the GEOS simulation deck.\n",
@@ -1556,16 +1543,17 @@ namespace geode::internal
         GeosRegionAssignment initial_conditions;
         if( problem_->has_flow() )
         {
-            materials = assign_geos_materials( *problem_, context_ );
-            initial_conditions =
-                assign_geos_initial_conditions( *problem_, context_ );
+            materials =
+                assign_geos_materials( *problem_, model_, context_.regions );
+            initial_conditions = assign_geos_initial_conditions(
+                *problem_, model_, context_.regions );
         }
         if( problem_->has_flow() && problem_->solid_mechanics() )
         {
             add_initial_pore_pressure( initial_conditions );
         }
-        if( const auto temperature =
-                geos_default_boundary_temperature( *problem_, context_ ) )
+        if( const auto temperature = geos_default_boundary_temperature(
+                *problem_, context_.boundary_conditions ) )
         {
             add_isothermal_boundary_temperature( temperature.value() );
         }
