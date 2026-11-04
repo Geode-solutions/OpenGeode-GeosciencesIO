@@ -41,6 +41,8 @@
 #include <geode/geosciences/simulation/core/saturation_functions.hpp>
 #include <geode/geosciences/simulation/core/solver_options.hpp>
 #include <geode/geosciences/simulation/core/source_term.hpp>
+#include <geode/geosciences/simulation/helpers/internal/simulation_checker_helpers.hpp>
+#include <geode/geosciences/simulation/helpers/simulation_report.hpp>
 
 #include <geode/geosciences_io/model/internal/geos_deck_context.hpp>
 
@@ -64,67 +66,95 @@ namespace
                   } );
     }
 
-    bool is_geos_multiphase( const geode::PhysicalProblem& problem )
-    {
-        return dynamic_cast< const geode::MultiphaseFlow* >( &problem.flow() )
-               != nullptr;
-    }
-
     class GeosValidator
     {
     public:
-        explicit GeosValidator( const geode::PhysicalProblem& problem )
-            : problem_( problem )
+        GeosValidator( const geode::PhysicalProblem& problem,
+            geode::SimulationReport& report )
+            : problem_( problem ), report_( report )
         {
         }
 
-        std::vector< std::string > check_problem(
-            absl::Span< const std::string > well_names )
+        void check_problem(
+            std::optional< absl::Span< const std::string > > well_names )
         {
-            if( problem_.solid_mechanics() && !problem_.has_flow() )
-            {
-                check_solver_options();
-                return std::move( issues_ );
-            }
+            check_solver_options();
             if( !has_fluid() )
             {
-                return std::move( issues_ );
+                return;
             }
             check_supported_flow();
             check_supported_materials();
             check_supported_initial_conditions();
             check_thermal();
             check_source_terms( well_names );
-            check_solver_options();
-            return std::move( issues_ );
         }
 
-        std::vector< std::string > check_deck(
+        void check_boundary_conditions(
             const geode::internal::GeosDeckContext& context )
         {
-            // Solid mechanics data are checked by
-            // validate_physical_problem_properties
             if( !has_fluid() )
             {
-                return std::move( issues_ );
+                return;
             }
-            check_rock_properties( context );
-            check_boundary_conditions( context );
-            return std::move( issues_ );
+            if( !is_multiphase() )
+            {
+                check_single_phase_boundary_conditions( context );
+                return;
+            }
+            const auto has_fractions =
+                !context.boundary_fraction_phases.empty();
+            if( !context.has_boundary_pressure )
+            {
+                if( has_fractions || context.has_boundary_temperature )
+                {
+                    add_boundary_issue( "boundary_pressure",
+                        "GEOS boundary fluid fractions and temperatures need "
+                        "a boundary pressure" );
+                }
+                return;
+            }
+            check_boundary_components( context );
+            if( problem_.thermal() && !context.has_boundary_temperature )
+            {
+                add_boundary_issue( "boundary_pressure",
+                    "GEOS thermal multiphase boundary pressures need a "
+                    "boundary temperature" );
+            }
         }
 
     private:
-        template < typename... Args >
-        void add_issue( const Args&... args )
+        void check_single_phase_boundary_conditions(
+            const geode::internal::GeosDeckContext& context )
         {
-            issues_.emplace_back( absl::StrCat( args... ) );
+            if( problem_.thermal() && context.has_boundary_pressure
+                && !context.has_boundary_temperature )
+            {
+                add_boundary_issue( "boundary_pressure",
+                    "GEOS thermal boundary pressures need a boundary "
+                    "temperature" );
+            }
+        }
+
+        template < typename... Args >
+        void add_issue( std::string subject, const Args&... message )
+        {
+            report_.add_error( geode::SIMULATION_CHECK_STAGE::simulator,
+                std::move( subject ), message... );
+        }
+
+        template < typename... Args >
+        void add_boundary_issue( std::string subject, const Args&... message )
+        {
+            report_.add_error( geode::SIMULATION_CHECK_STAGE::properties,
+                std::move( subject ), message... );
         }
 
         template < typename Object >
-        void add_unsupported( const Object& object )
+        void add_unsupported( std::string subject, const Object& object )
         {
-            add_issue(
-                object.type_name(), " is not supported by the GEOS writer" );
+            add_issue( std::move( subject ), object.type_name(),
+                " is not supported by the GEOS writer" );
         }
 
         [[nodiscard]] bool has_fluid() const
@@ -139,7 +169,7 @@ namespace
 
         [[nodiscard]] bool is_multiphase() const
         {
-            return is_geos_multiphase( problem_ );
+            return geode::internal::is_multiphase( problem_ );
         }
 
         void check_supported_flow()
@@ -147,12 +177,12 @@ namespace
             if( !is_one_of< geode::SinglePhaseFlow, geode::MultiphaseFlow >(
                     problem_.flow() ) )
             {
-                add_unsupported( problem_.flow() );
+                add_unsupported( "Flow model", problem_.flow() );
             }
             if( !is_one_of< geode::SinglePhaseFluid, geode::DeadOilFluid,
                     geode::Co2BrineFluid >( fluid() ) )
             {
-                add_unsupported( fluid() );
+                add_unsupported( "Fluid", fluid() );
             }
         }
 
@@ -160,24 +190,29 @@ namespace
         {
             for( const auto& material : problem_.materials() )
             {
+                const auto subject =
+                    geode::internal::material_subject( material.name );
                 if( !is_geos_name( material.name ) )
                 {
-                    add_issue( "Material name \"", material.name,
-                        "\" must only contain letters, digits, '_' and '-'" );
+                    add_issue( subject, "name must only contain letters, "
+                                        "digits, '_' and '-'" );
                 }
                 if( material.relative_permeability )
                 {
-                    check_supported_relperm( *material.relative_permeability );
+                    check_supported_relperm(
+                        *material.relative_permeability, subject );
                 }
                 if( material.capillary_pressure )
                 {
-                    check_supported_capillary( *material.capillary_pressure );
+                    check_supported_capillary(
+                        *material.capillary_pressure, subject );
                 }
             }
         }
 
         void check_supported_relperm(
-            const geode::RelativePermeability& relperm )
+            const geode::RelativePermeability& relperm,
+            const std::string& subject )
         {
             if( const auto* table =
                     dynamic_cast< const geode::TableRelativePermeability* >(
@@ -185,20 +220,22 @@ namespace
             {
                 if( table->tables().size() != 1 )
                 {
-                    add_issue( "The GEOS writer only supports two-phase "
-                               "relative permeability tables" );
+                    add_issue( subject, "the GEOS writer only supports "
+                                        "two-phase relative permeability "
+                                        "tables" );
                 }
                 return;
             }
             if( !is_one_of< geode::BrooksCoreyRelativePermeability >(
                     relperm ) )
             {
-                add_unsupported( relperm );
+                add_unsupported( subject, relperm );
             }
         }
 
         void check_supported_capillary(
-            const geode::CapillaryPressure& capillary )
+            const geode::CapillaryPressure& capillary,
+            const std::string& subject )
         {
             if( const auto* table =
                     dynamic_cast< const geode::TableCapillaryPressure* >(
@@ -206,14 +243,14 @@ namespace
             {
                 if( table->tables().size() != 1 )
                 {
-                    add_issue( "The GEOS writer only supports two-phase "
-                               "capillary pressure tables" );
+                    add_issue( subject, "the GEOS writer only supports "
+                                        "two-phase capillary pressure tables" );
                 }
                 return;
             }
             if( !is_one_of< geode::BrooksCoreyCapillaryPressure >( capillary ) )
             {
-                add_unsupported( capillary );
+                add_unsupported( subject, capillary );
             }
         }
 
@@ -226,7 +263,9 @@ namespace
                     problem_.initial_condition( condition_id );
                 if( !is_one_of< geode::UniformInitialCondition >( condition ) )
                 {
-                    add_unsupported( condition );
+                    add_unsupported( geode::internal::initial_condition_subject(
+                                         condition_id ),
+                        condition );
                 }
             }
         }
@@ -237,63 +276,53 @@ namespace
             {
                 if( is_one_of< geode::DeadOilFluid >( fluid() ) )
                 {
-                    add_issue( "The GEOS writer does not support thermal "
-                               "simulations with DeadOilFluid" );
+                    add_issue( "Fluid", "the GEOS writer does not support "
+                                        "thermal simulations with "
+                                        "DeadOilFluid" );
                 }
                 return;
             }
             if( is_multiphase()
                 && !geode::internal::geos_isothermal_temperature( problem_ ) )
             {
-                add_issue( "GEOS isothermal multiphase simulations need the "
-                           "same temperature in every initial condition" );
+                add_issue( "Initial conditions",
+                    "GEOS isothermal multiphase simulations need the same "
+                    "temperature in every initial condition" );
             }
         }
 
-        void check_source_terms( absl::Span< const std::string > well_names )
+        void check_source_terms(
+            std::optional< absl::Span< const std::string > > well_names )
         {
             for( const auto& source : problem_.source_terms() )
             {
-                if( absl::c_find( well_names, source.well )
-                    == well_names.end() )
+                const auto subject =
+                    absl::StrCat( "Source term on well \"", source.well, "\"" );
+                if( well_names
+                    && absl::c_find( well_names.value(), source.well )
+                           == well_names->end() )
                 {
-                    add_issue( "Source term well ", source.well,
-                        " has no perforations given to the exporter" );
+                    geode::SimulationIssue issue{
+                        geode::SIMULATION_ISSUE_SEVERITY::error,
+                        geode::SIMULATION_CHECK_STAGE::simulator, subject,
+                        "the well has no perforations given to the exporter"
+                    };
+                    issue.fix = "add the well perforations to the exporter";
+                    report_.add_issue( std::move( issue ) );
                 }
                 if( !is_geos_name(
                         geode::internal::geos_source_term_name( source ) ) )
                 {
-                    add_issue( "Source term well ", source.well,
-                        " and component ", source.component,
-                        " names must only contain letters, digits, '_' "
-                        "and '-'" );
+                    add_issue( subject, "well and component ", source.component,
+                        " names must only contain letters, digits, '_' and "
+                        "'-'" );
                 }
             }
             if( problem_.thermal() && !problem_.source_terms().empty() )
             {
-                add_issue( "GEOS source fluxes carry no energy: the GEOS "
-                           "writer does not support source terms in thermal "
-                           "simulations" );
-            }
-        }
-
-        void check_rock_properties(
-            const geode::internal::GeosDeckContext& context )
-        {
-            for( const auto& material : problem_.materials() )
-            {
-                if( !context.porosity_array && !material.porosity )
-                {
-                    add_issue( "Material ", material.name,
-                        " needs a porosity: the model has no porosity "
-                        "property" );
-                }
-                if( !context.permeability_array && !material.permeability )
-                {
-                    add_issue( "Material ", material.name,
-                        " needs a permeability: the model has no "
-                        "permeability property" );
-                }
+                add_issue( "Source terms",
+                    "GEOS source fluxes carry no energy: the GEOS writer does "
+                    "not support source terms in thermal simulations" );
             }
         }
 
@@ -308,46 +337,9 @@ namespace
                 if( parts.size() != 2 || parts[1].empty()
                     || !roles.contains( parts[0] ) )
                 {
-                    add_issue( "GEOS solver option \"", key,
+                    add_issue( "Solver options", "GEOS solver option \"", key,
                         R"(" must be "<role>/<attribute>" with a known role)" );
                 }
-            }
-        }
-
-        void check_boundary_conditions(
-            const geode::internal::GeosDeckContext& context )
-        {
-            const auto has_fractions =
-                !context.boundary_fraction_phases.empty();
-            if( !is_multiphase() )
-            {
-                if( has_fractions )
-                {
-                    add_issue(
-                        "Boundary fluid fractions need a multiphase flow" );
-                }
-                if( problem_.thermal() && context.has_boundary_pressure
-                    && !context.has_boundary_temperature )
-                {
-                    add_issue( "GEOS thermal boundary pressures need a "
-                               "boundary temperature" );
-                }
-                return;
-            }
-            if( !context.has_boundary_pressure )
-            {
-                if( has_fractions || context.has_boundary_temperature )
-                {
-                    add_issue( "GEOS boundary fluid fractions and "
-                               "temperatures need a boundary pressure" );
-                }
-                return;
-            }
-            check_boundary_components( context );
-            if( problem_.thermal() && !context.has_boundary_temperature )
-            {
-                add_issue( "GEOS thermal multiphase boundary pressures need a "
-                           "boundary temperature" );
             }
         }
 
@@ -361,9 +353,10 @@ namespace
                 const auto component = geode::phase_component( fluid(), phase );
                 if( !component )
                 {
-                    add_issue( "Boundary ", geode::phase_name( phase ),
-                        " fraction: the fluid has no ",
-                        geode::phase_name( phase ),
+                    add_boundary_issue(
+                        absl::StrCat( "boundary_", geode::phase_name( phase ),
+                            "_fraction" ),
+                        "the fluid has no ", geode::phase_name( phase ),
                         " phase with its own component" );
                     continue;
                 }
@@ -373,8 +366,9 @@ namespace
             {
                 if( !has_fraction[component] )
                 {
-                    add_issue( "GEOS boundary conditions need a fluid "
-                               "fraction for every component: ",
+                    add_boundary_issue( "boundary_pressure",
+                        "GEOS boundary conditions need a fluid fraction for "
+                        "every component: ",
                         fluid().components()[component].name, " is missing" );
                 }
             }
@@ -382,8 +376,9 @@ namespace
 
     private:
         const geode::PhysicalProblem& problem_;
-        std::vector< std::string > issues_;
+        geode::SimulationReport& report_;
     };
+
     class GeosRegionAssigner
     {
     public:
@@ -576,7 +571,7 @@ namespace geode::internal
         const PhysicalProblem& problem, const GeosDeckContext& context )
     {
         if( !context.has_boundary_pressure || context.has_boundary_temperature
-            || problem.thermal() || !is_geos_multiphase( problem ) )
+            || problem.thermal() || !is_multiphase( problem ) )
         {
             return std::nullopt;
         }
@@ -589,16 +584,17 @@ namespace geode::internal
             "sourceFlux_", source_term.well, "_", source_term.component );
     }
 
-    std::vector< std::string > validate_geos_problem(
-        const PhysicalProblem& problem,
-        absl::Span< const std::string > well_names )
+    void check_geos_problem( const PhysicalProblem& problem,
+        std::optional< absl::Span< const std::string > > well_names,
+        SimulationReport& report )
     {
-        return GeosValidator{ problem }.check_problem( well_names );
+        GeosValidator{ problem, report }.check_problem( well_names );
     }
 
-    std::vector< std::string > validate_geos_deck(
-        const PhysicalProblem& problem, const GeosDeckContext& context )
+    void check_geos_boundary_conditions( const PhysicalProblem& problem,
+        const GeosDeckContext& context,
+        SimulationReport& report )
     {
-        return GeosValidator{ problem }.check_deck( context );
+        GeosValidator{ problem, report }.check_boundary_conditions( context );
     }
 } // namespace geode::internal

@@ -89,10 +89,11 @@
 #include <geode/geosciences/simulation/core/initial_condition.hpp>
 #include <geode/geosciences/simulation/core/physical_problem.hpp>
 #include <geode/geosciences/simulation/core/solid_mechanics.hpp>
-#include <geode/geosciences/simulation/helpers/physical_problem_validation.hpp>
+#include <geode/geosciences/simulation/helpers/simulation_report.hpp>
 #include <geode/geosciences_io/model/internal/geos_boundary_tables.hpp>
 #include <geode/geosciences_io/model/internal/geos_cell_properties.hpp>
 #include <geode/geosciences_io/model/internal/geos_export.hpp>
+#include <geode/geosciences_io/model/internal/geos_simulation_checker.hpp>
 #include <geode/geosciences_io/model/internal/geos_simulation_validation.hpp>
 #include <geode/geosciences_io/model/internal/geos_simulation_writer.hpp>
 #include <geode/geosciences_io/model/internal/geos_xml.hpp>
@@ -209,14 +210,6 @@ namespace
         return static_cast< geode::local_index_t >( component.value() );
     }
 
-    void check_no_issue( absl::Span< const std::string > issues )
-    {
-        geode::OpenGeodeGeosciencesIOModelException::check_exception(
-            issues.empty(), nullptr, geode::OpenGeodeException::TYPE::data,
-            "[GeosExporter] Cannot write the GEOS simulation deck:\n - ",
-            absl::StrJoin( issues, "\n - " ) );
-    }
-
     // Mean of one item of a numeric attribute over the first elements
     double mean_attribute_item( const geode::AttributeBase& attribute,
         geode::index_t nb_elements,
@@ -327,24 +320,6 @@ namespace geode::internal
             { PHYSICAL_PROPERTY_NAME::thermal_expansion_coefficient,
                 "thermalExpansionCoefficient" },
         } };
-
-    // Mechanics properties of the other kind of problem are ignored
-    bool is_read_by(
-        const PhysicalProblem& problem, PHYSICAL_PROPERTY_NAME property )
-    {
-        switch( property )
-        {
-            case PHYSICAL_PROPERTY_NAME::density:
-                return !problem.has_flow();
-            case PHYSICAL_PROPERTY_NAME::grain_density:
-            case PHYSICAL_PROPERTY_NAME::biot_coefficient:
-                return problem.has_flow();
-            case PHYSICAL_PROPERTY_NAME::thermal_expansion_coefficient:
-                return problem.has_flow() && problem.thermal().has_value();
-            default:
-                return true;
-        }
-    }
 
     std::optional< GeosCellProperty >& mechanics_context_property(
         GeosDeckContext& context, PHYSICAL_PROPERTY_NAME property )
@@ -536,9 +511,10 @@ namespace geode::internal
     void GeosExporterImpl< Model >::prepare_export()
     {
         clear_export();
+        define_regions();
         if( problem_ != nullptr )
         {
-            validate_problem();
+            check_problem();
         }
         convert_model();
         const auto nb_solid_regions = initialize_solid_region_attribute();
@@ -588,10 +564,15 @@ namespace geode::internal
     }
 
     template < typename Model >
-    index_t GeosExporterImpl< Model >::initialize_solid_region_attribute()
+    void GeosExporterImpl< Model >::define_regions()
     {
         region_definitions_ = create_region_definitions( model_ );
         add_block_collection_regions();
+    }
+
+    template < typename Model >
+    index_t GeosExporterImpl< Model >::initialize_solid_region_attribute()
+    {
         const auto& block_regions = region_definitions_.block_regions;
         index_t block_index{ 0 };
         for( const auto& block : model_.blocks() )
@@ -871,7 +852,7 @@ namespace geode::internal
             specification_node.append_attribute( "setNames" )
                 .set_value( absl::StrCat(
                     "{ ", absl::StrJoin( condition.region_ids, ", " ), " }" )
-                        .c_str() );
+                                .c_str() );
         }
     }
 
@@ -894,7 +875,7 @@ namespace geode::internal
                             absl::StrAppend( out, "./", file );
                         } ),
                     " }" )
-                        .c_str() );
+                                .c_str() );
             function_node.append_attribute( "voxelFile" )
                 .set_value( absl::StrCat( "./", table.voxel_file ).c_str() );
             function_node.append_attribute( "interpolation" )
@@ -939,7 +920,7 @@ namespace geode::internal
         for( const auto& [property, geos_name] : MECHANICS_PROPERTIES )
         {
             if( !model_.has_physical_property( property )
-                || !is_read_by( *problem_, property ) )
+                || !is_physical_property_read( *problem_, property ) )
             {
                 continue;
             }
@@ -1100,7 +1081,7 @@ namespace geode::internal
                 boundary_fraction_component( problem_, fraction );
             if( !component )
             {
-                // Reported by validate_geos_deck
+                // Reported by GeosSimulationChecker
                 continue;
             }
             BoundaryCondition prototype;
@@ -1544,28 +1525,24 @@ namespace geode::internal
     }
 
     template < typename Model >
-    void GeosExporterImpl< Model >::validate_problem() const
+    void GeosExporterImpl< Model >::check_problem() const
     {
-        auto issues = validate_physical_problem( *problem_ );
-        for( auto& issue :
-            validate_physical_problem_regions( *problem_, model_ ) )
+        GeosExportData export_data;
+        export_data.regions.solid_regions = region_definitions_.regions;
+        export_data.regions.regions_by_uuid =
+            region_definitions_.regions_by_uuid;
+        export_data.regions.merged_blocks = region_definitions_.merged_blocks;
+        export_data.well_names = well_names_;
+        const auto report =
+            GeosSimulationChecker{ std::move( export_data ) }.check(
+                *problem_, model_ );
+        OpenGeodeGeosciencesIOModelException::check_exception(
+            report.is_simulable(), nullptr, OpenGeodeException::TYPE::data,
+            "[GeosExporter] Cannot write the GEOS simulation deck.\n",
+            report.string() );
+        for( const auto& issue : report.issues() )
         {
-            issues.push_back( std::move( issue ) );
-        }
-        for( auto& issue :
-            validate_physical_problem_properties( *problem_, model_ ) )
-        {
-            issues.push_back( std::move( issue ) );
-        }
-        for( auto& issue : validate_geos_problem( *problem_, well_names_ ) )
-        {
-            issues.push_back( std::move( issue ) );
-        }
-        check_no_issue( issues );
-        for( const auto& warning :
-            physical_problem_warnings( *problem_, model_ ) )
-        {
-            Logger::warning( "[GeosExporter] ", warning );
+            Logger::warning( "[GeosExporter] ", issue.string() );
         }
     }
 
@@ -1573,7 +1550,7 @@ namespace geode::internal
     void GeosExporterImpl< Model >::prepare_simulation()
     {
         context_ = build_deck_context();
-        auto issues = validate_geos_deck( *problem_, context_ );
+        // Assignments are checked by GeosSimulationChecker
         // Solid mechanics data are cell properties: no material to assign
         GeosRegionAssignment materials;
         GeosRegionAssignment initial_conditions;
@@ -1583,21 +1560,9 @@ namespace geode::internal
             initial_conditions =
                 assign_geos_initial_conditions( *problem_, context_ );
         }
-        for( const auto* assignment : { &materials, &initial_conditions } )
-        {
-            issues.insert( issues.end(), assignment->issues.begin(),
-                assignment->issues.end() );
-        }
-        check_no_issue( issues );
         if( problem_->has_flow() && problem_->solid_mechanics() )
         {
             add_initial_pore_pressure( initial_conditions );
-        }
-        if( problem_->has_flow() && !context_.has_boundary_pressure )
-        {
-            Logger::warning(
-                "[GeosExporter] The model has no boundary pressure: "
-                "nothing drives the flow in the GEOS deck." );
         }
         if( const auto temperature =
                 geos_default_boundary_temperature( *problem_, context_ ) )

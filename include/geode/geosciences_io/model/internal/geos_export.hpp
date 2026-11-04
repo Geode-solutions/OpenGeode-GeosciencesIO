@@ -104,6 +104,7 @@ namespace geode::internal
         void convert_model();
         void compute_block_polyhedra_offsets();
         void clear_export();
+        void define_regions();
         index_t initialize_solid_region_attribute();
         void add_block_collection_regions();
         void initialize_surface_cells( index_t first_surface_region_id );
@@ -145,7 +146,7 @@ namespace geode::internal
         std::string write_solid_file() const;
         void duplicate_imported_fields(
             AttributeManager& cell_attributes ) const;
-        void validate_problem() const;
+        void check_problem() const;
         void prepare_simulation();
 
         void add_isothermal_boundary_temperature( double temperature );

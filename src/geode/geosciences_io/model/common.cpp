@@ -39,6 +39,7 @@
 #include <geode/geosciences_io/mesh/common.hpp>
 
 #include <geode/geosciences_io/model/internal/brep_fem_output.hpp>
+#include <geode/geosciences_io/model/internal/geos_simulation_checker.hpp>
 #include <geode/geosciences_io/model/internal/horizons_stack_skua_input.hpp>
 #include <geode/geosciences_io/model/internal/lso_input.hpp>
 #include <geode/geosciences_io/model/internal/lso_output.hpp>
@@ -97,6 +98,13 @@ namespace
             geode::internal::HorizonStackSKUAInput< 3 > >(
             geode::internal::HorizonStackSKUAInput< 3 >::extension().data() );
     }
+
+    void register_simulation_checkers()
+    {
+        geode::SimulationCheckerFactory::register_creator<
+            geode::internal::GeosSimulationChecker >(
+            geode::internal::GEOS_SIMULATOR_KEY );
+    }
 } // namespace
 
 namespace geode
@@ -113,6 +121,7 @@ namespace geode
         register_section_input();
         register_brep_output();
         register_horizons_stack_input();
+        register_simulation_checkers();
         GDALAllRegister();
     }
 } // namespace geode

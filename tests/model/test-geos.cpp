@@ -241,8 +241,8 @@ geode::index_t count_occurrences(
 {
     geode::index_t nb_occurrences{ 0 };
     for( auto position = content.find( pattern );
-        position != std::string_view::npos;
-        position = content.find( pattern, position + pattern.size() ) )
+         position != std::string_view::npos;
+         position = content.find( pattern, position + pattern.size() ) )
     {
         nb_occurrences++;
     }
@@ -1258,8 +1258,8 @@ void test_mechanics_failures()
             east_surfaces( model ),
             geode::PHYSICAL_PROPERTY_NAME::initial_stress,
             "surface_initial_stress", KIRSCH_STRESS );
-        check_export_failure(
-            model, mechanics_problem( model ), "must be defined on Blocks" );
+        check_export_failure( model, mechanics_problem( model ),
+            "registered on Surface components" );
     }
     {
         auto model = elastic_cube();
@@ -1272,7 +1272,7 @@ void test_mechanics_failures()
         add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::bulk_modulus,
             "negative_bulk_modulus", -1. );
         check_export_failure( model, mechanics_problem( model ),
-            "without a positive bulk_modulus" );
+            "bulk_modulus: values outside (0, +inf)" );
     }
     {
         auto model = elastic_cube();
@@ -1280,8 +1280,8 @@ void test_mechanics_failures()
         add_boundary_condition< geode::ConstantAttribute >( model,
             east_surfaces( model ),
             geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "pressure", 1e7 );
-        check_export_failure(
-            model, mechanics_problem( model ), "needs a flow model" );
+        check_export_failure( model, mechanics_problem( model ),
+            "flow boundary condition without flow model" );
     }
     {
         auto model = elastic_cube();
@@ -1290,8 +1290,8 @@ void test_mechanics_failures()
             boundary_surfaces( model, 2, true ),
             geode::PHYSICAL_PROPERTY_NAME::boundary_traction, "nan_traction",
             std::array< double, 3 >{ 0., FREE, TRACTION } );
-        check_export_failure(
-            model, mechanics_problem( model ), "must be finite" );
+        check_export_failure( model, mechanics_problem( model ),
+            "boundary_traction: values outside finite values" );
     }
     {
         auto model = elastic_cube();
@@ -1317,7 +1317,7 @@ void test_mechanics_failures()
                 std::array< double, 3 > >( attribute_id )
             ->set_value( 0, { 1., FREE, FREE } );
         check_export_failure(
-            model, mechanics_problem( model ), "must be uniform" );
+            model, mechanics_problem( model ), "not uniform on 1 Surface" );
     }
 }
 
@@ -1523,7 +1523,8 @@ void test_poromechanics_failures()
         auto rock = poroelastic_material();
         rock.pore_compressibility = 1e-9;
         geode::PhysicalProblemBuilder{ problem }.set_material( 0, rock );
-        check_export_failure( model, problem, "the Biot coefficient gives" );
+        check_export_failure(
+            model, problem, "must be 0 with solid mechanics" );
     }
     {
         auto model = poroelastic_cube();
@@ -1531,14 +1532,14 @@ void test_poromechanics_failures()
             geode::PHYSICAL_PROPERTY_NAME::biot_coefficient, "biot_too_high",
             1.5 );
         check_export_failure( model, poromechanics_problem( model ),
-            "without a (0, 1] biot_coefficient" );
+            "biot_coefficient: values outside (0, 1]" );
     }
     {
         auto model = poroelastic_cube();
         add_block_property(
             model, geode::PHYSICAL_PROPERTY_NAME::density, "density", 2400. );
-        check_export_failure(
-            model, poromechanics_problem( model ), "is the bulk density" );
+        check_export_failure( model, poromechanics_problem( model ),
+            "bulk density of solid mechanics" );
     }
     {
         auto model = poroelastic_cube();
@@ -1549,7 +1550,7 @@ void test_poromechanics_failures()
         rock.thermal = geode::RockThermalProperties{ 2e6, { 2.5, 2.5, 2.5 } };
         builder.set_material( 0, rock );
         check_export_failure(
-            model, problem, "needs a thermal_expansion_coefficient" );
+            model, problem, "thermal_expansion_coefficient: missing" );
         add_block_property( model,
             geode::PHYSICAL_PROPERTY_NAME::thermal_expansion_coefficient,
             "thermal_expansion", THERMAL_EXPANSION );

@@ -36,6 +36,7 @@
 namespace geode
 {
     class PhysicalProblem;
+    class SimulationReport;
     struct SourceTerm;
 } // namespace geode
 
@@ -78,21 +79,20 @@ namespace geode::internal
         const PhysicalProblem& problem, const GeosDeckContext& context );
 
     /*!
-     * GEOS-specific checks of a problem that need no model data, only the
-     * names of the well perforations given to the exporter (simulator
-     * independent checks are done by validate_physical_problem).
-     * Returns one message per issue, empty if valid.
+     * GEOS-specific checks of a problem that need no model data, in the
+     * simulator stage. Source term wells are checked against the names of
+     * the well perforations given to the exporter, if known.
      */
-    [[nodiscard]] std::vector< std::string > validate_geos_problem(
-        const PhysicalProblem& problem,
-        absl::Span< const std::string > well_names );
+    void check_geos_problem( const PhysicalProblem& problem,
+        std::optional< absl::Span< const std::string > > well_names,
+        SimulationReport& report );
 
     /*!
-     * GEOS-specific checks of a problem against the model data of the deck
-     * (region assignments are checked by assign_geos_materials and
-     * assign_geos_initial_conditions).
-     * Returns one message per issue, empty if valid.
+     * GEOS rules on the boundary conditions of the context, in the
+     * properties stage: boundary pressures, temperatures and fluid fractions
+     * GEOS needs together
      */
-    [[nodiscard]] std::vector< std::string > validate_geos_deck(
-        const PhysicalProblem& problem, const GeosDeckContext& context );
+    void check_geos_boundary_conditions( const PhysicalProblem& problem,
+        const GeosDeckContext& context,
+        SimulationReport& report );
 } // namespace geode::internal
