@@ -56,10 +56,10 @@ namespace geode
         virtual ~Impl() = default;
 
     protected:
-        [[nodiscard]] RegionDefinitions create_region_definitions(
+        [[nodiscard]] internal::GeosRegions create_region_definitions(
             const StructuralModel& model ) const final
         {
-            RegionDefinitions definitions;
+            internal::GeosRegions definitions;
             for( const auto& unit : model.stratigraphic_units() )
             {
                 const auto region_id = add_region( definitions,
@@ -94,13 +94,13 @@ namespace geode
         }
 
     private:
-        static index_t add_region( RegionDefinitions& definitions,
+        static index_t add_region( internal::GeosRegions& definitions,
             std::string_view component_name,
             const uuid& component_id )
         {
             const auto region_id =
-                static_cast< index_t >( definitions.regions.size() );
-            definitions.regions.push_back(
+                static_cast< index_t >( definitions.solid_regions.size() );
+            definitions.solid_regions.push_back(
                 { region_id, absl::StrCat( "region_", region_id ),
                     to_string( component_name ), component_id } );
             definitions.regions_by_uuid[component_id].push_back( region_id );

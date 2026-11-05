@@ -60,6 +60,7 @@
 #include <geode/geosciences/simulation/core/schedule.hpp>
 #include <geode/geosciences/simulation/core/solid_mechanics.hpp>
 #include <geode/geosciences/simulation/core/source_term.hpp>
+#include <geode/geosciences/simulation/helpers/simulation_checker.hpp>
 
 #include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.hpp>
 #include <geode/geosciences/explicit/representation/builder/structural_model_builder.hpp>
@@ -812,6 +813,69 @@ void test_geos_rules()
     }
 }
 
+// The registered checker does not know the exporter wells
+void test_registered_checker()
+{
+    auto model = geode::load_brep( absl::StrCat(
+        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+    add_spe10_boundary_conditions( model );
+    add_spe10_gas_fraction( model );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        geode::SimulationCheckerFactory::has_creator( "geos" ),
+        "[Test] The GEOS checker should be registered" );
+    auto problem = spe10_problem( model );
+    const auto checker =
+        geode::SimulationCheckerFactory::create( "geos", problem, model );
+    const auto report = checker->check();
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        report.is_simulable() && report.simulator() == "GEOS",
+        "[Test] SPE10 problem should be simulable by GEOS: ", report.string() );
+    geode::PhysicalProblemBuilder builder{ problem };
+    builder.add_source_term( { "missing", "water", 1. } );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        checker->check().is_simulable(),
+        "[Test] Source term wells are only checked by the exporter" );
+    auto flow = std::make_shared< geode::MultiphaseFlow >();
+    flow->set_fluid( std::make_shared< TestFluid >(
+        std::vector< geode::PHASE >{
+            geode::PHASE::oil, geode::PHASE::gas, geode::PHASE::water },
+        std::vector< geode::FluidComponent >{
+            { "oil", 0.1 }, { "gas", 0.01 }, { "water", 0.018 } } ) );
+    builder.set_flow( flow );
+    const auto unsupported = checker->check();
+    const auto simulator_issues =
+        unsupported.issues( geode::SIMULATION_CHECK_STAGE::simulator );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        !unsupported.is_simulable()
+            && absl::c_any_of( simulator_issues,
+                []( const geode::SimulationIssue* issue ) {
+                    return issue->subject == "Fluid"
+                           && absl::StrContains(
+                               issue->message, "TestFluid is not supported" );
+                } ),
+        "[Test] An unsupported fluid is a simulator issue: ",
+        unsupported.string() );
+
+    auto no_gas_model = geode::load_brep( absl::StrCat(
+        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+    add_spe10_boundary_conditions( no_gas_model );
+    const auto no_gas_problem = spe10_problem( no_gas_model );
+    const auto no_gas = geode::SimulationCheckerFactory::create(
+        "geos", no_gas_problem, no_gas_model )
+                            ->check();
+    const auto property_issues =
+        no_gas.issues( geode::SIMULATION_CHECK_STAGE::properties );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        absl::c_any_of( property_issues,
+            []( const geode::SimulationIssue* issue ) {
+                return issue->subject == "boundary_gas_fraction"
+                       && absl::StrContains( issue->message,
+                           "fluid fraction for every component" );
+            } ),
+        "[Test] A missing boundary fraction is an issue of its property: ",
+        no_gas.string() );
+}
+
 void test_structural_model_regions()
 {
     geode::StructuralModel model{ geode::load_brep( absl::StrCat(
@@ -845,7 +909,9 @@ void test_structural_model_regions()
     {
         has_thrown = true;
         geode::OpenGeodeGeosciencesIOModelException::test(
-            absl::StrContains( exception.what(), "is part of the GEOS region" ),
+            absl::StrContains( exception.what(), "is part of the GEOS region" )
+                && absl::StrContains(
+                    exception.what(), "instead of its Blocks" ),
             "[Test] A Block merged in a StratigraphicUnit region should be "
             "reported: ",
             exception.what() );
@@ -1258,8 +1324,8 @@ void test_mechanics_failures()
             east_surfaces( model ),
             geode::PHYSICAL_PROPERTY_NAME::initial_stress,
             "surface_initial_stress", KIRSCH_STRESS );
-        check_export_failure(
-            model, mechanics_problem( model ), "must be defined on Blocks" );
+        check_export_failure( model, mechanics_problem( model ),
+            "registered on Surface components" );
     }
     {
         auto model = elastic_cube();
@@ -1272,7 +1338,7 @@ void test_mechanics_failures()
         add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::bulk_modulus,
             "negative_bulk_modulus", -1. );
         check_export_failure( model, mechanics_problem( model ),
-            "without a positive bulk_modulus" );
+            "bulk_modulus: values outside (0, +inf)" );
     }
     {
         auto model = elastic_cube();
@@ -1280,8 +1346,8 @@ void test_mechanics_failures()
         add_boundary_condition< geode::ConstantAttribute >( model,
             east_surfaces( model ),
             geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "pressure", 1e7 );
-        check_export_failure(
-            model, mechanics_problem( model ), "needs a flow model" );
+        check_export_failure( model, mechanics_problem( model ),
+            "flow boundary condition without flow model" );
     }
     {
         auto model = elastic_cube();
@@ -1290,8 +1356,8 @@ void test_mechanics_failures()
             boundary_surfaces( model, 2, true ),
             geode::PHYSICAL_PROPERTY_NAME::boundary_traction, "nan_traction",
             std::array< double, 3 >{ 0., FREE, TRACTION } );
-        check_export_failure(
-            model, mechanics_problem( model ), "must be finite" );
+        check_export_failure( model, mechanics_problem( model ),
+            "boundary_traction: non-finite values" );
     }
     {
         auto model = elastic_cube();
@@ -1317,7 +1383,7 @@ void test_mechanics_failures()
                 std::array< double, 3 > >( attribute_id )
             ->set_value( 0, { 1., FREE, FREE } );
         check_export_failure(
-            model, mechanics_problem( model ), "must be uniform" );
+            model, mechanics_problem( model ), "not uniform on 1 Surface" );
     }
 }
 
@@ -1523,7 +1589,8 @@ void test_poromechanics_failures()
         auto rock = poroelastic_material();
         rock.pore_compressibility = 1e-9;
         geode::PhysicalProblemBuilder{ problem }.set_material( 0, rock );
-        check_export_failure( model, problem, "the Biot coefficient gives" );
+        check_export_failure(
+            model, problem, "must be 0 with solid mechanics" );
     }
     {
         auto model = poroelastic_cube();
@@ -1531,14 +1598,14 @@ void test_poromechanics_failures()
             geode::PHYSICAL_PROPERTY_NAME::biot_coefficient, "biot_too_high",
             1.5 );
         check_export_failure( model, poromechanics_problem( model ),
-            "without a (0, 1] biot_coefficient" );
+            "biot_coefficient: values outside (0, 1]" );
     }
     {
         auto model = poroelastic_cube();
         add_block_property(
             model, geode::PHYSICAL_PROPERTY_NAME::density, "density", 2400. );
-        check_export_failure(
-            model, poromechanics_problem( model ), "is the bulk density" );
+        check_export_failure( model, poromechanics_problem( model ),
+            "bulk density of solid mechanics" );
     }
     {
         auto model = poroelastic_cube();
@@ -1549,7 +1616,7 @@ void test_poromechanics_failures()
         rock.thermal = geode::RockThermalProperties{ 2e6, { 2.5, 2.5, 2.5 } };
         builder.set_material( 0, rock );
         check_export_failure(
-            model, problem, "needs a thermal_expansion_coefficient" );
+            model, problem, "thermal_expansion_coefficient: missing" );
         add_block_property( model,
             geode::PHYSICAL_PROPERTY_NAME::thermal_expansion_coefficient,
             "thermal_expansion", THERMAL_EXPANSION );
@@ -2157,6 +2224,7 @@ int main()
         test_spe10_reference();
         test_toy_model_thermal();
         test_geos_rules();
+        test_registered_checker();
         test_structural_model_regions();
         test_gravity();
         test_tractions();

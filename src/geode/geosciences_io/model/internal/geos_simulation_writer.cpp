@@ -52,7 +52,7 @@
 #include <geode/geosciences/simulation/core/source_term.hpp>
 
 #include <geode/geosciences_io/model/internal/geos_deck_context.hpp>
-#include <geode/geosciences_io/model/internal/geos_simulation_validation.hpp>
+#include <geode/geosciences_io/model/internal/geos_simulation_rules.hpp>
 #include <geode/geosciences_io/model/internal/geos_xml.hpp>
 
 namespace
@@ -250,7 +250,7 @@ namespace geode::internal
             {
                 return;
             }
-            for( const auto& region : context_.solid_regions )
+            for( const auto& region : context_.regions.solid_regions )
             {
                 const auto* condition =
                     dynamic_cast< const UniformInitialCondition* >(
@@ -620,7 +620,7 @@ namespace geode::internal
         [[nodiscard]] std::vector< std::string > region_names() const
         {
             std::vector< std::string > names;
-            for( const auto& region : context_.solid_regions )
+            for( const auto& region : context_.regions.solid_regions )
             {
                 names.push_back( region.name );
             }
@@ -760,7 +760,7 @@ namespace geode::internal
         void write_element_regions( pugi::xml_node& problem_node ) const
         {
             auto regions = problem_node.append_child( "ElementRegions" );
-            for( const auto& region : context_.solid_regions )
+            for( const auto& region : context_.regions.solid_regions )
             {
                 add_comment( regions,
                     absl::StrCat( region.name, ": ", region.component_name,
@@ -781,7 +781,7 @@ namespace geode::internal
             pugi::xml_node& problem_node ) const
         {
             auto regions = problem_node.append_child( "ElementRegions" );
-            for( const auto& region : context_.solid_regions )
+            for( const auto& region : context_.regions.solid_regions )
             {
                 add_comment( regions,
                     absl::StrCat( region.name, ": ", region.component_name,
