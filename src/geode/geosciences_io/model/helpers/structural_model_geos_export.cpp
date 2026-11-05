@@ -50,7 +50,7 @@ namespace geode
         Impl() = delete;
         Impl( const StructuralModel& model, std::string_view files_directory )
             : internal::GeosExporterImpl< StructuralModel >(
-                files_directory, model )
+                  files_directory, model )
         {
         }
         virtual ~Impl() = default;
@@ -68,8 +68,8 @@ namespace geode
                     model.stratigraphic_unit_items( unit ) )
                 {
                     if( !definitions.block_regions
-                             .emplace( block.id(), region_id )
-                             .second )
+                            .emplace( block.id(), region_id )
+                            .second )
                     {
                         Logger::warning( "[StructuralModelGeosExporter] Block ",
                             block.id().string(),
