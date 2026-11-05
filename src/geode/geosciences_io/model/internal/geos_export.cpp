@@ -1520,9 +1520,9 @@ namespace geode::internal
     template < typename Model >
     void GeosExporterImpl< Model >::check_problem() const
     {
-        const auto report = GeosSimulationChecker{
-            GeosExportData{ region_definitions_, well_names_ }
-        }.check( *problem_, model_ );
+        const auto report = GeosSimulationChecker{ *problem_, model_,
+            GeosExportData{ region_definitions_,
+                well_names_ } }.check();
         OpenGeodeGeosciencesIOModelException::check_exception(
             report.is_simulable(), nullptr, OpenGeodeException::TYPE::data,
             "[GeosExporter] Cannot write the GEOS simulation deck.\n",

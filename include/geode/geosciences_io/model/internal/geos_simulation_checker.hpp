@@ -55,21 +55,18 @@ namespace geode::internal
     class GeosSimulationChecker final : public SimulationChecker
     {
     public:
-        GeosSimulationChecker();
-        explicit GeosSimulationChecker( GeosExportData export_data );
+        GeosSimulationChecker(
+            const PhysicalProblem& problem, const BRep& model );
+        GeosSimulationChecker( const PhysicalProblem& problem,
+            const BRep& model,
+            GeosExportData export_data );
 
     private:
-        void check_simulator( const PhysicalProblem& problem,
-            const BRep& model,
-            SimulationReport& report ) const final;
+        void check_simulator() final;
 
-        static void check_rock_properties( const PhysicalProblem& problem,
-            const BRep& model,
-            SimulationReport& report );
+        void check_rock_properties();
 
-        static void check_boundary_properties( const PhysicalProblem& problem,
-            const BRep& model,
-            SimulationReport& report );
+        void check_boundary_properties();
 
     private:
         std::optional< GeosExportData > export_data_;

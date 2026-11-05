@@ -461,34 +461,42 @@ namespace
 
 namespace geode::internal
 {
-    GeosSimulationChecker::GeosSimulationChecker() = default;
-
-    GeosSimulationChecker::GeosSimulationChecker( GeosExportData export_data )
-        : export_data_( std::move( export_data ) )
+    GeosSimulationChecker::GeosSimulationChecker(
+        const PhysicalProblem& problem, const BRep& model )
+        : SimulationChecker( problem, model )
     {
     }
 
-    void GeosSimulationChecker::check_simulator( const PhysicalProblem& problem,
+    GeosSimulationChecker::GeosSimulationChecker(
+        const PhysicalProblem& problem,
         const BRep& model,
-        SimulationReport& report ) const
+        GeosExportData export_data )
+        : SimulationChecker( problem, model ),
+          export_data_( std::move( export_data ) )
     {
-        report.set_simulator( "GEOS" );
+    }
+
+    void GeosSimulationChecker::check_simulator()
+    {
+        const auto& problem = this->problem();
+        const auto& model = this->model();
+        report().set_simulator( "GEOS" );
         std::optional< absl::Span< const std::string > > well_names;
         if( export_data_ )
         {
             well_names = export_data_->well_names;
         }
-        GeosProblemChecker problem_checker{ problem, report };
+        GeosProblemChecker problem_checker{ problem, report() };
         problem_checker.check_problem( well_names );
-        check_blocks( model, report );
-        check_unique_vertices_in_blocks( model, report );
-        check_regular_grids( model, report );
+        check_blocks();
+        check_unique_vertices_in_blocks();
+        check_regular_grids( model, report() );
         if( !problem.has_flow() || !problem.flow().has_fluid() )
         {
             return;
         }
-        check_rock_properties( problem, model, report );
-        check_boundary_properties( problem, model, report );
+        check_rock_properties();
+        check_boundary_properties();
         problem_checker.check_boundary_conditions(
             geos_boundary_conditions( model ) );
         if( export_data_ )
@@ -496,21 +504,18 @@ namespace geode::internal
             add_issues(
                 assign_geos_materials( problem, model, export_data_->regions )
                     .issues,
-                report );
+                report() );
             add_issues( assign_geos_initial_conditions(
                             problem, model, export_data_->regions )
                             .issues,
-                report );
+                report() );
         }
     }
 
     // GEOS imports a model porosity or permeability on every cell, merged
     // from the Block meshes. Without such a property, the deck uses the
     // value of each material.
-    void GeosSimulationChecker::check_rock_properties(
-        const PhysicalProblem& problem,
-        const BRep& model,
-        SimulationReport& report )
+    void GeosSimulationChecker::check_rock_properties()
     {
         std::vector< PhysicalPropertyCoverage > coverages;
         for( const auto property : { PHYSICAL_PROPERTY_NAME::porosity,
@@ -518,35 +523,27 @@ namespace geode::internal
         {
             PhysicalPropertyRequirement requirement{ property };
             requirement.merged = true;
-            coverages.push_back(
-                check_physical_property( model, requirement, report ) );
+            coverages.push_back( check_physical_property( requirement ) );
         }
-        check_rock_property_availability( problem, model, coverages, report );
+        check_rock_property_availability( coverages );
     }
 
-    void GeosSimulationChecker::check_boundary_properties(
-        const PhysicalProblem& problem,
-        const BRep& model,
-        SimulationReport& report )
+    void GeosSimulationChecker::check_boundary_properties()
     {
-        const auto pressure = check_physical_property( model,
-            PhysicalPropertyRequirement{
-                PHYSICAL_PROPERTY_NAME::boundary_pressure },
-            report );
-        check_physical_property_presence( model, pressure,
-            "nothing drives the flow in the GEOS deck", report );
-        check_physical_property( model,
-            PhysicalPropertyRequirement{
-                PHYSICAL_PROPERTY_NAME::boundary_temperature },
-            report );
-        if( !is_multiphase( problem ) )
+        const auto pressure =
+            check_physical_property( PhysicalPropertyRequirement{
+                PHYSICAL_PROPERTY_NAME::boundary_pressure } );
+        check_physical_property_presence(
+            pressure, "nothing drives the flow in the GEOS deck" );
+        check_physical_property( PhysicalPropertyRequirement{
+            PHYSICAL_PROPERTY_NAME::boundary_temperature } );
+        if( !is_multiphase( problem() ) )
         {
             return;
         }
         for( const auto fraction : BOUNDARY_FRACTIONS )
         {
-            check_physical_property(
-                model, PhysicalPropertyRequirement{ fraction }, report );
+            check_physical_property( PhysicalPropertyRequirement{ fraction } );
         }
     }
 } // namespace geode::internal

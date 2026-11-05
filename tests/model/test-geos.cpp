@@ -823,16 +823,17 @@ void test_registered_checker()
     geode::OpenGeodeGeosciencesIOModelException::test(
         geode::SimulationCheckerFactory::has_creator( "geos" ),
         "[Test] The GEOS checker should be registered" );
-    const auto checker = geode::SimulationCheckerFactory::create( "geos" );
     auto problem = spe10_problem( model );
-    const auto report = checker->check( problem, model );
+    const auto checker =
+        geode::SimulationCheckerFactory::create( "geos", problem, model );
+    const auto report = checker->check();
     geode::OpenGeodeGeosciencesIOModelException::test(
         report.is_simulable() && report.simulator() == "GEOS",
         "[Test] SPE10 problem should be simulable by GEOS: ", report.string() );
     geode::PhysicalProblemBuilder builder{ problem };
     builder.add_source_term( { "missing", "water", 1. } );
     geode::OpenGeodeGeosciencesIOModelException::test(
-        checker->check( problem, model ).is_simulable(),
+        checker->check().is_simulable(),
         "[Test] Source term wells are only checked by the exporter" );
     auto flow = std::make_shared< geode::MultiphaseFlow >();
     flow->set_fluid( std::make_shared< TestFluid >(
@@ -841,7 +842,7 @@ void test_registered_checker()
         std::vector< geode::FluidComponent >{
             { "oil", 0.1 }, { "gas", 0.01 }, { "water", 0.018 } } ) );
     builder.set_flow( flow );
-    const auto unsupported = checker->check( problem, model );
+    const auto unsupported = checker->check();
     const auto simulator_issues =
         unsupported.issues( geode::SIMULATION_CHECK_STAGE::simulator );
     geode::OpenGeodeGeosciencesIOModelException::test(
@@ -858,8 +859,10 @@ void test_registered_checker()
     auto no_gas_model = geode::load_brep( absl::StrCat(
         geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
     add_spe10_boundary_conditions( no_gas_model );
-    const auto no_gas =
-        checker->check( spe10_problem( no_gas_model ), no_gas_model );
+    const auto no_gas_problem = spe10_problem( no_gas_model );
+    const auto no_gas = geode::SimulationCheckerFactory::create(
+        "geos", no_gas_problem, no_gas_model )
+                            ->check();
     const auto property_issues =
         no_gas.issues( geode::SIMULATION_CHECK_STAGE::properties );
     geode::OpenGeodeGeosciencesIOModelException::test(
