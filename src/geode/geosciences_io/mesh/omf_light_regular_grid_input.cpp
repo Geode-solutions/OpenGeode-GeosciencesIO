@@ -82,7 +82,7 @@ namespace
 
 namespace geode::internal
 {
-    LightRegularGrid3D OMFLightRegularGridInput::read()
+    std::vector< LightRegularGrid3D > OMFLightRegularGridInput::read()
     {
         const OMFFile file{ filename() };
         const auto elements =
@@ -142,7 +142,9 @@ namespace geode::internal
                 return grid.vertex_index(
                     omf_grid_indices( value, vertices_number ) );
             } );
-        return grid;
+        std::vector< LightRegularGrid3D > objects;
+        objects.emplace_back( std::move( grid ) );
+        return objects;
     }
 
     Percentage OMFLightRegularGridInput::is_loadable() const

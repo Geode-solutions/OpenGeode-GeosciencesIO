@@ -169,8 +169,8 @@ namespace
 
 namespace geode::internal
 {
-    std::unique_ptr< PolygonalSurface3D > OMFPolygonalSurfaceInput::read(
-        const MeshImpl& impl )
+    std::vector< std::unique_ptr< PolygonalSurface3D > >
+        OMFPolygonalSurfaceInput::read( const MeshImpl& impl )
     {
         auto surface = PolygonalSurface3D::create( impl );
         auto builder = PolygonalSurfaceBuilder3D::create( *surface );
@@ -199,7 +199,9 @@ namespace geode::internal
             }
         }
         builder->compute_polygon_adjacencies();
-        return surface;
+        std::vector< std::unique_ptr< PolygonalSurface3D > > meshes;
+        meshes.emplace_back( std::move( surface ) );
+        return meshes;
     }
 
     Percentage OMFPolygonalSurfaceInput::is_loadable() const

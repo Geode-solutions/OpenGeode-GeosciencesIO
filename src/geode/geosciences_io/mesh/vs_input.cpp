@@ -100,12 +100,15 @@ namespace
 
 namespace geode::internal
 {
-    std::unique_ptr< PointSet3D > VSInput::read( const MeshImpl& impl )
+    std::vector< std::unique_ptr< PointSet3D > > VSInput::read(
+        const MeshImpl& impl )
     {
         auto surface = PointSet3D::create( impl );
         VSInputImpl reader{ this->filename(), *surface };
         reader.read_file();
-        return surface;
+        std::vector< std::unique_ptr< PointSet3D > > meshes;
+        meshes.emplace_back( std::move( surface ) );
+        return meshes;
     }
 
     Percentage VSInput::is_loadable() const

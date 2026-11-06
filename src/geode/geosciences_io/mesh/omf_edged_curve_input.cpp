@@ -37,7 +37,7 @@ namespace
 
 namespace geode::internal
 {
-    std::unique_ptr< EdgedCurve3D > OMFEdgedCurveInput::read(
+    std::vector< std::unique_ptr< EdgedCurve3D > > OMFEdgedCurveInput::read(
         const MeshImpl& impl )
     {
         auto curve = EdgedCurve3D::create( impl );
@@ -91,7 +91,9 @@ namespace geode::internal
                     element_id, first_edge, curve->nb_edges() );
             }
         }
-        return curve;
+        std::vector< std::unique_ptr< EdgedCurve3D > > meshes;
+        meshes.emplace_back( std::move( curve ) );
+        return meshes;
     }
 
     Percentage OMFEdgedCurveInput::is_loadable() const

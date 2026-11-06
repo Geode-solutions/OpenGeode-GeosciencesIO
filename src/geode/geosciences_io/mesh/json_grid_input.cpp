@@ -610,10 +610,12 @@ namespace
 
 namespace geode::internal
 {
-    LightRegularGrid3D JSONGridInput::read()
+    std::vector< LightRegularGrid3D > JSONGridInput::read()
     {
         JSONGridInputImpl reader{ filename() };
-        return reader.read_file();
+        std::vector< LightRegularGrid3D > objects;
+        objects.emplace_back( reader.read_file() );
+        return objects;
     }
 
     Percentage JSONGridInput::is_loadable() const

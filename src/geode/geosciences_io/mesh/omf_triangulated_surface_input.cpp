@@ -39,8 +39,8 @@ namespace
 
 namespace geode::internal
 {
-    std::unique_ptr< TriangulatedSurface3D > OMFTriangulatedSurfaceInput::read(
-        const MeshImpl& impl )
+    std::vector< std::unique_ptr< TriangulatedSurface3D > >
+        OMFTriangulatedSurfaceInput::read( const MeshImpl& impl )
     {
         auto surface = TriangulatedSurface3D::create( impl );
         auto builder = TriangulatedSurfaceBuilder3D::create( *surface );
@@ -103,7 +103,9 @@ namespace geode::internal
             }
         }
         builder->compute_polygon_adjacencies();
-        return surface;
+        std::vector< std::unique_ptr< TriangulatedSurface3D > > meshes;
+        meshes.emplace_back( std::move( surface ) );
+        return meshes;
     }
 
     Percentage OMFTriangulatedSurfaceInput::is_loadable() const

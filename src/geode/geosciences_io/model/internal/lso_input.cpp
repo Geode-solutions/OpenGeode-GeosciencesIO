@@ -1084,7 +1084,7 @@ namespace
 
 namespace geode::internal
 {
-    StructuralModel LSOInput::read()
+    std::vector< StructuralModel > LSOInput::read()
     {
         StructuralModel structural_model;
         LSOInputImpl impl{ filename(), structural_model };
@@ -1093,7 +1093,9 @@ namespace geode::internal
         {
             this->need_to_inspect_result();
         }
-        return structural_model;
+        std::vector< StructuralModel > objects;
+        objects.emplace_back( std::move( structural_model ) );
+        return objects;
     }
 
     Percentage LSOInput::is_loadable() const

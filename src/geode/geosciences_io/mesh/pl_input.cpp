@@ -109,12 +109,15 @@ namespace
 } // namespace
 namespace geode::internal
 {
-    std::unique_ptr< EdgedCurve3D > PLInput::read( const MeshImpl& impl )
+    std::vector< std::unique_ptr< EdgedCurve3D > > PLInput::read(
+        const MeshImpl& impl )
     {
         auto curve = EdgedCurve3D::create( impl );
         PLInputImpl reader{ this->filename(), *curve };
         reader.read_file();
-        return curve;
+        std::vector< std::unique_ptr< EdgedCurve3D > > meshes;
+        meshes.emplace_back( std::move( curve ) );
+        return meshes;
     }
 
     Percentage PLInput::is_loadable() const

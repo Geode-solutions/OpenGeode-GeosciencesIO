@@ -120,13 +120,15 @@ namespace
 
 namespace geode::internal
 {
-    std::unique_ptr< TriangulatedSurface3D > TSInput::read(
+    std::vector< std::unique_ptr< TriangulatedSurface3D > > TSInput::read(
         const MeshImpl& impl )
     {
         auto surface = TriangulatedSurface3D::create( impl );
         TSInputImpl reader{ this->filename(), *surface };
         reader.read_file();
-        return surface;
+        std::vector< std::unique_ptr< TriangulatedSurface3D > > meshes;
+        meshes.emplace_back( std::move( surface ) );
+        return meshes;
     }
 
     Percentage TSInput::is_loadable() const

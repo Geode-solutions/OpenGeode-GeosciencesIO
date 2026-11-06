@@ -37,7 +37,8 @@ namespace
 
 namespace geode::internal
 {
-    std::unique_ptr< PointSet3D > OMFPointSetInput::read( const MeshImpl& impl )
+    std::vector< std::unique_ptr< PointSet3D > > OMFPointSetInput::read(
+        const MeshImpl& impl )
     {
         auto point_set = PointSet3D::create( impl );
         auto builder = PointSetBuilder3D::create( *point_set );
@@ -67,7 +68,9 @@ namespace geode::internal
                     manager, element_id, first, point_set->nb_vertices() );
             }
         }
-        return point_set;
+        std::vector< std::unique_ptr< PointSet3D > > meshes;
+        meshes.emplace_back( std::move( point_set ) );
+        return meshes;
     }
 
     Percentage OMFPointSetInput::is_loadable() const

@@ -1282,12 +1282,14 @@ namespace
 
 namespace geode::internal
 {
-    StructuralModel MLInput::read()
+    std::vector< StructuralModel > MLInput::read()
     {
         StructuralModel structural_model;
         MLInputImpl impl{ filename(), structural_model };
         impl.read_file();
-        return structural_model;
+        std::vector< StructuralModel > objects;
+        objects.emplace_back( std::move( structural_model ) );
+        return objects;
     }
 
     Percentage MLInput::is_loadable() const

@@ -390,12 +390,15 @@ namespace
 
 namespace geode::internal
 {
-    std::unique_ptr< RegularGrid3D > VOInput::read( const MeshImpl& impl )
+    std::vector< std::unique_ptr< RegularGrid3D > > VOInput::read(
+        const MeshImpl& impl )
     {
         auto voxet = RegularGrid3D::create( impl );
         VOInputImpl reader{ filename(), *voxet };
         reader.read_file();
-        return voxet;
+        std::vector< std::unique_ptr< RegularGrid3D > > meshes;
+        meshes.emplace_back( std::move( voxet ) );
+        return meshes;
     }
 
     auto VOInput::additional_files() const -> AdditionalFiles

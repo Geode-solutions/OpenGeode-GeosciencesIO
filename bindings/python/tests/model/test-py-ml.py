@@ -32,7 +32,10 @@ if __name__ == "__main__":
     test_dir = os.path.dirname(__file__)
     data_dir = os.path.abspath(os.path.join(test_dir, "../../../../tests/data"))
 
-    model = geosciences.load_structural_model(os.path.join(data_dir, "modelA4.ml"))
+    model_filename = os.path.join(data_dir, "modelA4.ml")
+    model = opengeode.load_one(
+        geosciences.load_structural_model(model_filename), model_filename
+    )
 
     if model.nb_corners() != 52:
         raise ValueError(
@@ -65,7 +68,9 @@ if __name__ == "__main__":
 
     geosciences.save_structural_model(model, "modelA4.og_strm")
     geosciences.save_structural_model(model, "modelA4_saved.ml")
-    reload = geosciences.load_structural_model("modelA4_saved.ml")
+    reload = opengeode.load_one(
+        geosciences.load_structural_model("modelA4_saved.ml"), "modelA4_saved.ml"
+    )
 
     if reload.nb_corners() != 52:
         raise ValueError(

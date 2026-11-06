@@ -32,7 +32,10 @@ if __name__ == "__main__":
     test_dir = os.path.dirname(__file__)
     data_dir = os.path.abspath(os.path.join(test_dir, "../../../../tests/data"))
 
-    model = geosciences.load_structural_model(os.path.join(data_dir, "test.lso"))
+    model_filename = os.path.join(data_dir, "test.lso")
+    model = opengeode.load_one(
+        geosciences.load_structural_model(model_filename), model_filename
+    )
 
     if model.nb_corners() != 22:
         raise ValueError(

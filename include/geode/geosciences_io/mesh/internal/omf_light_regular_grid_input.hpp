@@ -49,7 +49,7 @@ namespace geode::internal
             return EXT;
         }
 
-        LightRegularGrid3D read() final;
+        std::vector< LightRegularGrid3D > read() final;
 
         AdditionalFiles additional_files() const final
         {

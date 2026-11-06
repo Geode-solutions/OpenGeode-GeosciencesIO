@@ -54,14 +54,17 @@ namespace
     std::unique_ptr< geode::PointSet3D > load_test_file(
         std::string_view filename, std::string_view content )
     {
-        return geode::load_point_set< 3 >(
-            write_test_file( filename, content ) );
+        const auto path = write_test_file( filename, content );
+        return geode::load_one( geode::load_point_set< 3 >( path ), path );
     }
 
     void test_points_normal()
     {
-        const auto pointset = geode::load_point_set< 3 >(
-            absl::StrCat( geode::DATA_PATH, "points.vs" ) );
+        const auto pointset_filename =
+            absl::StrCat( geode::DATA_PATH, "points.vs" );
+        const auto pointset =
+            geode::load_one( geode::load_point_set< 3 >( pointset_filename ),
+                pointset_filename );
         const auto& manager = pointset->vertex_attribute_manager();
         const auto ids = manager.attribute_ids_matching_name( "normal" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
@@ -137,8 +140,9 @@ namespace
         create_attribute< double >( *pointset, "third", 0 )
             ->set_value( 0, 1. / 3. );
         geode::save_point_set( *pointset, "test_vs_properties.vs" );
-        const auto reloaded =
-            geode::load_point_set< 3 >( "test_vs_properties.vs" );
+        const auto reloaded = geode::load_one(
+            geode::load_point_set< 3 >( "test_vs_properties.vs" ),
+            "test_vs_properties.vs" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             read_attribute_value< std::array< double, 3 > >(
                 *reloaded, "normal", 1 )
@@ -199,7 +203,7 @@ void check_pointset(
 void check_file( std::string file, geode::index_t nb_vertices )
 {
     // Load file
-    auto pointset = geode::load_point_set< 3 >( file );
+    auto pointset = geode::load_one( geode::load_point_set< 3 >( file ), file );
     check_pointset( *pointset, nb_vertices );
 
     // Save point set
@@ -210,9 +214,11 @@ void check_file( std::string file, geode::index_t nb_vertices )
     geode::save_point_set( *pointset, output_file_vs );
 
     // Load file
-    auto reloaded_pointset = geode::load_point_set< 3 >( output_file_native );
+    auto reloaded_pointset = geode::load_one(
+        geode::load_point_set< 3 >( output_file_native ), output_file_native );
     check_pointset( *reloaded_pointset, nb_vertices );
-    auto reloaded_pointset_vs = geode::load_point_set< 3 >( output_file_vs );
+    auto reloaded_pointset_vs = geode::load_one(
+        geode::load_point_set< 3 >( output_file_vs ), output_file_vs );
     check_pointset( *reloaded_pointset_vs, nb_vertices );
 }
 

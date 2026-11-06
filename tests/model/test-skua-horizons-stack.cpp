@@ -38,8 +38,11 @@
 
 void test_file()
 {
-    const auto horizons_stack = geode::load_horizons_stack< 3 >(
-        absl::StrCat( geode::DATA_PATH, "test_skua_horizons_stack.xml" ) );
+    const auto horizons_stack_filename =
+        absl::StrCat( geode::DATA_PATH, "test_skua_horizons_stack.xml" );
+    const auto horizons_stack = geode::load_one(
+        geode::load_horizons_stack< 3 >( horizons_stack_filename ),
+        horizons_stack_filename );
 
     geode::OpenGeodeGeosciencesIOModelException::test(
         horizons_stack.name() == "skua_model",
@@ -133,8 +136,9 @@ void test_optional_attributes()
                                           "  </units>\n"
                                           " </LocalStratigraphicColumn>\n"
                                           "</UserObjects>\n" );
-    const auto horizons_stack =
-        geode::load_horizons_stack< 3 >( "skua_no_base_names.xml" );
+    const auto horizons_stack = geode::load_one(
+        geode::load_horizons_stack< 3 >( "skua_no_base_names.xml" ),
+        "skua_no_base_names.xml" );
     geode::OpenGeodeGeosciencesIOModelException::test(
         horizons_stack.nb_horizons() == 2
             && horizons_stack.nb_stratigraphic_units() >= 1,
@@ -147,8 +151,9 @@ void test_missing_column()
         "<UserObjects>\n <Other/>\n</UserObjects>\n" );
     try
     {
-        geode_unused(
-            geode::load_horizons_stack< 3 >( "skua_missing_column.xml" ) );
+        geode_unused( geode::load_one(
+            geode::load_horizons_stack< 3 >( "skua_missing_column.xml" ),
+            "skua_missing_column.xml" ) );
     }
     catch( const geode::OpenGeodeException& )
     {
@@ -178,8 +183,9 @@ void test_unnamed_horizons()
         "  </units>\n"
         " </LocalStratigraphicColumn>\n"
         "</UserObjects>\n" );
-    const auto horizons_stack =
-        geode::load_horizons_stack< 3 >( "skua_unnamed_horizons.xml" );
+    const auto horizons_stack = geode::load_one(
+        geode::load_horizons_stack< 3 >( "skua_unnamed_horizons.xml" ),
+        "skua_unnamed_horizons.xml" );
     geode::OpenGeodeGeosciencesIOModelException::test(
         horizons_stack.nb_horizons() == 3,
         "[TEST] Unnamed horizons should not be merged" );

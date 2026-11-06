@@ -59,7 +59,8 @@ namespace
                 std::ios::binary };
             file << content;
         }
-        return geode::load_triangulated_surface< 3 >( filename );
+        return geode::load_one(
+            geode::load_triangulated_surface< 3 >( filename ), filename );
     }
 
     void test_blank_lines()
@@ -267,8 +268,9 @@ namespace
                 && !absl::StrContains( content, "\nVRTX 0 " )
                 && absl::StrContains( content, "\nTRGL 1 2 3" ),
             "TSurf vertex ids should start at 1" );
-        const auto reloaded =
-            geode::load_triangulated_surface< 3 >( "test_ts_no_generic.ts" );
+        const auto reloaded = geode::load_one(
+            geode::load_triangulated_surface< 3 >( "test_ts_no_generic.ts" ),
+            "test_ts_no_generic.ts" );
         check_surface( *reloaded, 3, 1, "triangle" );
     }
 
@@ -279,8 +281,9 @@ namespace
         const geode::Point3D point{ { 1. / 3., 1056340.123456789, -2e-7 } };
         builder->set_point( 2, point );
         geode::save_triangulated_surface( *surface, "test_ts_precision.ts" );
-        const auto reloaded =
-            geode::load_triangulated_surface< 3 >( "test_ts_precision.ts" );
+        const auto reloaded = geode::load_one(
+            geode::load_triangulated_surface< 3 >( "test_ts_precision.ts" ),
+            "test_ts_precision.ts" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             reloaded->point( 2 ) == point,
             "TSurf coordinates are not saved with full precision" );
@@ -345,7 +348,8 @@ void check_file( std::string file,
     std::string name )
 {
     // Load file
-    auto surface = geode::load_triangulated_surface< 3 >( file );
+    auto surface =
+        geode::load_one( geode::load_triangulated_surface< 3 >( file ), file );
     check_surface( *surface, nb_vertices, nb_polygons, name );
 
     // Save triangulated tsurf
@@ -356,11 +360,13 @@ void check_file( std::string file,
     geode::save_triangulated_surface( *surface, output_file_ts );
 
     // Load file
-    auto reloaded_surface =
-        geode::load_triangulated_surface< 3 >( output_file_native );
+    auto reloaded_surface = geode::load_one(
+        geode::load_triangulated_surface< 3 >( output_file_native ),
+        output_file_native );
     check_surface( *reloaded_surface, nb_vertices, nb_polygons, name );
-    auto reloaded_surface_ts =
-        geode::load_triangulated_surface< 3 >( output_file_ts );
+    auto reloaded_surface_ts = geode::load_one(
+        geode::load_triangulated_surface< 3 >( output_file_ts ),
+        output_file_ts );
     check_surface( *reloaded_surface_ts, nb_vertices, nb_polygons, name );
 }
 

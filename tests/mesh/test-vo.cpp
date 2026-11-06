@@ -42,8 +42,9 @@
 
 void test_grid_input()
 {
-    const auto grid = geode::load_regular_grid< 3 >(
-        absl::StrCat( geode::DATA_PATH, "test.vo" ) );
+    const auto grid_filename = absl::StrCat( geode::DATA_PATH, "test.vo" );
+    const auto grid = geode::load_one(
+        geode::load_regular_grid< 3 >( grid_filename ), grid_filename );
     auto attribute_ids =
         grid->cell_attribute_manager().attribute_ids_matching_name( "random" );
     auto attribute_to_test =
@@ -91,7 +92,8 @@ namespace
                  << geometry << "ASCII_DATA_FILE " << data_name
                  << "\nPROPERTY 1 p\nEND\n";
         }
-        return geode::load_regular_grid< 3 >( filename );
+        return geode::load_one(
+            geode::load_regular_grid< 3 >( filename ), filename );
     }
 
     constexpr auto SIMPLE_GEOMETRY =
@@ -172,7 +174,8 @@ namespace
                 additional_files.mandatory_files.size() == 1
                     && !additional_files.has_additional_files(),
                 "[TEST] Data file should be found next to the Voxet" );
-            const auto grid = geode::load_regular_grid< 3 >( filename );
+            const auto grid = geode::load_one(
+                geode::load_regular_grid< 3 >( filename ), filename );
             geode::OpenGeodeGeosciencesIOMeshException::test(
                 cell_value( *grid, 0, 0, 0 ) == 7,
                 "[TEST] Wrong value read from data file ", data_name );
@@ -181,8 +184,9 @@ namespace
 
     void test_geometry()
     {
-        const auto grid = geode::load_regular_grid< 3 >(
-            absl::StrCat( geode::DATA_PATH, "test.vo" ) );
+        const auto grid_filename = absl::StrCat( geode::DATA_PATH, "test.vo" );
+        const auto grid = geode::load_one(
+            geode::load_regular_grid< 3 >( grid_filename ), grid_filename );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             grid->cell_barycenter( { 0, 0, 0 } )
                     .inexact_equal( geode::Point3D{ { 0, 0, 0 } } )
