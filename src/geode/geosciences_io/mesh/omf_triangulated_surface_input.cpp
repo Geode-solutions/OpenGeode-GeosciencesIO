@@ -42,70 +42,54 @@ namespace geode::internal
     std::vector< std::unique_ptr< TriangulatedSurface3D > >
         OMFTriangulatedSurfaceInput::read( const MeshImpl& impl )
     {
-        auto surface = TriangulatedSurface3D::create( impl );
-        auto builder = TriangulatedSurfaceBuilder3D::create( *surface );
         const OMFFile file{ filename() };
-        const auto elements =
+        std::vector< std::unique_ptr< TriangulatedSurface3D > > surfaces;
+        for( const auto* element :
             file.elements( OMF_TRIANGULATED_SURFACE_ELEMENT_CLASS,
-                OMF_TRIANGULATED_SURFACE_GEOMETRY_CLASS );
-        builder->set_name( file.mesh_name( elements ) );
-        for( const auto element_id : Indices{ elements } )
+                OMF_TRIANGULATED_SURFACE_GEOMETRY_CLASS ) )
         {
-            const auto& element = *elements[element_id];
-            const auto& geometry = file.geometry( element );
+            auto surface = TriangulatedSurface3D::create( impl );
+            auto builder = TriangulatedSurfaceBuilder3D::create( *surface );
+            builder->set_name( OMFFile::name( *element ) );
+            const auto& geometry = file.geometry( *element );
             const auto points = file.read_points( geometry, "vertices" );
             const auto nb_points = static_cast< index_t >( points.size() );
             const auto triangles =
                 file.read_elements< 3 >( geometry, "triangles", nb_points );
-            const auto first_vertex = surface->nb_vertices();
-            const auto first_polygon = surface->nb_polygons();
-            builder->create_vertices( static_cast< index_t >( points.size() ) );
+            builder->create_vertices( nb_points );
             for( const auto point : Indices{ points } )
             {
-                builder->set_point( first_vertex + point, points[point] );
+                builder->set_point( point, points[point] );
             }
             std::vector< index_t > face_polygons( triangles.size(), NO_ID );
             for( const auto triangle : Indices{ triangles } )
             {
-                auto vertices = triangles[triangle];
-                if( vertices[0] == NO_ID )
+                const auto& vertices = triangles[triangle];
+                if( vertices[0] != NO_ID )
                 {
-                    continue;
+                    face_polygons[triangle] =
+                        builder->create_triangle( vertices );
                 }
-                for( auto& vertex : vertices )
-                {
-                    vertex += first_vertex;
-                }
-                face_polygons[triangle] = builder->create_triangle( vertices );
             }
-            file.read_data( element, "vertices", nb_points,
-                surface->vertex_attribute_manager(),
-                [first_vertex]( index_t value ) {
-                    return first_vertex + value;
+            file.read_data( *element, "vertices", nb_points,
+                surface->vertex_attribute_manager(), []( index_t value ) {
+                    return value;
                 } );
-            file.read_data( element, "faces",
+            file.read_data( *element, "faces",
                 static_cast< index_t >( triangles.size() ),
                 surface->polygon_attribute_manager(),
                 [&face_polygons]( index_t value ) {
                     return face_polygons[value];
                 } );
-            if( elements.size() > 1 )
-            {
-                set_omf_element_attribute( surface->vertex_attribute_manager(),
-                    element_id, first_vertex, surface->nb_vertices() );
-                set_omf_element_attribute( surface->polygon_attribute_manager(),
-                    element_id, first_polygon, surface->nb_polygons() );
-            }
-            if( !element.value( "textures", nlohmann::json::array() ).empty() )
+            if( !element->value( "textures", nlohmann::json::array() ).empty() )
             {
                 Logger::info( "[OMFInput] Textures of surface \"",
-                    OMFFile::name( element ), "\" are not imported" );
+                    OMFFile::name( *element ), "\" are not imported" );
             }
+            builder->compute_polygon_adjacencies();
+            surfaces.emplace_back( std::move( surface ) );
         }
-        builder->compute_polygon_adjacencies();
-        std::vector< std::unique_ptr< TriangulatedSurface3D > > meshes;
-        meshes.emplace_back( std::move( surface ) );
-        return meshes;
+        return surfaces;
     }
 
     Percentage OMFTriangulatedSurfaceInput::is_loadable() const

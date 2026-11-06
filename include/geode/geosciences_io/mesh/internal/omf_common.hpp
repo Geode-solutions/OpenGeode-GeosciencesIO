@@ -56,7 +56,6 @@ namespace geode::internal
     {
     public:
         static constexpr auto EXTENSION = "omf";
-        static constexpr auto OMF_ELEMENT_ATTRIBUTE_NAME = "omf_element";
         /*!
          * Default bound of the number of values of an array: meshes are
          * limited to NO_ID points or elements of at most 3 values
@@ -88,8 +87,6 @@ namespace geode::internal
          */
         [[nodiscard]] std::size_t nb_elements() const;
 
-        [[nodiscard]] std::string_view project_name() const;
-
         /*!
          * Elements of the project with the given class (and geometry class if
          * not empty), in the project order
@@ -106,12 +103,6 @@ namespace geode::internal
 
         [[nodiscard]] static std::string_view name(
             const nlohmann::json& object );
-
-        /*!
-         * Name of the element if there is only one, project name otherwise
-         */
-        [[nodiscard]] std::string_view mesh_name(
-            absl::Span< const nlohmann::json* const > elements ) const;
 
         /*!
          * Read an inline grid tensor (cell sizes along one axis)
@@ -209,13 +200,4 @@ namespace geode::internal
         Vector3D project_origin_;
         bool warn_missing_elements_{ true };
     };
-
-    /*!
-     * Set the mesh name and, when several OMF elements are merged into the
-     * same mesh, the omf_element attribute giving the element index
-     */
-    void set_omf_element_attribute( AttributeManager& manager,
-        index_t element_id,
-        index_t begin,
-        index_t end );
 } // namespace geode::internal
