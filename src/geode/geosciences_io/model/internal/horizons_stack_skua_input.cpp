@@ -201,10 +201,13 @@ namespace
 namespace geode::internal
 {
     template < index_t dimension >
-    HorizonsStack< dimension > HorizonStackSKUAInput< dimension >::read()
+    std::vector< HorizonsStack< dimension > >
+        HorizonStackSKUAInput< dimension >::read()
     {
         HorizonStackSKUAInputImpl< dimension > impl{ this->filename() };
-        return impl.read_file();
+        std::vector< HorizonsStack< dimension > > objects;
+        objects.emplace_back( impl.read_file() );
+        return objects;
     }
 
     template < index_t dimension >

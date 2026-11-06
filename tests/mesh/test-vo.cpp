@@ -42,8 +42,9 @@
 
 void test_grid_input()
 {
-    const auto grid = geode::load_regular_grid< 3 >(
-        absl::StrCat( geode::DATA_PATH, "test.vo" ) );
+    const auto grid_filename = absl::StrCat( geode::DATA_PATH, "test.vo" );
+    const auto grid = geode::load_one(
+        geode::load_regular_grid< 3 >( grid_filename ), grid_filename );
     auto attribute_ids =
         grid->cell_attribute_manager().attribute_ids_matching_name( "random" );
     auto attribute_to_test =
@@ -91,7 +92,8 @@ namespace
                  << geometry << "ASCII_DATA_FILE " << data_name
                  << "\nPROPERTY 1 p\nEND\n";
         }
-        return geode::load_regular_grid< 3 >( filename );
+        return geode::load_one(
+            geode::load_regular_grid< 3 >( filename ), filename );
     }
 
     constexpr auto SIMPLE_GEOMETRY =
@@ -172,7 +174,8 @@ namespace
                 additional_files.mandatory_files.size() == 1
                     && !additional_files.has_additional_files(),
                 "[TEST] Data file should be found next to the Voxet" );
-            const auto grid = geode::load_regular_grid< 3 >( filename );
+            const auto grid = geode::load_one(
+                geode::load_regular_grid< 3 >( filename ), filename );
             geode::OpenGeodeGeosciencesIOMeshException::test(
                 cell_value( *grid, 0, 0, 0 ) == 7,
                 "[TEST] Wrong value read from data file ", data_name );
@@ -181,8 +184,9 @@ namespace
 
     void test_geometry()
     {
-        const auto grid = geode::load_regular_grid< 3 >(
-            absl::StrCat( geode::DATA_PATH, "test.vo" ) );
+        const auto grid_filename = absl::StrCat( geode::DATA_PATH, "test.vo" );
+        const auto grid = geode::load_one(
+            geode::load_regular_grid< 3 >( grid_filename ), grid_filename );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             grid->cell_barycenter( { 0, 0, 0 } )
                     .inexact_equal( geode::Point3D{ { 0, 0, 0 } } )
@@ -208,6 +212,42 @@ namespace
                     .inexact_equal( geode::Point3D{ { 6, 24, -38 } } ),
             "[TEST] Wrong rotated voxet geometry" );
     }
+
+    void test_multiple_voxets()
+    {
+        const auto file = absl::StrCat( geode::DATA_PATH, "2voxets.vo" );
+        const auto grids = geode::load_regular_grid< 3 >( file );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            grids.size() == 2, "[TEST] 2voxets.vo should hold 2 grids" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            grids[0]->name() == "test" && grids[1]->name() == "test_trimmed",
+            "[TEST] Each grid should be named after its Voxet" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            grids[0]->nb_cells() == 1000 && grids[1]->nb_cells() == 500
+                && grids[1]->nb_cells_in_direction( 2 ) == 5,
+            "[TEST] Wrong number of cells in 2voxets.vo grids" );
+        const auto random_value = []( const geode::RegularGrid3D& grid,
+                                      const geode::Grid3D::CellIndices& cell ) {
+            const auto& manager = grid.cell_attribute_manager();
+            return manager
+                .find_read_only_attribute< double >(
+                    manager.attribute_ids_matching_name( "random" )
+                        .value()
+                        .front() )
+                ->value( grid.cell_index( cell ) );
+        };
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            random_value( *grids[0], { 5, 0, 9 } ) == 8.95907
+                && random_value( *grids[1], { 0, 0, 0 } ) == 6.48414
+                && random_value( *grids[1], { 9, 9, 4 } ) == 4.81637,
+            "[TEST] Wrong values in 2voxets.vo grids" );
+        const auto additional_files =
+            geode::regular_grid_additional_files< 3 >( file );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            additional_files.mandatory_files.size() == 2
+                && !additional_files.has_additional_files(),
+            "[TEST] Both 2voxets.vo data files should be found" );
+    }
 } // namespace
 
 int main()
@@ -221,6 +261,7 @@ int main()
         test_geometry();
         test_data_file_format();
         test_data_file_location();
+        test_multiple_voxets();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

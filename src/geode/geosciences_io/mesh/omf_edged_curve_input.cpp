@@ -37,29 +37,26 @@ namespace
 
 namespace geode::internal
 {
-    std::unique_ptr< EdgedCurve3D > OMFEdgedCurveInput::read(
+    std::vector< std::unique_ptr< EdgedCurve3D > > OMFEdgedCurveInput::read(
         const MeshImpl& impl )
     {
-        auto curve = EdgedCurve3D::create( impl );
-        auto builder = EdgedCurveBuilder3D::create( *curve );
         const OMFFile file{ filename() };
-        const auto elements =
-            file.elements( OMF_EDGED_CURVE_ELEMENT_CLASS, "" );
-        builder->set_name( file.mesh_name( elements ) );
-        for( const auto element_id : Indices{ elements } )
+        std::vector< std::unique_ptr< EdgedCurve3D > > curves;
+        for( const auto* element :
+            file.elements( OMF_EDGED_CURVE_ELEMENT_CLASS, "" ) )
         {
-            const auto& element = *elements[element_id];
-            const auto& geometry = file.geometry( element );
+            auto curve = EdgedCurve3D::create( impl );
+            auto builder = EdgedCurveBuilder3D::create( *curve );
+            builder->set_name( OMFFile::name( *element ) );
+            const auto& geometry = file.geometry( *element );
             const auto points = file.read_points( geometry, "vertices" );
             const auto nb_points = static_cast< index_t >( points.size() );
             const auto segments =
                 file.read_elements< 2 >( geometry, "segments", nb_points );
-            const auto first_vertex = curve->nb_vertices();
-            const auto first_edge = curve->nb_edges();
-            builder->create_vertices( static_cast< index_t >( points.size() ) );
+            builder->create_vertices( nb_points );
             for( const auto point : Indices{ points } )
             {
-                builder->set_point( first_vertex + point, points[point] );
+                builder->set_point( point, points[point] );
             }
             std::vector< index_t > segment_edges( segments.size(), NO_ID );
             for( const auto segment : Indices{ segments } )
@@ -68,30 +65,22 @@ namespace geode::internal
                 if( vertices[0] != NO_ID )
                 {
                     segment_edges[segment] =
-                        builder->create_edge( first_vertex + vertices[0],
-                            first_vertex + vertices[1] );
+                        builder->create_edge( vertices[0], vertices[1] );
                 }
             }
-            file.read_data( element, "vertices", nb_points,
-                curve->vertex_attribute_manager(),
-                [first_vertex]( index_t value ) {
-                    return first_vertex + value;
+            file.read_data( *element, "vertices", nb_points,
+                curve->vertex_attribute_manager(), []( index_t value ) {
+                    return value;
                 } );
-            file.read_data( element, "segments",
+            file.read_data( *element, "segments",
                 static_cast< index_t >( segments.size() ),
                 curve->edge_attribute_manager(),
                 [&segment_edges]( index_t value ) {
                     return segment_edges[value];
                 } );
-            if( elements.size() > 1 )
-            {
-                set_omf_element_attribute( curve->vertex_attribute_manager(),
-                    element_id, first_vertex, curve->nb_vertices() );
-                set_omf_element_attribute( curve->edge_attribute_manager(),
-                    element_id, first_edge, curve->nb_edges() );
-            }
+            curves.emplace_back( std::move( curve ) );
         }
-        return curve;
+        return curves;
     }
 
     Percentage OMFEdgedCurveInput::is_loadable() const

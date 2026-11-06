@@ -35,6 +35,7 @@
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/file.hpp>
 #include <geode/basic/filename.hpp>
+#include <geode/basic/input.hpp>
 #include <geode/basic/logger.hpp>
 #include <geode/basic/variable_attribute.hpp>
 
@@ -207,7 +208,8 @@ namespace
                 geode::Logger::LEVEL level_;
             };
             const LoggerLevelRestorer restorer;
-            return geode::load_raster_image< 2 >( filename_ );
+            return geode::load_one(
+                geode::load_raster_image< 2 >( filename_ ), filename_ );
         }
 
         /*!
@@ -231,10 +233,12 @@ namespace
 
 namespace geode::internal
 {
-    LightRegularGrid2D GEOTIFFInput::read()
+    std::vector< LightRegularGrid2D > GEOTIFFInput::read()
     {
         GEOTIFFInputImpl geo_reader( filename() );
-        return geo_reader.read_file();
+        std::vector< LightRegularGrid2D > objects;
+        objects.emplace_back( geo_reader.read_file() );
+        return objects;
     }
 
     Percentage GEOTIFFInput::is_loadable() const

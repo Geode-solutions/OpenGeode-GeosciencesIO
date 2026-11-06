@@ -49,7 +49,7 @@ namespace geode::internal
             return extensions;
         }
 
-        std::unique_ptr< PolygonalSurface3D > read(
+        std::vector< std::unique_ptr< PolygonalSurface3D > > read(
             const MeshImpl& impl ) final;
 
         AdditionalFiles additional_files() const final;

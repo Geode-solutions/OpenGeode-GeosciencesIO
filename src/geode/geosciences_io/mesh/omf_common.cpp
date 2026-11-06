@@ -170,8 +170,8 @@ namespace
 
     /*
      * Find the attribute with this name and type, or create it. If an
-     * attribute with this name but another type exists (e.g. two merged
-     * elements with data of the same name but different kinds), the type
+     * attribute with this name but another type exists (e.g. two data of
+     * the same element with the same name but different kinds), the type
      * suffix is appended to the name.
      */
     template < typename T >
@@ -727,11 +727,6 @@ namespace geode::internal
         return count;
     }
 
-    std::string_view OMFFile::project_name() const
-    {
-        return name( *project_ );
-    }
-
     std::vector< const nlohmann::json* > OMFFile::elements(
         std::string_view element_class, std::string_view geometry_class ) const
     {
@@ -798,16 +793,6 @@ namespace geode::internal
             return {};
         }
         return it->get_ref< const std::string& >();
-    }
-
-    std::string_view OMFFile::mesh_name(
-        absl::Span< const nlohmann::json* const > elements ) const
-    {
-        if( elements.size() == 1 )
-        {
-            return name( *elements.front() );
-        }
-        return project_name();
     }
 
     std::vector< double > OMFFile::read_tensor(
@@ -1130,22 +1115,5 @@ namespace geode::internal
         }
         result.resize( size / sizeof( T ) );
         return result;
-    }
-
-    void set_omf_element_attribute( AttributeManager& manager,
-        index_t element_id,
-        index_t begin,
-        index_t end )
-    {
-        AttributeValues< index_t > values;
-        values.default_value = NO_ID;
-        values.no_value = NO_ID;
-        const auto attribute = find_or_create_omf_attribute< index_t >( manager,
-            OMFFile::OMF_ELEMENT_ATTRIBUTE_NAME, "id", std::move( values ),
-            false );
-        for( const auto element : Range{ begin, end } )
-        {
-            attribute->set_value( element, element_id );
-        }
     }
 } // namespace geode::internal

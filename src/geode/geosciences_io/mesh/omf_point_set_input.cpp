@@ -37,37 +37,32 @@ namespace
 
 namespace geode::internal
 {
-    std::unique_ptr< PointSet3D > OMFPointSetInput::read( const MeshImpl& impl )
+    std::vector< std::unique_ptr< PointSet3D > > OMFPointSetInput::read(
+        const MeshImpl& impl )
     {
-        auto point_set = PointSet3D::create( impl );
-        auto builder = PointSetBuilder3D::create( *point_set );
         const OMFFile file{ filename() };
-        const auto elements = file.elements( OMF_POINT_SET_ELEMENT_CLASS, "" );
-        builder->set_name( file.mesh_name( elements ) );
-        auto& manager = point_set->vertex_attribute_manager();
-        for( const auto element_id : Indices{ elements } )
+        std::vector< std::unique_ptr< PointSet3D > > point_sets;
+        for( const auto* element :
+            file.elements( OMF_POINT_SET_ELEMENT_CLASS, "" ) )
         {
-            const auto& element = *elements[element_id];
+            auto point_set = PointSet3D::create( impl );
+            auto builder = PointSetBuilder3D::create( *point_set );
+            builder->set_name( OMFFile::name( *element ) );
             const auto points =
-                file.read_points( file.geometry( element ), "vertices" );
-            const auto first = point_set->nb_vertices();
+                file.read_points( file.geometry( *element ), "vertices" );
             builder->create_vertices( static_cast< index_t >( points.size() ) );
             for( const auto point : Indices{ points } )
             {
-                builder->set_point( first + point, points[point] );
+                builder->set_point( point, points[point] );
             }
-            file.read_data( element, "vertices",
-                static_cast< index_t >( points.size() ), manager,
-                [first]( index_t value ) {
-                    return first + value;
+            file.read_data( *element, "vertices",
+                static_cast< index_t >( points.size() ),
+                point_set->vertex_attribute_manager(), []( index_t value ) {
+                    return value;
                 } );
-            if( elements.size() > 1 )
-            {
-                set_omf_element_attribute(
-                    manager, element_id, first, point_set->nb_vertices() );
-            }
+            point_sets.emplace_back( std::move( point_set ) );
         }
-        return point_set;
+        return point_sets;
     }
 
     Percentage OMFPointSetInput::is_loadable() const

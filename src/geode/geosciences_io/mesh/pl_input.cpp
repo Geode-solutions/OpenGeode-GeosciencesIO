@@ -28,7 +28,6 @@
 #include <absl/algorithm/container.h>
 
 #include <geode/basic/file.hpp>
-#include <geode/basic/logger.hpp>
 
 #include <geode/geometry/point.hpp>
 
@@ -42,53 +41,43 @@ namespace
     class PLInputImpl
     {
     public:
-        PLInputImpl( std::string_view filename, geode::EdgedCurve3D& curve )
+        PLInputImpl( std::string_view filename, const geode::MeshImpl& impl )
             : file_{ geode::to_string( filename ), std::ios::binary },
-              curve_( curve ),
-              builder_( geode::EdgedCurveBuilder< 3 >::create( curve ) )
+              impl_( impl )
         {
             geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                 file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "Error while opening file: ", filename );
         }
 
-        void read_file()
+        std::vector< std::unique_ptr< geode::EdgedCurve3D > > read_file()
         {
-            geode::index_t nb_objects{ 0 };
+            std::vector< std::unique_ptr< geode::EdgedCurve3D > > curves;
             while( const auto ecurve = geode::internal::read_ecurve( file_ ) )
             {
-                build_curve( ecurve.value() );
-                nb_objects++;
+                curves.emplace_back( build_curve( ecurve.value() ) );
             }
-            if( nb_objects == 0 )
-            {
-                geode::Logger::warning(
-                    "[PLInput] No GOCAD PLine found in the file" );
-            }
+            return curves;
         }
 
     private:
-        void build_curve( const geode::internal::ECurveData& ecurve )
+        std::unique_ptr< geode::EdgedCurve3D > build_curve(
+            const geode::internal::ECurveData& ecurve ) const
         {
-            const auto offset = curve_.nb_vertices();
-            if( ecurve.header.name && !curve_.name() )
+            auto curve = geode::EdgedCurve3D::create( impl_ );
+            auto builder = geode::EdgedCurveBuilder3D::create( *curve );
+            if( ecurve.header.name )
             {
-                builder_->set_name( ecurve.header.name.value() );
+                builder->set_name( ecurve.header.name.value() );
             }
-            const auto first_vertex =
-                builder_->create_vertices( ecurve.points.size() );
+            builder->create_vertices( ecurve.points.size() );
             for( const auto vertex : geode::Indices{ ecurve.points } )
             {
-                builder_->set_point(
-                    first_vertex + vertex, ecurve.points[vertex] );
+                builder->set_point( vertex, ecurve.points[vertex] );
             }
-            for( auto edge : ecurve.edges )
+            for( const auto& edge : ecurve.edges )
             {
-                for( auto& vertex : edge )
-                {
-                    vertex += offset;
-                }
-                builder_->create_edge( edge[0], edge[1] );
+                builder->create_edge( edge[0], edge[1] );
             }
             std::vector< geode::index_t > inverse_vertex_mapping(
                 ecurve.points.size() );
@@ -96,25 +85,24 @@ namespace
             geode::internal::create_attributes(
                 ecurve.vertices_properties_header,
                 ecurve.vertices_attribute_values,
-                curve_.vertex_attribute_manager(), ecurve.points.size(),
-                inverse_vertex_mapping, offset );
+                curve->vertex_attribute_manager(), ecurve.points.size(),
+                inverse_vertex_mapping, 0 );
+            return curve;
         }
 
     private:
         std::ifstream file_;
-        geode::EdgedCurve3D& curve_;
-        std::unique_ptr< geode::EdgedCurveBuilder3D > builder_;
+        const geode::MeshImpl& impl_;
     };
-
 } // namespace
+
 namespace geode::internal
 {
-    std::unique_ptr< EdgedCurve3D > PLInput::read( const MeshImpl& impl )
+    std::vector< std::unique_ptr< EdgedCurve3D > > PLInput::read(
+        const MeshImpl& impl )
     {
-        auto curve = EdgedCurve3D::create( impl );
-        PLInputImpl reader{ this->filename(), *curve };
-        reader.read_file();
-        return curve;
+        PLInputImpl reader{ this->filename(), impl };
+        return reader.read_file();
     }
 
     Percentage PLInput::is_loadable() const

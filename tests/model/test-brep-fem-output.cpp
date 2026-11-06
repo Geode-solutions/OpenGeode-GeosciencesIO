@@ -194,8 +194,10 @@ namespace
 
     void test_brep_fem_output()
     {
-        auto brep = geode::load_brep(
-            absl::StrCat( geode::DATA_PATH, "remeshed_yom-faults.og_brep" ) );
+        const auto brep_filename =
+            absl::StrCat( geode::DATA_PATH, "remeshed_yom-faults.og_brep" );
+        auto brep =
+            geode::load_one( geode::load_brep( brep_filename ), brep_filename );
         geode::save_brep( brep, "test_brep.fem" );
     }
 
@@ -225,8 +227,10 @@ namespace
 
     void test_unmapped_surface_and_line_elements()
     {
-        auto brep = geode::load_brep(
-            absl::StrCat( geode::DATA_PATH, "remeshed_yom-faults.og_brep" ) );
+        const auto brep_filename =
+            absl::StrCat( geode::DATA_PATH, "remeshed_yom-faults.og_brep" );
+        auto brep =
+            geode::load_one( geode::load_brep( brep_filename ), brep_filename );
         geode::BRepBuilder builder{ brep };
         const auto& block = *brep.blocks().begin();
         const auto nb_block_vertices = block.mesh().nb_vertices();
@@ -285,8 +289,10 @@ namespace
 
     void test_block_attributes()
     {
-        auto brep = geode::load_brep(
-            absl::StrCat( geode::DATA_PATH, "remeshed_yom-faults.og_brep" ) );
+        const auto brep_filename =
+            absl::StrCat( geode::DATA_PATH, "remeshed_yom-faults.og_brep" );
+        auto brep =
+            geode::load_one( geode::load_brep( brep_filename ), brep_filename );
         absl::flat_hash_map< geode::uuid, double > block_values;
         double value{ 1.5 };
         for( const auto& block : brep.blocks() )
@@ -344,8 +350,10 @@ namespace
 
     void test_features_on_any_component()
     {
-        auto brep = geode::load_brep(
-            absl::StrCat( geode::DATA_PATH, "remeshed_yom-faults.og_brep" ) );
+        const auto brep_filename =
+            absl::StrCat( geode::DATA_PATH, "remeshed_yom-faults.og_brep" );
+        auto brep =
+            geode::load_one( geode::load_brep( brep_filename ), brep_filename );
         std::vector< std::reference_wrapper< const geode::Surface3D > >
             surfaces;
         for( const auto& surface : brep.surfaces() )
@@ -376,8 +384,10 @@ namespace
 
     void test_double_precision()
     {
-        auto brep = geode::load_brep(
-            absl::StrCat( geode::DATA_PATH, "remeshed_yom-faults.og_brep" ) );
+        const auto brep_filename =
+            absl::StrCat( geode::DATA_PATH, "remeshed_yom-faults.og_brep" );
+        auto brep =
+            geode::load_one( geode::load_brep( brep_filename ), brep_filename );
         const auto& surface = *brep.surfaces().begin();
         add_constant_attribute( surface.mesh().polygon_attribute_manager(),
             "diagres_discontinuity_aperture", 1.23456789e-5 );
@@ -409,8 +419,10 @@ namespace
 
     void test_save_in_new_directory()
     {
-        auto brep = geode::load_brep(
-            absl::StrCat( geode::DATA_PATH, "remeshed_yom-faults.og_brep" ) );
+        const auto brep_filename =
+            absl::StrCat( geode::DATA_PATH, "remeshed_yom-faults.og_brep" );
+        auto brep =
+            geode::load_one( geode::load_brep( brep_filename ), brep_filename );
         const auto filename = "fem_output_directory/brep/test_brep.fem";
         geode::save_brep( brep, filename );
         const auto lines = read_lines( filename );

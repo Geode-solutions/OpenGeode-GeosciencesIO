@@ -27,12 +27,15 @@
 
 namespace geode::internal
 {
-    std::unique_ptr< EdgedCurve3D > WellDatInput::read( const MeshImpl& impl )
+    std::vector< std::unique_ptr< EdgedCurve3D > > WellDatInput::read(
+        const MeshImpl& impl )
     {
         auto well = EdgedCurve3D::create( impl );
         WellInputImpl reader{ this->filename(), *well };
         reader.read_file();
-        return well;
+        std::vector< std::unique_ptr< EdgedCurve3D > > meshes;
+        meshes.emplace_back( std::move( well ) );
+        return meshes;
     }
 
     Percentage WellDatInput::is_loadable() const

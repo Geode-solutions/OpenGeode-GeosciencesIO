@@ -136,7 +136,8 @@ void test_unordered_records()
         ],
         "name": "unordered"
     })" );
-    const auto grid = geode::load_light_regular_grid< 3 >( filename );
+    const auto grid = geode::load_one(
+        geode::load_light_regular_grid< 3 >( filename ), filename );
     geode::OpenGeodeGeosciencesIOMeshException::test(
         grid.nb_cells_in_direction( 0 ) == 1
             && grid.nb_cells_in_direction( 1 ) == 1
@@ -169,8 +170,8 @@ void test_invalid_grid( std::string_view filename, std::string_view content )
     }
     try
     {
-        [[maybe_unused]] const auto grid =
-            geode::load_light_regular_grid< 3 >( filename );
+        [[maybe_unused]] const auto grid = geode::load_one(
+            geode::load_light_regular_grid< 3 >( filename ), filename );
     }
     catch( const geode::OpenGeodeException& )
     {
@@ -246,7 +247,8 @@ void test_sparse_attributes()
         }
         file << "]}";
     }
-    const auto grid = geode::load_light_regular_grid< 3 >( filename );
+    const auto grid = geode::load_one(
+        geode::load_light_regular_grid< 3 >( filename ), filename );
     for( const auto record : { 0, 1, 517, 999 } )
     {
         const auto attribute =
@@ -278,7 +280,8 @@ void test_truncated_after_grid()
             { "x": 0, "y": 1, "z": 1 }, { "x": 1, "y": 1, "z": 1 }
         ],
         "name": )" );
-    const auto grid = geode::load_light_regular_grid< 3 >( filename );
+    const auto grid = geode::load_one(
+        geode::load_light_regular_grid< 3 >( filename ), filename );
     geode::OpenGeodeGeosciencesIOMeshException::test(
         grid.nb_grid_vertices() == 8,
         "Grid before the parse error should be loaded" );
@@ -315,10 +318,13 @@ void test_coordinate_system()
         "coordinate_system": "EPSG:4326"
     })" );
     check_coordinate_system(
-        geode::load_light_regular_grid< 3 >( filename ), "EPSG:4326" );
+        geode::load_one(
+            geode::load_light_regular_grid< 3 >( filename ), filename ),
+        "EPSG:4326" );
 
-    const auto no_crs =
-        geode::load_light_regular_grid< 3 >( "unordered_grid.json" );
+    const auto no_crs = geode::load_one(
+        geode::load_light_regular_grid< 3 >( "unordered_grid.json" ),
+        "unordered_grid.json" );
     geode::OpenGeodeGeosciencesIOMeshException::test(
         no_crs.grid_coordinate_reference_system_manager()
                 .active_coordinate_reference_system_name()
@@ -335,8 +341,9 @@ void test_coordinate_system()
         ],
         "coordinate_system": "99999"
     })" );
-    const auto unknown_crs =
-        geode::load_light_regular_grid< 3 >( unknown_filename );
+    const auto unknown_crs = geode::load_one(
+        geode::load_light_regular_grid< 3 >( unknown_filename ),
+        unknown_filename );
     geode::OpenGeodeGeosciencesIOMeshException::test(
         unknown_crs.grid_coordinate_reference_system_manager()
                 .active_coordinate_reference_system_name()
@@ -351,15 +358,19 @@ int main()
         geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
         geode::Logger::set_level( geode::Logger::LEVEL::trace );
 
-        const auto grid = geode::load_light_regular_grid< 3 >(
-            absl::StrCat( geode::DATA_PATH, "data.json" ) );
+        const auto grid_filename =
+            absl::StrCat( geode::DATA_PATH, "data.json" );
+        const auto grid = geode::load_one(
+            geode::load_light_regular_grid< 3 >( grid_filename ),
+            grid_filename );
         check_grid( grid );
         check_coordinate_system( grid, "EPSG:3949" );
 
         const auto output =
             absl::StrCat( "json_grid.", grid.native_extension() );
         geode::save_light_regular_grid( grid, output );
-        const auto reloaded = geode::load_light_regular_grid< 3 >( output );
+        const auto reloaded = geode::load_one(
+            geode::load_light_regular_grid< 3 >( output ), output );
         check_grid( reloaded );
         check_coordinate_system( reloaded, "EPSG:3949" );
 

@@ -188,8 +188,10 @@ void add_block_property( geode::BRep& model,
 void test_picasso()
 {
     // Load structural model
+    const auto model_filename =
+        absl::StrCat( geode::DATA_PATH, "picasso.og_brep" );
     auto model =
-        geode::load_brep( absl::StrCat( geode::DATA_PATH, "picasso.og_brep" ) );
+        geode::load_one( geode::load_brep( model_filename ), model_filename );
     const auto surfaces = east_surfaces( model );
     geode::OpenGeodeGeosciencesIOModelException::test(
         !surfaces.empty(), "[Test] No east Surface found" );
@@ -293,8 +295,10 @@ double table_value( const std::array< std::vector< double >, 3 >& coordinates,
 
 void test_uniform_variable_boundary_condition()
 {
+    const auto model_filename =
+        absl::StrCat( geode::DATA_PATH, "picasso.og_brep" );
     auto model =
-        geode::load_brep( absl::StrCat( geode::DATA_PATH, "picasso.og_brep" ) );
+        geode::load_one( geode::load_brep( model_filename ), model_filename );
     const auto surfaces = east_surfaces( model );
     add_boundary_condition< geode::VariableAttribute >( model, surfaces,
         geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "pressure", 1e7 );
@@ -385,8 +389,10 @@ void check_surface_pressure_table( const geode::Surface3D& surface,
 
 void test_variable_boundary_condition()
 {
+    const auto model_filename =
+        absl::StrCat( geode::DATA_PATH, "picasso.og_brep" );
     auto model =
-        geode::load_brep( absl::StrCat( geode::DATA_PATH, "picasso.og_brep" ) );
+        geode::load_one( geode::load_brep( model_filename ), model_filename );
     const auto surfaces = east_surfaces( model );
     const auto attribute_id =
         add_boundary_condition< geode::VariableAttribute >( model, surfaces,
@@ -619,8 +625,10 @@ void add_spe10_reference_boundary_conditions( geode::BRep& model )
 
 void test_spe10_reference()
 {
-    auto model = geode::load_brep( absl::StrCat(
-        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+    const auto model_filename = absl::StrCat(
+        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" );
+    auto model =
+        geode::load_one( geode::load_brep( model_filename ), model_filename );
     add_spe10_reference_boundary_conditions( model );
     // Ignored by flow simulations
     add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::initial_stress,
@@ -679,8 +687,10 @@ void test_spe10_reference()
 
 void test_toy_model_thermal()
 {
-    auto model = geode::load_brep( absl::StrCat(
-        geode::DATA_PATH, "adaptive_brep_perm_and_poro.og_brep" ) );
+    const auto model_filename =
+        absl::StrCat( geode::DATA_PATH, "adaptive_brep_perm_and_poro.og_brep" );
+    auto model =
+        geode::load_one( geode::load_brep( model_filename ), model_filename );
     const auto surfaces = east_surfaces( model );
     add_boundary_condition< geode::ConstantAttribute >( model, surfaces,
         geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, "bc_pressure", 2e7 );
@@ -768,8 +778,10 @@ public:
 
 void test_geos_rules()
 {
-    auto model = geode::load_brep( absl::StrCat(
-        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+    const auto model_filename = absl::StrCat(
+        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" );
+    auto model =
+        geode::load_one( geode::load_brep( model_filename ), model_filename );
     add_spe10_boundary_conditions( model );
     add_spe10_gas_fraction( model );
     {
@@ -816,8 +828,10 @@ void test_geos_rules()
 // The registered checker does not know the exporter wells
 void test_registered_checker()
 {
-    auto model = geode::load_brep( absl::StrCat(
-        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+    const auto model_filename = absl::StrCat(
+        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" );
+    auto model =
+        geode::load_one( geode::load_brep( model_filename ), model_filename );
     add_spe10_boundary_conditions( model );
     add_spe10_gas_fraction( model );
     geode::OpenGeodeGeosciencesIOModelException::test(
@@ -856,8 +870,10 @@ void test_registered_checker()
         "[Test] An unsupported fluid is a simulator issue: ",
         unsupported.string() );
 
-    auto no_gas_model = geode::load_brep( absl::StrCat(
-        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+    const auto no_gas_model_filename = absl::StrCat(
+        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" );
+    auto no_gas_model = geode::load_one(
+        geode::load_brep( no_gas_model_filename ), no_gas_model_filename );
     add_spe10_boundary_conditions( no_gas_model );
     const auto no_gas_problem = spe10_problem( no_gas_model );
     const auto no_gas = geode::SimulationCheckerFactory::create(
@@ -878,8 +894,10 @@ void test_registered_checker()
 
 void test_structural_model_regions()
 {
-    geode::StructuralModel model{ geode::load_brep( absl::StrCat(
-        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) ) };
+    const auto model_filename = absl::StrCat(
+        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" );
+    geode::StructuralModel model{ geode::load_one(
+        geode::load_brep( model_filename ), model_filename ) };
     add_spe10_boundary_conditions( model );
     add_spe10_gas_fraction( model );
     geode::StructuralModelBuilder model_builder{ model };
@@ -945,8 +963,10 @@ constexpr double TRACTION_GRADIENT{ 1e3 };
 
 geode::BRep elastic_cube()
 {
-    auto model = geode::load_brep( absl::StrCat(
-        geode::DATA_PATH, "adaptive_brep_perm_and_poro.og_brep" ) );
+    const auto model_filename =
+        absl::StrCat( geode::DATA_PATH, "adaptive_brep_perm_and_poro.og_brep" );
+    auto model =
+        geode::load_one( geode::load_brep( model_filename ), model_filename );
     add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::bulk_modulus,
         "bulk_modulus", BULK_MODULUS );
     add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::shear_modulus,
@@ -1213,8 +1233,10 @@ void test_layered_initial_stress()
 // One ConstantAttribute value per Block, as for a layered material
 void test_layered_bulk_modulus()
 {
-    auto model = geode::load_brep( absl::StrCat(
-        geode::DATA_PATH, "adaptive_brep_perm_and_poro.og_brep" ) );
+    const auto model_filename =
+        absl::StrCat( geode::DATA_PATH, "adaptive_brep_perm_and_poro.og_brep" );
+    auto model =
+        geode::load_one( geode::load_brep( model_filename ), model_filename );
     add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::shear_modulus,
         "shear_modulus", SHEAR_MODULUS );
     add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::density,
@@ -1395,8 +1417,10 @@ constexpr double THERMAL_EXPANSION{ 1e-5 };
 // displacements, drained and loaded top
 geode::BRep poroelastic_cube()
 {
-    auto model = geode::load_brep( absl::StrCat(
-        geode::DATA_PATH, "adaptive_brep_perm_and_poro.og_brep" ) );
+    const auto model_filename =
+        absl::StrCat( geode::DATA_PATH, "adaptive_brep_perm_and_poro.og_brep" );
+    auto model =
+        geode::load_one( geode::load_brep( model_filename ), model_filename );
     add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::bulk_modulus,
         "bulk_modulus", BULK_MODULUS );
     add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::shear_modulus,
@@ -1681,7 +1705,8 @@ template < typename T >
 std::vector< T > vtu_cell_values(
     std::string_view filename, std::string_view attribute_name )
 {
-    const auto solid = geode::load_tetrahedral_solid< 3 >( filename );
+    const auto solid = geode::load_one(
+        geode::load_tetrahedral_solid< 3 >( filename ), filename );
     const auto& manager = solid->polyhedron_attribute_manager();
     const auto ids = manager.attribute_ids_matching_name( attribute_name );
     geode::OpenGeodeGeosciencesIOModelException::test(
@@ -2179,8 +2204,10 @@ void test_names_in_geos_lists()
 
 void test_source_well_outside_model()
 {
-    auto model = geode::load_brep( absl::StrCat(
-        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" ) );
+    const auto model_filename = absl::StrCat(
+        geode::DATA_PATH, "grid_geos_with_physical_properties.og_brep" );
+    auto model =
+        geode::load_one( geode::load_brep( model_filename ), model_filename );
     add_spe10_reference_boundary_conditions( model );
     const auto problem = spe10_reference_problem( model );
     geode::BRepGeosExporter exporter( model, "source_outside" );
