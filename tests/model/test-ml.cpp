@@ -830,6 +830,19 @@ void test_several_border_loops_output()
             "annulus_saved.ml" ) );
 }
 
+void test_multiple_models()
+{
+    const auto file = absl::StrCat( geode::DATA_PATH, "2models.ml" );
+    const auto models = geode::load_structural_model( file );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        models.size() == 2, "2models.ml should hold 2 models" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        models[0].name() == "annulus" && models[1].name() == "nested",
+        "Each model should be named after its Model3d" );
+    check_annulus( models[0] );
+    check_model( models[1], 8, 12, 8, 2, 0, 1, 1 );
+}
+
 void test_empty_surface_output()
 {
     auto model = load_ml( "empty_surface.ml", tetra_ml() );
@@ -1053,6 +1066,7 @@ int main()
         test_empty_line_output();
         test_surface_collection_output();
         test_several_border_loops_output();
+        test_multiple_models();
         test_empty_surface_output();
         test_coordinates_precision();
         test_border_without_bstone();
