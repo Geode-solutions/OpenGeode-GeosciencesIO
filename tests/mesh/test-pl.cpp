@@ -241,6 +241,25 @@ namespace
             "Number of edges in the ECurve 3D is not correct" );
     }
 
+    void test_multiple_plines()
+    {
+        const auto file = absl::StrCat( geode::DATA_PATH, "2plines.pl" );
+        const auto curves = geode::load_edged_curve< 3 >( file );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curves.size() == 2, "2plines.pl should hold 2 curves" );
+        check_curve( *curves[0], 4, 3 );
+        check_curve( *curves[1], 3, 3 );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curves[0]->name() == "ls-fcl-25"
+                && curves[1]->name() == "xs+ls-ore-25",
+            "Each curve should be named after its PLine" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curves[1]->point( 0 ).value( 1 ) == 6074560
+                && curves[1]->edge_vertices( 2 )[0] == 2
+                && curves[1]->edge_vertices( 2 )[1] == 0,
+            "Wrong second PLine geometry" );
+    }
+
     void check_file( std::string file,
         geode::index_t nb_vertices,
         geode::index_t nb_edges,
@@ -290,6 +309,7 @@ int main()
         test_closed_loop_output();
         test_non_contiguous_ids();
         test_properties_and_atoms();
+        test_multiple_plines();
         test_shared_and_isolated_vertices_output();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
