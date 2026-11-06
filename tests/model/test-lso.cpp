@@ -753,6 +753,30 @@ void test_tetra_properties()
         nb_tetrahedra == 292, "Wrong number of tetrahedra" );
 }
 
+void test_multiple_solids()
+{
+    const auto file = absl::StrCat( geode::DATA_PATH, "2lightsolids.lso" );
+    const auto models = geode::load_structural_model( file );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        models.size() == 2, "2lightsolids.lso should hold 2 models" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        models[0].name() == "SimpleFlatHorizons"
+            && models[1].name() == "TetraProperties",
+        "Each model should be named after its LightTSolid" );
+    check_vri_model( models[0] );
+    check_vri_model( models[1] );
+    const auto has_tetra_property = []( const geode::StructuralModel& model ) {
+        return ( *model.blocks().begin() )
+            .mesh()
+            .polyhedron_attribute_manager()
+            .attribute_ids_matching_name( "centroid_x" )
+            .has_value();
+    };
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        !has_tetra_property( models[0] ) && has_tetra_property( models[1] ),
+        "Tetrahedra properties should only be in the second model" );
+}
+
 int main()
 {
     try
@@ -768,6 +792,7 @@ int main()
                        geode::internal::LSOInput::extension() ),
             12, 20, 11, 2, 7, 0, 9 );
         test_tetra_properties();
+        test_multiple_solids();
         test_malformed_tokens();
         test_shared_vertices();
         test_vertex_ids();
