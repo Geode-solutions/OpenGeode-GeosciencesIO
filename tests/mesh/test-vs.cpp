@@ -80,22 +80,66 @@ namespace
 
     void test_multiple_vset_properties()
     {
-        const auto pointset = load_test_file( "test_vs_multi_properties.vs",
+        const auto pointsets = geode::load_point_set< 3 >( write_test_file(
+            "test_vs_multi_properties.vs",
             "GOCAD VSet 1\nHEADER {\nname: a\n}\nPROPERTIES p\n"
             "PVRTX 1 0 0 0 1\nPVRTX 2 1 0 0 2\nEND\nGOCAD VSet 1\n"
-            "HEADER {\nname: b\n}\nPROPERTIES p\nPVRTX 1 0 1 0 3\nEND\n" );
-        const auto& manager = pointset->vertex_attribute_manager();
-        const auto ids = manager.attribute_ids_matching_name( "p" );
+            "HEADER {\nname: b\n}\nPROPERTIES p\nPVRTX 1 0 1 0 3\nEND\n" ) );
         geode::OpenGeodeGeosciencesIOMeshException::test(
-            pointset->nb_vertices() == 3 && ids.has_value() && ids->size() == 1,
-            "Wrong point set with several VSet" );
-        const auto attribute =
-            manager.find_read_only_attribute< double >( ids->front() );
+            pointsets.size() == 2 && pointsets[0]->nb_vertices() == 2
+                && pointsets[1]->nb_vertices() == 1,
+            "Wrong point sets with several VSet" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
-            attribute->value( 0 ) == 1 && attribute->value( 2 ) == 3,
+            pointsets[0]->name() == "a" && pointsets[1]->name() == "b",
+            "Each point set should be named after its VSet" );
+        const auto property_value = []( const geode::PointSet3D& pointset,
+                                        geode::index_t vertex ) {
+            const auto& manager = pointset.vertex_attribute_manager();
+            const auto ids = manager.attribute_ids_matching_name( "p" );
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                ids.has_value() && ids->size() == 1,
+                "Property p should exist once" );
+            return manager.find_read_only_attribute< double >( ids->front() )
+                ->value( vertex );
+        };
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            property_value( *pointsets[0], 0 ) == 1
+                && property_value( *pointsets[0], 1 ) == 2
+                && property_value( *pointsets[1], 0 ) == 3,
             "Wrong property values with several VSet" );
+    }
+
+    void test_multiple_vsets()
+    {
+        const auto file = absl::StrCat( geode::DATA_PATH, "2vsets.vs" );
+        const auto pointsets = geode::load_point_set< 3 >( file );
         geode::OpenGeodeGeosciencesIOMeshException::test(
-            pointset->name() == "a", "The first VSet name should be used" );
+            pointsets.size() == 2, "2vsets.vs should hold 2 point sets" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            pointsets[0]->nb_vertices() == 6
+                && pointsets[1]->nb_vertices() == 3,
+            "Wrong number of vertices in 2vsets.vs point sets" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            pointsets[0]->name() == "points"
+                && pointsets[1]->name() == "points_trimmed",
+            "Wrong point set names in 2vsets.vs" );
+    }
+
+    void test_file_without_vset()
+    {
+        auto has_thrown = false;
+        try
+        {
+            const auto pointset =
+                load_test_file( "test_vs_empty.vs", "GOCAD TSurf 1\nEND\n" );
+        }
+        catch( const geode::OpenGeodeException& exception )
+        {
+            geode::Logger::info( "Expected exception: ", exception.what() );
+            has_thrown = true;
+        }
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            has_thrown, "File without VSet should not give a point set" );
     }
 
     template < typename T >
@@ -234,12 +278,9 @@ int main()
         test_blank_lines();
         test_points_normal();
         test_multiple_vset_properties();
+        test_multiple_vsets();
+        test_file_without_vset();
         test_output_properties();
-        geode::OpenGeodeGeosciencesIOMeshException::test(
-            load_test_file( "test_vs_empty.vs", "GOCAD TSurf 1\nEND\n" )
-                    ->nb_vertices()
-                == 0,
-            "File without VSet should give an empty point set" );
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
