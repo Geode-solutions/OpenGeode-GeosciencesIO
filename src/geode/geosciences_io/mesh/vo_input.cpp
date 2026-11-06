@@ -28,6 +28,7 @@
 #include <optional>
 #include <string>
 
+#include <absl/container/flat_hash_set.h>
 #include <absl/strings/match.h>
 #include <absl/strings/str_replace.h>
 #include <absl/strings/strip.h>
@@ -83,25 +84,18 @@ namespace
     class VOInputImpl
     {
     public:
-        VOInputImpl( std::string_view filename, geode::RegularGrid3D& grid )
-            : file_{ geode::to_string( filename ), std::ios::binary },
+        VOInputImpl( std::ifstream& file,
+            std::string_view filename,
+            geode::RegularGrid3D& grid )
+            : file_( file ),
               filename_{ filename },
               grid_( grid ),
               builder_{ geode::RegularGridBuilder3D::create( grid ) }
         {
-            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
-                file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
-                "Error while opening file: ", filename );
         }
 
-        void read_file()
+        void read_voxet()
         {
-            if( !geode::goto_keyword_if_it_exists( file_, "GOCAD Voxet" ) )
-            {
-                throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
-                    geode::OpenGeodeException::TYPE::data,
-                    "[VOInput] Cannot find Voxet in the file" };
-            }
             const auto header = geode::internal::read_header( file_ );
             if( header.name )
             {
@@ -374,7 +368,7 @@ namespace
         }
 
     private:
-        std::ifstream file_;
+        std::ifstream& file_;
         std::string filename_;
         geode::RegularGrid3D& grid_;
         std::unique_ptr< geode::RegularGridBuilder3D > builder_;
@@ -393,26 +387,39 @@ namespace geode::internal
     std::vector< std::unique_ptr< RegularGrid3D > > VOInput::read(
         const MeshImpl& impl )
     {
-        auto voxet = RegularGrid3D::create( impl );
-        VOInputImpl reader{ filename(), *voxet };
-        reader.read_file();
-        std::vector< std::unique_ptr< RegularGrid3D > > meshes;
-        meshes.emplace_back( std::move( voxet ) );
-        return meshes;
+        std::ifstream file{ to_string( filename() ), std::ios::binary };
+        OpenGeodeGeosciencesIOMeshException::check_exception( file.good(),
+            nullptr, OpenGeodeException::TYPE::data,
+            "Error while opening file: ", filename() );
+        std::vector< std::unique_ptr< RegularGrid3D > > voxets;
+        while( goto_keyword_if_it_exists( file, "GOCAD Voxet" ) )
+        {
+            auto voxet = RegularGrid3D::create( impl );
+            VOInputImpl reader{ file, filename(), *voxet };
+            reader.read_voxet();
+            voxets.emplace_back( std::move( voxet ) );
+        }
+        OpenGeodeGeosciencesIOMeshException::check_exception( !voxets.empty(),
+            nullptr, OpenGeodeException::TYPE::data,
+            "[VOInput] Cannot find Voxet in the file" );
+        return voxets;
     }
 
     auto VOInput::additional_files() const -> AdditionalFiles
     {
         std::ifstream file{ geode::to_string( filename() ), std::ios::binary };
-        const auto data_file = get_data_file( file );
-        file.close();
-        if( !data_file.has_value() )
-        {
-            return {};
-        }
         AdditionalFiles missing;
-        missing.mandatory_files.emplace_back( data_file.value(),
-            !file_exists( data_file_path( filename(), data_file.value() ) ) );
+        absl::flat_hash_set< std::string > data_files;
+        while( const auto data_file = get_data_file( file ) )
+        {
+            if( !data_files.emplace( data_file.value() ).second )
+            {
+                continue;
+            }
+            missing.mandatory_files.emplace_back( data_file.value(),
+                !file_exists(
+                    data_file_path( filename(), data_file.value() ) ) );
+        }
         return missing;
     }
 
