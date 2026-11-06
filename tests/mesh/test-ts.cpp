@@ -51,16 +51,23 @@ void check_surface( const geode::SurfaceMesh3D& surface,
 
 namespace
 {
-    std::unique_ptr< geode::TriangulatedSurface3D > load_test_file(
-        std::string_view filename, std::string_view content )
+    std::vector< std::unique_ptr< geode::TriangulatedSurface3D > >
+        load_test_surfaces(
+            std::string_view filename, std::string_view content )
     {
         {
             std::ofstream file{ geode::to_string( filename ),
                 std::ios::binary };
             file << content;
         }
+        return geode::load_triangulated_surface< 3 >( filename );
+    }
+
+    std::unique_ptr< geode::TriangulatedSurface3D > load_test_file(
+        std::string_view filename, std::string_view content )
+    {
         return geode::load_one(
-            geode::load_triangulated_surface< 3 >( filename ), filename );
+            load_test_surfaces( filename, content ), filename );
     }
 
     void test_blank_lines()
@@ -137,7 +144,8 @@ namespace
 
     void test_partial_property_header()
     {
-        const auto surface = load_test_file( "test_ts_partial_properties.ts",
+        const auto surfaces = load_test_surfaces(
+            "test_ts_partial_properties.ts",
             "GOCAD TSurf 1\nHEADER {\nname: s1\n}\nPROPERTIES p\n"
             "PROP_LEGAL_RANGES **none** **none**\nNO_DATA_VALUES -99999\n"
             "PROPERTY_CLASSES p\nPROPERTY_KINDS \"Real Number\"\nESIZES 1\n"
@@ -147,36 +155,38 @@ namespace
             "UNITS m\nNO_DATA_VALUES -1 -2 -3\nESIZES 1\n\nTFACE\n"
             "PVRTX 1 0 0 2 21 31\nPVRTX 2 1 0 2 22 32\nPVRTX 3 0 1 2 23 33\n"
             "TRGL 1 2 3\nEND\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test( surfaces.size() == 2,
+            "Wrong number of surfaces with partial property header" );
+        check_surface( *surfaces[0], 3, 1, "s1" );
+        check_surface( *surfaces[1], 3, 1, "s2" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
-            surface->nb_vertices() == 6,
-            "Wrong number of vertices with partial property header" );
-        geode::OpenGeodeGeosciencesIOMeshException::test(
-            surface->nb_polygons() == 2,
-            "Wrong number of triangles with partial property header" );
-        geode::OpenGeodeGeosciencesIOMeshException::test(
-            vertex_value( *surface, "p", 2 ) == 13,
+            vertex_value( *surfaces[0], "p", 2 ) == 13,
             "Wrong property value with partial property header" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
-            vertex_value( *surface, "b", 5 ) == 33
-                && vertex_value( *surface, "b", 0 ) == -2
-                && vertex_value( *surface, "p", 4 ) == -99999,
+            vertex_value( *surfaces[1], "b", 2 ) == 33
+                && !surfaces[1]
+                    ->vertex_attribute_manager()
+                    .attribute_ids_matching_name( "p" )
+                    .has_value(),
             "Wrong property value in second TSurf" );
     }
 
     void test_multiple_tsurf_properties()
     {
-        const auto surface = load_test_file( "test_ts_multi_properties.ts",
+        const auto surfaces = load_test_surfaces( "test_ts_multi_properties.ts",
             "GOCAD TSurf 1\nHEADER {\nname: s1\n}\nPROPERTIES p\nESIZES 1\n"
             "TFACE\nPVRTX 1 0 0 1 11\nPVRTX 2 1 0 1 12\nPVRTX 3 0 1 1 13\n"
             "TRGL 1 2 3\nEND\nGOCAD TSurf 1\nHEADER {\nname: s2\n}\n"
             "PROPERTIES p\nESIZES 1\nTFACE\nPVRTX 1 0 0 2 21\n"
             "PVRTX 2 1 0 2 22\nPVRTX 3 0 1 2 23\nTRGL 1 2 3\nEND\n" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
-            vertex_value( *surface, "p", 1 ) == 12
-                && vertex_value( *surface, "p", 4 ) == 22,
-            "Wrong property values with several TSurf" );
+            surfaces.size() == 2, "Each TSurf should be a separate surface" );
+        check_surface( *surfaces[0], 3, 1, "s1" );
+        check_surface( *surfaces[1], 3, 1, "s2" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
-            surface->name() == "s1", "The first TSurf name should be used" );
+            vertex_value( *surfaces[0], "p", 1 ) == 12
+                && vertex_value( *surfaces[1], "p", 1 ) == 22,
+            "Wrong property values with several TSurf" );
     }
 
     void test_vertex_lines_with_properties()
@@ -209,6 +219,24 @@ namespace
         }
         geode::OpenGeodeGeosciencesIOMeshException::test(
             has_thrown, "ATOM referencing an unknown vertex should throw" );
+    }
+
+    void test_no_tsurf()
+    {
+        auto has_thrown = false;
+        try
+        {
+            geode_unused( load_test_surfaces( "test_ts_no_tsurf.ts",
+                "GOCAD PLine 1\nHEADER {\nname: line\n}\nILINE\n"
+                "VRTX 1 0 0 0\nVRTX 2 1 0 0\nSEG 1 2\nEND\n" ) );
+        }
+        catch( const geode::OpenGeodeException& exception )
+        {
+            geode::Logger::info( "Expected exception: ", exception.what() );
+            has_thrown = true;
+        }
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            has_thrown, "A file without TSurf should throw" );
     }
 
     void test_non_contiguous_ids()
@@ -305,7 +333,7 @@ namespace
 
     void test_object_header_order()
     {
-        const auto surface = load_test_file( "test_ts_header_order.ts",
+        const auto surfaces = load_test_surfaces( "test_ts_header_order.ts",
             "GOCAD TSurf 1\nHEADER {\nname: s1\n}\nGEOLOGICAL_FEATURE f\n"
             "PROPERTY_CLASS_HEADER Z {\nkind: Z\nis_z: on\n}\n"
             "GOCAD_ORIGINAL_COORDINATE_SYSTEM\nNAME Default\nZPOSITIVE Depth\n"
@@ -314,16 +342,47 @@ namespace
             "PVRTX 3 0 1 1 13\nTRGL 1 2 3\n"
             "GOCAD TSurf 1\nHEADER {\nname: s2\n}\nTFACE\nVRTX 1 0 0 2\n"
             "VRTX 2 1 0 2\nVRTX 3 0 1 2\nTRGL 1 2 3\nEND\n" );
+        geode::OpenGeodeGeosciencesIOMeshException::test( surfaces.size() == 2,
+            "Wrong surfaces with unordered object header" );
+        check_surface( *surfaces[0], 3, 1, "s1" );
+        check_surface( *surfaces[1], 3, 1, "s2" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
-            surface->nb_vertices() == 6 && surface->nb_polygons() == 2,
-            "Wrong surface with unordered object header" );
-        geode::OpenGeodeGeosciencesIOMeshException::test(
-            surface->point( 0 ).value( 2 ) == -1
-                && surface->point( 3 ).value( 2 ) == 2,
+            surfaces[0]->point( 0 ).value( 2 ) == -1
+                && surfaces[1]->point( 0 ).value( 2 ) == 2,
             "ZPOSITIVE not applied with unordered object header" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
-            vertex_value( *surface, "p", 1 ) == 12,
+            vertex_value( *surfaces[0], "p", 1 ) == 12,
             "Wrong property with unordered object header" );
+    }
+
+    void test_multiple_tsurfs()
+    {
+        const auto multi_file =
+            absl::StrCat( geode::DATA_PATH, "surf2d_multi.ts" );
+        const auto sections =
+            geode::load_triangulated_surface< 3 >( multi_file );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            sections.size() == 2, "surf2d_multi.ts should hold 2 surfaces" );
+        for( const auto& section : sections )
+        {
+            check_surface( *section, 46, 46, "section1" );
+        }
+
+        const auto file = absl::StrCat( geode::DATA_PATH, "2tsurfs.ts" );
+        const auto surfaces = geode::load_triangulated_surface< 3 >( file );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surfaces.size() == 2, "2tsurfs.ts should hold 2 surfaces" );
+        check_surface( *surfaces[0], 4, 2, "2triangles.ts" );
+        check_surface( *surfaces[1], 4, 2, "test" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            !surfaces[0]
+                ->vertex_attribute_manager()
+                .attribute_ids_matching_name( "def-prop" )
+                .has_value(),
+            "First TSurf should not get the second TSurf properties" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            vertex_value( *surfaces[1], "def-prop", 0 ) == -99999,
+            "Second TSurf should keep its properties" );
     }
 } // namespace
 
@@ -376,9 +435,6 @@ int main()
     {
         geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
         geode::Logger::set_level( geode::Logger::LEVEL::trace );
-        check_file( absl::StrCat( geode::DATA_PATH, "/surf2d_multi.",
-                        geode::internal::TSInput::extension() ),
-            92, 92, "section1" );
         check_file( absl::StrCat( geode::DATA_PATH, "/surf2d.",
                         geode::internal::TSInput::extension() ),
             46, 46, "section1" );
@@ -399,6 +455,8 @@ int main()
         test_partial_property_header();
         test_object_header_order();
         test_multiple_tsurf_properties();
+        test_multiple_tsurfs();
+        test_no_tsurf();
         test_vertex_lines_with_properties();
         test_non_contiguous_ids();
         test_output_without_generic_attribute();

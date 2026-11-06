@@ -26,7 +26,6 @@
 #include <fstream>
 
 #include <geode/basic/file.hpp>
-#include <geode/basic/logger.hpp>
 
 #include <geode/geometry/point.hpp>
 
@@ -40,66 +39,46 @@ namespace
     class TSInputImpl
     {
     public:
-        TSInputImpl(
-            std::string_view filename, geode::TriangulatedSurface3D& surface )
+        TSInputImpl( std::string_view filename, const geode::MeshImpl& impl )
             : file_{ geode::to_string( filename ), std::ios::binary },
-              surface_( surface ),
-              builder_(
-                  geode::TriangulatedSurfaceBuilder< 3 >::create( surface ) )
+              impl_( impl )
         {
             geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                 file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "Error while opening file: ", filename );
         }
 
-        void read_file()
+        std::vector< std::unique_ptr< geode::TriangulatedSurface3D > >
+            read_file()
         {
-            geode::index_t nb_objects{ 0 };
+            std::vector< std::unique_ptr< geode::TriangulatedSurface3D > >
+                surfaces;
             while( const auto tsurf = geode::internal::read_tsurf( file_ ) )
             {
-                build_surface( tsurf.value() );
-                nb_objects++;
+                surfaces.emplace_back( build_surface( tsurf.value() ) );
             }
-            if( nb_objects == 0 )
-            {
-                geode::Logger::warning(
-                    "[TSInput] No GOCAD TSurf found in the file" );
-            }
-            builder_->compute_polygon_adjacencies();
+            return surfaces;
         }
 
     private:
-        void build_surface( const geode::internal::TSurfData& tsurf )
+        std::unique_ptr< geode::TriangulatedSurface3D > build_surface(
+            const geode::internal::TSurfData& tsurf ) const
         {
-            const auto offset = surface_.nb_vertices();
-            if( tsurf.header.name && !surface_.name() )
+            auto surface = geode::TriangulatedSurface3D::create( impl_ );
+            auto builder =
+                geode::TriangulatedSurfaceBuilder3D::create( *surface );
+            if( tsurf.header.name )
             {
-                builder_->set_name( tsurf.header.name.value() );
+                builder->set_name( tsurf.header.name.value() );
             }
-            const auto first_vertex =
-                builder_->create_vertices( tsurf.points.size() );
+            builder->create_vertices( tsurf.points.size() );
             for( const auto vertex : geode::Indices{ tsurf.points } )
             {
-                builder_->set_point(
-                    first_vertex + vertex, tsurf.points[vertex] );
+                builder->set_point( vertex, tsurf.points[vertex] );
             }
-            if( offset == 0 )
+            for( const auto& triangle : tsurf.triangles )
             {
-                for( const auto& triangle : tsurf.triangles )
-                {
-                    builder_->create_triangle( triangle );
-                }
-            }
-            else
-            {
-                for( auto triangle : tsurf.triangles )
-                {
-                    for( auto& vertex : triangle )
-                    {
-                        vertex += offset;
-                    }
-                    builder_->create_triangle( triangle );
-                }
+                builder->create_triangle( triangle );
             }
             std::vector< geode::index_t > inverse_vertex_mapping(
                 tsurf.points.size() );
@@ -107,14 +86,15 @@ namespace
             geode::internal::create_attributes(
                 tsurf.vertices_properties_header,
                 tsurf.vertices_attribute_values,
-                surface_.vertex_attribute_manager(), tsurf.points.size(),
-                inverse_vertex_mapping, offset );
+                surface->vertex_attribute_manager(), tsurf.points.size(),
+                inverse_vertex_mapping, 0 );
+            builder->compute_polygon_adjacencies();
+            return surface;
         }
 
     private:
         std::ifstream file_;
-        geode::TriangulatedSurface3D& surface_;
-        std::unique_ptr< geode::TriangulatedSurfaceBuilder3D > builder_;
+        const geode::MeshImpl& impl_;
     };
 } // namespace
 
@@ -123,12 +103,8 @@ namespace geode::internal
     std::vector< std::unique_ptr< TriangulatedSurface3D > > TSInput::read(
         const MeshImpl& impl )
     {
-        auto surface = TriangulatedSurface3D::create( impl );
-        TSInputImpl reader{ this->filename(), *surface };
-        reader.read_file();
-        std::vector< std::unique_ptr< TriangulatedSurface3D > > meshes;
-        meshes.emplace_back( std::move( surface ) );
-        return meshes;
+        TSInputImpl reader{ this->filename(), impl };
+        return reader.read_file();
     }
 
     Percentage TSInput::is_loadable() const
