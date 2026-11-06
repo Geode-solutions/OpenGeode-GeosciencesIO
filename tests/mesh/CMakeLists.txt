@@ -38,6 +38,7 @@ add_geode_test(
     DEPENDENCIES
         OpenGeode::basic
         OpenGeode::mesh
+        OpenGeode-Geosciences::explicit
         OpenGeode-IO::mesh
         ${PROJECT_NAME}::mesh
         GDAL::GDAL
@@ -47,6 +48,7 @@ add_geode_test(
     DEPENDENCIES
         OpenGeode::basic
         OpenGeode::mesh
+        OpenGeode-Geosciences::explicit
         ${PROJECT_NAME}::mesh
 )
 add_geode_test(

@@ -50,6 +50,9 @@
 
 #include <geode/io/image/detail/gdal_file.hpp>
 
+#include <geode/geosciences/explicit/geometry/geographic_coordinate_system.hpp>
+#include <geode/geosciences/explicit/geometry/geographic_coordinate_system_helper.hpp>
+
 namespace
 {
     constexpr std::array< const char*, 1 > GEOTIFF_DRIVERS{ "GTiff" };
@@ -89,10 +92,34 @@ namespace
                 }
                 read_data_band( grid, band, band_id );
             }
+            set_geographic_coordinate_system( grid );
             return grid;
         }
 
     private:
+        void set_geographic_coordinate_system( geode::LightRegularGrid2D& grid )
+        {
+            const auto* reference = dataset().GetSpatialRef();
+            if( reference == nullptr )
+            {
+                return;
+            }
+            const auto* authority = reference->GetAuthorityName( nullptr );
+            const auto* code = reference->GetAuthorityCode( nullptr );
+            if( authority == nullptr || code == nullptr )
+            {
+                geode::Logger::warning( "[GEOTIFFInput] Coordinate system of ",
+                    filename_, " has no authority code: it is ignored" );
+                return;
+            }
+            const auto* name = reference->GetName();
+            geode::GeographicCoordinateSystemInfo info{ authority, code,
+                name != nullptr ? name : "" };
+            const auto crs_name = info.authority_code();
+            geode::assign_light_regular_grid_geographic_coordinate_system_info(
+                grid, crs_name, std::move( info ) );
+        }
+
         /*!
          * Band values that are not colors (e.g. elevations) are stored as a
          * double cell attribute, no data values being NaN

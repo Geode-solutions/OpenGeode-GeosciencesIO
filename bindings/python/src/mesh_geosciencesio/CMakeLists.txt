@@ -24,5 +24,6 @@ add_geode_python_binding(
         "mesh_geosciencesio.cpp"
     DEPENDENCIES
         OpenGeode::mesh
+        OpenGeode-Geosciences::explicit
         ${PROJECT_NAME}::mesh
 )

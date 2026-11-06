@@ -31,6 +31,7 @@
 #include <vector>
 
 #include <gdal_priv.h>
+#include <ogr_spatialref.h>
 
 #include <geode/basic/assert.hpp>
 #include <geode/basic/attribute_manager.hpp>
@@ -41,10 +42,13 @@
 
 #include <geode/image/core/rgb_color.hpp>
 
+#include <geode/mesh/core/grid_coordinate_reference_system_manager.hpp>
 #include <geode/mesh/core/light_regular_grid.hpp>
 
 #include <geode/mesh/io/light_regular_grid_input.hpp>
 #include <geode/mesh/io/light_regular_grid_output.hpp>
+
+#include <geode/geosciences/explicit/geometry/geographic_coordinate_system.hpp>
 
 #include <geode/geosciences_io/mesh/common.hpp>
 #include <geode/io/mesh/common.hpp>
@@ -53,7 +57,8 @@ std::string write_raster( std::string_view name,
     geode::index_t width,
     geode::index_t height,
     const std::vector< float >& values,
-    std::optional< double > no_data )
+    std::optional< double > no_data,
+    std::optional< int > epsg_code = std::nullopt )
 {
     GDALAllRegister();
     auto filename = absl::StrCat( name, ".tif" );
@@ -66,6 +71,14 @@ std::string write_raster( std::string_view name,
     geode::OpenGeodeGeosciencesIOMeshException::test(
         dataset->SetGeoTransform( transform.data() ) == CE_None,
         "Cannot set raster transform" );
+    if( epsg_code )
+    {
+        OGRSpatialReference reference;
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            reference.importFromEPSG( epsg_code.value() ) == OGRERR_NONE
+                && dataset->SetSpatialRef( &reference ) == CE_None,
+            "Cannot set raster spatial reference" );
+    }
     auto* band = dataset->GetRasterBand( 1 );
     if( no_data )
     {
@@ -232,6 +245,35 @@ void test_huge_raster()
         thrown, "Loading a raster with too many pixels should throw" );
 }
 
+void test_coordinate_system()
+{
+    const std::vector< float > values{ 0, 1, 2, 3, 4, 5 };
+    const auto filename =
+        write_raster( "raster_geotiff_crs", 3, 2, values, std::nullopt, 32631 );
+    const auto grid = geode::load_light_regular_grid< 2 >( filename );
+    const auto& crs_manager = grid.grid_coordinate_reference_system_manager();
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        crs_manager.active_coordinate_reference_system_name() == "EPSG:32631",
+        "Wrong GeoTIFF CRS name" );
+    const auto* crs =
+        dynamic_cast< const geode::GeographicGridCoordinateSystem2D* >(
+            &crs_manager.active_coordinate_reference_system() );
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        crs != nullptr && crs->info().authority_code() == "EPSG:32631"
+            && crs->info().name == "WGS 84 / UTM zone 31N",
+        "Wrong GeoTIFF geographic CRS" );
+
+    const auto no_crs_filename =
+        write_raster( "raster_geotiff_no_crs", 3, 2, values, std::nullopt );
+    const auto no_crs_grid =
+        geode::load_light_regular_grid< 2 >( no_crs_filename );
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        no_crs_grid.grid_coordinate_reference_system_manager()
+                .active_coordinate_reference_system_name()
+            == "points",
+        "GeoTIFF without CRS should keep the default CRS" );
+}
+
 int main()
 {
     try
@@ -248,6 +290,7 @@ int main()
         test_logger_level_on_error();
         test_data_band();
         test_huge_raster();
+        test_coordinate_system();
 
         geode::Logger::info( "[TEST SUCCESS]" );
 
