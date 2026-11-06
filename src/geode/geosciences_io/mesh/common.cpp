@@ -27,6 +27,8 @@
 
 #include <geode/io/image/common.hpp>
 
+#include <geode/geosciences/explicit/common.hpp>
+
 #include <geode/geosciences_io/mesh/internal/dem_input.hpp>
 #include <geode/geosciences_io/mesh/internal/fem_output.hpp>
 #include <geode/geosciences_io/mesh/internal/geotiff_input.hpp>
@@ -174,6 +176,7 @@ namespace geode
     {
         OpenGeodeMeshLibrary::initialize();
         OpenGeodeIOImageLibrary::initialize();
+        OpenGeodeGeosciencesExplicitLibrary::initialize();
         register_triangulated_surface_input();
         register_triangulated_surface_output();
         register_polygonal_surface_input();

@@ -47,12 +47,16 @@
 
 #include <geode/mesh/core/light_regular_grid.hpp>
 
+#include <geode/geosciences/explicit/geometry/geographic_coordinate_system.hpp>
+#include <geode/geosciences/explicit/geometry/geographic_coordinate_system_helper.hpp>
+
 /*
  * Expected file content:
  * {
  *   "grid_df": [ { "x": 2.5, "y": 2.5, "z": 10.0, "<attribute>": 1.0, ... },
  *                ... ],
  *   "name": "<grid name>",           (optional)
+ *   "coordinate_system": "<code>",   (optional, e.g. "3949" or "EPSG:3949")
  *   "grid_topo_name": "<attribute>", (optional, attribute read as bool)
  *   "grid_site_name": "<attribute>", (optional, attribute read as bool)
  *   ...                              (other keys are ignored)
@@ -63,6 +67,7 @@ namespace
 {
     constexpr auto GRID_KEY = "grid_df";
     constexpr auto NAME_KEY = "name";
+    constexpr auto COORDINATE_SYSTEM_KEY = "coordinate_system";
     constexpr std::array< std::string_view, 3 > COORDINATE_KEYS{ "x", "y",
         "z" };
     constexpr std::array< std::string_view, 2 > BOOL_ATTRIBUTE_KEYS{
@@ -419,14 +424,38 @@ namespace
             check_number_of_vertices();
             geode::LightRegularGrid3D grid{ origin(), cells_number(),
                 cells_length() };
-            // TODO: coordinate_system (EPSG code) is not stored since
-            // LightRegularGrid does not support coordinate reference systems
             set_grid_name( grid );
+            set_grid_coordinate_system( grid );
             read_attributes( grid, record_vertices( grid ) );
             return grid;
         }
 
     private:
+        void set_grid_coordinate_system( geode::LightRegularGrid3D& grid ) const
+        {
+            const auto code = sax_.top_level_string( COORDINATE_SYSTEM_KEY );
+            if( !code )
+            {
+                return;
+            }
+            geode::GeographicCoordinateSystemInfo info;
+            try
+            {
+                info =
+                    geode::GeographicCoordinateSystemInfo::from_authority_code(
+                        code.value() );
+            }
+            catch( const geode::OpenGeodeException& exception )
+            {
+                geode::Logger::warning( "[JSONGridInput] Coordinate system ",
+                    code.value(), " is ignored: ", exception.what() );
+                return;
+            }
+            const auto crs_name = info.authority_code();
+            geode::assign_light_regular_grid_geographic_coordinate_system_info(
+                grid, crs_name, std::move( info ) );
+        }
+
         void check_number_of_vertices() const
         {
             std::uint64_t nb_vertices{ 1 };

@@ -82,6 +82,7 @@ add_geode_library(
         OpenGeode::mesh
         OpenGeode::image
         OpenGeode-IO::image
+        OpenGeode-Geosciences::explicit
         GDAL::GDAL
         nlohmann_json::nlohmann_json
         ZLIB::ZLIB

@@ -32,9 +32,12 @@
 
 #include <geode/geometry/point.hpp>
 
+#include <geode/mesh/core/grid_coordinate_reference_system_manager.hpp>
 #include <geode/mesh/core/light_regular_grid.hpp>
 #include <geode/mesh/io/light_regular_grid_input.hpp>
 #include <geode/mesh/io/light_regular_grid_output.hpp>
+
+#include <geode/geosciences/explicit/geometry/geographic_coordinate_system.hpp>
 
 #include <geode/geosciences_io/mesh/common.hpp>
 
@@ -281,6 +284,66 @@ void test_truncated_after_grid()
         "Grid before the parse error should be loaded" );
 }
 
+void check_coordinate_system(
+    const geode::LightRegularGrid3D& grid, std::string_view authority_code )
+{
+    const auto& crs_manager = grid.grid_coordinate_reference_system_manager();
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        crs_manager.nb_coordinate_reference_systems() == 1
+            && crs_manager.active_coordinate_reference_system_name()
+                   == authority_code,
+        "Wrong grid CRS name" );
+    const auto* crs =
+        dynamic_cast< const geode::GeographicGridCoordinateSystem3D* >(
+            &crs_manager.active_coordinate_reference_system() );
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        crs != nullptr && crs->info().authority_code() == authority_code
+            && !crs->info().name.empty(),
+        "Wrong grid geographic CRS" );
+}
+
+void test_coordinate_system()
+{
+    constexpr auto filename = "crs_grid.json";
+    write_file( filename, R"({
+        "grid_df": [
+            { "x": 0, "y": 0, "z": 0 }, { "x": 1, "y": 0, "z": 0 },
+            { "x": 0, "y": 1, "z": 0 }, { "x": 1, "y": 1, "z": 0 },
+            { "x": 0, "y": 0, "z": 1 }, { "x": 1, "y": 0, "z": 1 },
+            { "x": 0, "y": 1, "z": 1 }, { "x": 1, "y": 1, "z": 1 }
+        ],
+        "coordinate_system": "EPSG:4326"
+    })" );
+    check_coordinate_system(
+        geode::load_light_regular_grid< 3 >( filename ), "EPSG:4326" );
+
+    const auto no_crs =
+        geode::load_light_regular_grid< 3 >( "unordered_grid.json" );
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        no_crs.grid_coordinate_reference_system_manager()
+                .active_coordinate_reference_system_name()
+            == "points",
+        "Grid without coordinate system should keep the default CRS" );
+
+    constexpr auto unknown_filename = "unknown_crs_grid.json";
+    write_file( unknown_filename, R"({
+        "grid_df": [
+            { "x": 0, "y": 0, "z": 0 }, { "x": 1, "y": 0, "z": 0 },
+            { "x": 0, "y": 1, "z": 0 }, { "x": 1, "y": 1, "z": 0 },
+            { "x": 0, "y": 0, "z": 1 }, { "x": 1, "y": 0, "z": 1 },
+            { "x": 0, "y": 1, "z": 1 }, { "x": 1, "y": 1, "z": 1 }
+        ],
+        "coordinate_system": "99999"
+    })" );
+    const auto unknown_crs =
+        geode::load_light_regular_grid< 3 >( unknown_filename );
+    geode::OpenGeodeGeosciencesIOMeshException::test(
+        unknown_crs.grid_coordinate_reference_system_manager()
+                .active_coordinate_reference_system_name()
+            == "points",
+        "Grid with an unknown coordinate system should keep the default CRS" );
+}
+
 int main()
 {
     try
@@ -291,17 +354,21 @@ int main()
         const auto grid = geode::load_light_regular_grid< 3 >(
             absl::StrCat( geode::DATA_PATH, "data.json" ) );
         check_grid( grid );
+        check_coordinate_system( grid, "EPSG:3949" );
 
         const auto output =
             absl::StrCat( "json_grid.", grid.native_extension() );
         geode::save_light_regular_grid( grid, output );
-        check_grid( geode::load_light_regular_grid< 3 >( output ) );
+        const auto reloaded = geode::load_light_regular_grid< 3 >( output );
+        check_grid( reloaded );
+        check_coordinate_system( reloaded, "EPSG:3949" );
 
         test_unordered_records();
         test_invalid_grids();
         test_overflowing_grid();
         test_sparse_attributes();
         test_truncated_after_grid();
+        test_coordinate_system();
 
         geode::Logger::info( "[TEST SUCCESS]" );
 
