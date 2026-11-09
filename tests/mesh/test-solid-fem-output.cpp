@@ -643,8 +643,11 @@ namespace
 
     void test_solid_fem_output()
     {
-        auto tet_solid = geode::load_tetrahedral_solid< 3 >(
-            absl::StrCat( geode::DATA_PATH, "bmsh_342.og_tso3d" ) );
+        const auto tet_solid_filename =
+            absl::StrCat( geode::DATA_PATH, "bmsh_342.og_tso3d" );
+        auto tet_solid = geode::load_one(
+            geode::load_tetrahedral_solid< 3 >( tet_solid_filename ),
+            tet_solid_filename );
         geode::AttributeValues< geode::index_t > attribute_values;
         attribute_values.default_value = 10;
         attribute_values.no_value = geode::NO_ID;

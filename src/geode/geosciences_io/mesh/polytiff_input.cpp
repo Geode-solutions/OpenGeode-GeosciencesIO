@@ -40,12 +40,14 @@ namespace
 
 namespace geode::internal
 {
-    std::unique_ptr< PolygonalSurface3D > PolyTIFFInput::read(
+    std::vector< std::unique_ptr< PolygonalSurface3D > > PolyTIFFInput::read(
         const MeshImpl& impl )
     {
         auto surface = PolygonalSurface3D::create( impl );
         read_elevation_raster( filename(), POLYTIFF_DRIVERS, *surface );
-        return surface;
+        std::vector< std::unique_ptr< PolygonalSurface3D > > meshes;
+        meshes.emplace_back( std::move( surface ) );
+        return meshes;
     }
 
     auto PolyTIFFInput::additional_files() const -> AdditionalFiles

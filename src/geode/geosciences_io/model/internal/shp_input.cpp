@@ -329,12 +329,14 @@ namespace
 
 namespace geode::internal
 {
-    Section SHPInput::read()
+    std::vector< Section > SHPInput::read()
     {
         Section section;
         SHPInputImpl impl{ section, filename() };
         impl.read_file();
-        return section;
+        std::vector< Section > objects;
+        objects.emplace_back( std::move( section ) );
+        return objects;
     }
 
     auto SHPInput::additional_files() const -> AdditionalFiles

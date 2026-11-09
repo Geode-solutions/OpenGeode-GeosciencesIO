@@ -36,8 +36,10 @@ int main()
     try
     {
         geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
-        auto curve = geode::load_edged_curve< 3 >(
-            absl::StrCat( geode::DATA_PATH, "test_well.dat" ) );
+        const auto curve_filename =
+            absl::StrCat( geode::DATA_PATH, "test_well.dat" );
+        auto curve = geode::load_one(
+            geode::load_edged_curve< 3 >( curve_filename ), curve_filename );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             curve->nb_vertices() == 11, "Wrong number of vertices" );
         geode::OpenGeodeGeosciencesIOMeshException::test(

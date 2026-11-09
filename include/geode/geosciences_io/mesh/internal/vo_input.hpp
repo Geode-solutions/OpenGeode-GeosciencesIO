@@ -51,7 +51,8 @@ namespace geode::internal
             return EXT;
         }
 
-        std::unique_ptr< RegularGrid3D > read( const MeshImpl& impl ) final;
+        std::vector< std::unique_ptr< RegularGrid3D > > read(
+            const MeshImpl& impl ) final;
 
         AdditionalFiles additional_files() const final;
 

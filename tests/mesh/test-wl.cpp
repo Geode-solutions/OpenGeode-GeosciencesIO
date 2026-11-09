@@ -44,14 +44,36 @@ namespace
             file << "GOCAD Well 1\nHEADER {\nname: w\n}\n"
                     "WREF 10 20 0\nPATH 5 5 1 2\nPATH 10 10 1 2\nEND\n";
         }
-        const auto curve =
-            geode::load_edged_curve< 3 >( "test_wl_first_path.wl" );
+        const auto curve = geode::load_one(
+            geode::load_edged_curve< 3 >( "test_wl_first_path.wl" ),
+            "test_wl_first_path.wl" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             curve->nb_vertices() == 3 && curve->nb_edges() == 2,
             "First PATH point should not be skipped" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             curve->point( 1 ) == geode::Point3D{ { 11, 22, 5 } },
             "Wrong first PATH point" );
+    }
+
+    void test_multiple_wells()
+    {
+        const auto file = absl::StrCat( geode::DATA_PATH, "2wells.wl" );
+        const auto wells = geode::load_edged_curve< 3 >( file );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            wells.size() == 2, "2wells.wl should hold 2 wells" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            wells[0]->nb_vertices() == 55 && wells[0]->nb_edges() == 54,
+            "Wrong first well in 2wells.wl" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            wells[1]->nb_vertices() == 10 && wells[1]->nb_edges() == 9,
+            "Wrong second well in 2wells.wl" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            wells[0]->name() == "test" && wells[1]->name() == "test_trimmed",
+            "Each curve should be named after its Well" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            wells[1]->point( 0 ) == wells[0]->point( 0 )
+                && wells[1]->point( 9 ) == wells[0]->point( 9 ),
+            "Wrong second well geometry in 2wells.wl" );
     }
 } // namespace
 
@@ -60,13 +82,15 @@ int main()
     try
     {
         geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
-        auto curve = geode::load_edged_curve< 3 >(
-            absl::StrCat( geode::DATA_PATH, "test.wl" ) );
+        const auto curve_filename = absl::StrCat( geode::DATA_PATH, "test.wl" );
+        auto curve = geode::load_one(
+            geode::load_edged_curve< 3 >( curve_filename ), curve_filename );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             curve->nb_vertices() == 55, "Wrong number of vertices" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             curve->nb_edges() == 54, "Wrong number of edges" );
         test_first_path();
+        test_multiple_wells();
 
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

@@ -26,7 +26,6 @@
 #include <fstream>
 
 #include <geode/basic/file.hpp>
-#include <geode/basic/logger.hpp>
 
 #include <geode/geometry/point.hpp>
 
@@ -40,46 +39,41 @@ namespace
     class VSInputImpl
     {
     public:
-        VSInputImpl( std::string_view filename, geode::PointSet3D& point_set )
+        VSInputImpl( std::string_view filename, const geode::MeshImpl& impl )
             : file_{ geode::to_string( filename ), std::ios::binary },
-              point_set_( point_set ),
-              builder_( geode::PointSetBuilder< 3 >::create( point_set ) )
+              impl_( impl )
         {
             geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                 file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "Error while opening file: ", filename );
         }
 
-        void read_file()
+        std::vector< std::unique_ptr< geode::PointSet3D > > read_file()
         {
-            geode::index_t nb_objects{ 0 };
+            std::vector< std::unique_ptr< geode::PointSet3D > > point_sets;
             while( const auto vertex_set =
                        geode::internal::read_vs_points( file_ ) )
             {
-                build_point_set( vertex_set.value() );
-                nb_objects++;
+                point_sets.emplace_back(
+                    build_point_set( vertex_set.value() ) );
             }
-            if( nb_objects == 0 )
-            {
-                geode::Logger::warning(
-                    "[VSInput] No GOCAD VSet found in the file" );
-            }
+            return point_sets;
         }
 
     private:
-        void build_point_set( const geode::internal::VSetData& vertex_set )
+        std::unique_ptr< geode::PointSet3D > build_point_set(
+            const geode::internal::VSetData& vertex_set ) const
         {
-            const auto offset = point_set_.nb_vertices();
-            if( vertex_set.header.name && !point_set_.name() )
+            auto point_set = geode::PointSet3D::create( impl_ );
+            auto builder = geode::PointSetBuilder3D::create( *point_set );
+            if( vertex_set.header.name )
             {
-                builder_->set_name( vertex_set.header.name.value() );
+                builder->set_name( vertex_set.header.name.value() );
             }
-            const auto first_vertex =
-                builder_->create_vertices( vertex_set.points.size() );
+            builder->create_vertices( vertex_set.points.size() );
             for( const auto vertex : geode::Indices{ vertex_set.points } )
             {
-                builder_->set_point(
-                    first_vertex + vertex, vertex_set.points[vertex] );
+                builder->set_point( vertex, vertex_set.points[vertex] );
             }
             std::vector< geode::index_t > inverse_vertex_mapping(
                 vertex_set.points.size() );
@@ -87,25 +81,24 @@ namespace
             geode::internal::create_attributes(
                 vertex_set.vertices_properties_header,
                 vertex_set.vertices_attribute_values,
-                point_set_.vertex_attribute_manager(), vertex_set.points.size(),
-                inverse_vertex_mapping, offset );
+                point_set->vertex_attribute_manager(), vertex_set.points.size(),
+                inverse_vertex_mapping, 0 );
+            return point_set;
         }
 
     private:
         std::ifstream file_;
-        geode::PointSet3D& point_set_;
-        std::unique_ptr< geode::PointSetBuilder3D > builder_;
+        const geode::MeshImpl& impl_;
     };
 } // namespace
 
 namespace geode::internal
 {
-    std::unique_ptr< PointSet3D > VSInput::read( const MeshImpl& impl )
+    std::vector< std::unique_ptr< PointSet3D > > VSInput::read(
+        const MeshImpl& impl )
     {
-        auto surface = PointSet3D::create( impl );
-        VSInputImpl reader{ this->filename(), *surface };
-        reader.read_file();
-        return surface;
+        VSInputImpl reader{ this->filename(), impl };
+        return reader.read_file();
     }
 
     Percentage VSInput::is_loadable() const

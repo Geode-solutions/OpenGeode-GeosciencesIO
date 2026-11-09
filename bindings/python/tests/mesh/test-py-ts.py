@@ -31,7 +31,10 @@ if __name__ == "__main__":
     test_dir = os.path.dirname(__file__)
     data_dir = os.path.abspath(os.path.join(test_dir, "../../../../tests/data"))
 
-    surface = opengeode.load_triangulated_surface3D(os.path.join(data_dir, "surf2d.ts"))
+    surface_filename = os.path.join(data_dir, "surf2d.ts")
+    surface = opengeode.load_one(
+        opengeode.load_triangulated_surface3D(surface_filename), surface_filename
+    )
 
     if surface.nb_vertices() != 46:
         raise ValueError("Number of vertices in the loaded TSurf 3D is not correct")
@@ -39,7 +42,9 @@ if __name__ == "__main__":
         raise ValueError("Number of polygons in the loaded TSurf 3D is not correct")
 
     opengeode.save_triangulated_surface3D(surface, "surf3d.og_tsf3d")
-    reloaded_surface = opengeode.load_triangulated_surface3D("surf3d.og_tsf3d")
+    reloaded_surface = opengeode.load_one(
+        opengeode.load_triangulated_surface3D("surf3d.og_tsf3d"), "surf3d.og_tsf3d"
+    )
     if reloaded_surface.nb_vertices() != 46:
         raise ValueError("Number of vertices in the reloaded TSurf 3D is not correct")
     if reloaded_surface.nb_polygons() != 46:

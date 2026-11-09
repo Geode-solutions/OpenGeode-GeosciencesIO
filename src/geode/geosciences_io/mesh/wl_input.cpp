@@ -40,35 +40,45 @@ namespace
     class WLInputImpl
     {
     public:
-        WLInputImpl( std::string_view filename, geode::EdgedCurve3D& curve )
+        WLInputImpl( std::string_view filename, const geode::MeshImpl& impl )
             : file_{ geode::to_string( filename ), std::ios::binary },
-              builder_( geode::EdgedCurveBuilder3D::create( curve ) )
+              impl_( impl )
         {
             geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                 file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "Error while opening file: ", filename );
         }
 
-        void read_file()
+        std::vector< std::unique_ptr< geode::EdgedCurve3D > > read_file()
         {
-            if( !geode::goto_keyword_if_it_exists( file_, "GOCAD Well" ) )
+            std::vector< std::unique_ptr< geode::EdgedCurve3D > > wells;
+            while( geode::goto_keyword_if_it_exists( file_, "GOCAD Well" ) )
             {
-                throw geode::OpenGeodeGeosciencesIOMeshException{ nullptr,
-                    geode::OpenGeodeException::TYPE::data,
-                    "[WLInput] Cannot find Well in the file" };
+                wells.emplace_back( read_well() );
             }
-            const auto header = geode::internal::read_header( file_ );
-            if( header.name )
-            {
-                builder_->set_name( header.name.value() );
-            }
-            crs_ = geode::internal::read_CRS( file_ );
-            const auto ref = read_ref();
-            builder_->create_point( ref );
-            read_paths( ref );
+            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
+                !wells.empty(), nullptr, geode::OpenGeodeException::TYPE::data,
+                "[WLInput] Cannot find Well in the file" );
+            return wells;
         }
 
     private:
+        std::unique_ptr< geode::EdgedCurve3D > read_well()
+        {
+            auto well = geode::EdgedCurve3D::create( impl_ );
+            auto builder = geode::EdgedCurveBuilder3D::create( *well );
+            const auto header = geode::internal::read_header( file_ );
+            if( header.name )
+            {
+                builder->set_name( header.name.value() );
+            }
+            crs_ = geode::internal::read_CRS( file_ );
+            const auto ref = read_ref();
+            builder->create_point( ref );
+            read_paths( ref, *builder );
+            return well;
+        }
+
         geode::Point3D read_ref()
         {
             const auto line = geode::goto_keyword( file_, "WREF" );
@@ -91,7 +101,8 @@ namespace
                 geode::string_to_double( tokens[2 + offset] ) } };
         }
 
-        void read_paths( const geode::Point3D& ref )
+        void read_paths(
+            const geode::Point3D& ref, geode::EdgedCurveBuilder3D& builder )
         {
             auto line = geode::goto_keyword( file_, "PATH " );
             auto is_first_path = true;
@@ -114,26 +125,25 @@ namespace
                 {
                     continue;
                 }
-                const auto id = builder_->create_point( point );
-                builder_->create_edge( id - 1, id );
+                const auto id = builder.create_point( point );
+                builder.create_edge( id - 1, id );
             } while( std::getline( file_, line ) );
         }
 
     private:
         std::ifstream file_;
-        std::unique_ptr< geode::EdgedCurveBuilder3D > builder_;
+        const geode::MeshImpl& impl_;
         geode::internal::CRSData crs_;
     };
 } // namespace
 
 namespace geode::internal
 {
-    std::unique_ptr< EdgedCurve3D > WLInput::read( const MeshImpl& impl )
+    std::vector< std::unique_ptr< EdgedCurve3D > > WLInput::read(
+        const MeshImpl& impl )
     {
-        auto well = EdgedCurve3D::create( impl );
-        WLInputImpl reader{ this->filename(), *well };
-        reader.read_file();
-        return well;
+        WLInputImpl reader{ this->filename(), impl };
+        return reader.read_file();
     }
 
     Percentage WLInput::is_loadable() const

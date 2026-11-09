@@ -43,7 +43,8 @@ namespace
                 std::ios::binary };
             file << content;
         }
-        return geode::load_edged_curve< 3 >( filename );
+        return geode::load_one(
+            geode::load_edged_curve< 3 >( filename ), filename );
     }
 
     void check_curve( const geode::EdgedCurve3D& curve,
@@ -76,8 +77,10 @@ int main()
     try
     {
         geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
-        auto curve = geode::load_edged_curve< 3 >(
-            absl::StrCat( geode::DATA_PATH, "test_well.txt" ) );
+        const auto curve_filename =
+            absl::StrCat( geode::DATA_PATH, "test_well.txt" );
+        auto curve = geode::load_one(
+            geode::load_edged_curve< 3 >( curve_filename ), curve_filename );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             curve->nb_vertices() == 11, "Wrong number of vertices" );
         geode::OpenGeodeGeosciencesIOMeshException::test(

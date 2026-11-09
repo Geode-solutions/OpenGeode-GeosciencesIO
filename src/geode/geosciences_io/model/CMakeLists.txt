@@ -41,7 +41,6 @@ add_geode_library(
         "internal/ml_output_brep.cpp"
         "internal/ml_output_structural_model.cpp"
         "internal/shp_input.cpp"
-        "internal/strati_lso_input.cpp"
     PUBLIC_HEADERS
         "common.hpp"
     INTERNAL_HEADERS
@@ -65,7 +64,6 @@ add_geode_library(
         "internal/ml_output_impl.hpp"
         "internal/ml_output_structural_model.hpp"
         "internal/shp_input.hpp"
-        "internal/strati_lso_input.hpp"
     PUBLIC_DEPENDENCIES
         OpenGeode::basic
     PRIVATE_DEPENDENCIES

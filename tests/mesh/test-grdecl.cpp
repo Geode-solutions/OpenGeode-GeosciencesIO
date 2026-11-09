@@ -58,7 +58,8 @@ void check_file( std::string_view filename,
     geode::index_t nb_polyhedra,
     geode::index_t nb_vertices )
 {
-    const auto solid = geode::load_hybrid_solid< 3 >( filename );
+    const auto solid =
+        geode::load_one( geode::load_hybrid_solid< 3 >( filename ), filename );
     check_solid( *solid, nb_polyhedra, nb_vertices );
 }
 
@@ -75,7 +76,8 @@ void check_load_throws( std::string_view filename )
     bool thrown{ false };
     try
     {
-        const auto solid = geode::load_hybrid_solid< 3 >( filename );
+        const auto solid = geode::load_one(
+            geode::load_hybrid_solid< 3 >( filename ), filename );
     }
     catch( const geode::OpenGeodeException& )
     {

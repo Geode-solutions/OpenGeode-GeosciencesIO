@@ -119,7 +119,8 @@ void test_polygons()
 {
     const auto filename = write_raster(
         "raster_polytiff_polygons", 3, 2, { 1, 2, 3, 4, 5, 6 }, -9999. );
-    const auto surface = geode::load_polygonal_surface< 3 >( filename );
+    const auto surface = geode::load_one(
+        geode::load_polygonal_surface< 3 >( filename ), filename );
     geode::OpenGeodeGeosciencesIOMeshException::test(
         surface->nb_vertices() == 6 && surface->nb_polygons() == 2,
         "Wrong number of elements in raster PolyTIFF" );
@@ -138,7 +139,8 @@ void test_huge_raster()
     bool thrown{ false };
     try
     {
-        const auto surface = geode::load_polygonal_surface< 3 >( filename );
+        const auto surface = geode::load_one(
+            geode::load_polygonal_surface< 3 >( filename ), filename );
     }
     catch( const geode::OpenGeodeException& )
     {
@@ -158,7 +160,8 @@ void test_no_data()
     {
         const auto filename =
             write_raster( name, 3, 2, { value, 2, 3, 4, 5, 6 }, no_data );
-        const auto surface = geode::load_polygonal_surface< 3 >( filename );
+        const auto surface = geode::load_one(
+            geode::load_polygonal_surface< 3 >( filename ), filename );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             surface->nb_vertices() == 5 && surface->nb_polygons() == 1,
             "No data pixels should be skipped in ", name );
@@ -171,7 +174,8 @@ void test_pixel_values()
     const auto nan = std::numeric_limits< float >::quiet_NaN();
     const auto filename =
         write_raster( "raster_polytiff", 3, 2, { 1, 2, 3, 4, nan, 6 }, nan );
-    const auto surface = geode::load_polygonal_surface< 3 >( filename );
+    const auto surface = geode::load_one(
+        geode::load_polygonal_surface< 3 >( filename ), filename );
     geode::OpenGeodeGeosciencesIOMeshException::test(
         surface->nb_vertices() == 5 && surface->nb_polygons() == 0,
         "Wrong number of elements in raster PolyTIFF" );
@@ -184,7 +188,8 @@ void test_pixel_values()
         "PolyTIFF vertices should be at pixel centers with pixel values" );
     const auto filename2 = write_raster(
         "raster_polytiff_full", 3, 2, { 1, 2, 3, 4, 5, 6 }, std::nullopt );
-    const auto surface2 = geode::load_polygonal_surface< 3 >( filename2 );
+    const auto surface2 = geode::load_one(
+        geode::load_polygonal_surface< 3 >( filename2 ), filename2 );
     geode::OpenGeodeGeosciencesIOMeshException::test(
         surface2->nb_vertices() == 6 && surface2->nb_polygons() == 2,
         "Wrong number of elements in full raster PolyTIFF" );
@@ -196,8 +201,11 @@ int main()
     {
         geode::Logger::set_level( geode::Logger::LEVEL::trace );
         geode::OpenGeodeGeosciencesIOMeshLibrary::initialize();
-        const auto surface = geode::load_polygonal_surface< 3 >(
-            absl::StrCat( geode::DATA_PATH, "cea.tiff" ) );
+        const auto surface_filename =
+            absl::StrCat( geode::DATA_PATH, "cea.tiff" );
+        const auto surface = geode::load_one(
+            geode::load_polygonal_surface< 3 >( surface_filename ),
+            surface_filename );
         geode::save_polygonal_surface( *surface, "cea.og_psf3d" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             surface->nb_vertices() == 264710,
