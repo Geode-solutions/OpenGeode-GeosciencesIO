@@ -23,8 +23,10 @@
 
 #include <geode/geosciences_io/model/internal/lso_input.hpp>
 
+#include <array>
 #include <fstream>
 
+#include <absl/algorithm/container.h>
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
 #include <absl/strings/match.h>
@@ -42,7 +44,6 @@
 #include <geode/mesh/builder/triangulated_surface_builder.hpp>
 #include <geode/mesh/core/edged_curve.hpp>
 #include <geode/mesh/core/mesh_factory.hpp>
-#include <geode/mesh/core/solid_facets.hpp>
 #include <geode/mesh/core/tetrahedral_solid.hpp>
 #include <geode/mesh/core/triangulated_surface.hpp>
 
@@ -76,7 +77,6 @@ namespace
                   *solid_ ) }
 
         {
-            solid_->enable_facets();
             geode::AttributeValues< geode::index_t > vertex_attribute_values;
             vertex_attribute_values.default_value = geode::NO_ID;
             vertex_attribute_values.no_value = geode::NO_ID;
@@ -93,20 +93,6 @@ namespace
                 solid_->vertex_attribute_manager()
                     .find_attribute< geode::VariableAttribute, geode::index_t >(
                         vertex_attribute_id_id );
-            geode::AttributeValues< geode::uuid > facet_id_attribute_values;
-            facet_id_attribute_values.default_value = default_id_;
-            facet_id_attribute_values.no_value = default_id_;
-            const auto facet_id_attribute_id =
-                solid_->facets()
-                    .facet_attribute_manager()
-                    .create_attribute< geode::VariableAttribute, geode::uuid >(
-                        "facet_id", facet_id_attribute_values,
-                        attribute_properties );
-            facet_id_ =
-                solid_->facets()
-                    .facet_attribute_manager()
-                    .find_attribute< geode::VariableAttribute, geode::uuid >(
-                        facet_id_attribute_id );
             geode::OpenGeodeGeosciencesIOModelException::check_exception(
                 file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
                 "[LSOInput] Error while opening file: ", filename );
@@ -116,9 +102,6 @@ namespace
         {
             solid_->vertex_attribute_manager().delete_attribute(
                 vertex_id_->id() );
-            solid_->facets().facet_attribute_manager().delete_attribute(
-                facet_id_->id() );
-            solid_->disable_facets();
         }
 
         bool read_file()
@@ -148,6 +131,7 @@ namespace
             read_tetrahedra();
             read_tetrahedra_region_indicators();
             read_surfaces();
+            check_surfaces_conformity();
             read_blocks();
             check_tetrahedra_regions();
             geode::detail::build_model_boundaries( model_, builder_ );
@@ -179,13 +163,11 @@ namespace
                     point = read_point();
                     geode::internal::read_properties( vertices_prop_header_,
                         vertices_attributes_, get_tokens(), 5 );
-                    vertex_mapping_.emplace_back();
                     nb_unique_vertices++;
                 }
                 const auto id = solid_builder_->create_point( point );
                 register_vertex_file_id( id );
                 vertex_id_->set_value( id, unique_id );
-                vertex_mapping_[unique_id].push_back( id );
             } while( std::getline( file_, line_ )
                      && absl::StrContains( line_, "VRTX" ) );
             builder_.create_unique_vertices( nb_unique_vertices );
@@ -400,13 +382,13 @@ namespace
             for( ; geode::string_starts_with( line_, "TRGL" ); next_line() )
             {
                 const auto tokens = get_tokens();
-                std::array< geode::index_t, 3 > facet_vertices;
+                std::array< geode::index_t, 3 > unique_vertices;
                 std::array< geode::index_t, 3 > vertices;
                 for( const auto i : geode::LRange{ 3 } )
                 {
                     const auto value = solid_vertex( token( tokens, i + 1 ) );
-                    facet_vertices[i] = value;
                     const auto unique_vertex = vertex_id_->value( value );
+                    unique_vertices[i] = unique_vertex;
                     const auto it = vertex_mapping.find( unique_vertex );
                     if( it != vertex_mapping.end() )
                     {
@@ -423,51 +405,67 @@ namespace
                     }
                 }
                 builder->create_triangle( vertices );
-                const auto solid_facets =
-                    facets_from_vertices( facet_vertices );
-                for( const auto& facet : solid_facets )
-                {
-                    facet_id_->set_value( facet, surface_id );
-                }
-                if( solid_facets.empty() )
-                {
-                    inspect_required_ = true;
-                    geode::Logger::warning(
-                        "[LSOInput] Surface triangle with vertices [",
-                        facet_vertices[0], " ", facet_vertices[1], " ",
-                        facet_vertices[2],
-                        "] is not conformal to the solid tetrahedra." );
-                }
+                absl::c_sort( unique_vertices );
+                triangle_surfaces_.insert_or_assign(
+                    unique_vertices, surface_id );
             }
             builder->compute_polygon_adjacencies();
         }
 
-        std::vector< geode::index_t > facets_from_vertices(
-            const std::array< geode::index_t, 3 >& vertices ) const
+        std::array< geode::index_t, 3 > tetrahedron_facet_unique_vertices(
+            const geode::PolyhedronFacet& facet ) const
         {
-            std::vector< geode::index_t > facets;
-            const auto& copies0 =
-                vertex_mapping_[vertex_id_->value( vertices[0] )];
-            const auto& copies1 =
-                vertex_mapping_[vertex_id_->value( vertices[1] )];
-            const auto& copies2 =
-                vertex_mapping_[vertex_id_->value( vertices[2] )];
-            for( const auto v0 : copies0 )
+            std::array< geode::index_t, 3 > unique_vertices;
+            for( const auto vertex : geode::LRange{ 3 } )
             {
-                for( const auto v1 : copies1 )
+                unique_vertices[vertex] = vertex_id_->value(
+                    solid_->polyhedron_facet_vertex( { facet, vertex } ) );
+            }
+            absl::c_sort( unique_vertices );
+            return unique_vertices;
+        }
+
+        void check_surfaces_conformity()
+        {
+            absl::flat_hash_set< std::array< geode::index_t, 3 > >
+                conformal_triangles;
+            for( const auto tetra : geode::Range{ solid_->nb_polyhedra() } )
+            {
+                for( const auto facet : geode::LRange{ 4 } )
                 {
-                    for( const auto v2 : copies2 )
+                    const auto unique_vertices =
+                        tetrahedron_facet_unique_vertices( { tetra, facet } );
+                    if( triangle_surfaces_.contains( unique_vertices ) )
                     {
-                        if( const auto facet_id =
-                                solid_->facets().facet_from_vertices(
-                                    { v0, v1, v2 } ) )
-                        {
-                            facets.emplace_back( facet_id.value() );
-                        }
+                        conformal_triangles.emplace( unique_vertices );
                     }
                 }
             }
-            return facets;
+            if( conformal_triangles.size() == triangle_surfaces_.size() )
+            {
+                return;
+            }
+            inspect_required_ = true;
+            absl::flat_hash_map< geode::uuid, geode::index_t >
+                nb_non_conformal_triangles;
+            for( const auto& [unique_vertices, surface_id] :
+                triangle_surfaces_ )
+            {
+                if( !conformal_triangles.contains( unique_vertices ) )
+                {
+                    nb_non_conformal_triangles[surface_id]++;
+                }
+            }
+            for( const auto& surface : model_.surfaces() )
+            {
+                const auto it = nb_non_conformal_triangles.find( surface.id() );
+                if( it != nb_non_conformal_triangles.end() )
+                {
+                    geode::Logger::warning( "[LSOInput] ", it->second,
+                        " triangles of Surface ", surface.name().value(),
+                        " are not conformal to the solid tetrahedra." );
+                }
+            }
         }
 
         void read_blocks()
@@ -606,22 +604,13 @@ namespace
             {
                 for( const auto f : geode::LRange{ 4 } )
                 {
-                    const auto facet = solid_->facets().facet_from_vertices(
-                        solid_->polyhedron_facet_vertices( { tetra, f } ) );
-                    const auto& facet_uuid = facet_id_->value( facet.value() );
-                    if( facet_uuid == default_id_ )
+                    const auto surface = triangle_surfaces_.find(
+                        tetrahedron_facet_unique_vertices( { tetra, f } ) );
+                    if( surface == triangle_surfaces_.end() )
                     {
                         continue;
                     }
-                    const auto it = surface_relations.find( facet_uuid );
-                    if( it != surface_relations.end() )
-                    {
-                        it->second++;
-                    }
-                    else
-                    {
-                        surface_relations.emplace( facet_uuid, 1 );
-                    }
+                    surface_relations[surface->second]++;
                 }
             }
             return surface_relations;
@@ -1072,9 +1061,8 @@ namespace
         std::unique_ptr< geode::TetrahedralSolidBuilder3D > solid_builder_;
         std::shared_ptr< geode::VariableAttribute< geode::index_t > >
             vertex_id_;
-        std::shared_ptr< geode::VariableAttribute< geode::uuid > > facet_id_;
-        geode::uuid default_id_;
-        std::vector< absl::InlinedVector< geode::index_t, 1 > > vertex_mapping_;
+        absl::flat_hash_map< std::array< geode::index_t, 3 >, geode::uuid >
+            triangle_surfaces_;
         absl::flat_hash_map< geode::index_t, geode::index_t > file_vertex_ids_;
         absl::flat_hash_map< std::string, geode::index_t > region_ids_;
         std::vector< geode::index_t > tetrahedron_regions_;
