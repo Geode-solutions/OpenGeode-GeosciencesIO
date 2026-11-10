@@ -642,13 +642,14 @@ void test_partial_conformity()
 
 void test_non_conformal_triangle()
 {
-    const auto nb_boundaries =
-        count_block_boundaries( geode::load_structural_model(
+    const auto nb_boundaries = count_block_boundaries(
+        geode::load_one( geode::load_structural_model(
+                             absl::StrCat( geode::DATA_PATH, "vri.lso" ) ),
             absl::StrCat( geode::DATA_PATH, "vri.lso" ) ) );
-    const auto model = geode::load_structural_model( write_modified_vri(
+    const auto model = load_modified_vri(
         "lso_non_conformal_triangle", []( std::vector< std::string >& lines ) {
             lines[find_line( lines, "TRGL 49 81 7" )] = "TRGL 49 81 109";
-        } ) );
+        } );
     geode::OpenGeodeGeosciencesIOModelException::test(
         count_block_boundaries( model ) == nb_boundaries
             && count_tetrahedra( model ) == 292,
