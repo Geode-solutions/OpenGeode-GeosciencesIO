@@ -42,7 +42,7 @@ namespace geode::internal
             return EXT;
         }
 
-        StructuralModel read() final;
+        std::vector< StructuralModel > read() final;
 
         AdditionalFiles additional_files() const final
         {

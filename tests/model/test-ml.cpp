@@ -93,8 +93,10 @@ void check_model( const geode::StructuralModel& model,
 void test_modelA4()
 {
     // Load structural model
-    auto model = geode::load_structural_model( absl::StrCat( geode::DATA_PATH,
-        "/modelA4.", geode::internal::MLInput::extension() ) );
+    const auto model_filename = absl::StrCat(
+        geode::DATA_PATH, "/modelA4.", geode::internal::MLInput::extension() );
+    auto model = geode::load_one(
+        geode::load_structural_model( model_filename ), model_filename );
     check_model( model, 52, 98, 55, 8, 2, 3, 6 );
 
     geode::index_t nb_block_internals{ 0 };
@@ -139,16 +141,20 @@ void test_modelA4()
         model, absl::StrCat( "modelA4.", model.native_extension() ) );
 
     geode::save_structural_model( model, "modelA4_saved.ml" );
-    auto reload = geode::load_structural_model( "modelA4_saved.ml" );
+    auto reload =
+        geode::load_one( geode::load_structural_model( "modelA4_saved.ml" ),
+            "modelA4_saved.ml" );
     check_model( reload, 52, 98, 55, 8, 2, 3, 6 );
 
     /// Test save from a brep
     geode::save_brep( model, "modelA4_saved.og_brep" );
-    auto reload_brep = geode::load_brep( "modelA4_saved.og_brep" );
+    auto reload_brep = geode::load_one(
+        geode::load_brep( "modelA4_saved.og_brep" ), "modelA4_saved.og_brep" );
     geode::save_brep( reload_brep, "modelA4_saved_from_brep.ml" );
     // Unclassified Surfaces share their names: TSURF names made unique
-    auto reload_from_brep =
-        geode::load_structural_model( "modelA4_saved_from_brep.ml" );
+    auto reload_from_brep = geode::load_one(
+        geode::load_structural_model( "modelA4_saved_from_brep.ml" ),
+        "modelA4_saved_from_brep.ml" );
     geode::OpenGeodeGeosciencesIOModelException::test(
         reload_from_brep.nb_surfaces() == 55,
         "Number of Surfaces in the StructuralModel reloaded from BRep "
@@ -165,8 +171,10 @@ void test_modelA4()
 
 void test_shared_surfaces_and_contact_types()
 {
-    auto model = geode::load_structural_model( absl::StrCat( geode::DATA_PATH,
-        "/modelA4.", geode::internal::MLInput::extension() ) );
+    const auto model_filename = absl::StrCat(
+        geode::DATA_PATH, "/modelA4.", geode::internal::MLInput::extension() );
+    auto model = geode::load_one(
+        geode::load_structural_model( model_filename ), model_filename );
     geode::StructuralModelBuilder builder{ model };
 
     // Erosion contact type has no dedicated .ml type
@@ -187,7 +195,9 @@ void test_shared_surfaces_and_contact_types()
     }
 
     geode::save_structural_model( model, "modelA4_shared_surfaces.ml" );
-    auto reload = geode::load_structural_model( "modelA4_shared_surfaces.ml" );
+    auto reload = geode::load_one(
+        geode::load_structural_model( "modelA4_shared_surfaces.ml" ),
+        "modelA4_shared_surfaces.ml" );
     // The topographic Horizon has no Surface of its own: not exported
     check_model( reload, 52, 98, 55, 8, 2, 3, 6 );
     bool eroded_found{ false };
@@ -208,8 +218,10 @@ void test_shared_surfaces_and_contact_types()
 
 void test_shared_model_boundary_surfaces()
 {
-    auto model = geode::load_structural_model( absl::StrCat( geode::DATA_PATH,
-        "/modelA4.", geode::internal::MLInput::extension() ) );
+    const auto model_filename = absl::StrCat(
+        geode::DATA_PATH, "/modelA4.", geode::internal::MLInput::extension() );
+    auto model = geode::load_one(
+        geode::load_structural_model( model_filename ), model_filename );
     geode::StructuralModelBuilder builder{ model };
 
     // One Surface of the second ModelBoundary also put in the first one
@@ -232,8 +244,9 @@ void test_shared_model_boundary_surfaces()
 
     geode::save_structural_model(
         model, "modelA4_shared_boundary_surfaces.ml" );
-    auto reload =
-        geode::load_structural_model( "modelA4_shared_boundary_surfaces.ml" );
+    auto reload = geode::load_one(
+        geode::load_structural_model( "modelA4_shared_boundary_surfaces.ml" ),
+        "modelA4_shared_boundary_surfaces.ml" );
     // The duplicate ModelBoundary has no Surface of its own: not exported
     check_model( reload, 52, 98, 55, 8, 2, 3, 6 );
 
@@ -243,8 +256,10 @@ void test_shared_model_boundary_surfaces()
 
 void test_duplicate_tsurf_names()
 {
-    auto model = geode::load_structural_model( absl::StrCat( geode::DATA_PATH,
-        "/modelA4.", geode::internal::MLInput::extension() ) );
+    const auto model_filename = absl::StrCat(
+        geode::DATA_PATH, "/modelA4.", geode::internal::MLInput::extension() );
+    auto model = geode::load_one(
+        geode::load_structural_model( model_filename ), model_filename );
     geode::StructuralModelBuilder builder{ model };
 
     // Same name, and a name only differing by a space
@@ -256,7 +271,9 @@ void test_duplicate_tsurf_names()
     builder.set_horizon_name( *horizon_it, "same name" );
 
     geode::save_structural_model( model, "modelA4_duplicate_names.ml" );
-    auto reload = geode::load_structural_model( "modelA4_duplicate_names.ml" );
+    auto reload = geode::load_one(
+        geode::load_structural_model( "modelA4_duplicate_names.ml" ),
+        "modelA4_duplicate_names.ml" );
     check_model( reload, 52, 98, 55, 8, 2, 3, 6 );
     absl::flat_hash_set< std::string > names;
     for( const auto& horizon : reload.horizons() )
@@ -351,7 +368,8 @@ geode::StructuralModel load_ml(
     std::string_view filename, std::string_view content )
 {
     write_file( filename, content );
-    return geode::load_structural_model( filename );
+    return geode::load_one(
+        geode::load_structural_model( filename ), filename );
 }
 
 void check_load_throws( std::string_view filename, std::string_view content )
@@ -359,7 +377,8 @@ void check_load_throws( std::string_view filename, std::string_view content )
     write_file( filename, content );
     try
     {
-        geode_unused( geode::load_structural_model( filename ) );
+        geode_unused( geode::load_one(
+            geode::load_structural_model( filename ), filename ) );
     }
     catch( const geode::OpenGeodeException& exception )
     {
@@ -677,8 +696,9 @@ void test_nested_blocks_output()
 {
     const auto model = load_ml( "nested_blocks.ml", nested_tetra_ml( false ) );
     geode::save_structural_model( model, "nested_blocks_saved.ml" );
-    const auto reload =
-        geode::load_structural_model( "nested_blocks_saved.ml" );
+    const auto reload = geode::load_one(
+        geode::load_structural_model( "nested_blocks_saved.ml" ),
+        "nested_blocks_saved.ml" );
     check_model( reload, 8, 12, 8, 2, 0, 1, 1 );
     const auto regions = read_region_signs( "nested_blocks_saved.ml" );
     const auto& universe = regions.at( "Universe" );
@@ -710,7 +730,9 @@ void test_block_without_boundary_output()
     geode::StructuralModelBuilder builder{ model };
     builder.set_block_name( model.block( builder.add_block() ), "empty_block" );
     geode::save_structural_model( model, "empty_block_saved.ml" );
-    const auto reload = geode::load_structural_model( "empty_block_saved.ml" );
+    const auto reload =
+        geode::load_one( geode::load_structural_model( "empty_block_saved.ml" ),
+            "empty_block_saved.ml" );
     check_model( reload, 4, 6, 4, 2, 0, 0, 1 );
 }
 
@@ -720,7 +742,9 @@ void test_empty_line_output()
     geode::StructuralModelBuilder builder{ model };
     geode_unused( builder.add_line() );
     geode::save_structural_model( model, "empty_line_saved.ml" );
-    const auto reload = geode::load_structural_model( "empty_line_saved.ml" );
+    const auto reload =
+        geode::load_one( geode::load_structural_model( "empty_line_saved.ml" ),
+            "empty_line_saved.ml" );
     check_model( reload, 4, 6, 4, 1, 0, 0, 1 );
 }
 
@@ -739,8 +763,9 @@ void test_surface_collection_output()
         }
     }
     geode::save_structural_model( model, "surface_collection_saved.ml" );
-    const auto reload =
-        geode::load_structural_model( "surface_collection_saved.ml" );
+    const auto reload = geode::load_one(
+        geode::load_structural_model( "surface_collection_saved.ml" ),
+        "surface_collection_saved.ml" );
     geode::OpenGeodeGeosciencesIOModelException::test(
         reload.nb_surfaces() == 8 && reload.nb_blocks() == 2,
         "Surfaces only in a SurfaceCollection should be exported" );
@@ -800,7 +825,22 @@ void test_several_border_loops_output()
     const auto model = load_ml( "annulus.ml", annulus_ml() );
     check_annulus( model );
     geode::save_structural_model( model, "annulus_saved.ml" );
-    check_annulus( geode::load_structural_model( "annulus_saved.ml" ) );
+    check_annulus(
+        geode::load_one( geode::load_structural_model( "annulus_saved.ml" ),
+            "annulus_saved.ml" ) );
+}
+
+void test_multiple_models()
+{
+    const auto file = absl::StrCat( geode::DATA_PATH, "2models.ml" );
+    const auto models = geode::load_structural_model( file );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        models.size() == 2, "2models.ml should hold 2 models" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        models[0].name() == "annulus" && models[1].name() == "nested",
+        "Each model should be named after its Model3d" );
+    check_annulus( models[0] );
+    check_model( models[1], 8, 12, 8, 2, 0, 1, 1 );
 }
 
 void test_empty_surface_output()
@@ -815,8 +855,9 @@ void test_empty_surface_output()
     // Unclassified empty Surface
     geode_unused( builder.add_surface() );
     geode::save_structural_model( model, "empty_surface_saved.ml" );
-    const auto reload =
-        geode::load_structural_model( "empty_surface_saved.ml" );
+    const auto reload = geode::load_one(
+        geode::load_structural_model( "empty_surface_saved.ml" ),
+        "empty_surface_saved.ml" );
     check_model( reload, 4, 6, 4, 1, 0, 0, 1 );
 }
 
@@ -831,7 +872,9 @@ void test_coordinates_precision()
     }
     const auto model = load_ml( "precision.ml", content );
     geode::save_structural_model( model, "precision_saved.ml" );
-    const auto reload = geode::load_structural_model( "precision_saved.ml" );
+    const auto reload =
+        geode::load_one( geode::load_structural_model( "precision_saved.ml" ),
+            "precision_saved.ml" );
     const auto expected = geode::string_to_double( COORDINATE );
     geode::index_t nb_found{ 0 };
     for( const auto& surface : reload.surfaces() )
@@ -917,8 +960,9 @@ void test_unexported_components_output()
     builder.add_corner_block_internal_relationship(
         corner, *model.blocks().begin() );
     geode::save_structural_model( model, "isolated_corner_saved.ml" );
-    const auto reload =
-        geode::load_structural_model( "isolated_corner_saved.ml" );
+    const auto reload = geode::load_one(
+        geode::load_structural_model( "isolated_corner_saved.ml" ),
+        "isolated_corner_saved.ml" );
     check_model( reload, 4, 6, 4, 1, 0, 0, 1 );
 }
 
@@ -1022,6 +1066,7 @@ int main()
         test_empty_line_output();
         test_surface_collection_output();
         test_several_border_loops_output();
+        test_multiple_models();
         test_empty_surface_output();
         test_coordinates_precision();
         test_border_without_bstone();

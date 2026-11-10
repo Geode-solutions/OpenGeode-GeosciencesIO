@@ -82,7 +82,69 @@ namespace
 
 namespace geode::internal
 {
-    LightRegularGrid3D OMFLightRegularGridInput::read()
+    namespace
+    {
+        bool is_uniform_volume(
+            const OMFFile& file, const nlohmann::json& element )
+        {
+            const auto& geometry = file.geometry( element );
+            return absl::c_all_of( OMF_TENSOR_KEYS, [&geometry]( auto key ) {
+                return omf_is_uniform( OMFFile::read_tensor( geometry, key ) );
+            } );
+        }
+
+        LightRegularGrid3D read_grid(
+            const OMFFile& file, const nlohmann::json& element )
+        {
+            const auto& geometry = file.geometry( element );
+            std::array< index_t, 3 > cells_number;
+            std::array< Vector3D, 3 > directions;
+            uint64_t nb_vertices{ 1 };
+            for( const auto axis : LRange{ 3 } )
+            {
+                const auto tensor =
+                    OMFFile::read_tensor( geometry, OMF_TENSOR_KEYS[axis] );
+                nb_vertices *= tensor.size() + 1;
+                OpenGeodeGeosciencesIOMeshException::check_exception(
+                    nb_vertices < NO_ID, nullptr,
+                    OpenGeodeException::TYPE::data, "[OMFInput] Volume \"",
+                    OMFFile::name( element ), "\" has too many cells" );
+                cells_number[axis] = static_cast< index_t >( tensor.size() );
+                directions[axis] =
+                    OMFFile::axis( geometry, OMF_AXIS_KEYS[axis], axis )
+                    * omf_uniform_cell_length(
+                        element, tensor, OMF_TENSOR_KEYS[axis] );
+            }
+            OpenGeodeGeosciencesIOMeshException::check_exception(
+                std::fabs( OMFFile::axis( geometry, OMF_AXIS_KEYS[0], 0 )
+                        .dot( OMFFile::axis( geometry, OMF_AXIS_KEYS[1], 1 )
+                                .cross( OMFFile::axis(
+                                    geometry, OMF_AXIS_KEYS[2], 2 ) ) ) )
+                    > GLOBAL_EPSILON,
+                nullptr, OpenGeodeException::TYPE::data, "[OMFInput] Volume \"",
+                OMFFile::name( element ), "\" has coplanar axes" );
+            LightRegularGrid3D grid{ Point3D{ file.origin( geometry ) },
+                cells_number, directions };
+            IdentifierBuilder{ grid }.set_name( OMFFile::name( element ) );
+            file.read_data( element, "cells", grid.nb_cells(),
+                grid.cell_attribute_manager(),
+                [&grid, &cells_number]( index_t value ) {
+                    return grid.cell_index(
+                        omf_grid_indices( value, cells_number ) );
+                } );
+            const std::array< index_t, 3 > vertices_number{ cells_number[0] + 1,
+                cells_number[1] + 1, cells_number[2] + 1 };
+            file.read_data( element, "vertices", grid.nb_grid_vertices(),
+                grid.grid_vertex_attribute_manager(),
+                [&grid, &vertices_number]( index_t value ) {
+                    return grid.vertex_index(
+                        omf_grid_indices( value, vertices_number ) );
+                } );
+            return grid;
+        }
+    } // namespace
+
+    std::vector< LightRegularGrid3D > OMFLightRegularGridInput::read()
     {
         const OMFFile file{ filename() };
         const auto elements =
@@ -91,81 +153,38 @@ namespace geode::internal
         OpenGeodeGeosciencesIOMeshException::check_exception( !elements.empty(),
             nullptr, OpenGeodeException::TYPE::data, "[OMFInput] ", filename(),
             " has no grid volume" );
-        const auto& element = *elements.front();
-        if( elements.size() > 1 )
-        {
-            Logger::warning( "[OMFInput] ", filename(), " has ",
-                elements.size(), " grid volumes, only the first one (\"",
-                OMFFile::name( element ), "\") is loaded" );
-        }
-        const auto& geometry = file.geometry( element );
-        std::array< index_t, 3 > cells_number;
-        std::array< Vector3D, 3 > directions;
-        uint64_t nb_vertices{ 1 };
-        for( const auto axis : LRange{ 3 } )
-        {
-            const auto tensor =
-                OMFFile::read_tensor( geometry, OMF_TENSOR_KEYS[axis] );
-            nb_vertices *= tensor.size() + 1;
-            OpenGeodeGeosciencesIOMeshException::check_exception(
-                nb_vertices < NO_ID, nullptr, OpenGeodeException::TYPE::data,
-                "[OMFInput] Volume \"", OMFFile::name( element ),
-                "\" has too many cells" );
-            cells_number[axis] = static_cast< index_t >( tensor.size() );
-            directions[axis] =
-                OMFFile::axis( geometry, OMF_AXIS_KEYS[axis], axis )
-                * omf_uniform_cell_length(
-                    element, tensor, OMF_TENSOR_KEYS[axis] );
-        }
-        OpenGeodeGeosciencesIOMeshException::check_exception(
-            std::fabs( OMFFile::axis( geometry, OMF_AXIS_KEYS[0], 0 )
-                    .dot( OMFFile::axis( geometry, OMF_AXIS_KEYS[1], 1 )
-                            .cross( OMFFile::axis(
-                                geometry, OMF_AXIS_KEYS[2], 2 ) ) ) )
-                > GLOBAL_EPSILON,
-            nullptr, OpenGeodeException::TYPE::data, "[OMFInput] Volume \"",
-            OMFFile::name( element ), "\" has coplanar axes" );
-        LightRegularGrid3D grid{ Point3D{ file.origin( geometry ) },
-            cells_number, directions };
-        IdentifierBuilder{ grid }.set_name( OMFFile::name( element ) );
-        file.read_data( element, "cells", grid.nb_cells(),
-            grid.cell_attribute_manager(),
-            [&grid, &cells_number]( index_t value ) {
-                return grid.cell_index(
-                    omf_grid_indices( value, cells_number ) );
+        const auto has_uniform_volume =
+            absl::c_any_of( elements, [&file]( const auto* element ) {
+                return is_uniform_volume( file, *element );
             } );
-        const std::array< index_t, 3 > vertices_number{ cells_number[0] + 1,
-            cells_number[1] + 1, cells_number[2] + 1 };
-        file.read_data( element, "vertices", grid.nb_grid_vertices(),
-            grid.grid_vertex_attribute_manager(),
-            [&grid, &vertices_number]( index_t value ) {
-                return grid.vertex_index(
-                    omf_grid_indices( value, vertices_number ) );
-            } );
-        return grid;
+        std::vector< LightRegularGrid3D > grids;
+        for( const auto* element : elements )
+        {
+            // Without any uniform volume, reading the first one throws
+            if( has_uniform_volume && !is_uniform_volume( file, *element ) )
+            {
+                Logger::warning( "[OMFInput] Volume \"",
+                    OMFFile::name( *element ),
+                    "\" has non uniform cells, which cannot be represented by "
+                    "a LightRegularGrid: it is skipped" );
+                continue;
+            }
+            grids.emplace_back( read_grid( file, *element ) );
+        }
+        return grids;
     }
 
     Percentage OMFLightRegularGridInput::is_loadable() const
     {
-        // Only the first volume is loaded, if its cells are uniform
+        // Every volume whose cells are uniform is loaded
         return OMFFile::is_loadable( filename(), []( const OMFFile& file ) {
             const auto elements =
                 file.elements( OMF_LIGHT_REGULAR_GRID_ELEMENT_CLASS,
                     OMF_LIGHT_REGULAR_GRID_GEOMETRY_CLASS );
-            if( elements.empty() )
-            {
-                return std::size_t{ 0 };
-            }
-            const auto& element = *elements.front();
-            const auto& geometry = file.geometry( element );
-            for( const auto& key : OMF_TENSOR_KEYS )
-            {
-                if( !omf_is_uniform( OMFFile::read_tensor( geometry, key ) ) )
-                {
-                    return std::size_t{ 0 };
-                }
-            }
-            return std::size_t{ 1 };
+            return static_cast< std::size_t >(
+                absl::c_count_if( elements, [&file]( const auto* element ) {
+                    return is_uniform_volume( file, *element );
+                } ) );
         } );
     }
 } // namespace geode::internal

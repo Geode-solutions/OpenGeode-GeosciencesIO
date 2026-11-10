@@ -137,7 +137,8 @@ void test_pixel_orientation()
     const std::vector< float > values{ 1, 2, 3, 4, 5, 6 };
     const auto filename =
         write_raster( "raster_geotiff", 3, 2, values, std::nullopt );
-    const auto grid = geode::load_light_regular_grid< 2 >( filename );
+    const auto grid = geode::load_one(
+        geode::load_light_regular_grid< 2 >( filename ), filename );
     const auto colors = find_named_attribute< geode::RGBColor >(
         grid.cell_attribute_manager(), "RGB_data" );
     const auto band = find_named_attribute< double >(
@@ -185,7 +186,8 @@ void test_logger_level_on_error()
     bool thrown{ false };
     try
     {
-        const auto grid = geode::load_light_regular_grid< 2 >( filename );
+        const auto grid = geode::load_one(
+            geode::load_light_regular_grid< 2 >( filename ), filename );
     }
     catch( const geode::OpenGeodeException& )
     {
@@ -204,7 +206,8 @@ void test_data_band()
     const std::vector< float > values{ -5.5F, 2, 3, 400, 5, nan };
     const auto filename =
         write_raster( "raster_geotiff_data", 3, 2, values, nan );
-    const auto grid = geode::load_light_regular_grid< 2 >( filename );
+    const auto grid = geode::load_one(
+        geode::load_light_regular_grid< 2 >( filename ), filename );
     const auto band = find_named_attribute< double >(
         grid.cell_attribute_manager(), "band_1" );
     for( const auto row : geode::Range{ 2 } )
@@ -235,7 +238,8 @@ void test_huge_raster()
     bool thrown{ false };
     try
     {
-        const auto grid = geode::load_light_regular_grid< 2 >( filename );
+        const auto grid = geode::load_one(
+            geode::load_light_regular_grid< 2 >( filename ), filename );
     }
     catch( const geode::OpenGeodeException& )
     {
@@ -250,7 +254,8 @@ void test_coordinate_system()
     const std::vector< float > values{ 0, 1, 2, 3, 4, 5 };
     const auto filename =
         write_raster( "raster_geotiff_crs", 3, 2, values, std::nullopt, 32631 );
-    const auto grid = geode::load_light_regular_grid< 2 >( filename );
+    const auto grid = geode::load_one(
+        geode::load_light_regular_grid< 2 >( filename ), filename );
     const auto& crs_manager = grid.grid_coordinate_reference_system_manager();
     geode::OpenGeodeGeosciencesIOMeshException::test(
         crs_manager.active_coordinate_reference_system_name() == "EPSG:32631",
@@ -266,7 +271,8 @@ void test_coordinate_system()
     const auto no_crs_filename =
         write_raster( "raster_geotiff_no_crs", 3, 2, values, std::nullopt );
     const auto no_crs_grid =
-        geode::load_light_regular_grid< 2 >( no_crs_filename );
+        geode::load_one( geode::load_light_regular_grid< 2 >( no_crs_filename ),
+            no_crs_filename );
     geode::OpenGeodeGeosciencesIOMeshException::test(
         no_crs_grid.grid_coordinate_reference_system_manager()
                 .active_coordinate_reference_system_name()
@@ -282,8 +288,10 @@ int main()
         geode::OpenGeodeIOMeshLibrary::initialize();
         geode::Logger::set_level( geode::Logger::LEVEL::trace );
 
-        auto grid = geode::load_light_regular_grid< 2 >(
-            absl::StrCat( geode::DATA_PATH, "cea.tiff" ) );
+        const auto grid_filename = absl::StrCat( geode::DATA_PATH, "cea.tiff" );
+        auto grid = geode::load_one(
+            geode::load_light_regular_grid< 2 >( grid_filename ),
+            grid_filename );
         geode::save_light_regular_grid( grid, "cea.vti" );
 
         test_pixel_orientation();

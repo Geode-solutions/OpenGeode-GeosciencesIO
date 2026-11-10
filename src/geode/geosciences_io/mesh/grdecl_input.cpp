@@ -673,12 +673,15 @@ namespace
 
 namespace geode::internal
 {
-    std::unique_ptr< HybridSolid3D > GRDECLInput::read( const MeshImpl& impl )
+    std::vector< std::unique_ptr< HybridSolid3D > > GRDECLInput::read(
+        const MeshImpl& impl )
     {
         auto solid = HybridSolid3D::create( impl );
         GRDECLInputImpl reader{ this->filename(), *solid };
         reader.read_file();
-        return solid;
+        std::vector< std::unique_ptr< HybridSolid3D > > meshes;
+        meshes.emplace_back( std::move( solid ) );
+        return meshes;
     }
 
     Percentage GRDECLInput::is_loadable() const

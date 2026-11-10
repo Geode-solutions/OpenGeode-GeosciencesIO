@@ -31,7 +31,8 @@ import opengeode_geosciencesio_py_model as geosciences_io
 
 # The GEOS results come from a picasso simulation run outside the test
 def test_brep_export(data_dir):
-    model = opengeode.load_brep(os.path.join(data_dir, "picasso.og_brep"))
+    model_filename = os.path.join(data_dir, "picasso.og_brep")
+    model = opengeode.load_one(opengeode.load_brep(model_filename), model_filename)
     problem = geosciences.PhysicalProblem()
     builder = geosciences.PhysicalProblemBuilder(problem)
     builder.set_name("picasso")
@@ -93,9 +94,8 @@ def surfaces_on_face(model, axis, side):
 
 # Gravity on a cube whose sides slide and whose bottom is fixed vertically
 def test_mechanics_export(data_dir):
-    model = opengeode.load_brep(
-        os.path.join(data_dir, "adaptive_brep_perm_and_poro.og_brep")
-    )
+    model_filename = os.path.join(data_dir, "adaptive_brep_perm_and_poro.og_brep")
+    model = opengeode.load_one(opengeode.load_brep(model_filename), model_filename)
     for name, value in [
         ("bulk_modulus", 5.5556e9),
         ("shear_modulus", 4.16667e9),
@@ -156,9 +156,8 @@ def test_mechanics_export(data_dir):
 
 
 def test_poromechanics_export(data_dir):
-    model = opengeode.load_brep(
-        os.path.join(data_dir, "adaptive_brep_perm_and_poro.og_brep")
-    )
+    model_filename = os.path.join(data_dir, "adaptive_brep_perm_and_poro.og_brep")
+    model = opengeode.load_one(opengeode.load_brep(model_filename), model_filename)
     for name, value in [
         ("bulk_modulus", 5.5556e9),
         ("shear_modulus", 4.16667e9),
@@ -216,7 +215,10 @@ def test_poromechanics_export(data_dir):
 
 
 def test_structural_model_export(data_dir):
-    model = geosciences.load_structural_model(os.path.join(data_dir, "test.lso"))
+    model_filename = os.path.join(data_dir, "test.lso")
+    model = opengeode.load_one(
+        geosciences.load_structural_model(model_filename), model_filename
+    )
     geosciences_io.BRepGeosExporter(model, "brep_to_geos")
     geosciences_io.StructuralModelGeosExporter(model, "SM_to_geos")
 

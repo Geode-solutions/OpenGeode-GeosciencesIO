@@ -53,7 +53,8 @@ namespace
                 std::ios::binary };
             file << content;
         }
-        return geode::load_edged_curve< 3 >( filename );
+        return geode::load_one(
+            geode::load_edged_curve< 3 >( filename ), filename );
     }
 
     void test_blank_lines()
@@ -96,8 +97,9 @@ namespace
         builder->create_point( point1 );
         builder->create_edge( 0, 1 );
         geode::save_edged_curve( *curve, "test_pl_precision.pl" );
-        const auto reloaded =
-            geode::load_edged_curve< 3 >( "test_pl_precision.pl" );
+        const auto reloaded = geode::load_one(
+            geode::load_edged_curve< 3 >( "test_pl_precision.pl" ),
+            "test_pl_precision.pl" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             reloaded->nb_vertices() == 2 && reloaded->point( 0 ) == point0
                 && reloaded->point( 1 ) == point1,
@@ -146,8 +148,9 @@ namespace
             "Wrong property values in PLine" );
 
         geode::save_edged_curve( *curve, "test_pl_properties_saved.pl" );
-        const auto reloaded =
-            geode::load_edged_curve< 3 >( "test_pl_properties_saved.pl" );
+        const auto reloaded = geode::load_one(
+            geode::load_edged_curve< 3 >( "test_pl_properties_saved.pl" ),
+            "test_pl_properties_saved.pl" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             vertex_value( *reloaded, "p", 1 ) == 2.5,
             "Wrong property values in saved PLine" );
@@ -189,8 +192,9 @@ namespace
         builder->create_edge( 2, 0 );
         builder->create_edge( 3, 4 );
         geode::save_edged_curve( *curve, "test_pl_closed_loop.pl" );
-        const auto reloaded =
-            geode::load_edged_curve< 3 >( "test_pl_closed_loop.pl" );
+        const auto reloaded = geode::load_one(
+            geode::load_edged_curve< 3 >( "test_pl_closed_loop.pl" ),
+            "test_pl_closed_loop.pl" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             sorted_edge_points( *reloaded ) == sorted_edge_points( *curve ),
             "Closed loop is not saved correctly" );
@@ -211,8 +215,9 @@ namespace
         builder->create_edge( 3, 1 );
         builder->set_name( "my lollipop" );
         geode::save_edged_curve( *curve, "test_pl_lollipop.pl" );
-        const auto reloaded =
-            geode::load_edged_curve< 3 >( "test_pl_lollipop.pl" );
+        const auto reloaded = geode::load_one(
+            geode::load_edged_curve< 3 >( "test_pl_lollipop.pl" ),
+            "test_pl_lollipop.pl" );
         check_curve( *reloaded, 5, 4 );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             sorted_edge_points( *reloaded ) == sorted_edge_points( *curve ),
@@ -236,13 +241,33 @@ namespace
             "Number of edges in the ECurve 3D is not correct" );
     }
 
+    void test_multiple_plines()
+    {
+        const auto file = absl::StrCat( geode::DATA_PATH, "2plines.pl" );
+        const auto curves = geode::load_edged_curve< 3 >( file );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curves.size() == 2, "2plines.pl should hold 2 curves" );
+        check_curve( *curves[0], 4, 3 );
+        check_curve( *curves[1], 3, 3 );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curves[0]->name() == "ls-fcl-25"
+                && curves[1]->name() == "xs+ls-ore-25",
+            "Each curve should be named after its PLine" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curves[1]->point( 0 ).value( 1 ) == 6074560
+                && curves[1]->edge_vertices( 2 )[0] == 2
+                && curves[1]->edge_vertices( 2 )[1] == 0,
+            "Wrong second PLine geometry" );
+    }
+
     void check_file( std::string file,
         geode::index_t nb_vertices,
         geode::index_t nb_edges,
         std::string output_file )
     {
         // Load file
-        auto curve = geode::load_edged_curve< 3 >( file );
+        auto curve =
+            geode::load_one( geode::load_edged_curve< 3 >( file ), file );
         check_curve( *curve, nb_vertices, nb_edges );
 
         // Save Edged Curve
@@ -254,9 +279,11 @@ namespace
 
         // Load file
         auto reloaded_curve =
-            geode::load_edged_curve< 3 >( output_file_native );
+            geode::load_one( geode::load_edged_curve< 3 >( output_file_native ),
+                output_file_native );
         check_curve( *reloaded_curve, nb_vertices, nb_edges );
-        auto reloaded_curve_ec = geode::load_edged_curve< 3 >( output_file_pl );
+        auto reloaded_curve_ec = geode::load_one(
+            geode::load_edged_curve< 3 >( output_file_pl ), output_file_pl );
         check_curve( *reloaded_curve_ec, nb_vertices, nb_edges );
         save_edged_curve(
             *reloaded_curve, absl::StrCat( "reloaded_", output_file_native ) );
@@ -282,6 +309,7 @@ int main()
         test_closed_loop_output();
         test_non_contiguous_ids();
         test_properties_and_atoms();
+        test_multiple_plines();
         test_shared_and_isolated_vertices_output();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;

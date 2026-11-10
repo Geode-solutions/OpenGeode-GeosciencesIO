@@ -68,8 +68,8 @@ namespace
         static constexpr geode::index_t OFFSET_START{ 1 };
         static constexpr char EOL{ '\n' };
 
-        LSOInputImpl( std::string_view filename, geode::StructuralModel& model )
-            : file_{ geode::to_string( filename ), std::ios::binary },
+        LSOInputImpl( std::ifstream& file, geode::StructuralModel& model )
+            : file_( file ),
               model_( model ),
               builder_{ model },
               solid_{ geode::TetrahedralSolid3D::create() },
@@ -93,9 +93,6 @@ namespace
                 solid_->vertex_attribute_manager()
                     .find_attribute< geode::VariableAttribute, geode::index_t >(
                         vertex_attribute_id_id );
-            geode::OpenGeodeGeosciencesIOModelException::check_exception(
-                file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
-                "[LSOInput] Error while opening file: ", filename );
         }
 
         ~LSOInputImpl()
@@ -104,15 +101,12 @@ namespace
                 vertex_id_->id() );
         }
 
-        bool read_file()
+        /*!
+         * Read the LightTSolid whose "GOCAD LightTSolid" line has just been
+         * read
+         */
+        bool read_solid()
         {
-            if( !geode::goto_keyword_if_it_exists(
-                    file_, "GOCAD LightTSolid" ) )
-            {
-                throw geode::OpenGeodeGeosciencesIOModelException{ nullptr,
-                    geode::OpenGeodeException::TYPE::data,
-                    "[LSOInput] Cannot find LightTSolid in the file" };
-            }
             const auto header = geode::internal::read_header( file_ );
             if( header.name )
             {
@@ -1048,7 +1042,7 @@ namespace
 
     private:
         bool inspect_required_{ false };
-        std::ifstream file_;
+        std::ifstream& file_;
         std::string line_;
         geode::StructuralModel& model_;
         geode::StructuralModelBuilder builder_;
@@ -1072,16 +1066,29 @@ namespace
 
 namespace geode::internal
 {
-    StructuralModel LSOInput::read()
+    std::vector< StructuralModel > LSOInput::read()
     {
-        StructuralModel structural_model;
-        LSOInputImpl impl{ filename(), structural_model };
-        const auto file_reading_ok = impl.read_file();
-        if( !file_reading_ok )
+        std::ifstream file{ to_string( filename() ), std::ios::binary };
+        OpenGeodeGeosciencesIOModelException::check_exception( file.good(),
+            nullptr, OpenGeodeException::TYPE::data,
+            "[LSOInput] Error while opening file: ", filename() );
+        std::vector< StructuralModel > models;
+        while( goto_keyword_if_it_exists( file, "GOCAD LightTSolid" ) )
         {
-            this->need_to_inspect_result();
+            StructuralModel model;
+            {
+                LSOInputImpl impl{ file, model };
+                if( !impl.read_solid() )
+                {
+                    this->need_to_inspect_result();
+                }
+            }
+            models.emplace_back( std::move( model ) );
         }
-        return structural_model;
+        OpenGeodeGeosciencesIOModelException::check_exception( !models.empty(),
+            nullptr, OpenGeodeException::TYPE::data,
+            "[LSOInput] Cannot find LightTSolid in the file" );
+        return models;
     }
 
     Percentage LSOInput::is_loadable() const

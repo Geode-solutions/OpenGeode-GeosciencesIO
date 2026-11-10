@@ -213,7 +213,8 @@ namespace
     {
         const auto file = data_file( "omf_points" );
         check_loadable( file, 1, 0, 0, 0, 0 );
-        const auto point_set = geode::load_point_set< 3 >( file );
+        const auto point_set =
+            geode::load_one( geode::load_point_set< 3 >( file ), file );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             point_set->nb_vertices() == 4, "Wrong number of points" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
@@ -240,64 +241,70 @@ namespace
             { geode::Vector3D{ { 1, 0, 0 } }, geode::Vector3D{ { 0, 1, 0 } },
                 geode::Vector3D{ { 0, 0, 1 } },
                 geode::Vector3D{ { 1, 1, 1 } } } );
-        check_no_attribute( manager, "omf_element" );
     }
 
     void test_edged_curve()
     {
         const auto file = data_file( "omf_lines" );
         check_loadable( file, 0, 1, 0, 0, 0 );
-        const auto curve = geode::load_edged_curve< 3 >( file );
+        const auto curves = geode::load_edged_curve< 3 >( file );
         geode::OpenGeodeGeosciencesIOMeshException::test(
-            curve->nb_vertices() == 5 && curve->nb_edges() == 3,
+            curves.size() == 2, "Each line set should be a separate curve" );
+        const auto& hole1 = *curves[0];
+        const auto& hole2 = *curves[1];
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            hole1.name() == "hole1" && hole2.name() == "hole2",
+            "Each curve should be named after its element" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            hole1.nb_vertices() == 3 && hole1.nb_edges() == 2
+                && hole2.nb_vertices() == 2 && hole2.nb_edges() == 1,
             "Wrong number of curve vertices or edges" );
-        geode::OpenGeodeGeosciencesIOMeshException::test(
-            curve->name() == "omf_lines",
-            "Merged curve should be named after the project" );
-        check_point( curve->point( 3 ), geode::Point3D{ { 5, 0, 0 } },
+        check_point( hole2.point( 0 ), geode::Point3D{ { 5, 0, 0 } },
             "Wrong first point of hole2" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
-            curve->edge_vertex( { 2, 0 } ) == 3
-                && curve->edge_vertex( { 2, 1 } ) == 4,
+            hole2.edge_vertex( { 0, 0 } ) == 0
+                && hole2.edge_vertex( { 0, 1 } ) == 1,
             "Wrong vertices of hole2 segment" );
-        const auto& vertices = curve->vertex_attribute_manager();
-        const auto& edges = curve->edge_attribute_manager();
-        check_doubles( edges, "cu", { 0.1, 0.2, 0.3 } );
-        check_doubles( vertices, "depth", { 0, 1, 3, NAN, NAN } );
+        check_doubles( hole1.edge_attribute_manager(), "cu", { 0.1, 0.2 } );
+        check_doubles( hole2.edge_attribute_manager(), "cu", { 0.3 } );
+        check_doubles( hole1.vertex_attribute_manager(), "depth", { 0, 1, 3 } );
         // same name as hole1 depth but other kind of data
         check_values< std::string >(
-            vertices, "depth_string", { "", "", "", "top", "bottom" } );
-        check_values< geode::index_t >(
-            vertices, "omf_element", { 0, 0, 0, 1, 1 } );
-        check_values< geode::index_t >( edges, "omf_element", { 0, 0, 1 } );
+            hole2.vertex_attribute_manager(), "depth", { "top", "bottom" } );
     }
 
     void test_corrupted_edged_curve()
     {
-        const auto curve =
+        const auto curves =
             geode::load_edged_curve< 3 >( data_file( "omf_lines_corrupted" ) );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            curves.size() == 2, "Each line set should be a separate curve" );
+        const auto& hole1 = *curves[0];
+        const auto& hole2 = *curves[1];
         // hole1 second segment references a missing vertex and is skipped
         geode::OpenGeodeGeosciencesIOMeshException::test(
-            curve->nb_vertices() == 5 && curve->nb_edges() == 2,
+            hole1.nb_vertices() == 3 && hole1.nb_edges() == 1
+                && hole2.nb_vertices() == 2 && hole2.nb_edges() == 1,
             "Invalid segment should be skipped" );
         geode::OpenGeodeGeosciencesIOMeshException::test(
-            curve->edge_vertex( { 1, 0 } ) == 3
-                && curve->edge_vertex( { 1, 1 } ) == 4,
+            hole2.edge_vertex( { 0, 0 } ) == 0
+                && hole2.edge_vertex( { 0, 1 } ) == 1,
             "Wrong vertices of hole2 segment" );
-        const auto& edges = curve->edge_attribute_manager();
-        // value of the skipped segment is dropped and hole2 cu block is
-        // outside the data section
-        check_doubles( edges, "cu", { 0.1, NAN } );
+        // value of the skipped segment is dropped
+        check_doubles( hole1.edge_attribute_manager(), "cu", { 0.1 } );
+        // hole2 cu block is outside the data section
+        check_no_attribute( hole2.edge_attribute_manager(), "cu" );
         // depth of hole1 has a missing value
         check_doubles(
-            curve->vertex_attribute_manager(), "depth", { 0, 1, NAN } );
+            hole1.vertex_attribute_manager(), "depth", { 0, 1, NAN } );
     }
 
     void test_triangulated_surface()
     {
         const auto file = data_file( "omf_surfaces" );
         check_loadable( file, 0, 0, 0.5, 0.5, 0 );
-        const auto surface = geode::load_triangulated_surface< 3 >( file );
+        const auto surface = geode::load_one(
+            geode::load_triangulated_surface< 3 >( file ), file );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             surface->nb_vertices() == 4 && surface->nb_polygons() == 2,
             "Wrong number of triangulated surface vertices or triangles" );
@@ -312,8 +319,10 @@ namespace
 
     void test_polygonal_surface()
     {
-        const auto surface =
-            geode::load_polygonal_surface< 3 >( data_file( "omf_surfaces" ) );
+        const auto surface_filename = data_file( "omf_surfaces" );
+        const auto surface = geode::load_one(
+            geode::load_polygonal_surface< 3 >( surface_filename ),
+            surface_filename );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             surface->nb_vertices() == 6 && surface->nb_polygons() == 2,
             "Wrong number of grid surface vertices or polygons" );
@@ -346,7 +355,8 @@ namespace
     {
         const auto file = data_file( "omf_volume" );
         check_loadable( file, 0, 0, 0, 0, 1 );
-        const auto grid = geode::load_light_regular_grid< 3 >( file );
+        const auto grid = geode::load_one(
+            geode::load_light_regular_grid< 3 >( file ), file );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             grid.nb_cells_in_direction( 0 ) == 3
                 && grid.nb_cells_in_direction( 1 ) == 2
@@ -393,8 +403,10 @@ namespace
         check_loadable( data_file( "omf_volume_tensor" ), 0, 0, 0, 0, 0 );
         try
         {
-            const auto grid = geode::load_light_regular_grid< 3 >(
-                data_file( "omf_volume_tensor" ) );
+            const auto grid_filename = data_file( "omf_volume_tensor" );
+            const auto grid = geode::load_one(
+                geode::load_light_regular_grid< 3 >( grid_filename ),
+                grid_filename );
         }
         catch( const geode::OpenGeodeException& )
         {
@@ -406,13 +418,73 @@ namespace
 
     void test_mixed_loadability()
     {
-        // 1 point set, 1 line set, 2 surfaces and 2 volumes: only the first
-        // volume is loaded as a LightRegularGrid
+        // 1 point set, 1 line set, 2 surfaces and 2 volumes: each volume is
+        // loaded as a LightRegularGrid
         const auto file = data_file( "omf_mixed" );
-        check_loadable( file, 1. / 6, 1. / 6, 2. / 6, 0, 1. / 6 );
-        const auto grid = geode::load_light_regular_grid< 3 >( file );
+        check_loadable( file, 1. / 6, 1. / 6, 2. / 6, 0, 2. / 6 );
+        const auto grids = geode::load_light_regular_grid< 3 >( file );
         geode::OpenGeodeGeosciencesIOMeshException::test(
-            grid.name() == "volume1", "First volume should be loaded" );
+            grids.size() == 2 && grids[0].name() == "volume1"
+                && grids[1].name() == "volume2",
+            "Every volume should be loaded" );
+        for( const auto& grid : grids )
+        {
+            geode::OpenGeodeGeosciencesIOMeshException::test(
+                grid.nb_cells() == 8, "Wrong number of cells in ",
+                grid.name().value() );
+        }
+        const auto surfaces = geode::load_triangulated_surface< 3 >( file );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surfaces.size() == 2 && surfaces[0]->name() == "surface1"
+                && surfaces[1]->name() == "surface2",
+            "Every triangulated surface should be loaded" );
+    }
+
+    void test_mixed_uniform_volumes()
+    {
+        // omf_mixed with a non uniform tensor_u in volume2: only volume1 is
+        // loaded, volume2 is skipped with a warning
+        const auto file = data_file( "omf_mixed_non_uniform" );
+        check_loadable( file, 1. / 6, 1. / 6, 2. / 6, 0, 1. / 6 );
+        const auto grids = geode::load_light_regular_grid< 3 >( file );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            grids.size() == 1 && grids[0].name() == "volume1"
+                && grids[0].nb_cells() == 8,
+            "Only the uniform volume should be loaded" );
+    }
+
+    void test_multiple_elements()
+    {
+        const auto file = data_file( "omf_multi" );
+        check_loadable( file, 0.5, 0, 0, 0.5, 0 );
+        const auto point_sets = geode::load_point_set< 3 >( file );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            point_sets.size() == 2, "Each point set element should be loaded" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            point_sets[0]->name() == "points_a"
+                && point_sets[0]->nb_vertices() == 3
+                && point_sets[1]->name() == "points_b"
+                && point_sets[1]->nb_vertices() == 2,
+            "Wrong point sets" );
+        check_doubles( point_sets[0]->vertex_attribute_manager(), "grade",
+            { 1.5, 2.5, 3.5 } );
+        check_no_attribute(
+            point_sets[1]->vertex_attribute_manager(), "grade" );
+        check_point( point_sets[1]->point( 1 ), geode::Point3D{ { 1, 5, 0 } },
+            "Wrong second point of points_b" );
+
+        const auto surfaces = geode::load_polygonal_surface< 3 >( file );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surfaces.size() == 2, "Each grid surface should be loaded" );
+        geode::OpenGeodeGeosciencesIOMeshException::test(
+            surfaces[0]->name() == "grid_a" && surfaces[0]->nb_vertices() == 6
+                && surfaces[0]->nb_polygons() == 2
+                && surfaces[1]->name() == "grid_b"
+                && surfaces[1]->nb_vertices() == 8
+                && surfaces[1]->nb_polygons() == 3,
+            "Wrong grid surfaces" );
+        check_point( surfaces[1]->point( 7 ), geode::Point3D{ { 2, 6, 10 } },
+            "Wrong last node of grid_b" );
     }
 
     void test_invalid_json_start()
@@ -430,7 +502,8 @@ namespace
         check_loadable( filename, 0, 0, 0, 0, 0 );
         try
         {
-            const auto point_set = geode::load_point_set< 3 >( filename );
+            const auto point_set = geode::load_one(
+                geode::load_point_set< 3 >( filename ), filename );
         }
         catch( const geode::OpenGeodeException& )
         {
@@ -461,10 +534,12 @@ namespace
             "st": { "__class__": "Int3Array",
                 "array": [ [ 0, 1, 2 ], [ 0, 0, 1 ] ] }
         })" );
-        const auto curve = geode::load_edged_curve< 3 >( filename );
+        const auto curve = geode::load_one(
+            geode::load_edged_curve< 3 >( filename ), filename );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             curve->nb_edges() == 2, "Degenerate segment should be skipped" );
-        const auto surface = geode::load_triangulated_surface< 3 >( filename );
+        const auto surface = geode::load_one(
+            geode::load_triangulated_surface< 3 >( filename ), filename );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             surface->nb_polygons() == 1,
             "Degenerate triangle should be skipped" );
@@ -496,7 +571,9 @@ namespace
         })" );
         check_load_throws(
             "Surface grid with collinear axes should throw", [&] {
-                return geode::load_polygonal_surface< 3 >( surface_file );
+                return geode::load_one(
+                    geode::load_polygonal_surface< 3 >( surface_file ),
+                    surface_file );
             } );
         constexpr auto volume_file = "omf_coplanar_volume_axes.omf";
         write_omf( volume_file, R"({
@@ -508,7 +585,9 @@ namespace
                 "axis_v": [ 0, 1, 0 ], "axis_w": [ 1, 1, 0 ] }
         })" );
         check_load_throws( "Volume grid with coplanar axes should throw", [&] {
-            return geode::load_light_regular_grid< 3 >( volume_file );
+            return geode::load_one(
+                geode::load_light_regular_grid< 3 >( volume_file ),
+                volume_file );
         } );
     }
     void test_huge_numbers()
@@ -526,7 +605,8 @@ namespace
                 "array": [ [ 0, 1 ], [ 1e30, 2 ], [ -1e30, 2 ],
                     [ 18446744073709551615, 2 ], [ 1, 2 ] ] }
         })" );
-        const auto curve = geode::load_edged_curve< 3 >( filename );
+        const auto curve = geode::load_one(
+            geode::load_edged_curve< 3 >( filename ), filename );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             curve->nb_edges() == 2,
             "Segments with huge indices should be skipped" );
@@ -540,7 +620,8 @@ namespace
                 "length": 8, "dtype": "<f8" } }
         })" );
         check_load_throws( "Array block with invalid start should throw", [&] {
-            return geode::load_point_set< 3 >( block_file );
+            return geode::load_one(
+                geode::load_point_set< 3 >( block_file ), block_file );
         } );
     }
     void test_missing_vector_and_color_values()
@@ -565,7 +646,8 @@ namespace
             "ia": { "__class__": "Int3Array",
                 "array": [ [ 0, 0, 255 ], [ 0, 255, 0 ] ] }
         })" );
-        const auto point_set = geode::load_point_set< 3 >( filename );
+        const auto point_set =
+            geode::load_one( geode::load_point_set< 3 >( filename ), filename );
         const auto& manager = point_set->vertex_attribute_manager();
         const auto vector =
             find_attribute< geode::Vector3D >( manager, "vector" );
@@ -603,7 +685,8 @@ namespace
         })" );
         constexpr auto filename = "omf_binary_arrays.omf";
         write_omf( filename, json, absl::StrCat( vertices, scalars ) );
-        const auto point_set = geode::load_point_set< 3 >( filename );
+        const auto point_set =
+            geode::load_one( geode::load_point_set< 3 >( filename ), filename );
         geode::OpenGeodeGeosciencesIOMeshException::test(
             point_set->nb_vertices() == 3, "Wrong number of binary points" );
         check_point( point_set->point( 2 ), geode::Point3D{ { 2, 0, 0 } },
@@ -622,7 +705,8 @@ namespace
         })" );
         try
         {
-            const auto point_set = geode::load_point_set< 3 >( filename );
+            const auto point_set = geode::load_one(
+                geode::load_point_set< 3 >( filename ), filename );
         }
         catch( const geode::OpenGeodeException& exception )
         {
@@ -673,6 +757,8 @@ int main()
         test_non_uniform_grid();
         test_invalid_json_start();
         test_mixed_loadability();
+        test_mixed_uniform_volumes();
+        test_multiple_elements();
         test_degenerate_elements();
         test_collinear_axes();
         test_huge_numbers();

@@ -43,7 +43,7 @@ namespace geode::internal
             return extensions;
         }
 
-        LightRegularGrid< 2 > read() final;
+        std::vector< LightRegularGrid< 2 > > read() final;
 
         // TODO: implement missing files
         // A tiff can use completementary file to open... but actually I

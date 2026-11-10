@@ -84,6 +84,14 @@ namespace
         return filename;
     }
 
+    geode::Section load_shapefile( std::string_view name,
+        OGRwkbGeometryType type,
+        const std::vector< std::string >& wkts )
+    {
+        const auto filename = write_shapefile( name, type, wkts );
+        return geode::load_one( geode::load_section( filename ), filename );
+    }
+
     void check_section_vertices( const geode::Section& section )
     {
         for( const auto& line : section.lines() )
@@ -125,10 +133,10 @@ namespace
 
     void test_degenerated_parts()
     {
-        const auto lines = geode::load_section(
-            write_shapefile( "shp_degenerated_lines", wkbLineString,
+        const auto lines =
+            load_shapefile( "shp_degenerated_lines", wkbLineString,
                 { "LINESTRING (0 0)", "LINESTRING (0 0,0 0)",
-                    "LINESTRING (0 0,1 0,2 1)" } ) );
+                    "LINESTRING (0 0,1 0,2 1)" } );
         check_section_vertices( lines );
         geode::index_t nb_edges{ 0 };
         for( const auto& line : lines.lines() )
@@ -138,10 +146,9 @@ namespace
         geode::OpenGeodeGeosciencesIOModelException::test(
             nb_edges == 2, "Wrong number of edges with degenerated lines" );
 
-        const auto polygons = geode::load_section(
-            write_shapefile( "shp_degenerated_polygons", wkbPolygon,
-                { "POLYGON ((0 0,1 1,0 0))",
-                    "POLYGON ((0 0,1 0,1 1,0 1,0 0))" } ) );
+        const auto polygons = load_shapefile( "shp_degenerated_polygons",
+            wkbPolygon,
+            { "POLYGON ((0 0,1 1,0 0))", "POLYGON ((0 0,1 0,1 1,0 1,0 0))" } );
         check_section_vertices( polygons );
         geode::index_t nb_polygons{ 0 };
         for( const auto& surface : polygons.surfaces() )
@@ -153,8 +160,8 @@ namespace
     }
     void test_points()
     {
-        const auto section = geode::load_section( write_shapefile( "shp_points",
-            wkbPoint, { "POINT (0 0)", "POINT (1 0)", "POINT (2 3)" } ) );
+        const auto section = load_shapefile( "shp_points", wkbPoint,
+            { "POINT (0 0)", "POINT (1 0)", "POINT (2 3)" } );
         geode::OpenGeodeGeosciencesIOModelException::test(
             section.nb_corners() == 3, "Wrong number of corners" );
         geode::OpenGeodeGeosciencesIOModelException::test(
@@ -171,20 +178,19 @@ namespace
     }
     void test_geometry_variants()
     {
-        const auto points = geode::load_section( write_shapefile(
-            "shp_multi_points_z", wkbMultiPoint25D,
-            { "MULTIPOINT Z ((0 0 1),(1 0 2))", "MULTIPOINT Z ((2 3 4))" } ) );
+        const auto points = load_shapefile( "shp_multi_points_z",
+            wkbMultiPoint25D,
+            { "MULTIPOINT Z ((0 0 1),(1 0 2))", "MULTIPOINT Z ((2 3 4))" } );
         geode::OpenGeodeGeosciencesIOModelException::test(
             points.nb_corners() == 3, "Wrong number of MultiPoint corners" );
-        const auto lines = geode::load_section( write_shapefile( "shp_lines_z",
-            wkbLineString25D, { "LINESTRING Z (0 0 1,1 0 2,1 1 3)" } ) );
+        const auto lines = load_shapefile( "shp_lines_z", wkbLineString25D,
+            { "LINESTRING Z (0 0 1,1 0 2,1 1 3)" } );
         geode::OpenGeodeGeosciencesIOModelException::test(
             lines.nb_lines() == 1
                 && ( *lines.lines().begin() ).mesh().nb_edges() == 2,
             "Wrong LineString Z" );
-        const auto polygons =
-            geode::load_section( write_shapefile( "shp_polygons_m", wkbPolygonM,
-                { "POLYGON M ((0 0 1,1 0 2,1 1 3,0 0 1))" } ) );
+        const auto polygons = load_shapefile( "shp_polygons_m", wkbPolygonM,
+            { "POLYGON M ((0 0 1,1 0 2,1 1 3,0 0 1))" } );
         geode::OpenGeodeGeosciencesIOModelException::test(
             polygons.nb_surfaces() == 1
                 && ( *polygons.surfaces().begin() ).mesh().nb_polygons() == 1,
@@ -192,28 +198,25 @@ namespace
     }
     void test_null_geometries()
     {
-        const auto points =
-            geode::load_section( write_shapefile( "shp_null_points", wkbPoint,
-                { "POINT (0 0)", "", "POINT (1 1)" } ) );
+        const auto points = load_shapefile(
+            "shp_null_points", wkbPoint, { "POINT (0 0)", "", "POINT (1 1)" } );
         geode::OpenGeodeGeosciencesIOModelException::test(
             points.nb_corners() == 2,
             "Wrong number of corners with null geometry" );
-        const auto lines = geode::load_section( write_shapefile(
-            "shp_null_lines", wkbLineString, { "", "LINESTRING (0 0,1 1)" } ) );
+        const auto lines = load_shapefile(
+            "shp_null_lines", wkbLineString, { "", "LINESTRING (0 0,1 1)" } );
         geode::OpenGeodeGeosciencesIOModelException::test(
             lines.nb_lines() == 1, "Wrong number of lines with null geometry" );
-        const auto polygons =
-            geode::load_section( write_shapefile( "shp_null_polygons",
-                wkbPolygon, { "", "POLYGON ((0 0,1 0,1 1,0 0))" } ) );
+        const auto polygons = load_shapefile( "shp_null_polygons", wkbPolygon,
+            { "", "POLYGON ((0 0,1 0,1 1,0 0))" } );
         geode::OpenGeodeGeosciencesIOModelException::test(
             polygons.nb_surfaces() == 1,
             "Wrong number of surfaces with null geometry" );
     }
     void test_polygon_holes()
     {
-        const auto section = geode::load_section( write_shapefile(
-            "shp_polygon_hole", wkbPolygon,
-            { "POLYGON ((0 0,10 0,10 10,0 10,0 0),(4 4,4 6,6 6,6 4,4 4))" } ) );
+        const auto section = load_shapefile( "shp_polygon_hole", wkbPolygon,
+            { "POLYGON ((0 0,10 0,10 10,0 10,0 0),(4 4,4 6,6 6,6 4,4 4))" } );
         check_section_vertices( section );
         const auto& mesh = ( *section.surfaces().begin() ).mesh();
         geode::OpenGeodeGeosciencesIOModelException::test(
@@ -241,8 +244,10 @@ int main()
     try
     {
         geode::OpenGeodeGeosciencesIOModelLibrary::initialize();
-        const auto section = geode::load_section(
-            absl::StrCat( geode::DATA_PATH, "toulouse.shz" ) );
+        const auto section_filename =
+            absl::StrCat( geode::DATA_PATH, "toulouse.shz" );
+        const auto section = geode::load_one(
+            geode::load_section( section_filename ), section_filename );
         geode::OpenGeodeGeosciencesIOModelException::test(
             section.nb_corners() == 51718, "Wrong number of corners" );
         geode::OpenGeodeGeosciencesIOModelException::test(
@@ -250,8 +255,10 @@ int main()
         geode::OpenGeodeGeosciencesIOModelException::test(
             section.nb_surfaces() == 12, "Wrong number of surfaces" );
 
-        const auto section2 =
-            geode::load_section( absl::StrCat( geode::DATA_PATH, "test.shp" ) );
+        const auto section2_filename =
+            absl::StrCat( geode::DATA_PATH, "test.shp" );
+        const auto section2 = geode::load_one(
+            geode::load_section( section2_filename ), section2_filename );
         geode::OpenGeodeGeosciencesIOModelException::test(
             section2.nb_corners() == 0, "Wrong number of corners" );
         geode::OpenGeodeGeosciencesIOModelException::test(

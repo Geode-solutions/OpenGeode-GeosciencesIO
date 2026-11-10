@@ -143,24 +143,17 @@ namespace
         static constexpr geode::index_t OFFSET_START{ 1 };
         static constexpr char EOL{ '\n' };
 
-        MLInputImpl( std::string_view filename, geode::StructuralModel& model )
-            : file_{ geode::to_string( filename ), std::ios::binary },
-              model_( model ),
-              builder_( model )
+        MLInputImpl( std::ifstream& file, geode::StructuralModel& model )
+            : file_( file ), model_( model ), builder_( model )
         {
-            geode::OpenGeodeGeosciencesIOModelException::check_exception(
-                file_.good(), nullptr, geode::OpenGeodeException::TYPE::data,
-                "[MLInput] Error while opening file: ", filename );
         }
 
-        void read_file()
+        /*!
+         * Read the Model3d whose "GOCAD Model3d" line has just been read,
+         * and its GOCAD TSurf sections
+         */
+        void read_model()
         {
-            if( !geode::goto_keyword_if_it_exists( file_, "GOCAD Model3d" ) )
-            {
-                throw geode::OpenGeodeGeosciencesIOModelException{ nullptr,
-                    geode::OpenGeodeException::TYPE::data,
-                    "[MLInput] Cannot find Model3d in the file" };
-            }
             const auto header = geode::internal::read_header( file_ );
             if( header.name )
             {
@@ -1262,7 +1255,7 @@ namespace
         }
 
     private:
-        std::ifstream file_;
+        std::ifstream& file_;
         geode::StructuralModel& model_;
         geode::StructuralModelBuilder builder_;
         absl::flat_hash_map< std::string, geode::index_t > tsurf_names2index_;
@@ -1282,12 +1275,26 @@ namespace
 
 namespace geode::internal
 {
-    StructuralModel MLInput::read()
+    std::vector< StructuralModel > MLInput::read()
     {
-        StructuralModel structural_model;
-        MLInputImpl impl{ filename(), structural_model };
-        impl.read_file();
-        return structural_model;
+        std::ifstream file{ to_string( filename() ), std::ios::binary };
+        OpenGeodeGeosciencesIOModelException::check_exception( file.good(),
+            nullptr, OpenGeodeException::TYPE::data,
+            "[MLInput] Error while opening file: ", filename() );
+        std::vector< StructuralModel > models;
+        while( goto_keyword_if_it_exists( file, "GOCAD Model3d" ) )
+        {
+            StructuralModel model;
+            {
+                MLInputImpl impl{ file, model };
+                impl.read_model();
+            }
+            models.emplace_back( std::move( model ) );
+        }
+        OpenGeodeGeosciencesIOModelException::check_exception( !models.empty(),
+            nullptr, OpenGeodeException::TYPE::data,
+            "[MLInput] Cannot find Model3d in the file" );
+        return models;
     }
 
     Percentage MLInput::is_loadable() const

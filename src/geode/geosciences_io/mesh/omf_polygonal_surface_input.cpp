@@ -169,37 +169,28 @@ namespace
 
 namespace geode::internal
 {
-    std::unique_ptr< PolygonalSurface3D > OMFPolygonalSurfaceInput::read(
-        const MeshImpl& impl )
+    std::vector< std::unique_ptr< PolygonalSurface3D > >
+        OMFPolygonalSurfaceInput::read( const MeshImpl& impl )
     {
-        auto surface = PolygonalSurface3D::create( impl );
-        auto builder = PolygonalSurfaceBuilder3D::create( *surface );
         const OMFFile file{ filename() };
-        const auto elements =
+        std::vector< std::unique_ptr< PolygonalSurface3D > > surfaces;
+        for( const auto* element :
             file.elements( OMF_POLYGONAL_SURFACE_ELEMENT_CLASS,
-                OMF_POLYGONAL_SURFACE_GEOMETRY_CLASS );
-        builder->set_name( file.mesh_name( elements ) );
-        for( const auto element_id : Indices{ elements } )
+                OMF_POLYGONAL_SURFACE_GEOMETRY_CLASS ) )
         {
-            const auto& element = *elements[element_id];
-            const auto first_vertex = surface->nb_vertices();
-            const auto first_polygon = surface->nb_polygons();
-            OMFSurfaceGridReader{ file, element, *surface, *builder }.read();
-            if( elements.size() > 1 )
-            {
-                set_omf_element_attribute( surface->vertex_attribute_manager(),
-                    element_id, first_vertex, surface->nb_vertices() );
-                set_omf_element_attribute( surface->polygon_attribute_manager(),
-                    element_id, first_polygon, surface->nb_polygons() );
-            }
-            if( !element.value( "textures", nlohmann::json::array() ).empty() )
+            auto surface = PolygonalSurface3D::create( impl );
+            auto builder = PolygonalSurfaceBuilder3D::create( *surface );
+            builder->set_name( OMFFile::name( *element ) );
+            OMFSurfaceGridReader{ file, *element, *surface, *builder }.read();
+            if( !element->value( "textures", nlohmann::json::array() ).empty() )
             {
                 Logger::info( "[OMFInput] Textures of surface \"",
-                    OMFFile::name( element ), "\" are not imported" );
+                    OMFFile::name( *element ), "\" are not imported" );
             }
+            builder->compute_polygon_adjacencies();
+            surfaces.emplace_back( std::move( surface ) );
         }
-        builder->compute_polygon_adjacencies();
-        return surface;
+        return surfaces;
     }
 
     Percentage OMFPolygonalSurfaceInput::is_loadable() const

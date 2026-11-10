@@ -44,7 +44,7 @@ namespace geode::internal
             return EXT;
         }
 
-        HorizonsStack< dimension > read() final;
+        std::vector< HorizonsStack< dimension > > read() final;
 
         AdditionalFiles additional_files() const final
         {

@@ -129,7 +129,8 @@ void test_file( std::string file,
     geode::index_t nb_block_internals,
     geode::index_t nb_vertices_attributes )
 {
-    const auto model = geode::load_structural_model( file );
+    const auto model =
+        geode::load_one( geode::load_structural_model( file ), file );
     check_model( model, nb_corners, nb_lines, nb_surfaces, nb_blocks,
         nb_horizons, nb_block_internals, nb_vertices_attributes );
     geode::index_t counter{ 0 };
@@ -140,8 +141,9 @@ void test_file( std::string file,
             absl::StrCat( geode::filename_without_extension( file ).string(),
                 "_b", counter, ".og_tso3d" );
         geode::save_tetrahedral_solid( block_mesh, block_mesh_filename );
-        const auto reload_block_mesh =
-            geode::load_tetrahedral_solid< 3 >( block_mesh_filename );
+        const auto reload_block_mesh = geode::load_one(
+            geode::load_tetrahedral_solid< 3 >( block_mesh_filename ),
+            block_mesh_filename );
 
         for( const auto ids :
             block_mesh.vertex_attribute_manager().attribute_ids() )
@@ -161,7 +163,8 @@ void test_file( std::string file,
     }
 
     geode::save_structural_model( model, "test.lso" );
-    const auto reload_model = geode::load_structural_model( "test.lso" );
+    const auto reload_model = geode::load_one(
+        geode::load_structural_model( "test.lso" ), "test.lso" );
     check_model( reload_model, nb_corners, nb_lines, nb_surfaces, nb_blocks,
         nb_horizons, nb_block_internals, 0 );
 }
@@ -196,6 +199,14 @@ std::string write_modified_vri( std::string_view name,
     return filename;
 }
 
+geode::StructuralModel load_modified_vri( std::string_view name,
+    const std::function< void( std::vector< std::string >& ) >& modifier )
+{
+    const auto filename = write_modified_vri( name, modifier );
+    return geode::load_one(
+        geode::load_structural_model( filename ), filename );
+}
+
 geode::index_t find_line( const std::vector< std::string >& lines,
     std::string_view start,
     geode::index_t from = 0 )
@@ -225,7 +236,8 @@ void check_load_throws( std::string_view file )
 {
     try
     {
-        const auto model = geode::load_structural_model( file );
+        const auto model =
+            geode::load_one( geode::load_structural_model( file ), file );
     }
     catch( const geode::OpenGeodeException& exception )
     {
@@ -263,10 +275,10 @@ void test_malformed_tokens()
         "lso_short_region", []( std::vector< std::string >& lines ) {
             lines[find_line( lines, "MODEL_REGION" )] = "MODEL_REGION";
         } ) );
-    const auto model = geode::load_structural_model( write_modified_vri(
+    const auto model = load_modified_vri(
         "lso_missing_ctetra", []( std::vector< std::string >& lines ) {
             lines.erase( lines.begin() + find_line( lines, "# CTETRA" ) );
-        } ) );
+        } );
     geode::OpenGeodeGeosciencesIOModelException::test(
         count_tetrahedra( model ) == 291,
         "Wrong number of tetrahedra with missing CTETRA line" );
@@ -353,12 +365,12 @@ void test_shared_vertices()
             lines[find_line( lines, "TRGL" )] = "TRGL 0 1 2";
         } ) );
     // A shared vertex referring to another shared vertex
-    check_vri_model( geode::load_structural_model( write_modified_vri(
+    check_vri_model( load_modified_vri(
         "lso_shared_chain", []( std::vector< std::string >& lines ) {
             add_shared_vertex( lines, "124", "104" );
-        } ) ) );
+        } ) );
     // Shared vertex 104 (copy of 13) moved right after vertex 13
-    check_vri_model( geode::load_structural_model( write_modified_vri(
+    check_vri_model( load_modified_vri(
         "lso_shared_interleaved", []( std::vector< std::string >& lines ) {
             renumber_vertices( lines, []( geode::index_t id ) {
                 if( id == 104 )
@@ -376,9 +388,9 @@ void test_shared_vertices()
             lines.erase( lines.begin() + shared );
             lines.insert(
                 lines.begin() + find_line( lines, "PVRTX 15 " ), line );
-        } ) ) );
+        } ) );
     // Triangles referring to shared vertices instead of original ones
-    check_vri_model( geode::load_structural_model( write_modified_vri(
+    check_vri_model( load_modified_vri(
         "lso_triangle_on_shared", []( std::vector< std::string >& lines ) {
             absl::flat_hash_map< std::string, std::string > copies;
             for( const auto& line : lines )
@@ -406,17 +418,17 @@ void test_shared_vertices()
                 }
                 line = absl::StrJoin( tokens, " " );
             }
-        } ) ) );
+        } ) );
 }
 
 void test_vertex_ids()
 {
-    check_vri_model( geode::load_structural_model( write_modified_vri(
+    check_vri_model( load_modified_vri(
         "lso_vertex_ids_with_gaps", []( std::vector< std::string >& lines ) {
             renumber_vertices( lines, []( geode::index_t id ) {
                 return 2 * id + 10;
             } );
-        } ) ) );
+        } ) );
     check_load_throws( write_modified_vri(
         "lso_duplicated_vertex_id", []( std::vector< std::string >& lines ) {
             auto tokens = split( lines[find_line( lines, "PVRTX 5 " )] );
@@ -438,46 +450,44 @@ geode::index_t count_triangles( const geode::StructuralModel& model )
 
 void test_model_section()
 {
-    const auto nb_triangles = count_triangles( geode::load_structural_model(
-        absl::StrCat( geode::DATA_PATH, "vri.lso" ) ) );
-    const auto without_keyvertices =
-        geode::load_structural_model( write_modified_vri(
-            "lso_without_keyvertices", []( std::vector< std::string >& lines ) {
-                lines.erase( std::remove_if( lines.begin(), lines.end(),
-                                 []( const std::string& line ) {
-                                     return absl::StartsWith(
-                                         line, "KEYVERTICES" );
-                                 } ),
-                    lines.end() );
-            } ) );
+    const auto nb_triangles = count_triangles(
+        geode::load_one( geode::load_structural_model(
+                             absl::StrCat( geode::DATA_PATH, "vri.lso" ) ),
+            absl::StrCat( geode::DATA_PATH, "vri.lso" ) ) );
+    const auto without_keyvertices = load_modified_vri(
+        "lso_without_keyvertices", []( std::vector< std::string >& lines ) {
+            lines.erase( std::remove_if( lines.begin(), lines.end(),
+                             []( const std::string& line ) {
+                                 return absl::StartsWith( line, "KEYVERTICES" );
+                             } ),
+                lines.end() );
+        } );
     check_vri_model( without_keyvertices );
     geode::OpenGeodeGeosciencesIOModelException::test(
         count_triangles( without_keyvertices ) == nb_triangles,
         "Wrong number of triangles without KEYVERTICES" );
-    const auto with_unknown_lines =
-        geode::load_structural_model( write_modified_vri(
-            "lso_with_unknown_lines", []( std::vector< std::string >& lines ) {
-                lines.insert( lines.begin() + find_line( lines, "MODEL" ) + 1,
-                    "UNKNOWN 1" );
-                lines.insert( lines.begin() + find_line( lines, "SURFACE" ) + 1,
-                    "UNKNOWN 2" );
-                lines.insert( lines.begin()
-                                  + find_line( lines, "SURFACE",
-                                      find_line( lines, "SURFACE" ) + 1 ),
-                    "UNKNOWN 3" );
-                lines.insert(
-                    lines.begin() + find_line( lines, "MODEL_REGION" ) + 1,
-                    "UNKNOWN 4" );
-            } ) );
+    const auto with_unknown_lines = load_modified_vri(
+        "lso_with_unknown_lines", []( std::vector< std::string >& lines ) {
+            lines.insert(
+                lines.begin() + find_line( lines, "MODEL" ) + 1, "UNKNOWN 1" );
+            lines.insert( lines.begin() + find_line( lines, "SURFACE" ) + 1,
+                "UNKNOWN 2" );
+            lines.insert( lines.begin()
+                              + find_line( lines, "SURFACE",
+                                  find_line( lines, "SURFACE" ) + 1 ),
+                "UNKNOWN 3" );
+            lines.insert(
+                lines.begin() + find_line( lines, "MODEL_REGION" ) + 1,
+                "UNKNOWN 4" );
+        } );
     check_vri_model( with_unknown_lines );
     geode::OpenGeodeGeosciencesIOModelException::test(
         count_triangles( with_unknown_lines ) == nb_triangles,
         "Wrong number of triangles with unknown lines" );
-    const auto unnamed_surface =
-        geode::load_structural_model( write_modified_vri(
-            "lso_unnamed_surface", []( std::vector< std::string >& lines ) {
-                lines[find_line( lines, "SURFACE" )] = "SURFACE";
-            } ) );
+    const auto unnamed_surface = load_modified_vri(
+        "lso_unnamed_surface", []( std::vector< std::string >& lines ) {
+            lines[find_line( lines, "SURFACE" )] = "SURFACE";
+        } );
     check_vri_model( unnamed_surface );
 }
 
@@ -504,20 +514,20 @@ void test_region_names()
                 "Wrong Block name: ", block.name().value() );
         }
     };
-    const auto model = geode::load_structural_model(
-        write_modified_vri( "lso_region_names_with_spaces", rename ) );
+    const auto model =
+        load_modified_vri( "lso_region_names_with_spaces", rename );
     check_names( model, 9 );
     geode::save_structural_model( model, "lso_region_names_saved.lso" );
-    const auto reloaded =
-        geode::load_structural_model( "lso_region_names_saved.lso" );
+    const auto reloaded = geode::load_one(
+        geode::load_structural_model( "lso_region_names_saved.lso" ),
+        "lso_region_names_saved.lso" );
     check_names( reloaded, 0 );
 
-    const auto unknown_region =
-        geode::load_structural_model( write_modified_vri(
-            "lso_unknown_region", []( std::vector< std::string >& lines ) {
-                lines[find_line( lines, "# CTETRA" )] =
-                    "# CTETRA Unknown none none none none";
-            } ) );
+    const auto unknown_region = load_modified_vri(
+        "lso_unknown_region", []( std::vector< std::string >& lines ) {
+            lines[find_line( lines, "# CTETRA" )] =
+                "# CTETRA Unknown none none none none";
+        } );
     geode::OpenGeodeGeosciencesIOModelException::test(
         count_tetrahedra( unknown_region ) == 291,
         "Wrong number of tetrahedra with unknown region" );
@@ -542,8 +552,9 @@ void check_save_throws(
 
 void test_output_vertices_outside_blocks()
 {
-    auto model = geode::load_structural_model(
-        absl::StrCat( geode::DATA_PATH, "vri.lso" ) );
+    const auto model_filename = absl::StrCat( geode::DATA_PATH, "vri.lso" );
+    auto model = geode::load_one(
+        geode::load_structural_model( model_filename ), model_filename );
     geode::StructuralModelBuilder builder{ model };
     const auto& corner = model.corner( builder.add_corner() );
     builder.corner_mesh_builder( corner )->create_point(
@@ -551,7 +562,10 @@ void test_output_vertices_outside_blocks()
     builder.set_unique_vertex(
         { corner.component_id(), 0 }, builder.create_unique_vertex() );
     geode::save_structural_model( model, "lso_free_corner.lso" );
-    check_vri_model( geode::load_structural_model( "lso_free_corner.lso" ), 0 );
+    check_vri_model(
+        geode::load_one( geode::load_structural_model( "lso_free_corner.lso" ),
+            "lso_free_corner.lso" ),
+        0 );
 
     builder.create_unique_vertex();
     check_save_throws( model, "lso_orphan_unique_vertex.lso" );
@@ -559,8 +573,9 @@ void test_output_vertices_outside_blocks()
 
 void test_output_surfaces_outside_collections()
 {
-    auto model = geode::load_structural_model(
-        absl::StrCat( geode::DATA_PATH, "vri.lso" ) );
+    const auto model_filename = absl::StrCat( geode::DATA_PATH, "vri.lso" );
+    auto model = geode::load_one(
+        geode::load_structural_model( model_filename ), model_filename );
     geode::StructuralModelBuilder builder{ model };
     std::vector< geode::uuid > horizons;
     for( const auto& horizon : model.horizons() )
@@ -574,8 +589,9 @@ void test_output_surfaces_outside_collections()
     geode_unused( builder.add_surface( geode::MeshFactory::default_impl(
         geode::TriangulatedSurface3D::type_name_static() ) ) );
     geode::save_structural_model( model, "lso_surfaces_without_horizon.lso" );
-    const auto reloaded =
-        geode::load_structural_model( "lso_surfaces_without_horizon.lso" );
+    const auto reloaded = geode::load_one(
+        geode::load_structural_model( "lso_surfaces_without_horizon.lso" ),
+        "lso_surfaces_without_horizon.lso" );
     geode::OpenGeodeGeosciencesIOModelException::test(
         reloaded.nb_surfaces() == 11 && reloaded.nb_blocks() == 2
             && count_tetrahedra( reloaded ) == 292,
@@ -609,15 +625,16 @@ geode::index_t count_block_boundaries( const geode::StructuralModel& model )
 
 void test_partial_conformity()
 {
-    const auto nb_boundaries =
-        count_block_boundaries( geode::load_structural_model(
+    const auto nb_boundaries = count_block_boundaries(
+        geode::load_one( geode::load_structural_model(
+                             absl::StrCat( geode::DATA_PATH, "vri.lso" ) ),
             absl::StrCat( geode::DATA_PATH, "vri.lso" ) ) );
     // Remove a tetrahedron having facets on two surfaces
-    const auto model = geode::load_structural_model( write_modified_vri(
+    const auto model = load_modified_vri(
         "lso_partial_conformity", []( std::vector< std::string >& lines ) {
             const auto tetra = find_line( lines, "TETRA 112 59 110 111" );
             lines.erase( lines.begin() + tetra, lines.begin() + tetra + 2 );
-        } ) );
+        } );
     geode::OpenGeodeGeosciencesIOModelException::test(
         count_block_boundaries( model ) == nb_boundaries,
         "Wrong number of Block boundaries with partial conformity" );
@@ -658,7 +675,8 @@ void test_border_loop_without_corner()
                   "TRGL 1 2 5\nTRGL 2 3 5\nTRGL 3 1 5\n"
                   "MODEL_REGION A +1\nMODEL_REGION B -3\nEND\n";
     }
-    const auto model = geode::load_structural_model( filename );
+    const auto model =
+        geode::load_one( geode::load_structural_model( filename ), filename );
     geode::OpenGeodeGeosciencesIOModelException::test(
         model.nb_blocks() == 2 && model.nb_surfaces() == 3,
         "Wrong number of Blocks or Surfaces" );
@@ -693,10 +711,13 @@ std::vector< std::array< double, 3 > > sorted_block_points(
 
 void test_output_precision()
 {
-    const auto model = geode::load_structural_model(
-        absl::StrCat( geode::DATA_PATH, "vri.lso" ) );
+    const auto model_filename = absl::StrCat( geode::DATA_PATH, "vri.lso" );
+    const auto model = geode::load_one(
+        geode::load_structural_model( model_filename ), model_filename );
     geode::save_structural_model( model, "lso_precision.lso" );
-    const auto reloaded = geode::load_structural_model( "lso_precision.lso" );
+    const auto reloaded =
+        geode::load_one( geode::load_structural_model( "lso_precision.lso" ),
+            "lso_precision.lso" );
     geode::OpenGeodeGeosciencesIOModelException::test(
         sorted_block_points( model ) == sorted_block_points( reloaded ),
         "Coordinates are not exactly preserved by LSO output" );
@@ -704,8 +725,10 @@ void test_output_precision()
 
 void test_tetra_properties()
 {
-    const auto model = geode::load_structural_model(
-        absl::StrCat( geode::DATA_PATH, "lso_tetra_properties.lso" ) );
+    const auto model_filename =
+        absl::StrCat( geode::DATA_PATH, "lso_tetra_properties.lso" );
+    const auto model = geode::load_one(
+        geode::load_structural_model( model_filename ), model_filename );
     geode::index_t nb_tetrahedra{ 0 };
     for( const auto& block : model.blocks() )
     {
@@ -745,6 +768,30 @@ void test_tetra_properties()
         nb_tetrahedra == 292, "Wrong number of tetrahedra" );
 }
 
+void test_multiple_solids()
+{
+    const auto file = absl::StrCat( geode::DATA_PATH, "2lightsolids.lso" );
+    const auto models = geode::load_structural_model( file );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        models.size() == 2, "2lightsolids.lso should hold 2 models" );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        models[0].name() == "SimpleFlatHorizons"
+            && models[1].name() == "TetraProperties",
+        "Each model should be named after its LightTSolid" );
+    check_vri_model( models[0] );
+    check_vri_model( models[1] );
+    const auto has_tetra_property = []( const geode::StructuralModel& model ) {
+        return ( *model.blocks().begin() )
+            .mesh()
+            .polyhedron_attribute_manager()
+            .attribute_ids_matching_name( "centroid_x" )
+            .has_value();
+    };
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        !has_tetra_property( models[0] ) && has_tetra_property( models[1] ),
+        "Tetrahedra properties should only be in the second model" );
+}
+
 int main()
 {
     try
@@ -760,6 +807,7 @@ int main()
                        geode::internal::LSOInput::extension() ),
             12, 20, 11, 2, 7, 0, 9 );
         test_tetra_properties();
+        test_multiple_solids();
         test_malformed_tokens();
         test_shared_vertices();
         test_vertex_ids();

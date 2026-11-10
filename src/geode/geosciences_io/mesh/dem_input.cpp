@@ -185,11 +185,14 @@ namespace
 
 namespace geode::internal
 {
-    std::unique_ptr< PolygonalSurface3D > DEMInput::read( const MeshImpl& impl )
+    std::vector< std::unique_ptr< PolygonalSurface3D > > DEMInput::read(
+        const MeshImpl& impl )
     {
         auto surface = PolygonalSurface3D::create( impl );
         read_elevation_raster( this->filename(), DEM_DRIVERS, *surface );
-        return surface;
+        std::vector< std::unique_ptr< PolygonalSurface3D > > meshes;
+        meshes.emplace_back( std::move( surface ) );
+        return meshes;
     }
 
     void read_elevation_raster( std::string_view filename,
