@@ -640,6 +640,22 @@ void test_partial_conformity()
         "Wrong number of Block boundaries with partial conformity" );
 }
 
+void test_non_conformal_triangle()
+{
+    const auto nb_boundaries = count_block_boundaries(
+        geode::load_one( geode::load_structural_model(
+                             absl::StrCat( geode::DATA_PATH, "vri.lso" ) ),
+            absl::StrCat( geode::DATA_PATH, "vri.lso" ) ) );
+    const auto model = load_modified_vri(
+        "lso_non_conformal_triangle", []( std::vector< std::string >& lines ) {
+            lines[find_line( lines, "TRGL 49 81 7" )] = "TRGL 49 81 109";
+        } );
+    geode::OpenGeodeGeosciencesIOModelException::test(
+        count_block_boundaries( model ) == nb_boundaries
+            && count_tetrahedra( model ) == 292,
+        "Wrong Block boundaries with a non conformal triangle" );
+}
+
 void test_border_loop_without_corner()
 {
     const auto filename = "lso_border_loop_without_corner.lso";
@@ -802,6 +818,7 @@ int main()
         test_output_surfaces_outside_collections();
         test_border_without_corner();
         test_partial_conformity();
+        test_non_conformal_triangle();
         test_border_loop_without_corner();
         test_output_precision();
 
