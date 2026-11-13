@@ -44,6 +44,14 @@ add_geode_test(
         GDAL::GDAL
 )
 add_geode_test(
+    SOURCE "test-json-drillholes.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::mesh
+        OpenGeode-Geosciences::explicit
+        ${PROJECT_NAME}::mesh
+)
+add_geode_test(
     SOURCE "test-json-grid.cpp"
     DEPENDENCIES
         OpenGeode::basic

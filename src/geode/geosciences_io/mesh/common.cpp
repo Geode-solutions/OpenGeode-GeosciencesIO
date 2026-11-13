@@ -33,6 +33,7 @@
 #include <geode/geosciences_io/mesh/internal/fem_output.hpp>
 #include <geode/geosciences_io/mesh/internal/geotiff_input.hpp>
 #include <geode/geosciences_io/mesh/internal/grdecl_input.hpp>
+#include <geode/geosciences_io/mesh/internal/json_edged_curve_input.hpp>
 #include <geode/geosciences_io/mesh/internal/json_grid_input.hpp>
 #include <geode/geosciences_io/mesh/internal/omf_edged_curve_input.hpp>
 #include <geode/geosciences_io/mesh/internal/omf_light_regular_grid_input.hpp>
@@ -121,6 +122,9 @@ namespace
         geode::EdgedCurveInputFactory3D::register_creator<
             geode::internal::OMFEdgedCurveInput >(
             geode::internal::OMFEdgedCurveInput::extension().data() );
+        geode::EdgedCurveInputFactory3D::register_creator<
+            geode::internal::JSONEdgedCurveInput >(
+            geode::internal::JSONEdgedCurveInput::extension().data() );
     }
 
     void register_light_regular_grid_input()

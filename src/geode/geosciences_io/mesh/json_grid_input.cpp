@@ -29,10 +29,7 @@
 #include <limits>
 #include <optional>
 
-#include <nlohmann/json.hpp>
-
 #include <absl/algorithm/container.h>
-#include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
 
 #include <geode/basic/attribute_manager.hpp>
@@ -47,8 +44,9 @@
 
 #include <geode/mesh/core/light_regular_grid.hpp>
 
-#include <geode/geosciences/explicit/geometry/geographic_coordinate_system.hpp>
 #include <geode/geosciences/explicit/geometry/geographic_coordinate_system_helper.hpp>
+
+#include <geode/geosciences_io/mesh/internal/json_common.hpp>
 
 /*
  * Expected file content:
@@ -62,293 +60,26 @@
  *   ...                              (other keys are ignored)
  * }
  * Each record of grid_df is a grid vertex, records can be in any order.
+ * String values of the records are ignored.
  */
 namespace
 {
     constexpr auto GRID_KEY = "grid_df";
+    constexpr auto GRID_LOG_PREFIX = "[JSONGridInput]";
     constexpr auto NAME_KEY = "name";
-    constexpr auto COORDINATE_SYSTEM_KEY = "coordinate_system";
-    constexpr std::array< std::string_view, 3 > COORDINATE_KEYS{ "x", "y",
-        "z" };
     constexpr std::array< std::string_view, 2 > BOOL_ATTRIBUTE_KEYS{
         "grid_topo_name", "grid_site_name"
     };
-    constexpr auto NO_DATA = std::numeric_limits< double >::quiet_NaN();
+    constexpr auto& COORDINATE_KEYS = geode::internal::JSON_COORDINATE_KEYS;
 
-    /*
-     * Values of one key across all records, NaN where the record has no
-     * numeric value for this key
-     */
-    using Column = std::vector< double >;
+    using Column = geode::internal::JSONColumn;
 
-    /*
-     * (record, value) pairs of one attribute key, only for the records
-     * having a numeric value for this key
-     */
-    using SparseColumn = std::vector< std::pair< geode::index_t, double > >;
-
-    /*
-     * SAX handler storing grid_df records column by column, so that the file
-     * is never held in memory as a JSON document
-     */
-    class JSONGridSax
-    {
-    public:
-        using number_integer_t = nlohmann::json::number_integer_t;
-        using number_unsigned_t = nlohmann::json::number_unsigned_t;
-        using number_float_t = nlohmann::json::number_float_t;
-        using string_t = nlohmann::json::string_t;
-        using binary_t = nlohmann::json::binary_t;
-
-        /*
-         * Parsing stops once max_records records have been read
-         */
-        explicit JSONGridSax( geode::index_t max_records )
-            : max_records_( max_records )
-        {
-        }
-
-        bool null()
-        {
-            return true;
-        }
-
-        bool boolean( bool value )
-        {
-            return number( value ? 1. : 0. );
-        }
-
-        bool number_integer( number_integer_t value )
-        {
-            return number( static_cast< double >( value ) );
-        }
-
-        bool number_unsigned( number_unsigned_t value )
-        {
-            return number( static_cast< double >( value ) );
-        }
-
-        bool number_float( number_float_t value, const string_t& /*unused*/ )
-        {
-            return number( value );
-        }
-
-        bool string( string_t& value )
-        {
-            if( depth_ == 1 )
-            {
-                top_level_strings_[current_key_] = std::move( value );
-            }
-            else if( in_record()
-                     && ignored_string_keys_.insert( current_key_ ).second )
-            {
-                geode::Logger::warning(
-                    "[JSONGridInput] String values of key \"", current_key_,
-                    "\" in ", GRID_KEY,
-                    " records are not supported and are ignored" );
-            }
-            return true;
-        }
-
-        bool binary( binary_t& /*unused*/ )
-        {
-            return true;
-        }
-
-        bool start_object( std::size_t /*unused*/ )
-        {
-            depth_++;
-            if( depth_ == 1 )
-            {
-                has_root_object_ = true;
-            }
-            else if( in_record() )
-            {
-                current_key_.clear();
-            }
-            return true;
-        }
-
-        bool end_object()
-        {
-            const auto record_ended = in_record();
-            depth_--;
-            if( record_ended )
-            {
-                nb_records_++;
-                return nb_records_ < max_records_;
-            }
-            return true;
-        }
-
-        bool start_array( std::size_t /*unused*/ )
-        {
-            depth_++;
-            if( depth_ == 2 && current_key_ == GRID_KEY )
-            {
-                in_grid_ = true;
-            }
-            return true;
-        }
-
-        bool end_array()
-        {
-            if( depth_ == 2 )
-            {
-                grid_complete_ = grid_complete_ || in_grid_;
-                in_grid_ = false;
-            }
-            depth_--;
-            return true;
-        }
-
-        bool key( string_t& value )
-        {
-            if( depth_ == 1 || in_record() )
-            {
-                current_key_ = std::move( value );
-            }
-            return true;
-        }
-
-        bool parse_error( std::size_t position,
-            const std::string& /*unused*/,
-            const nlohmann::detail::exception& exception )
-        {
-            error_ =
-                absl::StrCat( "at byte ", position, ": ", exception.what() );
-            return false;
-        }
-
-        [[nodiscard]] bool has_root_object() const
-        {
-            return has_root_object_;
-        }
-
-        [[nodiscard]] bool grid_complete() const
-        {
-            return grid_complete_;
-        }
-
-        [[nodiscard]] geode::index_t nb_records() const
-        {
-            return nb_records_;
-        }
-
-        [[nodiscard]] const std::string& error() const
-        {
-            return error_;
-        }
-
-        [[nodiscard]] const std::array< Column, 3 >& coordinates() const
-        {
-            return coordinates_;
-        }
-
-        [[nodiscard]] const std::vector<
-            std::pair< std::string, SparseColumn > >&
-            attributes() const
-        {
-            return attributes_;
-        }
-
-        [[nodiscard]] std::optional< std::string > top_level_string(
-            std::string_view key ) const
-        {
-            const auto it = top_level_strings_.find( key );
-            if( it == top_level_strings_.end() )
-            {
-                return std::nullopt;
-            }
-            return it->second;
-        }
-
-        /*
-         * Pads every coordinate column with NaN up to the number of records
-         */
-        void finalize()
-        {
-            for( auto& coordinate : coordinates_ )
-            {
-                coordinate.resize( nb_records_, NO_DATA );
-            }
-        }
-
-    private:
-        [[nodiscard]] bool in_record() const
-        {
-            return in_grid_ && depth_ == 3;
-        }
-
-        bool number( double value )
-        {
-            if( !in_record() )
-            {
-                return true;
-            }
-            for( const auto axis : geode::LRange{ 3 } )
-            {
-                if( current_key_ == COORDINATE_KEYS[axis] )
-                {
-                    auto& values = coordinates_[axis];
-                    values.resize( nb_records_ + 1, NO_DATA );
-                    values.back() = value;
-                    return true;
-                }
-            }
-            const auto [it, inserted] =
-                attribute_ids_.try_emplace( current_key_,
-                    static_cast< geode::index_t >( attributes_.size() ) );
-            if( inserted )
-            {
-                attributes_.emplace_back( current_key_, SparseColumn{} );
-            }
-            attributes_[it->second].second.emplace_back( nb_records_, value );
-            return true;
-        }
-
-    private:
-        geode::index_t max_records_;
-        geode::index_t depth_{ 0 };
-        bool has_root_object_{ false };
-        bool in_grid_{ false };
-        bool grid_complete_{ false };
-        std::string current_key_;
-        geode::index_t nb_records_{ 0 };
-        std::array< Column, 3 > coordinates_;
-        std::vector< std::pair< std::string, SparseColumn > > attributes_;
-        absl::flat_hash_map< std::string, geode::index_t > attribute_ids_;
-        absl::flat_hash_map< std::string, std::string > top_level_strings_;
-        absl::flat_hash_set< std::string > ignored_string_keys_;
-        std::string error_;
-    };
-
-    JSONGridSax parse_json( std::string_view filename,
+    geode::internal::JSONRecords parse_json( std::string_view filename,
         geode::index_t max_records =
             std::numeric_limits< geode::index_t >::max() )
     {
-        std::ifstream file{ geode::to_string( filename ), std::ios::binary };
-        geode::OpenGeodeGeosciencesIOMeshException::check_exception(
-            file.good(), nullptr, geode::OpenGeodeException::TYPE::data,
-            "[JSONGridInput] Error while opening file: ", filename );
-        JSONGridSax sax{ max_records };
-        const auto success = nlohmann::json::sax_parse( file, &sax );
-        if( !success && sax.nb_records() != max_records && sax.grid_complete() )
-        {
-            geode::Logger::warning( "[JSONGridInput] Error while parsing file ",
-                filename, " after the ", GRID_KEY, " array, ", sax.error(),
-                ": the rest of the file is ignored" );
-        }
-        else
-        {
-            geode::OpenGeodeGeosciencesIOMeshException::check_exception(
-                success || sax.nb_records() == max_records, nullptr,
-                geode::OpenGeodeException::TYPE::data,
-                "[JSONGridInput] Error while parsing file ", filename, " ",
-                sax.error() );
-        }
-        sax.finalize();
-        return sax;
+        return geode::internal::parse_json_records(
+            filename, GRID_KEY, GRID_LOG_PREFIX, max_records );
     }
 
     /*
@@ -387,8 +118,8 @@ namespace
                 std::fabs( values[vertex] - discretization.origin
                            - vertex * discretization.cell_length )
                     <= geode::GLOBAL_EPSILON,
-                nullptr, geode::OpenGeodeException::TYPE::data,
-                "[JSONGridInput] Coordinates along ", COORDINATE_KEYS[axis],
+                nullptr, geode::OpenGeodeException::TYPE::data, GRID_LOG_PREFIX,
+                " Coordinates along ", COORDINATE_KEYS[axis],
                 " are not regularly spaced" );
         }
         return discretization;
@@ -398,24 +129,26 @@ namespace
     {
     public:
         explicit JSONGridInputImpl( std::string_view filename )
-            : sax_( parse_json( filename ) )
+            : records_( parse_json( filename ) )
         {
             geode::OpenGeodeGeosciencesIOMeshException::check_exception(
-                sax_.nb_records() > 0, nullptr,
-                geode::OpenGeodeException::TYPE::data,
-                "[JSONGridInput] Missing or empty ", GRID_KEY, " array" );
+                records_.nb_records > 0, nullptr,
+                geode::OpenGeodeException::TYPE::data, GRID_LOG_PREFIX,
+                " Missing or empty ", GRID_KEY, " array" );
+            geode::internal::warn_ignored_json_strings(
+                records_, GRID_KEY, GRID_LOG_PREFIX, "" );
             for( const auto axis : geode::LRange{ 3 } )
             {
                 geode::OpenGeodeGeosciencesIOMeshException::check_exception(
-                    absl::c_none_of( sax_.coordinates()[axis],
+                    absl::c_none_of( records_.coordinates[axis],
                         []( double value ) {
                             return std::isnan( value );
                         } ),
                     nullptr, geode::OpenGeodeException::TYPE::data,
-                    "[JSONGridInput] Missing numeric ", COORDINATE_KEYS[axis],
+                    GRID_LOG_PREFIX, " Missing numeric ", COORDINATE_KEYS[axis],
                     " coordinate in ", GRID_KEY, " records" );
                 axes_[axis] = compute_axis_discretization(
-                    sax_.coordinates()[axis], axis );
+                    records_.coordinates[axis], axis );
             }
         }
 
@@ -433,27 +166,15 @@ namespace
     private:
         void set_grid_coordinate_system( geode::LightRegularGrid3D& grid ) const
         {
-            const auto code = sax_.top_level_string( COORDINATE_SYSTEM_KEY );
-            if( !code )
+            auto info = geode::internal::read_json_coordinate_system(
+                records_, GRID_LOG_PREFIX );
+            if( !info )
             {
                 return;
             }
-            geode::GeographicCoordinateSystemInfo info;
-            try
-            {
-                info =
-                    geode::GeographicCoordinateSystemInfo::from_authority_code(
-                        code.value() );
-            }
-            catch( const geode::OpenGeodeException& exception )
-            {
-                geode::Logger::warning( "[JSONGridInput] Coordinate system ",
-                    code.value(), " is ignored: ", exception.what() );
-                return;
-            }
-            const auto crs_name = info.authority_code();
+            const auto crs_name = info->authority_code();
             geode::assign_light_regular_grid_geographic_coordinate_system_info(
-                grid, crs_name, std::move( info ) );
+                grid, crs_name, std::move( info.value() ) );
         }
 
         void check_number_of_vertices() const
@@ -464,15 +185,15 @@ namespace
                 // Each factor is at most the number of records, stopping
                 // as soon as the product exceeds it prevents any overflow
                 nb_vertices *= axis.nb_vertices;
-                if( nb_vertices > sax_.nb_records() )
+                if( nb_vertices > records_.nb_records )
                 {
                     break;
                 }
             }
             geode::OpenGeodeGeosciencesIOMeshException::check_exception(
-                nb_vertices == sax_.nb_records(), nullptr,
-                geode::OpenGeodeException::TYPE::data,
-                "[JSONGridInput] Number of records (", sax_.nb_records(),
+                nb_vertices == records_.nb_records, nullptr,
+                geode::OpenGeodeException::TYPE::data, GRID_LOG_PREFIX,
+                " Number of records (", records_.nb_records,
                 ") does not match the number of grid vertices (",
                 axes_[0].nb_vertices, " x ", axes_[1].nb_vertices, " x ",
                 axes_[2].nb_vertices, ")" );
@@ -500,9 +221,10 @@ namespace
             geode::index_t record_id, geode::local_index_t axis ) const
         {
             const auto& discretization = axes_[axis];
-            return static_cast< geode::index_t >( std::lround(
-                ( sax_.coordinates()[axis][record_id] - discretization.origin )
-                / discretization.cell_length ) );
+            return static_cast< geode::index_t >(
+                std::lround( ( records_.coordinates[axis][record_id]
+                                 - discretization.origin )
+                             / discretization.cell_length ) );
         }
 
         /*
@@ -512,9 +234,9 @@ namespace
         [[nodiscard]] std::vector< geode::index_t > record_vertices(
             const geode::LightRegularGrid3D& grid ) const
         {
-            std::vector< geode::index_t > vertices( sax_.nb_records() );
+            std::vector< geode::index_t > vertices( records_.nb_records );
             std::vector< bool > visited( grid.nb_grid_vertices(), false );
-            for( const auto record_id : geode::Range{ sax_.nb_records() } )
+            for( const auto record_id : geode::Range{ records_.nb_records } )
             {
                 const auto vertex = grid.vertex_index(
                     { vertex_index_along_axis( record_id, 0 ),
@@ -522,9 +244,8 @@ namespace
                         vertex_index_along_axis( record_id, 2 ) } );
                 geode::OpenGeodeGeosciencesIOMeshException::check_exception(
                     !visited[vertex], nullptr,
-                    geode::OpenGeodeException::TYPE::data,
-                    "[JSONGridInput] Record ", record_id,
-                    " duplicates grid vertex ", vertex );
+                    geode::OpenGeodeException::TYPE::data, GRID_LOG_PREFIX,
+                    " Record ", record_id, " duplicates grid vertex ", vertex );
                 visited[vertex] = true;
                 vertices[record_id] = vertex;
             }
@@ -537,7 +258,7 @@ namespace
             absl::flat_hash_set< std::string > names;
             for( const auto& key : BOOL_ATTRIBUTE_KEYS )
             {
-                if( auto name = sax_.top_level_string( key ) )
+                if( auto name = records_.top_level_string( key ) )
                 {
                     names.emplace( std::move( name.value() ) );
                 }
@@ -547,7 +268,7 @@ namespace
 
         void set_grid_name( geode::LightRegularGrid3D& grid ) const
         {
-            if( auto name = sax_.top_level_string( NAME_KEY ) )
+            if( auto name = records_.top_level_string( NAME_KEY ) )
             {
                 geode::IdentifierBuilder{ grid }.set_name(
                     std::move( name.value() ) );
@@ -559,25 +280,24 @@ namespace
         {
             const auto bool_names = bool_attribute_names();
             auto& manager = grid.grid_vertex_attribute_manager();
-            for( const auto& [name, values] : sax_.attributes() )
+            for( const auto& [name, values] : records_.attributes )
             {
                 if( bool_names.contains( name ) )
                 {
                     geode::AttributeValues< bool > default_values;
                     default_values.default_value = false;
-                    const auto attribute = create_attribute< bool >(
-                        manager, name, std::move( default_values ) );
+                    const auto attribute =
+                        geode::internal::create_json_attribute< bool >(
+                            manager, name, std::move( default_values ) );
                     for( const auto& [record_id, value] : values )
                     {
                         attribute->set_value( vertices[record_id], value != 0 );
                     }
                     continue;
                 }
-                geode::AttributeValues< double > default_values;
-                default_values.default_value = NO_DATA;
-                default_values.no_value = NO_DATA;
-                const auto attribute = create_attribute< double >(
-                    manager, name, std::move( default_values ) );
+                const auto attribute =
+                    geode::internal::create_json_double_attribute(
+                        manager, name );
                 for( const auto& [record_id, value] : values )
                 {
                     attribute->set_value( vertices[record_id], value );
@@ -585,25 +305,8 @@ namespace
             }
         }
 
-        template < typename T >
-        static std::shared_ptr< geode::VariableAttribute< T > >
-            create_attribute( geode::AttributeManager& manager,
-                std::string_view name,
-                geode::AttributeValues< T > values )
-        {
-            geode::AttributeProperties properties;
-            properties.assignable = false;
-            properties.interpolable = false;
-            properties.transferable = true;
-            const auto attribute_id =
-                manager.create_attribute< geode::VariableAttribute, T >(
-                    name, std::move( values ), std::move( properties ) );
-            return manager.find_attribute< geode::VariableAttribute, T >(
-                attribute_id );
-        }
-
     private:
-        JSONGridSax sax_;
+        geode::internal::JSONRecords records_;
         std::array< AxisDiscretization, 3 > axes_;
     };
 } // namespace
@@ -623,11 +326,11 @@ namespace geode::internal
         try
         {
             const auto sax = parse_json( filename(), 1 );
-            if( !sax.has_root_object() || sax.nb_records() == 0 )
+            if( !sax.has_root_object || sax.nb_records == 0 )
             {
                 return Percentage{ 0 };
             }
-            for( const auto& coordinate : sax.coordinates() )
+            for( const auto& coordinate : sax.coordinates )
             {
                 if( std::isnan( coordinate.front() ) )
                 {
