@@ -38,7 +38,7 @@ def test_brep_export(data_dir):
     builder.set_name("picasso")
     builder.set_model_id(model.id())
     fluid = geosciences.SinglePhaseFluid(
-        [geosciences.PHASE.water],
+        [geosciences.Phase.water],
         [geosciences.FluidComponent("water", 0.018)],
         reference_density=1000.0,
         reference_viscosity=1e-3,
@@ -102,7 +102,7 @@ def test_mechanics_export(data_dir):
         ("density", 2650.0),
     ]:
         add_block_property(
-            model, getattr(opengeode.PHYSICAL_PROPERTY_NAME, name), name, value
+            model, getattr(opengeode.PhysicalPropertyName, name), name, value
         )
     free = float("nan")
     displacement_id = opengeode.uuid()
@@ -124,7 +124,7 @@ def test_mechanics_export(data_dir):
                 opengeode.AttributeProperties(),
             )
     opengeode.BRepBuilder(model).set_physical_property(
-        opengeode.PHYSICAL_PROPERTY_NAME.boundary_displacement,
+        opengeode.PhysicalPropertyName.boundary_displacement,
         opengeode.Surface3D.component_type_static(),
         displacement_id,
     )
@@ -137,7 +137,7 @@ def test_mechanics_export(data_dir):
             "initial_stress", stress_id, stress, opengeode.AttributeProperties()
         )
     opengeode.BRepBuilder(model).set_physical_property(
-        opengeode.PHYSICAL_PROPERTY_NAME.initial_stress,
+        opengeode.PhysicalPropertyName.initial_stress,
         opengeode.Block3D.component_type_static(),
         stress_id,
     )
@@ -165,7 +165,7 @@ def test_poromechanics_export(data_dir):
         ("biot_coefficient", 0.8),
     ]:
         add_block_property(
-            model, getattr(opengeode.PHYSICAL_PROPERTY_NAME, name), name, value
+            model, getattr(opengeode.PhysicalPropertyName, name), name, value
         )
     displacement_id = opengeode.uuid()
     for axis in range(3):
@@ -176,7 +176,7 @@ def test_poromechanics_export(data_dir):
                 "displacement", displacement_id, values, opengeode.AttributeProperties()
             )
     opengeode.BRepBuilder(model).set_physical_property(
-        opengeode.PHYSICAL_PROPERTY_NAME.boundary_displacement,
+        opengeode.PhysicalPropertyName.boundary_displacement,
         opengeode.Surface3D.component_type_static(),
         displacement_id,
     )
@@ -185,7 +185,7 @@ def test_poromechanics_export(data_dir):
     builder.set_name("poromechanics")
     builder.set_model_id(model.id())
     fluid = geosciences.SinglePhaseFluid(
-        [geosciences.PHASE.water],
+        [geosciences.Phase.water],
         [geosciences.FluidComponent("water", 0.018)],
         reference_density=1000.0,
         reference_viscosity=1e-3,
