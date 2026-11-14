@@ -20,11 +20,20 @@
 # SOFTWARE.
 
 import os
+import tempfile
 
 import geode_test_env
 
 import opengeode
 import opengeode_geosciencesio_py_mesh as geosciences_io
+
+
+# The files written by the test, removed at exit
+OUTPUT_DIRECTORY = tempfile.TemporaryDirectory()
+
+
+def output_path(name):
+    return os.path.join(OUTPUT_DIRECTORY.name, name)
 
 if __name__ == "__main__":
     geosciences_io.OpenGeodeGeosciencesIOMeshLibrary.initialize()
@@ -41,9 +50,10 @@ if __name__ == "__main__":
     if surface.nb_polygons() != 46:
         raise ValueError("Number of polygons in the loaded TSurf 3D is not correct")
 
-    opengeode.save_triangulated_surface3D(surface, "surf3d.og_tsf3d")
+    saved_filename = output_path("surf3d.og_tsf3d")
+    opengeode.save_triangulated_surface3D(surface, saved_filename)
     reloaded_surface = opengeode.load_one(
-        opengeode.load_triangulated_surface3D("surf3d.og_tsf3d"), "surf3d.og_tsf3d"
+        opengeode.load_triangulated_surface3D(saved_filename), saved_filename
     )
     if reloaded_surface.nb_vertices() != 46:
         raise ValueError("Number of vertices in the reloaded TSurf 3D is not correct")

@@ -18,6 +18,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+"""OpenGeode-GeosciencesIO model formats (Gocad ML and LSO, Shapefile, Skua, FEM) and GEOS exporters: importing this module registers the readers and writers in the OpenGeode factories for the StructuralModel, Section, BRep and HorizonsStack types."""
+
 import opengeode
 import opengeode_io
 import opengeode_geosciences

@@ -33,3 +33,16 @@ add_geode_python_test(
     DEPENDENCIES
         ${PROJECT_NAME}::py_model
 )
+add_geode_python_test(
+    NAME "test-py-model-geosciencesio-generic-api"
+    SOURCE "test-py-model-geosciencesio-generic-api.py"
+    DEPENDENCIES
+        ${PROJECT_NAME}::py_model
+)
+
+add_geode_python_test(
+    NAME "test-py-geos-exporter"
+    SOURCE "test-py-geos-exporter.py"
+    DEPENDENCIES
+        ${PROJECT_NAME}::py_model
+)

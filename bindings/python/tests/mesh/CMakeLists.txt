@@ -23,3 +23,10 @@ add_geode_python_test(
     DEPENDENCIES
         ${PROJECT_NAME}::py_mesh
 )
+
+add_geode_python_test(
+    NAME "test-py-mesh-geosciencesio-generic-api"
+    SOURCE "test-py-mesh-geosciencesio-generic-api.py"
+    DEPENDENCIES
+        ${PROJECT_NAME}::py_mesh
+)

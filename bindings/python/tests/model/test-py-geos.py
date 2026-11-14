@@ -20,6 +20,7 @@
 # SOFTWARE.
 
 import os
+import tempfile
 
 import geode_test_env
 
@@ -27,6 +28,14 @@ import opengeode
 import opengeode_io
 import opengeode_geosciences as geosciences
 import opengeode_geosciencesio_py_model as geosciences_io
+
+
+# The files written by the test, removed at exit
+OUTPUT_DIRECTORY = tempfile.TemporaryDirectory()
+
+
+def output_path(name):
+    return os.path.join(OUTPUT_DIRECTORY.name, name)
 
 
 # The GEOS results come from a picasso simulation run outside the test
@@ -38,7 +47,7 @@ def test_brep_export(data_dir):
     builder.set_name("picasso")
     builder.set_model_id(model.id())
     fluid = geosciences.SinglePhaseFluid(
-        [geosciences.PHASE.water],
+        [geosciences.Phase.water],
         [geosciences.FluidComponent("water", 0.018)],
         reference_density=1000.0,
         reference_viscosity=1e-3,
@@ -61,7 +70,7 @@ def test_brep_export(data_dir):
     output = geosciences.OutputSettings()
     output.frequency = 5e7
     builder.set_output(output)
-    exporter = geosciences_io.BRepGeosExporter(model, "python_geos")
+    exporter = geosciences_io.BRepGeosExporter(model, output_path("python_geos"))
     exporter.set_physical_problem(problem)
     exporter.run()
     opengeode.load_brep_time_series(
@@ -102,7 +111,7 @@ def test_mechanics_export(data_dir):
         ("density", 2650.0),
     ]:
         add_block_property(
-            model, getattr(opengeode.PHYSICAL_PROPERTY_NAME, name), name, value
+            model, getattr(opengeode.PhysicalPropertyName, name), name, value
         )
     free = float("nan")
     displacement_id = opengeode.uuid()
@@ -124,7 +133,7 @@ def test_mechanics_export(data_dir):
                 opengeode.AttributeProperties(),
             )
     opengeode.BRepBuilder(model).set_physical_property(
-        opengeode.PHYSICAL_PROPERTY_NAME.boundary_displacement,
+        opengeode.PhysicalPropertyName.boundary_displacement,
         opengeode.Surface3D.component_type_static(),
         displacement_id,
     )
@@ -137,7 +146,7 @@ def test_mechanics_export(data_dir):
             "initial_stress", stress_id, stress, opengeode.AttributeProperties()
         )
     opengeode.BRepBuilder(model).set_physical_property(
-        opengeode.PHYSICAL_PROPERTY_NAME.initial_stress,
+        opengeode.PhysicalPropertyName.initial_stress,
         opengeode.Block3D.component_type_static(),
         stress_id,
     )
@@ -147,10 +156,12 @@ def test_mechanics_export(data_dir):
     builder.set_model_id(model.id())
     builder.set_solid_mechanics(geosciences.SolidMechanics())
     builder.set_schedule(geosciences.Schedule(0.0, 1.0, 1.0))
-    exporter = geosciences_io.BRepGeosExporter(model, "python_gravity")
+    exporter = geosciences_io.BRepGeosExporter(model, output_path("python_gravity"))
     exporter.set_physical_problem(problem)
     exporter.run()
-    with open("python_gravity/python_gravity_simulation.xml") as deck:
+    with open(
+        os.path.join(output_path("python_gravity"), "python_gravity_simulation.xml")
+    ) as deck:
         if "solid_stress" not in deck.read():
             raise ValueError("[Test] Mechanics deck misses the initial stress")
 
@@ -165,7 +176,7 @@ def test_poromechanics_export(data_dir):
         ("biot_coefficient", 0.8),
     ]:
         add_block_property(
-            model, getattr(opengeode.PHYSICAL_PROPERTY_NAME, name), name, value
+            model, getattr(opengeode.PhysicalPropertyName, name), name, value
         )
     displacement_id = opengeode.uuid()
     for axis in range(3):
@@ -176,7 +187,7 @@ def test_poromechanics_export(data_dir):
                 "displacement", displacement_id, values, opengeode.AttributeProperties()
             )
     opengeode.BRepBuilder(model).set_physical_property(
-        opengeode.PHYSICAL_PROPERTY_NAME.boundary_displacement,
+        opengeode.PhysicalPropertyName.boundary_displacement,
         opengeode.Surface3D.component_type_static(),
         displacement_id,
     )
@@ -185,7 +196,7 @@ def test_poromechanics_export(data_dir):
     builder.set_name("poromechanics")
     builder.set_model_id(model.id())
     fluid = geosciences.SinglePhaseFluid(
-        [geosciences.PHASE.water],
+        [geosciences.Phase.water],
         [geosciences.FluidComponent("water", 0.018)],
         reference_density=1000.0,
         reference_viscosity=1e-3,
@@ -204,10 +215,17 @@ def test_poromechanics_export(data_dir):
     builder.add_material(rock)
     builder.add_initial_condition(geosciences.UniformInitialCondition([], 1e7))
     builder.set_schedule(geosciences.Schedule(0.0, 1e5, 1e3))
-    exporter = geosciences_io.BRepGeosExporter(model, "python_poromechanics")
+    exporter = geosciences_io.BRepGeosExporter(
+        model, output_path("python_poromechanics")
+    )
     exporter.set_physical_problem(problem)
     exporter.run()
-    with open("python_poromechanics/python_poromechanics_simulation.xml") as deck:
+    with open(
+        os.path.join(
+            output_path("python_poromechanics"),
+            "python_poromechanics_simulation.xml",
+        )
+    ) as deck:
         content = deck.read()
     for pattern in ["<SinglePhasePoromechanics", "<BiotPorosity", "grainBulkModulus"]:
         if pattern not in content:
@@ -219,8 +237,8 @@ def test_structural_model_export(data_dir):
     model = opengeode.load_one(
         geosciences.load_structural_model(model_filename), model_filename
     )
-    geosciences_io.BRepGeosExporter(model, "brep_to_geos")
-    geosciences_io.StructuralModelGeosExporter(model, "SM_to_geos")
+    geosciences_io.BRepGeosExporter(model, output_path("brep_to_geos"))
+    geosciences_io.StructuralModelGeosExporter(model, output_path("SM_to_geos"))
 
 
 if __name__ == "__main__":
