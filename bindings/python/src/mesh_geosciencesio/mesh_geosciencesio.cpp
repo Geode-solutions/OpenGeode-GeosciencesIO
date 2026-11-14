@@ -21,15 +21,28 @@
  *
  */
 
+#include <geode/bindings/python/common.hpp>
+
 #include <pybind11/pybind11.h>
 
 #include <geode/geosciences_io/mesh/common.hpp>
 
 PYBIND11_MODULE( opengeode_geosciencesio_py_mesh, module )
 {
-    module.doc() = "OpenGeode-GeosciencesIO Python binding for mesh";
-    pybind11::class_< geode::OpenGeodeGeosciencesIOMeshLibrary >(
-        module, "OpenGeodeGeosciencesIOMeshLibrary" )
-        .def( "initialize",
-            &geode::OpenGeodeGeosciencesIOMeshLibrary::initialize );
+    module.doc() =
+        "OpenGeode-GeosciencesIO mesh formats: registers the readers and "
+        "writers of points, curves, surfaces, solids and grids (Gocad TS, PL, "
+        "VS and VO, wells, GeoTIFF, DEM, GRDECL, OMF, JSON, FEM) in the "
+        "OpenGeode factories";
+    geode::import_binding_dependency( module, "opengeode" );
+    pybind11::class_< geode::OpenGeodeGeosciencesIOMeshLibrary >( module,
+        "OpenGeodeGeosciencesIOMeshLibrary",
+        "Initialization of the OpenGeode-GeosciencesIO mesh library" )
+        .def_static( "initialize",
+            &geode::OpenGeodeGeosciencesIOMeshLibrary::initialize,
+            "Register the mesh readers and writers in the OpenGeode "
+            "factories; also initializes the OpenGeode mesh library, the "
+            "OpenGeode-IO image library and the OpenGeode-Geosciences "
+            "explicit library; calling it again has no effect" );
+    geode::document_missing_constructors( module );
 }

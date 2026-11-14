@@ -1,0 +1,63 @@
+OpenGeode-GeosciencesIO: input and output formats for OpenGeode-Geosciences.
+
+Importing the package registers the OpenGeode-GeosciencesIO readers and writers
+in the OpenGeode factories (it also imports opengeode_io and
+opengeode_geosciences). Apart from the GEOS exporters, it exposes no class of
+its own: use the generic functions of the opengeode package (load, save,
+is_loadable, is_saveable, input_extensions, output_extensions) with the new
+formats.
+
+    >>> import opengeode
+    >>> import opengeode_geosciences
+    >>> "ml" in opengeode.input_extensions(opengeode_geosciences.StructuralModel)
+    False
+    >>> import opengeode_geosciencesio
+    >>> "ml" in opengeode.input_extensions(opengeode_geosciences.StructuralModel)
+    True
+    >>> "ts" in opengeode.input_extensions(opengeode.TriangulatedSurface3D)
+    True
+    >>> "fem" in opengeode.output_extensions(opengeode.BRep)
+    True
+
+Formats (extensions) by type
+============================
+
+- Meshes, read: PointSet3D (vs, omf), EdgedCurve3D (wl, dat, txt, dev, pl, omf,
+  json), TriangulatedSurface3D (ts, omf), PolygonalSurface3D (dem, tif, tiff,
+  omf), HybridSolid3D (grdecl), RegularGrid3D (vo), LightRegularGrid2D (tif,
+  tiff) and LightRegularGrid3D (json, omf).
+- Meshes, written: PointSet3D (vs), EdgedCurve3D (pl), TriangulatedSurface3D
+  (ts) and TetrahedralSolid3D (fem).
+- Models: StructuralModel reads and writes ml and lso; Section reads shp and
+  shz; BRep writes ml and fem; HorizonsStack2D and HorizonsStack3D read the
+  Skua xml.
+- Simulation: a checker registered as "geos" in SimulationCheckerFactory
+  verifies that a PhysicalProblem has what the GEOS simulator needs.
+
+Use opengeode.input_extensions(cls) and opengeode.output_extensions(cls) for the
+exact list of a type.
+
+Loading and saving
+==================
+
+    model = opengeode.load(opengeode_geosciences.StructuralModel, "model.lso")
+    opengeode.save(model, "model.ml")
+    surface = opengeode.load(opengeode.TriangulatedSurface3D, "surface.ts")
+
+A file that cannot be read raises opengeode.OpenGeodeDataError (an
+OpenGeodeError, which is a RuntimeError). opengeode.is_loadable(cls, filename)
+tells beforehand how likely the file can be loaded (a Percentage).
+
+GEOS export
+===========
+
+BRepGeosExporter and StructuralModelGeosExporter write the GEOS input files of
+the blocks of a model in a directory (its name is the prefix of the files):
+
+    exporter = opengeode_geosciencesio.BRepGeosExporter(brep, "geos_files")
+    exporter.set_physical_problem(problem)
+    exporter.run()
+
+Without a PhysicalProblem, only the mesh, the wells (add_well_perforations)
+and the boundary conditions are written. The exporter keeps the model and the
+problem alive.
