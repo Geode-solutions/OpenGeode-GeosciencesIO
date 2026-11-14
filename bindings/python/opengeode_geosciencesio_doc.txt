@@ -2,10 +2,11 @@ OpenGeode-GeosciencesIO: input and output formats for OpenGeode-Geosciences.
 
 Importing the package registers the OpenGeode-GeosciencesIO readers and writers
 in the OpenGeode factories (it also imports opengeode_io and
-opengeode_geosciences). Apart from the GEOS exporters, it exposes no class of
-its own: use the generic functions of the opengeode package (load, save,
-is_loadable, is_saveable, input_extensions, output_extensions) with the new
-formats.
+opengeode_geosciences). Apart from the GEOS exporters and the two library
+classes (OpenGeodeGeosciencesIOMeshLibrary and OpenGeodeGeosciencesIOModelLibrary,
+whose static initialize registers the formats), it exposes no class of its own:
+use the generic functions of the opengeode package (load, save, is_loadable,
+is_saveable, input_extensions, output_extensions) with the new formats.
 
     >>> import opengeode
     >>> import opengeode_geosciences

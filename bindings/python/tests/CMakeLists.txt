@@ -30,3 +30,10 @@ add_geode_python_test(
         ${PROJECT_NAME}::py_mesh
         ${PROJECT_NAME}::py_model
 )
+
+add_geode_python_test(
+    SOURCE "test-py-module-import.py"
+    DEPENDENCIES
+        ${PROJECT_NAME}::py_mesh
+        ${PROJECT_NAME}::py_model
+)

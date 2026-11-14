@@ -79,6 +79,7 @@ PYBIND11_MODULE( opengeode_geosciencesio_py_model, module )
         "of BRep, the Skua reader of HorizonsStack and the GEOS simulation "
         "checker, and binds the GEOS exporters of BRep and StructuralModel";
     geode::import_binding_dependency( module, "opengeode" );
+    geode::import_binding_dependency( module, "opengeode_io" );
     geode::import_binding_dependency( module, "opengeode_geosciences" );
     pybind11::class_< geode::OpenGeodeGeosciencesIOModelLibrary >( module,
         "OpenGeodeGeosciencesIOModelLibrary",

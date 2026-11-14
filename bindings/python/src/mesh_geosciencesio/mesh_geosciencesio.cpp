@@ -35,6 +35,8 @@ PYBIND11_MODULE( opengeode_geosciencesio_py_mesh, module )
         "VS and VO, wells, GeoTIFF, DEM, GRDECL, OMF, JSON, FEM) in the "
         "OpenGeode factories";
     geode::import_binding_dependency( module, "opengeode" );
+    geode::import_binding_dependency( module, "opengeode_io" );
+    geode::import_binding_dependency( module, "opengeode_geosciences" );
     pybind11::class_< geode::OpenGeodeGeosciencesIOMeshLibrary >( module,
         "OpenGeodeGeosciencesIOMeshLibrary",
         "Initialization of the OpenGeode-GeosciencesIO mesh library" )

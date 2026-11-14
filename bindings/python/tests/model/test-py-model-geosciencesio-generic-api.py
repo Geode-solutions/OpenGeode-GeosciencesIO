@@ -158,6 +158,15 @@ def test_section_and_horizons_stack():
         opengeode.is_loadable(geosciences.HorizonsStack3D, path).value() == 1,
         "The Skua stack should be loadable",
     )
+    # The 2D stack reads the same xml (there is no dedicated 2D file)
+    stack_2d = opengeode.load(geosciences.HorizonsStack2D, path)
+    check(isinstance(stack_2d, geosciences.HorizonsStack2D), "xml is a HorizonsStack2D")
+    check(stack_2d.nb_horizons() == 4, "Wrong horizons of the 2D Skua stack")
+    check(stack_2d.nb_stratigraphic_units() == 5, "Wrong units of the 2D Skua stack")
+    check(
+        opengeode.is_loadable(geosciences.HorizonsStack2D, path).value() == 1,
+        "The Skua stack should be loadable in 2D",
+    )
 
 
 def test_saving(directory):
@@ -189,6 +198,20 @@ def test_saving(directory):
         check(opengeode.is_saveable(brep, filename), f"BRep saveable as {extension}")
         check(opengeode.save(brep, filename) == [filename], f"Wrong {extension} files")
         check(os.path.getsize(filename) > 0, f"{filename} is empty")
+    # The ml written from a BRep holds all its components
+    from_ml = opengeode.load(
+        geosciences.StructuralModel, os.path.join(directory, "brep.ml")
+    )
+    check(
+        (
+            from_ml.nb_corners(),
+            from_ml.nb_lines(),
+            from_ml.nb_surfaces(),
+            from_ml.nb_blocks(),
+        )
+        == (brep.nb_corners(), brep.nb_lines(), brep.nb_surfaces(), brep.nb_blocks()),
+        "brep.ml reload: wrong components",
+    )
     # Only the structural model is read from a ml
     expect_data_error(
         opengeode.load, opengeode.BRep, os.path.join(directory, "brep.ml")
@@ -222,11 +245,14 @@ def test_errors(directory):
     expect_data_error(
         opengeode.load, opengeode.Section, os.path.join(directory, "missing.shp")
     )
-    expect_data_error(
-        opengeode.load,
-        geosciences.HorizonsStack3D,
-        os.path.join(directory, "missing.xml"),
-    )
+    for cls in [geosciences.HorizonsStack2D, geosciences.HorizonsStack3D]:
+        expect_data_error(
+            opengeode.load, cls, os.path.join(directory, "missing.xml")
+        )
+        not_a_stack = os.path.join(directory, "garbage.xml")
+        with open(not_a_stack, "w") as file:
+            file.write("<not-a-stack/>")
+        expect_data_error(opengeode.load, cls, not_a_stack)
 
 
 if __name__ == "__main__":

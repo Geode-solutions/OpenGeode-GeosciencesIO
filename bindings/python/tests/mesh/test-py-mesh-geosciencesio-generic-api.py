@@ -25,6 +25,7 @@ functions of the opengeode package once opengeode_geosciencesio is imported,
 and the errors are the OpenGeode ones."""
 
 import os
+import shutil
 import tempfile
 
 import geode_test_env
@@ -142,6 +143,31 @@ def test_loading():
             check(mesh.nb_vertices() == nb_vertices, f"Wrong nb_vertices for {filename}")
     grid = load(opengeode.RegularGrid3D, "test.vo")
     check(grid.nb_cells() == 1000, "Wrong cells of test.vo")
+    grid = load(opengeode.LightRegularGrid3D, "data.json")
+    check(grid.nb_cells() == 4693, "Wrong cells of data.json")
+    check(
+        [grid.nb_cells_in_direction(i) for i in range(3)] == [19, 19, 13],
+        "Wrong cells per direction of data.json",
+    )
+    # The .tif extension is registered as well as .tiff
+    with tempfile.TemporaryDirectory() as directory:
+        tif = os.path.join(directory, "cea.tif")
+        shutil.copy(os.path.join(DATA, "cea.tiff"), tif)
+        surface = opengeode.load(opengeode.PolygonalSurface3D, tif)
+        check(
+            (surface.nb_polygons(), surface.nb_vertices()) == (263682, 264710),
+            "Wrong surface of cea.tif",
+        )
+        grid = opengeode.load(opengeode.LightRegularGrid2D, tif)
+        check(
+            [grid.nb_cells_in_direction(i) for i in range(2)] == [514, 515],
+            "Wrong grid of cea.tif",
+        )
+    # A GeoTIFF without geotransform cannot be placed
+    path = os.path.join(DATA, "bathy_IrishSea_GeoTIFF.tif")
+    for cls in [opengeode.PolygonalSurface3D, opengeode.LightRegularGrid2D]:
+        error = expect_data_error(opengeode.load, cls, path)
+        check("geotransform" in error.message, f"geotransform error for {cls.__name__}")
 
 
 def test_load_all():
@@ -151,6 +177,7 @@ def test_load_all():
         (opengeode.EdgedCurve3D, "2plines.pl", [4, 3]),
         (opengeode.EdgedCurve3D, "2wells.wl", [55, 10]),
         (opengeode.EdgedCurve3D, "omf_lines.omf", [3, 2]),
+        (opengeode.EdgedCurve3D, "data.json", [6, 5, 14, 8, 10, 6, 6, 7]),
     ]
     for cls, filename, sizes in cases:
         path = os.path.join(DATA, filename)
@@ -196,6 +223,19 @@ def test_saving(directory):
     check(opengeode.is_saveable(solid, filename), "fem should be saveable")
     saved = opengeode.save(solid, filename)
     check(saved[0] == filename and os.path.getsize(filename) > 0, "Wrong fem files")
+    # The header of the FEM file gives the number of nodes and of elements
+    with open(filename) as file:
+        lines = file.read().splitlines()
+    dimens = lines[lines.index("DIMENS") + 1].split()
+    check(
+        (int(dimens[0]), int(dimens[1])) == (solid.nb_vertices(), solid.nb_polyhedra()),
+        f"Wrong FEM sizes {dimens[:2]}",
+    )
+    varnode = lines.index("VARNODE")
+    check(
+        int(lines[varnode + 1].split()[0]) == solid.nb_polyhedra(),
+        "Wrong number of FEM elements",
+    )
 
     # Formats that are only read
     for obj, extension in [(surface, "omf"), (points, "omf"), (curve, "wl")]:
