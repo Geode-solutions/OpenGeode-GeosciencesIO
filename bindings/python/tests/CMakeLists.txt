@@ -20,3 +20,20 @@
 
 add_subdirectory(mesh)
 add_subdirectory(model)
+
+add_geode_python_test(
+    SOURCE "test-py-package-docs.py"
+    ARGUMENTS
+        "${PROJECT_SOURCE_DIR}/bindings/python/opengeode_geosciencesio_doc.txt"
+        "${PROJECT_BINARY_DIR}/wheel/opengeode_geosciencesio"
+    DEPENDENCIES
+        ${PROJECT_NAME}::py_mesh
+        ${PROJECT_NAME}::py_model
+)
+
+add_geode_python_test(
+    SOURCE "test-py-module-import.py"
+    DEPENDENCIES
+        ${PROJECT_NAME}::py_mesh
+        ${PROJECT_NAME}::py_model
+)

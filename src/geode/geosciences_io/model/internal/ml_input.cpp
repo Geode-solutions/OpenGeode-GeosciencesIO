@@ -894,8 +894,8 @@ namespace
                     create_tsurfs();
                     return;
                 }
-                absl::Span< const std::string_view > remaining_tokens(
-                    &tokens[1], tokens.size() - 1 );
+                const auto remaining_tokens =
+                    absl::MakeConstSpan( tokens ).subspan( 1 );
                 if( component_type == "TSURF" )
                 {
                     process_TSURF_keyword( remaining_tokens );

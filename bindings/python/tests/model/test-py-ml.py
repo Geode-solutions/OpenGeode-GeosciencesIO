@@ -20,12 +20,21 @@
 # SOFTWARE.
 
 import os
+import tempfile
 
 import geode_test_env
 
 import opengeode
 import opengeode_geosciences as geosciences
 import opengeode_geosciencesio_py_model as geosciences_io
+
+
+# The files written by the test, removed at exit
+OUTPUT_DIRECTORY = tempfile.TemporaryDirectory()
+
+
+def output_path(name):
+    return os.path.join(OUTPUT_DIRECTORY.name, name)
 
 if __name__ == "__main__":
     geosciences_io.OpenGeodeGeosciencesIOModelLibrary.initialize()
@@ -66,10 +75,11 @@ if __name__ == "__main__":
             "[Test] Number of ModelBoundary in the loaded StructuralModel is not correct"
         )
 
-    geosciences.save_structural_model(model, "modelA4.og_strm")
-    geosciences.save_structural_model(model, "modelA4_saved.ml")
+    geosciences.save_structural_model(model, output_path("modelA4.og_strm"))
+    saved_filename = output_path("modelA4_saved.ml")
+    geosciences.save_structural_model(model, saved_filename)
     reload = opengeode.load_one(
-        geosciences.load_structural_model("modelA4_saved.ml"), "modelA4_saved.ml"
+        geosciences.load_structural_model(saved_filename), saved_filename
     )
 
     if reload.nb_corners() != 52:

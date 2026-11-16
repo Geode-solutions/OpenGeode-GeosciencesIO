@@ -27,6 +27,7 @@ add_geode_python_wheel(
     MODULES
         "mesh_geosciencesio.py"
         "model_geosciencesio.py"
+    DOCUMENTATION "${CMAKE_CURRENT_SOURCE_DIR}/opengeode_geosciencesio_doc.txt"
     LICENSE "MIT"
 )
 
