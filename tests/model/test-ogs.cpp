@@ -53,6 +53,7 @@
 
 #include <geode/geometry/bounding_box.hpp>
 #include <geode/geometry/point.hpp>
+#include <geode/geometry/vector.hpp>
 
 #include <geode/mesh/builder/hybrid_solid_builder.hpp>
 #include <geode/mesh/builder/point_set_builder.hpp>
@@ -1161,8 +1162,8 @@ void test_ogs_wells_rates()
         "The rate is split evenly over the well vertices" );
 }
 
-// Two hexahedra Blocks sharing the face x = 1
-geode::BRep two_hexahedra_brep()
+// Two hexahedra Blocks sharing the face x = 1, top face first if mirrored
+geode::BRep two_hexahedra_brep( bool mirrored = false )
 {
     geode::BRep model;
     geode::BRepBuilder builder{ model };
@@ -1190,7 +1191,14 @@ geode::BRep two_hexahedra_brep()
                     unique_vertex( block_x + dx, y, z ) );
             }
         }
-        mesh_builder->create_hexahedron( { 0, 1, 2, 3, 4, 5, 6, 7 } );
+        if( mirrored )
+        {
+            mesh_builder->create_hexahedron( { 4, 5, 6, 7, 0, 1, 2, 3 } );
+        }
+        else
+        {
+            mesh_builder->create_hexahedron( { 0, 1, 2, 3, 4, 5, 6, 7 } );
+        }
     }
     return model;
 }
@@ -1548,6 +1556,32 @@ void test_ogs_two_phase_permeability()
         "An anisotropic permeability field must be refused in two-phase" );
 }
 
+// VTK cells must be positively oriented for OGS: det(v1 - v0, v3 - v0,
+// v4 - v0) > 0 for hexahedra
+void test_ogs_cell_orientation()
+{
+    const auto model = two_hexahedra_brep( true );
+    std::filesystem::remove_all( "ogs_orientation" );
+    geode::BRepOgsExporter exporter{ model, "ogs_orientation" };
+    exporter.run();
+    auto [solid, mappings] = geode::convert_brep_into_solid( model );
+    const auto connectivity = read_vtu_values< std::int64_t >(
+        "ogs_orientation/ogs_orientation.vtu", "connectivity" );
+    check( connectivity.size() == 16, "Two hexahedra expected" );
+    for( const geode::index_t cell : { 0, 1 } )
+    {
+        const auto point = [&]( geode::index_t local ) {
+            return solid->point(
+                static_cast< geode::index_t >( connectivity[8 * cell + local] ) );
+        };
+        const geode::Vector3D first{ point( 0 ), point( 1 ) };
+        const geode::Vector3D second{ point( 0 ), point( 3 ) };
+        const geode::Vector3D third{ point( 0 ), point( 4 ) };
+        check( first.cross( second ).dot( third ) > 0,
+            "Hexahedra must be positively oriented" );
+    }
+}
+
 int main()
 {
     try
@@ -1581,6 +1615,7 @@ int main()
         test_ogs_two_phase_project();
         test_ogs_two_phase_boundary();
         test_ogs_two_phase_permeability();
+        test_ogs_cell_orientation();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }

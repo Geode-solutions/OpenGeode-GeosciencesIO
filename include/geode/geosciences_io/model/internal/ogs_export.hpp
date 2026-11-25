@@ -90,6 +90,10 @@ namespace geode::internal
 
         void build_bulk();
 
+        // Gives every bulk cell the vertex order OGS reads with a positive
+        // Jacobian
+        void orient_bulk();
+
         void compute_material_ids();
 
         void transfer_cell_properties();

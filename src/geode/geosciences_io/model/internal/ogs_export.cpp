@@ -27,6 +27,7 @@
 #include <utility>
 
 #include <absl/algorithm/container.h>
+#include <absl/container/inlined_vector.h>
 #include <absl/strings/str_cat.h>
 
 #include <pugixml.hpp>
@@ -39,7 +40,9 @@
 #include <geode/geometry/aabb.hpp>
 #include <geode/geometry/distance.hpp>
 #include <geode/geometry/point.hpp>
+#include <geode/geometry/vector.hpp>
 
+#include <geode/mesh/builder/solid_mesh_builder.hpp>
 #include <geode/mesh/core/hybrid_solid.hpp>
 #include <geode/mesh/core/point_set.hpp>
 #include <geode/mesh/core/regular_grid_solid.hpp>
@@ -210,6 +213,70 @@ namespace
         return copy;
     }
 
+    // Vertices defining the orientation of a VTK cell, OGS needing
+    // det(v[1] - v[0], v[2] - v[0], v[3] - v[0]) > 0, and the local vertex
+    // pairs swapped to mirror a cell
+    struct OgsCellOrientation
+    {
+        std::array< geode::local_index_t, 4 > vertices;
+        absl::InlinedVector< std::array< geode::local_index_t, 2 >, 4 > swaps;
+    };
+
+    std::optional< OgsCellOrientation > ogs_cell_orientation(
+        geode::local_index_t nb_vertices )
+    {
+        switch( nb_vertices )
+        {
+        case 4: // tetrahedron
+            return OgsCellOrientation{ { 0, 1, 2, 3 }, { { 1, 2 } } };
+        case 5: // pyramid, apex last
+            return OgsCellOrientation{ { 0, 1, 3, 4 }, { { 1, 3 } } };
+        case 6: // prism: OGS reads the VTK wedge faces swapped
+            return OgsCellOrientation{ { 0, 2, 1, 3 },
+                { { 0, 3 }, { 1, 4 }, { 2, 5 } } };
+        case 8: // hexahedron
+            return OgsCellOrientation{ { 0, 1, 3, 4 },
+                { { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 } } };
+        default:
+            return std::nullopt;
+        }
+    }
+
+    // Mirrors the cells OGS would read with a negative Jacobian
+    void orient_ogs_cells( geode::SolidMesh3D& mesh )
+    {
+        auto builder = geode::SolidMeshBuilder3D::create( mesh );
+        for( const auto cell : geode::Range{ mesh.nb_polyhedra() } )
+        {
+            const auto orientation =
+                ogs_cell_orientation( mesh.nb_polyhedron_vertices( cell ) );
+            if( !orientation )
+            {
+                continue;
+            }
+            const auto point = [&mesh, cell]( geode::local_index_t local ) {
+                return mesh.point( mesh.polyhedron_vertex( { cell, local } ) );
+            };
+            const auto& vertices = orientation->vertices;
+            const auto& origin = point( vertices[0] );
+            const geode::Vector3D first{ origin, point( vertices[1] ) };
+            const geode::Vector3D second{ origin, point( vertices[2] ) };
+            const geode::Vector3D third{ origin, point( vertices[3] ) };
+            if( first.cross( second ).dot( third ) >= 0. )
+            {
+                continue;
+            }
+            const auto cell_vertices = mesh.polyhedron_vertices( cell );
+            for( const auto& [local, other] : orientation->swaps )
+            {
+                builder->set_polyhedron_vertex(
+                    { cell, local }, cell_vertices[other] );
+                builder->set_polyhedron_vertex(
+                    { cell, other }, cell_vertices[local] );
+            }
+        }
+    }
+
     geode::index_t nearest_cell_vertex( const geode::SolidMesh3D& bulk,
         geode::index_t cell,
         const geode::Point3D& point )
@@ -305,6 +372,7 @@ namespace geode::internal
             check_problem();
         }
         build_bulk();
+        orient_bulk();
         compute_material_ids();
         transfer_cell_properties();
         build_boundary_meshes();
@@ -370,6 +438,12 @@ namespace geode::internal
             " OGS only reads tetrahedra, hexahedra, prisms and pyramids: the "
             "model Blocks have other polyhedra." );
         hybrid_ = std::move( hybrid.value() );
+    }
+
+    template < typename Model >
+    void OgsExporterImpl< Model >::orient_bulk()
+    {
+        orient_ogs_cells( bulk_mesh() );
     }
 
     template < typename Model >
