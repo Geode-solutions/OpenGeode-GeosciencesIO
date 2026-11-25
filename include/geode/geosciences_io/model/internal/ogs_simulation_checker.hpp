@@ -61,6 +61,10 @@ namespace geode::internal
 
         void check_properties();
 
+        /// Warns once per pair of Surfaces giving different values to a
+        /// shared vertex
+        void check_conflicting_boundaries( PHYSICAL_PROPERTY_NAME property );
+
     private:
         std::optional< OgsExportData > export_data_;
     };

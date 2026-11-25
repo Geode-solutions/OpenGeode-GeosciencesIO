@@ -38,6 +38,7 @@
 #include <geode/model/representation/core/brep.hpp>
 
 #include <geode/geosciences_io/model/common.hpp>
+#include <geode/geosciences_io/model/internal/ogs_project_writer.hpp>
 #include <geode/geosciences_io/model/internal/ogs_vtu.hpp>
 #include <geode/geosciences_io/model/internal/simulation_export.hpp>
 #include <geode/geosciences_io/model/internal/simulation_regions.hpp>
@@ -99,6 +100,17 @@ namespace geode::internal
 
         void build_well_meshes();
 
+        void compute_initial_values();
+
+        // Uniform value, or a bulk point array of the mean of the values of
+        // the cells around each vertex
+        [[nodiscard]] OgsInitialValue initial_value(
+            std::string_view field, const std::vector< double >& cell_values );
+
+        [[nodiscard]] SolidMesh3D& bulk_mesh();
+
+        void write_project() const;
+
         [[nodiscard]] const SolidMesh3D& bulk() const;
 
         // Model whose Blocks are converted into the bulk mesh
@@ -121,6 +133,9 @@ namespace geode::internal
         std::vector< std::int32_t > material_ids_;
         std::optional< std::vector< double > > porosity_;
         std::optional< std::vector< std::array< double, 3 > > > permeability_;
+        std::optional< std::vector< double > > storage_;
+        OgsInitialValue initial_pressure_;
+        OgsInitialValue initial_capillary_pressure_;
         std::vector< const Surface3D* > surfaces_;
         absl::flat_hash_map< uuid, index_t > surface_indices_;
         std::vector< OgsBoundaryMesh > boundary_meshes_;

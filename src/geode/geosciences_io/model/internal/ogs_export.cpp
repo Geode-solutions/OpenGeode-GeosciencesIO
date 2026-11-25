@@ -29,6 +29,8 @@
 #include <absl/algorithm/container.h>
 #include <absl/strings/str_cat.h>
 
+#include <pugixml.hpp>
+
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/logger.hpp>
 #include <geode/basic/range.hpp>
@@ -54,6 +56,8 @@
 #include <geode/model/representation/core/brep.hpp>
 
 #include <geode/geosciences/explicit/representation/core/structural_model.hpp>
+#include <geode/geosciences/simulation/core/initial_condition.hpp>
+#include <geode/geosciences/simulation/core/material.hpp>
 #include <geode/geosciences/simulation/core/physical_problem.hpp>
 #include <geode/geosciences/simulation/helpers/simulation_report.hpp>
 
@@ -305,6 +309,10 @@ namespace geode::internal
         transfer_cell_properties();
         build_boundary_meshes();
         build_well_meshes();
+        if( this->problem() != nullptr )
+        {
+            compute_initial_values();
+        }
     }
 
     template < typename Model >
@@ -317,6 +325,9 @@ namespace geode::internal
         material_ids_.clear();
         porosity_.reset();
         permeability_.reset();
+        storage_.reset();
+        initial_pressure_ = OgsInitialValue{};
+        initial_capillary_pressure_ = OgsInitialValue{};
         surfaces_.clear();
         surface_indices_.clear();
         boundary_meshes_.clear();
@@ -362,6 +373,16 @@ namespace geode::internal
 
     template < typename Model >
     const SolidMesh3D& OgsExporterImpl< Model >::bulk() const
+    {
+        if( hybrid_ )
+        {
+            return *hybrid_;
+        }
+        return solid_->mesh();
+    }
+
+    template < typename Model >
+    SolidMesh3D& OgsExporterImpl< Model >::bulk_mesh()
     {
         if( hybrid_ )
         {
@@ -449,6 +470,79 @@ namespace geode::internal
                 }
             }
         }
+    }
+
+    template < typename Model >
+    void OgsExporterImpl< Model >::compute_initial_values()
+    {
+        const auto& problem = *this->problem();
+        if( porosity_ )
+        {
+            storage_.emplace();
+            for( const auto cell : Indices{ porosity_.value() } )
+            {
+                const auto& material = problem.materials()[static_cast<
+                    index_t >( material_ids_[cell] )];
+                storage_->push_back( ogs_storage( porosity_.value()[cell],
+                    material.pore_compressibility ) );
+            }
+        }
+        const auto assignment = assign_region_initial_conditions(
+            problem, this->model(), regions_, "OGS" );
+        std::vector< double > pressures;
+        pressures.reserve( bulk().nb_polyhedra() );
+        for( const auto cell : Range{ bulk().nb_polyhedra() } )
+        {
+            const auto& condition_id =
+                assignment.region_items.at( solid_->region( cell ) );
+            OpenGeodeGeosciencesIOModelException::check_exception(
+                condition_id.has_value(), nullptr,
+                OpenGeodeException::TYPE::data, context_, " Cell ", cell,
+                " has no initial condition." );
+            const auto& condition =
+                dynamic_cast< const UniformInitialCondition& >(
+                    problem.initial_condition( condition_id.value() ) );
+            pressures.push_back( condition.pressure() );
+        }
+        initial_pressure_ = initial_value( "initial_pressure", pressures );
+    }
+
+    template < typename Model >
+    OgsInitialValue OgsExporterImpl< Model >::initial_value(
+        std::string_view field, const std::vector< double >& cell_values )
+    {
+        if( absl::c_all_of( cell_values, [&cell_values]( double value ) {
+                return value == cell_values.front();
+            } ) )
+        {
+            return { cell_values.empty() ? 0. : cell_values.front(), "" };
+        }
+        auto& mesh = bulk_mesh();
+        AttributeValues< double > values;
+        values.default_value = 0.;
+        const auto attribute_id =
+            mesh.vertex_attribute_manager()
+                .template create_attribute< VariableAttribute, double >(
+                    field, values, AttributeProperties{} );
+        auto attribute =
+            mesh.vertex_attribute_manager()
+                .template find_attribute< VariableAttribute, double >(
+                    attribute_id );
+        for( const auto vertex : Range{ mesh.nb_vertices() } )
+        {
+            const auto& polyhedra = mesh.polyhedra_around_vertex( vertex );
+            double sum{ 0 };
+            for( const auto& polyhedron : polyhedra )
+            {
+                sum += cell_values[polyhedron.polyhedron_id];
+            }
+            if( !polyhedra.empty() )
+            {
+                attribute->set_value(
+                    vertex, sum / static_cast< double >( polyhedra.size() ) );
+            }
+        }
+        return { std::nullopt, to_string( field ) };
     }
 
     template < typename Model >
@@ -600,6 +694,10 @@ namespace geode::internal
                 physical_property_string( PHYSICAL_PROPERTY_NAME::porosity ),
                 porosity_.value() );
         }
+        if( storage_ )
+        {
+            add_cell_attribute( cells, "storage", storage_.value() );
+        }
         if( permeability_ )
         {
             add_cell_attribute( cells,
@@ -613,6 +711,30 @@ namespace geode::internal
         OpenGeodeGeosciencesIOModelException::check_exception( written,
             nullptr, OpenGeodeException::TYPE::internal, context_,
             " Cannot write the bulk mesh of type ", bulk().type_name().get() );
+    }
+
+    template < typename Model >
+    void OgsExporterImpl< Model >::write_project() const
+    {
+        const auto& problem = *this->problem();
+        OgsProjectContext context;
+        context.process = ogs_process( problem ).value();
+        context.prefix = this->prefix();
+        context.has_porosity_field = porosity_.has_value();
+        context.has_permeability_field = permeability_.has_value();
+        context.boundaries = boundary_meshes_;
+        context.wells = well_meshes_;
+        context.initial_pressure = initial_pressure_;
+        context.initial_capillary_pressure = initial_capillary_pressure_;
+        context.reference_temperature = ogs_reference_temperature( problem );
+        pugi::xml_document document;
+        OgsProjectWriter{ problem, context }.write( document );
+        const auto filename =
+            absl::StrCat( this->files_directory(), "/", this->prefix(), ".prj" );
+        OpenGeodeGeosciencesIOModelException::check_exception(
+            document.save_file( filename.c_str(), "    " ), nullptr,
+            OpenGeodeException::TYPE::data, context_, " Cannot write file ",
+            filename );
     }
 
     template < typename Model >
@@ -630,6 +752,10 @@ namespace geode::internal
             save_ogs_mesh_file(
                 absl::StrCat( this->files_directory(), "/", well.stem, ".vtu" ),
                 well.mesh );
+        }
+        if( this->problem() != nullptr )
+        {
+            write_project();
         }
     }
 

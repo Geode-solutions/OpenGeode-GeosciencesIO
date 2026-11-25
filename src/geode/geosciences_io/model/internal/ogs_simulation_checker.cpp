@@ -28,6 +28,8 @@
 #include <utility>
 
 #include <absl/algorithm/container.h>
+#include <absl/container/btree_set.h>
+#include <absl/container/flat_hash_map.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/strip.h>
 #include <absl/types/span.h>
@@ -35,8 +37,10 @@
 #include <geode/basic/range.hpp>
 
 #include <geode/mesh/core/solid_mesh.hpp>
+#include <geode/mesh/core/surface_mesh.hpp>
 
 #include <geode/model/mixin/core/block.hpp>
+#include <geode/model/mixin/core/surface.hpp>
 #include <geode/model/representation/core/brep.hpp>
 
 #include <geode/geosciences/simulation/core/flow_model.hpp>
@@ -74,6 +78,56 @@ namespace
                || ( nb_vertices == 5 && nb_facets == 5 )
                || ( nb_vertices == 6 && nb_facets == 5 )
                || ( nb_vertices == 8 && nb_facets == 6 );
+    }
+
+    std::string ogs_surface_name( const geode::Surface3D& surface )
+    {
+        return surface.name().value_or( surface.id().string() );
+    }
+
+    // Mean value of each Surface at each of its unique vertices
+    using OgsVertexSurfaceValues = absl::flat_hash_map< geode::index_t,
+        absl::flat_hash_map< geode::index_t, std::pair< double, double > > >;
+
+    OgsVertexSurfaceValues ogs_vertex_surface_values(
+        const geode::BRep& model, const geode::uuid& attribute_id )
+    {
+        OgsVertexSurfaceValues vertex_values;
+        geode::index_t surface_index{ 0 };
+        for( const auto& surface : model.surfaces() )
+        {
+            std::optional< std::vector< double > > values;
+            try
+            {
+                values = geode::internal::surface_values< double >(
+                    surface, attribute_id, "[OgsExporter]" );
+            }
+            catch( const geode::OpenGeodeException& )
+            {
+                // Wrong attribute types are reported by the property checks
+            }
+            if( values )
+            {
+                const auto& mesh = surface.mesh();
+                for( const auto polygon : geode::Range{ mesh.nb_polygons() } )
+                {
+                    const auto value = values->size() == 1
+                                           ? values->front()
+                                           : values.value()[polygon];
+                    for( const auto vertex : mesh.polygon_vertices( polygon ) )
+                    {
+                        auto& [sum, count] =
+                            vertex_values[model.unique_vertex(
+                                { surface.component_id(), vertex } )]
+                                         [surface_index];
+                        sum += value;
+                        count += 1.;
+                    }
+                }
+            }
+            surface_index++;
+        }
+        return vertex_values;
     }
 
     class OgsProblemChecker
@@ -336,6 +390,60 @@ namespace geode::internal
         check_properties();
         problem_checker.check_boundary_conditions(
             model_boundary_conditions( model() ) );
+        check_conflicting_boundaries(
+            PHYSICAL_PROPERTY_NAME::boundary_pressure );
+        if( ogs_process( problem() ) == OGS_PROCESS::two_phase_flow_pp )
+        {
+            check_conflicting_boundaries(
+                PHYSICAL_PROPERTY_NAME::boundary_water_fraction );
+        }
+    }
+
+    void OgsSimulationChecker::check_conflicting_boundaries(
+        PHYSICAL_PROPERTY_NAME property )
+    {
+        const auto& model = this->model();
+        if( !model.has_physical_property( property ) )
+        {
+            return;
+        }
+        const auto& info = model.physical_property_info( property );
+        if( info.component_type != Surface3D::component_type_static() )
+        {
+            return;
+        }
+        absl::btree_set< std::pair< index_t, index_t > > conflicts;
+        for( const auto& [vertex, surface_values] :
+            ogs_vertex_surface_values( model, info.attribute_id ) )
+        {
+            geode_unused( vertex );
+            for( const auto& [first, first_value] : surface_values )
+            {
+                for( const auto& [second, second_value] : surface_values )
+                {
+                    if( first < second
+                        && first_value.first / first_value.second
+                               != second_value.first / second_value.second )
+                    {
+                        conflicts.emplace( first, second );
+                    }
+                }
+            }
+        }
+        std::vector< const Surface3D* > surfaces;
+        for( const auto& surface : model.surfaces() )
+        {
+            surfaces.push_back( &surface );
+        }
+        for( const auto& [first, second] : conflicts )
+        {
+            report().add_warning( SIMULATION_CHECK_STAGE::simulator,
+                to_string( physical_property_string( property ) ), "Surfaces ",
+                ogs_surface_name( *surfaces[first] ), " and ",
+                ogs_surface_name( *surfaces[second] ),
+                " share vertices with different values: OGS keeps one of "
+                "them at each shared vertex" );
+        }
     }
 
     void OgsSimulationChecker::check_cells()

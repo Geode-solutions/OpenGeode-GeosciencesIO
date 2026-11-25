@@ -38,6 +38,8 @@
 
 #include <pugixml.hpp>
 
+#include <absl/algorithm/container.h>
+#include <absl/container/flat_hash_set.h>
 #include <absl/strings/match.h>
 #include <absl/strings/str_cat.h>
 
@@ -54,8 +56,10 @@
 
 #include <geode/mesh/builder/polyhedral_solid_builder.hpp>
 #include <geode/mesh/core/geode/geode_polyhedral_solid.hpp>
+#include <geode/mesh/builder/hybrid_solid_builder.hpp>
 #include <geode/mesh/builder/point_set_builder.hpp>
 #include <geode/mesh/builder/regular_grid_solid_builder.hpp>
+#include <geode/mesh/core/geode/geode_hybrid_solid.hpp>
 #include <geode/mesh/core/geode/geode_point_set.hpp>
 #include <geode/mesh/core/geode/geode_regular_grid_solid.hpp>
 #include <geode/mesh/core/point_set.hpp>
@@ -89,6 +93,7 @@
 
 #include <geode/geosciences_io/model/common.hpp>
 #include <geode/geosciences_io/model/helpers/brep_ogs_export.hpp>
+#include <geode/geosciences_io/model/helpers/structural_model_ogs_export.hpp>
 #include <geode/geosciences_io/model/internal/ogs_simulation_rules.hpp>
 #include <geode/geosciences_io/model/internal/ogs_vtu.hpp>
 #include <geode/geosciences_io/model/internal/simulation_regions.hpp>
@@ -978,6 +983,401 @@ void test_ogs_output_directories()
         "Nested directories must be created" );
 }
 
+pugi::xml_node select( const pugi::xml_document& document, std::string_view xpath )
+{
+    return document.select_node( std::string{ xpath }.c_str() ).node();
+}
+
+std::string select_text(
+    const pugi::xml_document& document, std::string_view xpath )
+{
+    return text( select( document, xpath ) );
+}
+
+// Parameter node of the named parameter
+pugi::xml_node parameter(
+    const pugi::xml_document& project, std::string_view name )
+{
+    return select( project,
+        absl::StrCat( "/OpenGeoSysProject/parameters/parameter[name='", name,
+            "']" ) );
+}
+
+geode::BRep picasso_with_boundary()
+{
+    auto model = load_picasso();
+    add_constant_boundary( model, east_surfaces( model ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, 1e7 );
+    return model;
+}
+
+pugi::xml_document export_project( const geode::BRep& model,
+    const geode::PhysicalProblem& problem,
+    std::string_view name )
+{
+    std::filesystem::remove_all( std::string{ name } );
+    geode::BRepOgsExporter exporter{ model, name };
+    exporter.set_physical_problem( problem );
+    exporter.run();
+    return load_xml( absl::StrCat( name, "/", name, ".prj" ) );
+}
+
+void test_ogs_liquid_flow_picasso()
+{
+    const auto model = picasso_with_boundary();
+    auto problem = single_phase_problem( 4.5e-10 );
+    geode::PhysicalProblemBuilder builder{ problem };
+    auto other = rock_material( "other" );
+    other.regions = { ( *model.blocks().begin() ).id() };
+    builder.add_material( other );
+    const auto project = export_project( model, problem, "ogs_picasso" );
+    check( select_text( project, "/OpenGeoSysProject/meshes/mesh[1]" )
+               == "ogs_picasso.vtu",
+        "The bulk mesh comes first" );
+    check( select_text( project, "//processes/process/type" ) == "LIQUID_FLOW",
+        "LIQUID_FLOW process" );
+    check( select_text( project, "//processes/process/equation_balance_type" )
+               == "mass",
+        "Mass balance" );
+    check( project.select_nodes( "//media/medium" ).size() == 2,
+        "One medium per material" );
+    const auto permeability = select( project,
+        "//media/medium[@id='0']/properties/property[name='permeability']" );
+    check( text( permeability.child( "type" ) ) == "Constant"
+               || text( permeability.child( "type" ) ) == "Parameter",
+        "Permeability property" );
+    for( const auto& mesh_node :
+        project.select_nodes( "//boundary_condition/mesh" ) )
+    {
+        const auto stem = text( mesh_node.node() );
+        check( std::filesystem::exists(
+                   absl::StrCat( "ogs_picasso/", stem, ".vtu" ) ),
+            absl::StrCat( "Boundary mesh ", stem, " must exist" ) );
+        check( static_cast< bool >( select( project,
+                   absl::StrCat( "/OpenGeoSysProject/meshes/mesh[text()='",
+                       stem, ".vtu']" ) ) ),
+            "Boundary meshes are listed in <meshes>" );
+    }
+    check( project.select_nodes( "//boundary_condition" ).size() == 1,
+        "One Dirichlet condition for the east Surfaces" );
+}
+
+void test_ogs_permeability_field()
+{
+    auto model = picasso_with_boundary();
+    const geode::uuid attribute_id;
+    geode::AttributeValues< std::array< double, 3 > > values;
+    values.default_value = { 1e-12, 2e-12, 3e-12 };
+    for( const auto& block : model.blocks() )
+    {
+        block.mesh()
+            .polyhedron_attribute_manager()
+            .create_attribute< geode::VariableAttribute,
+                std::array< double, 3 > >(
+                "perm", attribute_id, values, {} );
+    }
+    geode::BRepBuilder{ model }.set_physical_property(
+        geode::PHYSICAL_PROPERTY_NAME::permeability,
+        geode::Block3D::component_type_static(), attribute_id );
+    const auto project = export_project(
+        model, single_phase_problem( 0. ), "ogs_permeability_field" );
+    const auto property = select( project,
+        "//media/medium/properties/property[name='permeability']" );
+    check( text( property.child( "type" ) ) == "Parameter",
+        "A permeability field is a Parameter property" );
+    const auto field =
+        parameter( project, text( property.child( "parameter_name" ) ) );
+    check( text( field.child( "type" ) ) == "MeshElement"
+               && text( field.child( "field_name" ) ) == "permeability",
+        "The permeability parameter is MeshElement on the permeability "
+        "array" );
+    const auto cells = read_vtu_values< double >(
+        "ogs_permeability_field/ogs_permeability_field.vtu", "permeability" );
+    check( cells.size() >= 3 && cells[0] == 1e-12 && cells[1] == 2e-12
+               && cells[2] == 3e-12,
+        "The permeability array carries the Block values" );
+}
+
+void test_ogs_compressible_fluid()
+{
+    const auto model = picasso_with_boundary();
+    const auto project = export_project(
+        model, single_phase_problem( 4.5e-10 ), "ogs_compressible" );
+    const auto density =
+        select( project, "//phase[type='AqueousLiquid']/properties/"
+                         "property[name='density']" );
+    check( text( density.child( "type" ) ) == "Exponential",
+        "A compressible fluid has an Exponential density" );
+    check( std::stod( text( density.child( "exponent" ).child( "factor" ) ) )
+               == 4.5e-10,
+        "The density factor is the fluid compressibility" );
+    const auto storage =
+        select( project, "//medium/properties/property[name='storage']" );
+    check( text( storage.child( "type" ) ) == "Constant"
+               && std::fabs( std::stod( text( storage.child( "value" ) ) )
+                             - 2e-10 )
+                      < 1e-24,
+        "Storage is porosity times pore compressibility" );
+    const auto incompressible = export_project(
+        model, single_phase_problem( 0. ), "ogs_incompressible" );
+    check( select_text( incompressible, "//phase[type='AqueousLiquid']/"
+                                        "properties/property[name='density']/"
+                                        "type" )
+               == "Constant",
+        "An incompressible fluid has a Constant density" );
+}
+
+void test_ogs_wells_rates()
+{
+    const auto model = picasso_with_boundary();
+    auto [solid, mappings] = geode::convert_brep_into_solid( model );
+    geode::OpenGeodePointSet3D well;
+    auto builder = geode::PointSetBuilder3D::create( well );
+    for( const geode::index_t polyhedron : { 0, 100, 200 } )
+    {
+        const auto vertex = solid->polyhedron_vertex( { polyhedron, 0 } );
+        const auto& point = solid->point( vertex );
+        builder->create_point(
+            point + ( solid->polyhedron_barycenter( polyhedron ) - point )
+                        * 0.01 );
+    }
+    auto problem = single_phase_problem( 0. );
+    geode::PhysicalProblemBuilder{ problem }.add_source_term(
+        { "injector", "water", 3. } );
+    std::filesystem::remove_all( "ogs_wells" );
+    geode::BRepOgsExporter exporter{ model, "ogs_wells" };
+    exporter.add_well_perforations( well, "injector" );
+    exporter.set_physical_problem( problem );
+    exporter.run();
+    const auto project = load_xml( "ogs_wells/ogs_wells.prj" );
+    const auto source = select( project, "//source_terms/source_term" );
+    check( text( source.child( "type" ) ) == "Nodal"
+               && text( source.child( "mesh" ) ) == "ogs_wells_well_injector",
+        "A Nodal source term on the well mesh" );
+    const auto rate =
+        parameter( project, text( source.child( "parameter" ) ) );
+    check( text( rate.child( "type" ) ) == "Constant"
+               && std::stod( text( rate.child( "value" ) ) ) == 1.,
+        "The rate is split evenly over the well vertices" );
+}
+
+// Two hexahedra Blocks sharing the face x = 1
+geode::BRep two_hexahedra_brep()
+{
+    geode::BRep model;
+    geode::BRepBuilder builder{ model };
+    builder.create_unique_vertices( 12 );
+    const auto unique_vertex = []( geode::index_t x, geode::index_t y,
+                                   geode::index_t z ) {
+        return x + 3 * ( y + 2 * z );
+    };
+    for( const geode::index_t block_x : { 0, 1 } )
+    {
+        const auto& block = model.block( builder.add_block(
+            geode::OpenGeodeHybridSolid3D::impl_name_static() ) );
+        auto mesh_builder =
+            builder.block_mesh_builder< geode::HybridSolid3D >( block );
+        geode::index_t vertex{ 0 };
+        for( const geode::index_t z : { 0, 1 } )
+        {
+            for( const auto& [dx, y] :
+                std::array< std::pair< geode::index_t, geode::index_t >, 4 >{
+                    { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } } } )
+            {
+                mesh_builder->create_point( geode::Point3D{
+                    { 1. * ( block_x + dx ), 1. * y, 1. * z } } );
+                builder.set_unique_vertex( { block.component_id(), vertex++ },
+                    unique_vertex( block_x + dx, y, z ) );
+            }
+        }
+        mesh_builder->create_hexahedron( { 0, 1, 2, 3, 4, 5, 6, 7 } );
+    }
+    return model;
+}
+
+void test_ogs_initial_pressure()
+{
+    const auto model = two_hexahedra_brep();
+    auto problem = single_phase_problem( 0. );
+    const auto uniform = export_project( model, problem, "ogs_uniform_p0" );
+    const auto initial = select_text( uniform,
+        "//process_variables/process_variable/initial_condition" );
+    check( text( parameter( uniform, initial ).child( "type" ) ) == "Constant",
+        "One initial pressure gives a Constant parameter" );
+    geode::PhysicalProblemBuilder{ problem }.add_initial_condition(
+        std::make_shared< geode::UniformInitialCondition >(
+            std::vector< geode::uuid >{ ( *model.blocks().begin() ).id() },
+            2e7 ) );
+    const auto varying = export_project( model, problem, "ogs_varying_p0" );
+    const auto field = parameter( varying,
+        select_text( varying,
+            "//process_variables/process_variable/initial_condition" ) );
+    check( text( field.child( "type" ) ) == "MeshNode"
+               && text( field.child( "field_name" ) ) == "initial_pressure",
+        "Several initial pressures give a MeshNode parameter" );
+    const auto values = read_vtu_values< double >(
+        "ogs_varying_p0/ogs_varying_p0.vtu", "initial_pressure" );
+    check( values.size() == 12, "One initial pressure per vertex" );
+    check( values[0] == 2e7 && values[1] == 1.5e7 && values[2] == 1e7,
+        "Shared vertices get the mean of their cells" );
+}
+
+void test_ogs_solver_options()
+{
+    const auto model = picasso_with_boundary();
+    auto problem = single_phase_problem( 0. );
+    geode::PhysicalProblemBuilder{ problem }.set_solver_option(
+        "ogs", "linear/solver_type", "BiCGSTAB" );
+    geode::PhysicalProblemBuilder{ problem }.set_solver_option(
+        "ogs", "nonlinear/max_iter", "7" );
+    const auto project = export_project( model, problem, "ogs_options" );
+    check( select_text( project, "//linear_solvers/linear_solver/eigen/"
+                                 "solver_type" )
+               == "BiCGSTAB",
+        "A linear option sets the element text" );
+    check( select_text( project,
+               "//nonlinear_solvers/nonlinear_solver/max_iter" )
+               == "7",
+        "A nonlinear option sets the element text" );
+}
+
+void test_ogs_conflicting_dirichlet()
+{
+    auto model = load_picasso();
+    const auto first = ( *model.surfaces().begin() ).id();
+    std::optional< geode::uuid > neighbour;
+    absl::flat_hash_set< geode::index_t > first_vertices;
+    for( const auto vertex :
+        geode::Range{ model.surface( first ).mesh().nb_vertices() } )
+    {
+        first_vertices.insert( model.unique_vertex(
+            { model.surface( first ).component_id(), vertex } ) );
+    }
+    for( const auto& surface : model.surfaces() )
+    {
+        if( surface.id() == first )
+        {
+            continue;
+        }
+        for( const auto vertex : geode::Range{ surface.mesh().nb_vertices() } )
+        {
+            if( first_vertices.contains( model.unique_vertex(
+                    { surface.component_id(), vertex } ) ) )
+            {
+                neighbour = surface.id();
+                break;
+            }
+        }
+        if( neighbour )
+        {
+            break;
+        }
+    }
+    check( neighbour.has_value(), "A Surface should touch the first one" );
+    const geode::uuid attribute_id;
+    for( const auto& [surface_id, value] :
+        std::array< std::pair< geode::uuid, double >, 2 >{
+            { { first, 1e5 }, { neighbour.value(), 2e5 } } } )
+    {
+        geode::AttributeValues< double > values;
+        values.default_value = value;
+        model.surface( surface_id )
+            .mesh()
+            .polygon_attribute_manager()
+            .create_attribute< geode::ConstantAttribute, double >(
+                "boundary_pressure", attribute_id, values, {} );
+    }
+    geode::BRepBuilder{ model }.set_physical_property(
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure,
+        geode::Surface3D::component_type_static(), attribute_id );
+    const auto report = ogs_report( single_phase_problem( 0. ), model );
+    geode::index_t nb_conflicts{ 0 };
+    for( const auto& issue : report.issues() )
+    {
+        if( !issue.is_error()
+            && absl::StrContains( issue.message, "share vertices" ) )
+        {
+            nb_conflicts++;
+        }
+    }
+    check( report.is_simulable() && nb_conflicts == 1,
+        absl::StrCat( "One warning per pair of conflicting Surfaces:\n",
+            report.string() ) );
+}
+
+void test_ogs_run_twice()
+{
+    const auto model = picasso_with_boundary();
+    const auto problem = single_phase_problem( 4.5e-10 );
+    std::filesystem::remove_all( "ogs_twice" );
+    geode::BRepOgsExporter exporter{ model, "ogs_twice" };
+    exporter.set_physical_problem( problem );
+    exporter.run();
+    std::vector< std::string > first;
+    std::vector< std::string > names;
+    for( const auto& entry :
+        std::filesystem::directory_iterator{ "ogs_twice" } )
+    {
+        names.push_back( entry.path().string() );
+    }
+    std::sort( names.begin(), names.end() );
+    for( const auto& name : names )
+    {
+        first.push_back( read_file( name ) );
+    }
+    exporter.run();
+    for( const auto index : geode::Indices{ names } )
+    {
+        check( read_file( names[index] ) == first[index],
+            absl::StrCat( names[index], " changed on the second run" ) );
+    }
+}
+
+void test_ogs_structural_model_materials()
+{
+    geode::StructuralModel model{ picasso_with_boundary() };
+    geode::StructuralModelBuilder builder{ model };
+    const auto& unit_id = builder.add_stratigraphic_unit();
+    std::vector< geode::uuid > unit_blocks;
+    for( const auto& block : model.blocks() )
+    {
+        builder.add_block_in_stratigraphic_unit(
+            block, model.stratigraphic_unit( unit_id ) );
+        unit_blocks.push_back( block.id() );
+        if( unit_blocks.size() == 2 )
+        {
+            break;
+        }
+    }
+    auto problem = single_phase_problem( 0. );
+    auto unit_material = rock_material( "unit" );
+    unit_material.regions = { unit_id };
+    const auto unit_index =
+        geode::PhysicalProblemBuilder{ problem }.add_material( unit_material );
+    std::filesystem::remove_all( "ogs_units" );
+    geode::StructuralModelOgsExporter exporter{ model, "ogs_units" };
+    exporter.set_physical_problem( problem );
+    exporter.run();
+    const auto material_ids =
+        read_vtu_values< std::int32_t >( "ogs_units/ogs_units.vtu", "MaterialIDs" );
+    geode::index_t cell{ 0 };
+    for( const auto& block : model.blocks() )
+    {
+        const auto in_unit =
+            absl::c_linear_search( unit_blocks, block.id() );
+        for( const auto polyhedron :
+            geode::Range{ block.mesh().nb_polyhedra() } )
+        {
+            geode_unused( polyhedron );
+            check( ( material_ids[cell] == static_cast< std::int32_t >(
+                         unit_index ) )
+                       == in_unit,
+                "Cells of the unit Blocks get the unit material" );
+            cell++;
+        }
+    }
+}
+
 int main()
 {
     try
@@ -999,6 +1399,15 @@ int main()
         test_ogs_well_mesh();
         test_ogs_regular_grid();
         test_ogs_output_directories();
+        test_ogs_liquid_flow_picasso();
+        test_ogs_permeability_field();
+        test_ogs_compressible_fluid();
+        test_ogs_wells_rates();
+        test_ogs_initial_pressure();
+        test_ogs_solver_options();
+        test_ogs_conflicting_dirichlet();
+        test_ogs_run_twice();
+        test_ogs_structural_model_materials();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }
