@@ -81,8 +81,6 @@
 #include <geode/model/mixin/core/physical_properties.hpp>
 #include <geode/model/mixin/core/surface.hpp>
 
-#include <geode/io/mesh/detail/vtu_solid_output_impl.hpp>
-
 #include <geode/geosciences/explicit/representation/core/structural_model.hpp>
 #include <geode/geosciences/simulation/core/flow_model.hpp>
 #include <geode/geosciences/simulation/core/fluid.hpp>
@@ -99,62 +97,12 @@
 #include <geode/geosciences_io/model/internal/simulation_boundary_values.hpp>
 #include <geode/geosciences_io/model/internal/simulation_cell_properties.hpp>
 #include <geode/geosciences_io/model/internal/simulation_export.hpp>
+#include <geode/geosciences_io/model/internal/simulation_vtu.hpp>
 #include <geode/geosciences_io/model/internal/simulation_xml.hpp>
 #include <geode/model/representation/core/brep.hpp>
 
 namespace
 {
-    // Writes the solid polyhedra followed by the surface polygons in a single
-    // UnstructuredGrid, all the cells sharing the solid vertices
-    template < typename SolidOutputImpl >
-    class GeosVTUOutputImpl : public SolidOutputImpl
-    {
-    public:
-        template < typename Solid >
-        GeosVTUOutputImpl( std::string_view filename,
-            const Solid& solid,
-            absl::Span< const geode::PolygonVertices > surface_cells,
-            const geode::AttributeManager& cell_attributes )
-            : SolidOutputImpl{ filename, solid },
-              surface_cells_{ surface_cells },
-              cell_attributes_( cell_attributes )
-        {
-        }
-
-    private:
-        [[nodiscard]] geode::index_t nb_additional_polygons() const override
-        {
-            return surface_cells_.size();
-        }
-
-        [[nodiscard]] absl::Span< const geode::index_t >
-            additional_polygon_vertices(
-                geode::index_t polygon_id ) const override
-        {
-            return surface_cells_[polygon_id];
-        }
-
-        [[nodiscard]] const geode::AttributeManager&
-            cell_attribute_manager() const override
-        {
-            return cell_attributes_;
-        }
-
-        absl::Span< const geode::PolygonVertices > surface_cells_;
-        const geode::AttributeManager& cell_attributes_;
-    };
-
-    template < typename SolidOutputImpl, typename Solid >
-    void save_geos_vtu( std::string_view filename,
-        const Solid& solid,
-        absl::Span< const geode::PolygonVertices > surface_cells,
-        const geode::AttributeManager& cell_attributes )
-    {
-        GeosVTUOutputImpl< SolidOutputImpl > writer{ filename, solid,
-            surface_cells, cell_attributes };
-        writer.write_file();
-    }
-
     struct GeosBoundaryField
     {
         std::string_view field_name;
@@ -1182,25 +1130,8 @@ namespace geode::internal
                 surface_cells_region_[surface_cell] );
         }
         duplicate_imported_fields( cell_attributes );
-        if( const auto* tetra =
-                dynamic_cast< const TetrahedralSolid3D* >( &solid_->mesh() ) )
-        {
-            save_geos_vtu< detail::VTUTetrahedralOutputImpl >(
-                file_vtu, *tetra, surface_cells_, cell_attributes );
-        }
-        else if( const auto* hybrid =
-                     dynamic_cast< const HybridSolid3D* >( &solid_->mesh() ) )
-        {
-            save_geos_vtu< detail::VTUHybridOutputImpl >(
-                file_vtu, *hybrid, surface_cells_, cell_attributes );
-        }
-        else if( const auto* poly = dynamic_cast< const PolyhedralSolid3D* >(
-                     &solid_->mesh() ) )
-        {
-            save_geos_vtu< detail::VTUPolyhedralOutputImpl >(
-                file_vtu, *poly, surface_cells_, cell_attributes );
-        }
-        else
+        if( !save_simulation_vtu(
+                file_vtu, solid_->mesh(), surface_cells_, cell_attributes ) )
         {
             throw OpenGeodeGeosciencesIOModelException{ nullptr,
                 OpenGeodeException::TYPE::data,

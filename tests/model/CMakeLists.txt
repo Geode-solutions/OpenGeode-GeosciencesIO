@@ -73,3 +73,17 @@ add_geode_test(
         OpenGeode-IO::model
         ${PROJECT_NAME}::model
 )
+add_geode_test(
+    SOURCE "test-ogs.cpp"
+    DEPENDENCIES
+        OpenGeode::basic
+        OpenGeode::geometry
+        OpenGeode::mesh
+        OpenGeode::model
+        OpenGeode-Geosciences::explicit
+        OpenGeode-Geosciences::simulation
+        OpenGeode-IO::mesh
+        OpenGeode-IO::model
+        pugixml::pugixml
+        ${PROJECT_NAME}::model
+)

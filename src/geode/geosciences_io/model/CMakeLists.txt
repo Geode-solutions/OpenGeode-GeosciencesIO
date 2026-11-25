@@ -33,6 +33,7 @@ add_geode_library(
         "internal/simulation_export.cpp"
         "internal/simulation_regions.cpp"
         "internal/simulation_solid.cpp"
+        "internal/simulation_vtu.cpp"
         "internal/simulation_xml.cpp"
         "internal/geos_export.cpp"
         "internal/geos_simulation_checker.cpp"
@@ -46,6 +47,7 @@ add_geode_library(
         "internal/ml_input.cpp"
         "internal/ml_output_brep.cpp"
         "internal/ml_output_structural_model.cpp"
+        "internal/ogs_vtu.cpp"
         "internal/shp_input.cpp"
     PUBLIC_HEADERS
         "common.hpp"
@@ -60,6 +62,7 @@ add_geode_library(
         "internal/simulation_export.hpp"
         "internal/simulation_regions.hpp"
         "internal/simulation_solid.hpp"
+        "internal/simulation_vtu.hpp"
         "internal/simulation_xml.hpp"
         "internal/geos_deck_context.hpp"
         "internal/geos_export.hpp"
@@ -75,6 +78,7 @@ add_geode_library(
         "internal/ml_output_brep.hpp"
         "internal/ml_output_impl.hpp"
         "internal/ml_output_structural_model.hpp"
+        "internal/ogs_vtu.hpp"
         "internal/shp_input.hpp"
     PUBLIC_DEPENDENCIES
         OpenGeode::basic
