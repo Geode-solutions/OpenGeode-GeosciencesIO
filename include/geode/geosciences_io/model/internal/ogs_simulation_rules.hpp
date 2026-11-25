@@ -40,6 +40,8 @@
 
 namespace geode
 {
+    FORWARD_DECLARATION_DIMENSION_CLASS( SolidMesh );
+    ALIAS_3D( SolidMesh );
     class CapillaryPressure;
     class DeadOilFluid;
     class PhysicalProblem;
@@ -54,6 +56,16 @@ namespace geode::internal
 
     /// Number of samples of a curve written from an analytical law
     inline constexpr index_t CURVE_SAMPLES{ 1001 };
+
+    /// Vertices of the polyhedra OGS reads
+    inline constexpr local_index_t NB_TETRAHEDRON_VERTICES{ 4 };
+    inline constexpr local_index_t NB_PYRAMID_VERTICES{ 5 };
+    inline constexpr local_index_t NB_PRISM_VERTICES{ 6 };
+    inline constexpr local_index_t NB_HEXAHEDRON_VERTICES{ 8 };
+
+    /// Tetrahedron, pyramid, prism or hexahedron, the only cells OGS reads
+    [[nodiscard]] bool opengeode_geosciencesio_model_api is_ogs_polyhedron(
+        const SolidMesh3D& mesh, index_t polyhedron );
 
     /*!
      * "ogs" solver options: "<role>/<path>" sets the text of the element
@@ -142,7 +154,8 @@ namespace geode::internal
     [[nodiscard]] OgsCurve opengeode_geosciencesio_model_api saturation_curve(
         const CapillaryPressure& capillary_pressure );
 
-    /// Capillary pressure (Pa) of a water saturation, through the law
+    /// Capillary pressure (Pa) of a water saturation, through the law: the
+    /// entry pressure (end of the curve plateau) at the maximum saturation
     [[nodiscard]] double opengeode_geosciencesio_model_api capillary_pressure(
         const CapillaryPressure& capillary_pressure, double water_saturation );
 

@@ -32,6 +32,7 @@
 #include <vector>
 
 #include <absl/container/flat_hash_map.h>
+#include <absl/types/span.h>
 
 #include <geode/basic/uuid.hpp>
 
@@ -54,6 +55,13 @@ namespace geode
 
 namespace geode::internal
 {
+    /// Water fraction in a bulk cell
+    struct OgsCellWaterFraction
+    {
+        index_t cell;
+        double water_fraction;
+    };
+
     /*!
      * Writes an OpenGeoSys project: the bulk mesh with its MaterialIDs, one
      * boundary mesh per group of Surfaces sharing a boundary condition, one
@@ -98,11 +106,23 @@ namespace geode::internal
 
         void transfer_cell_properties();
 
+        // Name of the solid cell attribute of the property, none if a Block
+        // lacks it
+        [[nodiscard]] std::optional< std::string > transfer_property(
+            PHYSICAL_PROPERTY_NAME property );
+
         void build_boundary_meshes();
 
         void build_boundary_meshes( PHYSICAL_PROPERTY_NAME property );
 
+        void add_boundary_mesh( PHYSICAL_PROPERTY_NAME property,
+            index_t nb_skipped_polygons,
+            OgsBoundaryMesh&& boundary );
+
         void build_well_meshes();
+
+        [[nodiscard]] OgsWellMesh build_well_mesh(
+            index_t well_id, const AABBTree3D& aabb ) const;
 
         void compute_initial_values();
 
@@ -117,7 +137,7 @@ namespace geode::internal
 
         // Capillary pressure of a water fraction in a bulk cell
         [[nodiscard]] double cell_capillary_pressure(
-            index_t cell, double water_fraction ) const;
+            const OgsCellWaterFraction& cell_fraction ) const;
 
         void compute_two_phase_values(
             absl::Span< const index_t > cell_conditions );
@@ -125,6 +145,13 @@ namespace geode::internal
         // Replaces the water fractions of the boundary meshes by capillary
         // pressures
         void convert_boundary_water_fractions();
+
+        void convert_water_fractions( OgsBoundaryMesh& boundary ) const;
+
+        // Mean capillary pressure of the polygons around each vertex
+        [[nodiscard]] std::vector< double > vertex_capillary_pressures(
+            const OgsMeshFile& mesh,
+            absl::Span< const double > fractions ) const;
 
         void write_project() const;
 

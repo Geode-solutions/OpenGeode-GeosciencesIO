@@ -68,19 +68,6 @@ namespace
         "name must only contain letters, digits, '_' and '-'"
     };
 
-    // Polyhedra OGS reads: tetrahedra, pyramids, prisms and hexahedra, by
-    // their numbers of vertices and facets
-    bool is_ogs_cell(
-        const geode::SolidMesh3D& mesh, geode::index_t polyhedron )
-    {
-        const auto nb_vertices = mesh.nb_polyhedron_vertices( polyhedron );
-        const auto nb_facets = mesh.nb_polyhedron_facets( polyhedron );
-        return ( nb_vertices == 4 && nb_facets == 4 )
-               || ( nb_vertices == 5 && nb_facets == 5 )
-               || ( nb_vertices == 6 && nb_facets == 5 )
-               || ( nb_vertices == 8 && nb_facets == 6 );
-    }
-
     std::string ogs_surface_name( const geode::Surface3D& surface )
     {
         return surface.name().value_or( surface.id().string() );
@@ -90,6 +77,48 @@ namespace
     using OgsVertexSurfaceValues = absl::flat_hash_map< geode::index_t,
         absl::flat_hash_map< geode::index_t, std::pair< double, double > > >;
 
+    std::optional< std::vector< double > > ogs_surface_values(
+        const geode::Surface3D& surface, const geode::uuid& attribute_id )
+    {
+        try
+        {
+            return geode::internal::surface_values< double >(
+                surface, attribute_id, "[OgsExporter]" );
+        }
+        catch( const geode::OpenGeodeException& )
+        {
+            // Wrong attribute types are reported by the property checks
+            return std::nullopt;
+        }
+    }
+
+    struct OgsIndexedSurface
+    {
+        const geode::Surface3D& surface;
+        geode::index_t index;
+    };
+
+    void add_ogs_surface_values( const geode::BRep& model,
+        const OgsIndexedSurface& indexed,
+        absl::Span< const double > values,
+        OgsVertexSurfaceValues& vertex_values )
+    {
+        const auto& surface = indexed.surface;
+        const auto& mesh = surface.mesh();
+        for( const auto polygon : geode::Range{ mesh.nb_polygons() } )
+        {
+            const auto value =
+                values.size() == 1 ? values.front() : values[polygon];
+            for( const auto vertex : mesh.polygon_vertices( polygon ) )
+            {
+                auto& [sum, count] = vertex_values[model.unique_vertex(
+                    { surface.component_id(), vertex } )][indexed.index];
+                sum += value;
+                count += 1.;
+            }
+        }
+    }
+
     OgsVertexSurfaceValues ogs_vertex_surface_values(
         const geode::BRep& model, const geode::uuid& attribute_id )
     {
@@ -97,37 +126,50 @@ namespace
         geode::index_t surface_index{ 0 };
         for( const auto& surface : model.surfaces() )
         {
-            std::optional< std::vector< double > > values;
-            try
+            if( const auto values = ogs_surface_values( surface, attribute_id ) )
             {
-                values = geode::internal::surface_values< double >(
-                    surface, attribute_id, "[OgsExporter]" );
-            }
-            catch( const geode::OpenGeodeException& )
-            {
-                // Wrong attribute types are reported by the property checks
-            }
-            if( values )
-            {
-                const auto& mesh = surface.mesh();
-                for( const auto polygon : geode::Range{ mesh.nb_polygons() } )
-                {
-                    const auto value = values->size() == 1
-                                           ? values->front()
-                                           : values.value()[polygon];
-                    for( const auto vertex : mesh.polygon_vertices( polygon ) )
-                    {
-                        auto& [sum, count] = vertex_values[model.unique_vertex(
-                            { surface.component_id(), vertex } )]
-                                                          [surface_index];
-                        sum += value;
-                        count += 1.;
-                    }
-                }
+                add_ogs_surface_values( model, { surface, surface_index },
+                    values.value(), vertex_values );
             }
             surface_index++;
         }
         return vertex_values;
+    }
+
+    using OgsSurfacePairs =
+        absl::btree_set< std::pair< geode::index_t, geode::index_t > >;
+
+    // Adds the pairs of Surfaces with different mean values at one vertex
+    void add_ogs_conflicts( const absl::flat_hash_map< geode::index_t,
+                                std::pair< double, double > >& surface_values,
+        OgsSurfacePairs& conflicts )
+    {
+        for( const auto& [first, first_value] : surface_values )
+        {
+            for( const auto& [second, second_value] : surface_values )
+            {
+                if( first < second
+                    && first_value.first / first_value.second
+                           != second_value.first / second_value.second )
+                {
+                    conflicts.emplace( first, second );
+                }
+            }
+        }
+    }
+
+    // Pairs of Surfaces (by index) with different mean values at a shared
+    // vertex
+    OgsSurfacePairs ogs_conflicting_surfaces(
+        const OgsVertexSurfaceValues& vertex_values )
+    {
+        OgsSurfacePairs conflicts;
+        for( const auto& [vertex, surface_values] : vertex_values )
+        {
+            geode_unused( vertex );
+            add_ogs_conflicts( surface_values, conflicts );
+        }
+        return conflicts;
     }
 
     class OgsProblemChecker
@@ -208,29 +250,35 @@ namespace
                                          "with a fluid" );
                 return false;
             }
+            report_unsupported_fluid();
+            return false;
+        }
+
+        void report_unsupported_fluid()
+        {
             const auto& fluid = problem_.fluid();
-            if( dynamic_cast< const geode::Co2BrineFluid* >( &fluid ) )
+            if( dynamic_cast< const geode::Co2BrineFluid* >( &fluid )
+                != nullptr )
             {
                 add_issue( "Fluid", "Co2BrineFluid is not supported by OGS" );
-                return false;
+                return;
             }
-            if( dynamic_cast< const geode::DeadOilFluid* >( &fluid ) )
+            if( dynamic_cast< const geode::DeadOilFluid* >( &fluid ) == nullptr )
             {
-                if( absl::c_linear_search( fluid.phases(), geode::PHASE::gas ) )
-                {
-                    add_issue( "Fluid",
-                        "the gas phase of DeadOilFluid is not supported by "
-                        "OGS, which has no black-oil model: OGS two-phase "
-                        "flow needs water and oil only" );
-                    return false;
-                }
-                add_issue( "Fluid", "OGS two-phase flow needs a "
-                                    "MultiphaseFlow of water and oil" );
-                return false;
+                add_issue( "Flow model", problem_.flow().type_name(), " with ",
+                    fluid.type_name(), " is not supported by OGS" );
+                return;
             }
-            add_issue( "Flow model", problem_.flow().type_name(), " with ",
-                fluid.type_name(), " is not supported by OGS" );
-            return false;
+            if( absl::c_linear_search( fluid.phases(), geode::PHASE::gas ) )
+            {
+                add_issue( "Fluid",
+                    "the gas phase of DeadOilFluid is not supported by OGS, "
+                    "which has no black-oil model: OGS two-phase flow needs "
+                    "water and oil only" );
+                return;
+            }
+            add_issue( "Fluid",
+                "OGS two-phase flow needs a MultiphaseFlow of water and oil" );
         }
 
         void check_material_names()
@@ -419,24 +467,8 @@ namespace geode::internal
         {
             return;
         }
-        absl::btree_set< std::pair< index_t, index_t > > conflicts;
-        for( const auto& [vertex, surface_values] :
-            ogs_vertex_surface_values( model, info.attribute_id ) )
-        {
-            geode_unused( vertex );
-            for( const auto& [first, first_value] : surface_values )
-            {
-                for( const auto& [second, second_value] : surface_values )
-                {
-                    if( first < second
-                        && first_value.first / first_value.second
-                               != second_value.first / second_value.second )
-                    {
-                        conflicts.emplace( first, second );
-                    }
-                }
-            }
-        }
+        const auto conflicts = ogs_conflicting_surfaces(
+            ogs_vertex_surface_values( model, info.attribute_id ) );
         std::vector< const Surface3D* > surfaces;
         for( const auto& surface : model.surfaces() )
         {
@@ -461,7 +493,7 @@ namespace geode::internal
             std::vector< index_t > unsupported;
             for( const auto polyhedron : Range{ mesh.nb_polyhedra() } )
             {
-                if( !is_ogs_cell( mesh, polyhedron ) )
+                if( !is_ogs_polyhedron( mesh, polyhedron ) )
                 {
                     unsupported.push_back( polyhedron );
                 }

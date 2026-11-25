@@ -103,6 +103,24 @@ namespace
         current.text().set( std::string{ value }.c_str() );
     }
 
+    // Parameter read from a mesh array
+    struct OgsMeshParameter
+    {
+        std::string_view name;
+        // MeshElement or MeshNode
+        std::string_view type;
+        std::string_view mesh;
+        std::string_view field;
+    };
+
+    // Medium or phase property interpolated in a curve
+    struct OgsCurveProperty
+    {
+        std::string_view name;
+        std::string_view variable;
+        std::string_view curve;
+    };
+
     class OgsProjectBuilder
     {
     public:
@@ -143,16 +161,13 @@ namespace
             add_real( node, "value", value );
         }
 
-        void add_mesh_parameter( std::string_view name,
-            std::string_view type,
-            std::string_view mesh,
-            std::string_view field )
+        void add_mesh_parameter( const OgsMeshParameter& parameter )
         {
             auto node = parameters_.append_child( "parameter" );
-            add_text( node, "name", name );
-            add_text( node, "type", type );
-            add_text( node, "mesh", mesh );
-            add_text( node, "field_name", field );
+            add_text( node, "name", parameter.name );
+            add_text( node, "type", parameter.type );
+            add_text( node, "mesh", parameter.mesh );
+            add_text( node, "field_name", parameter.field );
         }
 
         void add_initial_parameter( std::string_view name,
@@ -164,7 +179,7 @@ namespace
                 return;
             }
             add_mesh_parameter(
-                name, "MeshNode", context_.prefix, initial.field_name );
+                { name, "MeshNode", context_.prefix, initial.field_name } );
         }
 
         void write_meshes()
@@ -266,15 +281,13 @@ namespace
         }
 
         void write_curve_property( pugi::xml_node& properties,
-            std::string_view name,
-            std::string_view variable,
-            std::string_view curve ) const
+            const OgsCurveProperty& curve ) const
         {
             auto property = properties.append_child( "property" );
-            add_text( property, "name", name );
+            add_text( property, "name", curve.name );
             add_text( property, "type", "Curve" );
-            add_text( property, "independent_variable", variable );
-            add_text( property, "curve", curve );
+            add_text( property, "independent_variable", curve.variable );
+            add_text( property, "curve", curve.curve );
         }
 
         void write_liquid_phase( pugi::xml_node& phases ) const
@@ -327,10 +340,10 @@ namespace
             auto phase = phases.append_child( "phase" );
             add_text( phase, "type", "Gas" );
             auto properties = phase.append_child( "properties" );
-            write_curve_property(
-                properties, "density", "gas_phase_pressure", "oil_density" );
-            write_curve_property( properties, "viscosity", "gas_phase_pressure",
-                "oil_viscosity" );
+            write_curve_property( properties,
+                { "density", "gas_phase_pressure", "oil_density" } );
+            write_curve_property( properties,
+                { "viscosity", "gas_phase_pressure", "oil_viscosity" } );
             write_constant( properties, "molar_mass",
                 fluid.components()[oil_component( fluid )].molar_weight );
         }
@@ -391,17 +404,18 @@ namespace
             if( is_two_phase() )
             {
                 const auto curves = absl::StrCat( "_", material_id );
-                write_curve_property( properties, "saturation",
-                    "capillary_pressure",
-                    absl::StrCat( "saturation", curves ) );
-                write_curve_property( properties, "relative_permeability",
-                    "liquid_saturation",
-                    absl::StrCat( "relative_permeability", curves ) );
+                const auto saturation = absl::StrCat( "saturation", curves );
+                const auto wetting =
+                    absl::StrCat( "relative_permeability", curves );
+                const auto non_wetting = absl::StrCat(
+                    "relative_permeability_nonwetting_phase", curves );
                 write_curve_property( properties,
-                    "relative_permeability_nonwetting_phase",
-                    "liquid_saturation",
-                    absl::StrCat(
-                        "relative_permeability_nonwetting_phase", curves ) );
+                    { "saturation", "capillary_pressure", saturation } );
+                write_curve_property( properties,
+                    { "relative_permeability", "liquid_saturation", wetting } );
+                write_curve_property(
+                    properties, { "relative_permeability_nonwetting_phase",
+                                    "liquid_saturation", non_wetting } );
                 return;
             }
             if( context_.has_porosity_field )
@@ -532,8 +546,8 @@ namespace
                 }
                 else
                 {
-                    add_mesh_parameter(
-                        boundary.stem, "MeshNode", boundary.stem, "values" );
+                    add_mesh_parameter( { boundary.stem, "MeshNode",
+                        boundary.stem, "values" } );
                 }
                 auto condition =
                     conditions.append_child( "boundary_condition" );
@@ -581,17 +595,17 @@ namespace
             auto variables = root_.append_child( "process_variables" );
             if( context_.has_permeability_field )
             {
-                add_mesh_parameter( "permeability", "MeshElement",
-                    context_.prefix, "permeability" );
+                add_mesh_parameter( { "permeability", "MeshElement",
+                    context_.prefix, "permeability" } );
             }
             if( context_.has_porosity_field )
             {
-                add_mesh_parameter(
-                    "porosity", "MeshElement", context_.prefix, "porosity" );
+                add_mesh_parameter( { "porosity", "MeshElement",
+                    context_.prefix, "porosity" } );
                 if( !is_two_phase() )
                 {
-                    add_mesh_parameter(
-                        "storage", "MeshElement", context_.prefix, "storage" );
+                    add_mesh_parameter( { "storage", "MeshElement",
+                        context_.prefix, "storage" } );
                 }
             }
             if( is_two_phase() )

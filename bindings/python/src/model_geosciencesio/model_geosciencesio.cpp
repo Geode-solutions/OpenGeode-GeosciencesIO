@@ -136,8 +136,8 @@ PYBIND11_MODULE( opengeode_geosciencesio_py_model, module )
             "initializes the OpenGeode-Geosciences explicit, implicit and "
             "simulation libraries and the OpenGeode-GeosciencesIO and "
             "OpenGeode-IO mesh libraries; calling it again has no effect" );
-    define_simulation_exporter< geode::BRepGeosExporter, geode::BRep >(
-        module, "BRepGeosExporter",
+    define_simulation_exporter< geode::BRepGeosExporter, geode::BRep >( module,
+        "BRepGeosExporter",
         with_class_doc( GEOS_DOCS,
             "Export of a BRep (its blocks) as a GEOS simulation input" ) );
     define_simulation_exporter< geode::StructuralModelGeosExporter,
@@ -145,8 +145,8 @@ PYBIND11_MODULE( opengeode_geosciencesio_py_model, module )
         with_class_doc( GEOS_DOCS,
             "Export of a StructuralModel (its blocks) as a GEOS simulation "
             "input" ) );
-    define_simulation_exporter< geode::BRepOgsExporter, geode::BRep >(
-        module, "BRepOgsExporter",
+    define_simulation_exporter< geode::BRepOgsExporter, geode::BRep >( module,
+        "BRepOgsExporter",
         with_class_doc( OGS_DOCS,
             "Export of a BRep (its blocks) as an OpenGeoSys 6 simulation "
             "input" ) );

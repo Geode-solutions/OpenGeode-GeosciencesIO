@@ -91,11 +91,15 @@ namespace
         {
         }
 
-        // Adds the polygon if it lies on a bulk facet, with its value (NaN
-        // for none) given to each of its vertices
-        void add_polygon( const geode::Surface3D& surface,
-            geode::index_t polygon,
-            double value )
+        // Value given to the vertices of the next polygons
+        void set_value( double value )
+        {
+            value_ = value;
+        }
+
+        // Adds the polygon if it lies on a bulk facet, the current value
+        // being given to each of its vertices
+        void add_polygon( const geode::Surface3D& surface, geode::index_t polygon )
         {
             if( !mappings_.surface_polygons_mapping.has_mapping_input(
                     { surface.id(), polygon } ) )
@@ -112,13 +116,32 @@ namespace
                 const auto vertex =
                     mappings_.unique_vertices_mapping.in2out( unique_vertex );
                 facet_vertices.push_back( vertex );
-                cell.push_back( local_vertex( vertex, value ) );
+                cell.push_back( local_vertex( vertex ) );
             }
             const auto polyhedra =
                 bulk_.polyhedra_from_facet_vertices( facet_vertices );
             mesh_.bulk_element_ids.push_back(
                 polyhedra.empty() ? 0 : polyhedra.front().polyhedron_id );
             mesh_.cells.push_back( std::move( cell ) );
+        }
+
+        void add_surface( const geode::Surface3D& surface )
+        {
+            for( const auto polygon :
+                geode::Range{ surface.mesh().nb_polygons() } )
+            {
+                add_polygon( surface, polygon );
+            }
+        }
+
+        void add_surface_values( const geode::Surface3D& surface,
+            absl::Span< const double > values )
+        {
+            for( const auto polygon : geode::Indices{ values } )
+            {
+                set_value( values[polygon] );
+                add_polygon( surface, polygon );
+            }
         }
 
         // The mesh, with a "values" point array if values were given
@@ -143,7 +166,7 @@ namespace
         }
 
     private:
-        geode::index_t local_vertex( geode::index_t vertex, double value )
+        geode::index_t local_vertex( geode::index_t vertex )
         {
             const auto [iterator, inserted] = local_vertices_.try_emplace(
                 vertex, static_cast< geode::index_t >( mesh_.points.size() ) );
@@ -155,7 +178,7 @@ namespace
                 counts_.push_back( 0 );
             }
             const auto local = iterator->second;
-            sums_[local] += value;
+            sums_[local] += value_;
             counts_[local]++;
             return local;
         }
@@ -169,6 +192,7 @@ namespace
         std::vector< double > sums_;
         std::vector< geode::index_t > counts_;
         geode::index_t nb_skipped_{ 0 };
+        double value_{ 0 };
     };
 
     // Copy of the model with HybridSolid Blocks if its Blocks are all
@@ -222,24 +246,44 @@ namespace
         absl::InlinedVector< std::array< geode::local_index_t, 2 >, 4 > swaps;
     };
 
+    // Swaps of the base and top vertices of a prism or hexahedron
+    absl::InlinedVector< std::array< geode::local_index_t, 2 >, 4 >
+        ogs_base_top_swaps( geode::local_index_t nb_base_vertices )
+    {
+        absl::InlinedVector< std::array< geode::local_index_t, 2 >, 4 > swaps;
+        for( const auto vertex : geode::LRange{ nb_base_vertices } )
+        {
+            swaps.push_back( { vertex,
+                static_cast< geode::local_index_t >(
+                    vertex + nb_base_vertices ) } );
+        }
+        return swaps;
+    }
+
     std::optional< OgsCellOrientation > ogs_cell_orientation(
         geode::local_index_t nb_vertices )
     {
-        switch( nb_vertices )
+        if( nb_vertices == geode::internal::NB_TETRAHEDRON_VERTICES )
         {
-        case 4: // tetrahedron
             return OgsCellOrientation{ { 0, 1, 2, 3 }, { { 1, 2 } } };
-        case 5: // pyramid, apex last
-            return OgsCellOrientation{ { 0, 1, 3, 4 }, { { 1, 3 } } };
-        case 6: // prism: OGS reads the VTK wedge faces swapped
-            return OgsCellOrientation{ { 0, 2, 1, 3 },
-                { { 0, 3 }, { 1, 4 }, { 2, 5 } } };
-        case 8: // hexahedron
-            return OgsCellOrientation{ { 0, 1, 3, 4 },
-                { { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 } } };
-        default:
-            return std::nullopt;
         }
+        if( nb_vertices == geode::internal::NB_PYRAMID_VERTICES )
+        {
+            // Apex last
+            return OgsCellOrientation{ { 0, 1, 3, 4 }, { { 1, 3 } } };
+        }
+        if( nb_vertices == geode::internal::NB_PRISM_VERTICES )
+        {
+            // OGS reads the VTK wedge faces swapped
+            return OgsCellOrientation{ { 0, 2, 1, 3 },
+                ogs_base_top_swaps( geode::internal::NB_PRISM_VERTICES / 2 ) };
+        }
+        if( nb_vertices == geode::internal::NB_HEXAHEDRON_VERTICES )
+        {
+            return OgsCellOrientation{ { 0, 1, 3, 4 },
+                ogs_base_top_swaps( geode::internal::NB_HEXAHEDRON_VERTICES / 2 ) };
+        }
+        return std::nullopt;
     }
 
     // Mirrors the cells OGS would read with a negative Jacobian
@@ -316,6 +360,43 @@ namespace
             values.push_back( attribute->value( cell ) );
         }
         return values;
+    }
+
+    // Permeability of each cell, a scalar attribute giving the same value
+    // along x, y and z
+    std::optional< std::vector< std::array< double, 3 > > >
+        ogs_permeability_values(
+            const geode::SolidMesh3D& solid, std::string_view name )
+    {
+        if( auto values = cell_values< std::array< double, 3 > >( solid, name ) )
+        {
+            return values;
+        }
+        const auto scalars = cell_values< double >( solid, name );
+        if( !scalars )
+        {
+            return std::nullopt;
+        }
+        std::vector< std::array< double, 3 > > values;
+        values.reserve( scalars->size() );
+        for( const auto value : scalars.value() )
+        {
+            values.push_back( { value, value, value } );
+        }
+        return values;
+    }
+
+    // The value shared by every item, none if they differ or if there is none
+    std::optional< double > ogs_uniform_value( absl::Span< const double > values )
+    {
+        if( values.empty()
+            || !absl::c_all_of( values, [&values]( double value ) {
+                   return value == values.front();
+               } ) )
+        {
+            return std::nullopt;
+        }
+        return values.front();
     }
 
     template < typename T >
@@ -507,43 +588,16 @@ namespace geode::internal
     template < typename Model >
     void OgsExporterImpl< Model >::transfer_cell_properties()
     {
-        const auto& model = solid_model();
-        for( const auto property : { PHYSICAL_PROPERTY_NAME::porosity,
-                 PHYSICAL_PROPERTY_NAME::permeability } )
+        if( const auto name =
+                transfer_property( PHYSICAL_PROPERTY_NAME::porosity ) )
         {
-            if( !model.has_physical_property( property ) )
-            {
-                continue;
-            }
-            const auto& info = model.physical_property_info( property );
-            const auto field = physical_property_string( property );
-            const auto name = solid_->transfer_block_property(
-                ogs_naming(), model, info, field );
-            if( !name )
-            {
-                continue;
-            }
-            const auto& solid = solid_->mesh();
-            if( property == PHYSICAL_PROPERTY_NAME::porosity )
-            {
-                porosity_ = cell_values< double >( solid, name.value() );
-                continue;
-            }
+            porosity_ = cell_values< double >( solid_->mesh(), name.value() );
+        }
+        if( const auto name =
+                transfer_property( PHYSICAL_PROPERTY_NAME::permeability ) )
+        {
             permeability_ =
-                cell_values< std::array< double, 3 > >( solid, name.value() );
-            if( permeability_ )
-            {
-                continue;
-            }
-            if( const auto scalar =
-                    cell_values< double >( solid, name.value() ) )
-            {
-                permeability_.emplace();
-                for( const auto value : scalar.value() )
-                {
-                    permeability_->push_back( { value, value, value } );
-                }
-            }
+                ogs_permeability_values( solid_->mesh(), name.value() );
         }
         if( permeability_ && is_two_phase() )
         {
@@ -553,6 +607,20 @@ namespace geode::internal
                 " OGS two-phase flow needs an isotropic permeability: the "
                 "model permeability differs along x, y and z." );
         }
+    }
+
+    template < typename Model >
+    std::optional< std::string > OgsExporterImpl< Model >::transfer_property(
+        PHYSICAL_PROPERTY_NAME property )
+    {
+        const auto& model = solid_model();
+        if( !model.has_physical_property( property ) )
+        {
+            return std::nullopt;
+        }
+        return solid_->transfer_block_property( ogs_naming(), model,
+            model.physical_property_info( property ),
+            physical_property_string( property ) );
     }
 
     template < typename Model >
@@ -600,8 +668,10 @@ namespace geode::internal
 
     template < typename Model >
     double OgsExporterImpl< Model >::cell_capillary_pressure(
-        index_t cell, double water_fraction ) const
+        const OgsCellWaterFraction& cell_fraction ) const
     {
+        const auto cell = cell_fraction.cell;
+        const auto water_fraction = cell_fraction.water_fraction;
         const auto& problem = *this->problem();
         const auto& fluid =
             dynamic_cast< const DeadOilFluid& >( problem.fluid() );
@@ -635,7 +705,7 @@ namespace geode::internal
                 dynamic_cast< const UniformInitialCondition& >(
                     problem.initial_condition( cell_conditions[cell] ) );
             capillary_pressures.push_back( cell_capillary_pressure(
-                cell, condition.composition()[water] ) );
+                { cell, condition.composition()[water] } ) );
         }
         initial_capillary_pressure_ =
             initial_value( "initial_capillary_pressure", capillary_pressures );
@@ -648,60 +718,65 @@ namespace geode::internal
         for( auto& boundary : boundary_meshes_ )
         {
             if( boundary.property
-                != PHYSICAL_PROPERTY_NAME::boundary_water_fraction )
+                == PHYSICAL_PROPERTY_NAME::boundary_water_fraction )
             {
-                continue;
+                convert_water_fractions( boundary );
             }
-            auto& mesh = boundary.mesh;
-            const auto nb_points = mesh.points.size();
-            std::vector< double > fractions(
-                nb_points, boundary.value.value_or( 0. ) );
-            if( !boundary.value )
-            {
-                fractions = mesh.point_arrays.front().second;
-            }
-            std::vector< double > sums( nb_points, 0. );
-            std::vector< index_t > counts( nb_points, 0 );
-            for( const auto cell : Indices{ mesh.cells } )
-            {
-                const auto bulk_cell =
-                    static_cast< index_t >( mesh.bulk_element_ids[cell] );
-                for( const auto vertex : mesh.cells[cell] )
-                {
-                    sums[vertex] +=
-                        cell_capillary_pressure( bulk_cell, fractions[vertex] );
-                    counts[vertex]++;
-                }
-            }
-            std::vector< double > pressures;
-            pressures.reserve( nb_points );
-            for( const auto vertex : Range{ nb_points } )
-            {
-                pressures.push_back(
-                    sums[vertex] / static_cast< double >( counts[vertex] ) );
-            }
-            mesh.point_arrays.clear();
-            if( absl::c_all_of( pressures, [&pressures]( double value ) {
-                    return value == pressures.front();
-                } ) )
-            {
-                boundary.value = pressures.front();
-                continue;
-            }
-            boundary.value.reset();
+        }
+    }
+
+    template < typename Model >
+    void OgsExporterImpl< Model >::convert_water_fractions(
+        OgsBoundaryMesh& boundary ) const
+    {
+        auto& mesh = boundary.mesh;
+        std::vector< double > fractions(
+            mesh.points.size(), boundary.value.value_or( 0. ) );
+        if( !boundary.value )
+        {
+            fractions = mesh.point_arrays.front().second;
+        }
+        auto pressures = vertex_capillary_pressures( mesh, fractions );
+        mesh.point_arrays.clear();
+        boundary.value = ogs_uniform_value( pressures );
+        if( !boundary.value )
+        {
             mesh.point_arrays.emplace_back( "values", std::move( pressures ) );
         }
+    }
+
+    template < typename Model >
+    std::vector< double > OgsExporterImpl< Model >::vertex_capillary_pressures(
+        const OgsMeshFile& mesh, absl::Span< const double > fractions ) const
+    {
+        const auto nb_points = mesh.points.size();
+        std::vector< double > sums( nb_points, 0. );
+        std::vector< index_t > counts( nb_points, 0 );
+        for( const auto cell : Indices{ mesh.cells } )
+        {
+            const auto bulk_cell =
+                static_cast< index_t >( mesh.bulk_element_ids[cell] );
+            for( const auto vertex : mesh.cells[cell] )
+            {
+                sums[vertex] +=
+                    cell_capillary_pressure( { bulk_cell, fractions[vertex] } );
+                counts[vertex]++;
+            }
+        }
+        for( const auto vertex : Indices{ sums } )
+        {
+            sums[vertex] /= static_cast< double >( counts[vertex] );
+        }
+        return sums;
     }
 
     template < typename Model >
     OgsInitialValue OgsExporterImpl< Model >::initial_value(
         std::string_view field, const std::vector< double >& cell_values )
     {
-        if( absl::c_all_of( cell_values, [&cell_values]( double value ) {
-                return value == cell_values.front();
-            } ) )
+        if( const auto uniform = ogs_uniform_value( cell_values ) )
         {
-            return { cell_values.empty() ? 0. : cell_values.front(), "" };
+            return { uniform, "" };
         }
         auto& mesh = bulk_mesh();
         AttributeValues< double > values;
@@ -776,51 +851,48 @@ namespace geode::internal
         }
         const auto groups = group_surface_values< double >(
             model, surface_indices_, info.attribute_id, context_ );
-        const auto property_name = physical_property_string( property );
-        const auto add_mesh = [this, property, property_name](
-                                  OgsBoundaryMeshBuilder& builder,
-                                  std::optional< double > value ) {
-            if( builder.nb_skipped_polygons() != 0 )
-            {
-                Logger::warning( context_, " ", builder.nb_skipped_polygons(),
-                    " polygons with ", property_name,
-                    " are not on a Block polyhedron facet, they are not "
-                    "exported." );
-            }
-            auto mesh = builder.mesh( !value.has_value() );
-            if( mesh.cells.empty() )
-            {
-                return;
-            }
-            boundary_meshes_.push_back( { property,
-                absl::StrCat( this->prefix(), "_", property_name, "_",
-                    boundary_meshes_.size() ),
-                value, std::move( mesh ) } );
-        };
         for( const auto& [value, surface_ids] : groups.uniform_regions )
         {
             OgsBoundaryMeshBuilder builder{ model, bulk(), solid_->mappings() };
+            builder.set_value( value );
             for( const auto surface_id : surface_ids )
             {
-                const auto& surface = *surfaces_[surface_id];
-                for( const auto polygon :
-                    Range{ surface.mesh().nb_polygons() } )
-                {
-                    builder.add_polygon( surface, polygon, value );
-                }
+                builder.add_surface( *surfaces_[surface_id] );
             }
-            add_mesh( builder, value );
+            add_boundary_mesh( property, builder.nb_skipped_polygons(),
+                OgsBoundaryMesh{ property, "", value, builder.mesh( false ) } );
         }
         for( const auto& variable : groups.variable_surfaces )
         {
             OgsBoundaryMeshBuilder builder{ model, bulk(), solid_->mappings() };
-            for( const auto polygon : Indices{ variable.values } )
-            {
-                builder.add_polygon(
-                    *variable.surface, polygon, variable.values[polygon] );
-            }
-            add_mesh( builder, std::nullopt );
+            builder.add_surface_values( *variable.surface, variable.values );
+            add_boundary_mesh( property, builder.nb_skipped_polygons(),
+                OgsBoundaryMesh{
+                    property, "", std::nullopt, builder.mesh( true ) } );
         }
+    }
+
+    template < typename Model >
+    void OgsExporterImpl< Model >::add_boundary_mesh(
+        PHYSICAL_PROPERTY_NAME property,
+        index_t nb_skipped_polygons,
+        OgsBoundaryMesh&& boundary )
+    {
+        const auto property_name = physical_property_string( property );
+        if( nb_skipped_polygons != 0 )
+        {
+            Logger::warning( context_, " ", nb_skipped_polygons,
+                " polygons with ", property_name,
+                " are not on a Block polyhedron facet, they are not "
+                "exported." );
+        }
+        if( boundary.mesh.cells.empty() )
+        {
+            return;
+        }
+        boundary.stem = absl::StrCat(
+            this->prefix(), "_", property_name, "_", boundary_meshes_.size() );
+        boundary_meshes_.push_back( std::move( boundary ) );
     }
 
     template < typename Model >
@@ -833,40 +905,49 @@ namespace geode::internal
         const auto aabb = create_aabb_tree( bulk() );
         for( const auto well_id : Indices{ this->well_perforations() } )
         {
-            const auto& well = *this->well_perforations()[well_id];
-            const auto& name = this->well_names()[well_id];
-            OgsWellMesh well_mesh{ name,
-                absl::StrCat( this->prefix(), "_well_", name ), {} };
-            for( const auto point_id : Range{ well.nb_vertices() } )
-            {
-                const auto& point = well.point( point_id );
-                const auto cell = containing_cell( bulk(), aabb, point );
-                if( cell == NO_ID )
-                {
-                    Logger::warning( context_, " Perforation ", point_id,
-                        " of well ", name, " (", point.string(),
-                        ") is not inside the model, it is ignored." );
-                    continue;
-                }
-                const auto vertex = nearest_cell_vertex( bulk(), cell, point );
-                auto& mesh = well_mesh.mesh;
-                if( absl::c_linear_search( mesh.bulk_node_ids, vertex ) )
-                {
-                    continue;
-                }
-                mesh.cells.push_back(
-                    { static_cast< index_t >( mesh.points.size() ) } );
-                mesh.points.push_back( bulk().point( vertex ) );
-                mesh.bulk_node_ids.push_back( vertex );
-            }
+            auto well_mesh = build_well_mesh( well_id, aabb );
             if( well_mesh.mesh.points.empty() )
             {
-                Logger::warning( context_, " No perforation of well ", name,
+                Logger::warning( context_, " No perforation of well ",
+                    well_mesh.name,
                     " is inside the model, no well mesh is exported." );
                 continue;
             }
             well_meshes_.push_back( std::move( well_mesh ) );
         }
+    }
+
+    template < typename Model >
+    OgsWellMesh OgsExporterImpl< Model >::build_well_mesh(
+        index_t well_id, const AABBTree3D& aabb ) const
+    {
+        const auto& well = *this->well_perforations()[well_id];
+        const auto& name = this->well_names()[well_id];
+        OgsWellMesh well_mesh{ name,
+            absl::StrCat( this->prefix(), "_well_", name ), {} };
+        auto& mesh = well_mesh.mesh;
+        for( const auto point_id : Range{ well.nb_vertices() } )
+        {
+            const auto& point = well.point( point_id );
+            const auto cell = containing_cell( bulk(), aabb, point );
+            if( cell == NO_ID )
+            {
+                Logger::warning( context_, " Perforation ", point_id,
+                    " of well ", name, " (", point.string(),
+                    ") is not inside the model, it is ignored." );
+                continue;
+            }
+            const auto vertex = nearest_cell_vertex( bulk(), cell, point );
+            if( absl::c_linear_search( mesh.bulk_node_ids, vertex ) )
+            {
+                continue;
+            }
+            mesh.cells.push_back(
+                { static_cast< index_t >( mesh.points.size() ) } );
+            mesh.points.push_back( bulk().point( vertex ) );
+            mesh.bulk_node_ids.push_back( vertex );
+        }
+        return well_mesh;
     }
 
     template < typename Model >

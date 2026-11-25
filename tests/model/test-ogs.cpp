@@ -376,6 +376,14 @@ void test_ogs_rules_saturation()
     const auto expected = 0.1 + ( 1. - 0.1 - 0.2 ) * std::pow( 4., -2. );
     check( std::fabs( interpolate( curve, 4. * 5000. ) - expected ) < 1e-3,
         "Brooks-Corey saturation at 4 entry pressures" );
+    check( geode::internal::capillary_pressure( brooks_corey, 0.8 ) == 5000.,
+        "The maximum water saturation has the entry pressure, as "
+        "Pc(Se = 1) = entry pressure" );
+    check( std::fabs(
+               geode::internal::capillary_pressure( brooks_corey, expected )
+               - 4. * 5000. )
+               < 1e-4 * 4. * 5000.,
+        "Capillary pressure inverts the saturation curve" );
 
     geode::TwoPhaseCapillaryPressureTable table;
     table.pressure.saturations = { 0.2, 0.5, 0.9 };
@@ -1571,8 +1579,8 @@ void test_ogs_cell_orientation()
     for( const geode::index_t cell : { 0, 1 } )
     {
         const auto point = [&]( geode::index_t local ) {
-            return solid->point(
-                static_cast< geode::index_t >( connectivity[8 * cell + local] ) );
+            return solid->point( static_cast< geode::index_t >(
+                connectivity[8 * cell + local] ) );
         };
         const geode::Vector3D first{ point( 0 ), point( 1 ) };
         const geode::Vector3D second{ point( 0 ), point( 3 ) };

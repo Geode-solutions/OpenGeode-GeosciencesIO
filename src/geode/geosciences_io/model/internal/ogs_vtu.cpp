@@ -98,8 +98,8 @@ namespace
             return;
         }
         auto array = add_data_array( parent, "UInt64", name );
-        set_values( array, ids, []( std::uint64_t id ) {
-            return id;
+        set_values( array, ids, []( std::uint64_t value ) {
+            return value;
         } );
     }
 

@@ -30,6 +30,7 @@
 #include <geode/basic/types.hpp>
 
 #include <geode/mesh/core/solid_mesh.hpp>
+#include <geode/mesh/core/surface_mesh.hpp>
 
 namespace geode
 {

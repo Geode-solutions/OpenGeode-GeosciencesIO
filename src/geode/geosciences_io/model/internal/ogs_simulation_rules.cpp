@@ -31,6 +31,8 @@
 
 #include <geode/basic/range.hpp>
 
+#include <geode/mesh/core/solid_mesh.hpp>
+
 #include <geode/geosciences/simulation/core/fluid.hpp>
 #include <geode/geosciences/simulation/core/initial_condition.hpp>
 #include <geode/geosciences/simulation/core/physical_problem.hpp>
@@ -53,7 +55,7 @@ namespace
     geode::index_t phase_index(
         absl::Span< const geode::PHASE > phases, geode::PHASE phase )
     {
-        const auto position = absl::c_find( phases, phase );
+        const auto* const position = absl::c_find( phases, phase );
         geode::OpenGeodeGeosciencesIOModelException::check_exception(
             position != phases.end(), nullptr,
             geode::OpenGeodeException::TYPE::data, "[OgsExporter] Phase ",
@@ -116,7 +118,8 @@ namespace
             const auto effective = sample( index );
             curve.coords.push_back(
                 entry_pressure * std::pow( effective, -inverse_lambda ) );
-            curve.values.push_back( water_residual + mobile * effective );
+            curve.values.push_back(
+                max_saturation - mobile * ( 1. - effective ) );
         }
         return curve;
     }
@@ -237,13 +240,13 @@ namespace geode::internal
         }
         const auto& flow = problem.flow();
         const auto& fluid = flow.fluid();
-        if( dynamic_cast< const SinglePhaseFlow* >( &flow )
-            && dynamic_cast< const SinglePhaseFluid* >( &fluid ) )
+        if( dynamic_cast< const SinglePhaseFlow* >( &flow ) != nullptr
+            && dynamic_cast< const SinglePhaseFluid* >( &fluid ) != nullptr )
         {
             return OGS_PROCESS::liquid_flow;
         }
-        if( dynamic_cast< const MultiphaseFlow* >( &flow )
-            && dynamic_cast< const DeadOilFluid* >( &fluid )
+        if( dynamic_cast< const MultiphaseFlow* >( &flow ) != nullptr
+            && dynamic_cast< const DeadOilFluid* >( &fluid ) != nullptr
             && is_water_oil( fluid.phases() ) )
         {
             return OGS_PROCESS::two_phase_flow_pp;
@@ -272,6 +275,22 @@ namespace geode::internal
             temperature = value;
         }
         return temperature.value_or( DEFAULT_REFERENCE_TEMPERATURE );
+    }
+
+    bool is_ogs_polyhedron( const SolidMesh3D& mesh, index_t polyhedron )
+    {
+        constexpr local_index_t NB_PYRAMID_FACETS{ 5 };
+        constexpr local_index_t NB_PRISM_FACETS{ 5 };
+        constexpr local_index_t NB_HEXAHEDRON_FACETS{ 6 };
+        const auto nb_vertices = mesh.nb_polyhedron_vertices( polyhedron );
+        const auto nb_facets = mesh.nb_polyhedron_facets( polyhedron );
+        return ( nb_vertices == NB_TETRAHEDRON_VERTICES && nb_facets == 4 )
+               || ( nb_vertices == NB_PYRAMID_VERTICES
+                    && nb_facets == NB_PYRAMID_FACETS )
+               || ( nb_vertices == NB_PRISM_VERTICES
+                    && nb_facets == NB_PRISM_FACETS )
+               || ( nb_vertices == NB_HEXAHEDRON_VERTICES
+                    && nb_facets == NB_HEXAHEDRON_FACETS );
     }
 
     bool is_isotropic( const std::array< double, 3 >& permeability )
@@ -404,7 +423,14 @@ namespace geode::internal
         const auto curve = saturation_curve( capillary_pressure );
         if( water_saturation >= curve.values.front() )
         {
-            return 0.;
+            // End of the maximum saturation plateau: the entry pressure
+            index_t last{ 0 };
+            while( last + 1 < curve.values.size()
+                   && curve.values[last + 1] >= curve.values.front() )
+            {
+                last++;
+            }
+            return curve.coords[last];
         }
         // Saturations do not increase along the curve
         for( const auto index : Range{ 1, curve.values.size() } )
