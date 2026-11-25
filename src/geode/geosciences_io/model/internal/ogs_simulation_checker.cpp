@@ -1,0 +1,404 @@
+/*
+ * Copyright (c) 2019 - 2026 Geode-solutions
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ */
+
+#include <geode/geosciences_io/model/internal/ogs_simulation_checker.hpp>
+
+#include <string>
+#include <string_view>
+#include <utility>
+
+#include <absl/algorithm/container.h>
+#include <absl/strings/str_cat.h>
+#include <absl/strings/strip.h>
+#include <absl/types/span.h>
+
+#include <geode/basic/range.hpp>
+
+#include <geode/mesh/core/solid_mesh.hpp>
+
+#include <geode/model/mixin/core/block.hpp>
+#include <geode/model/representation/core/brep.hpp>
+
+#include <geode/geosciences/simulation/core/flow_model.hpp>
+#include <geode/geosciences/simulation/core/fluid.hpp>
+#include <geode/geosciences/simulation/core/initial_condition.hpp>
+#include <geode/geosciences/simulation/core/material.hpp>
+#include <geode/geosciences/simulation/core/physical_problem.hpp>
+#include <geode/geosciences/simulation/core/saturation_functions.hpp>
+#include <geode/geosciences/simulation/core/schedule.hpp>
+#include <geode/geosciences/simulation/core/source_term.hpp>
+#include <geode/geosciences/simulation/helpers/internal/simulation_checker_helpers.hpp>
+
+#include <geode/geosciences_io/model/internal/ogs_simulation_rules.hpp>
+#include <geode/geosciences_io/model/internal/simulation_boundary_values.hpp>
+#include <geode/geosciences_io/model/internal/simulation_checks.hpp>
+#include <geode/geosciences_io/model/internal/simulation_xml.hpp>
+
+namespace
+{
+    using geode::SIMULATION_CHECK_STAGE;
+
+    constexpr std::string_view NOT_YET{ "not supported by the OGS exporter "
+                                        "yet" };
+    constexpr std::string_view OGS_NAME_RULE{
+        "name must only contain letters, digits, '_' and '-'"
+    };
+
+    // Polyhedra OGS reads: tetrahedra, pyramids, prisms and hexahedra, by
+    // their numbers of vertices and facets
+    bool is_ogs_cell( const geode::SolidMesh3D& mesh, geode::index_t polyhedron )
+    {
+        const auto nb_vertices = mesh.nb_polyhedron_vertices( polyhedron );
+        const auto nb_facets = mesh.nb_polyhedron_facets( polyhedron );
+        return ( nb_vertices == 4 && nb_facets == 4 )
+               || ( nb_vertices == 5 && nb_facets == 5 )
+               || ( nb_vertices == 6 && nb_facets == 5 )
+               || ( nb_vertices == 8 && nb_facets == 6 );
+    }
+
+    class OgsProblemChecker
+    {
+    public:
+        OgsProblemChecker( const geode::PhysicalProblem& problem,
+            geode::SimulationReport& report )
+            : problem_( problem ), report_( report )
+        {
+        }
+
+        void check_problem(
+            std::optional< absl::Span< const std::string > > well_names )
+        {
+            check_solver_options();
+            check_material_names();
+            check_restart();
+            if( !check_process() )
+            {
+                return;
+            }
+            check_source_terms( well_names );
+            if( geode::internal::ogs_process( problem_ )
+                == geode::internal::OGS_PROCESS::two_phase_flow_pp )
+            {
+                check_two_phase();
+            }
+        }
+
+        void check_boundary_conditions(
+            const geode::internal::ModelBoundaryConditions& conditions )
+        {
+            if( geode::internal::ogs_process( problem_ )
+                != geode::internal::OGS_PROCESS::two_phase_flow_pp )
+            {
+                return;
+            }
+            if( absl::c_linear_search(
+                    conditions.fraction_phases, geode::PHASE::gas ) )
+            {
+                add_issue( "boundary_gas_fraction",
+                    "OGS two-phase flow has no gas phase" );
+            }
+        }
+
+    private:
+        template < typename... Args >
+        void add_issue( std::string subject, const Args&... message )
+        {
+            report_.add_error( SIMULATION_CHECK_STAGE::simulator,
+                std::move( subject ), message... );
+        }
+
+        // Adds an error and returns false if OGS has no process for the
+        // problem
+        bool check_process()
+        {
+            if( geode::internal::ogs_process( problem_ ) )
+            {
+                return true;
+            }
+            if( problem_.thermal() )
+            {
+                add_issue( "Thermal parameters", "thermal simulations are ",
+                    NOT_YET );
+            }
+            if( problem_.solid_mechanics() )
+            {
+                add_issue( "Solid mechanics", "solid mechanics is ", NOT_YET );
+            }
+            if( problem_.thermal() || problem_.solid_mechanics() )
+            {
+                return false;
+            }
+            if( !problem_.has_flow() || !problem_.flow().has_fluid() )
+            {
+                add_issue( "Flow model", "the OGS exporter needs a flow model "
+                                         "with a fluid" );
+                return false;
+            }
+            const auto& fluid = problem_.fluid();
+            if( dynamic_cast< const geode::Co2BrineFluid* >( &fluid ) )
+            {
+                add_issue( "Fluid", "Co2BrineFluid is not supported by OGS" );
+                return false;
+            }
+            if( dynamic_cast< const geode::DeadOilFluid* >( &fluid ) )
+            {
+                if( absl::c_linear_search( fluid.phases(), geode::PHASE::gas ) )
+                {
+                    add_issue( "Fluid",
+                        "the gas phase of DeadOilFluid is not supported by "
+                        "OGS, which has no black-oil model: OGS two-phase "
+                        "flow needs water and oil only" );
+                    return false;
+                }
+                add_issue( "Fluid", "OGS two-phase flow needs a "
+                                    "MultiphaseFlow of water and oil" );
+                return false;
+            }
+            add_issue( "Flow model", problem_.flow().type_name(), " with ",
+                fluid.type_name(), " is not supported by OGS" );
+            return false;
+        }
+
+        void check_material_names()
+        {
+            for( const auto& material : problem_.materials() )
+            {
+                if( !geode::internal::ogs_naming().is_valid_name(
+                        material.name ) )
+                {
+                    add_issue(
+                        geode::internal::material_subject( material.name ),
+                        OGS_NAME_RULE );
+                }
+            }
+        }
+
+        void check_restart()
+        {
+            const auto& output = problem_.output();
+            if( output.restart || output.restart_frequency )
+            {
+                report_.add_warning( SIMULATION_CHECK_STAGE::simulator,
+                    "Output settings",
+                    "restart files are not written by the OGS exporter" );
+            }
+        }
+
+        void check_source_terms(
+            std::optional< absl::Span< const std::string > > well_names )
+        {
+            for( const auto& source : problem_.source_terms() )
+            {
+                if( well_names )
+                {
+                    geode::internal::check_source_term_well(
+                        source, well_names.value(), report_ );
+                }
+                if( !geode::internal::ogs_naming().is_valid_name(
+                        source.well ) )
+                {
+                    add_issue( absl::StrCat(
+                                   "Source term on well \"", source.well, "\"" ),
+                        "well ", OGS_NAME_RULE );
+                }
+            }
+        }
+
+        void check_two_phase()
+        {
+            if( !problem_.source_terms().empty() )
+            {
+                add_issue( "Source terms",
+                    "source terms in two-phase flow are ", NOT_YET );
+            }
+            for( const auto& material : problem_.materials() )
+            {
+                const auto subject =
+                    geode::internal::material_subject( material.name );
+                if( material.relative_permeability )
+                {
+                    check_law( subject, [&material] {
+                        geode_unused(
+                            geode::internal::relative_permeability_curves(
+                                *material.relative_permeability ) );
+                    } );
+                }
+                if( !material.capillary_pressure )
+                {
+                    geode::SimulationIssue issue{
+                        geode::SIMULATION_ISSUE_SEVERITY::error,
+                        SIMULATION_CHECK_STAGE::simulator, subject,
+                        "OGS two-phase flow needs a capillary pressure: the "
+                        "capillary pressure is an unknown of OGS"
+                    };
+                    issue.fix = "add a capillary pressure to the material";
+                    report_.add_issue( std::move( issue ) );
+                    continue;
+                }
+                check_law( subject, [&material] {
+                    geode_unused( geode::internal::saturation_curve(
+                        *material.capillary_pressure ) );
+                } );
+            }
+        }
+
+        template < typename Conversion >
+        void check_law( const std::string& subject, Conversion conversion )
+        {
+            try
+            {
+                conversion();
+            }
+            catch( const geode::OpenGeodeException& exception )
+            {
+                add_issue( subject,
+                    absl::StripPrefix( exception.what(), "[OgsExporter] " ) );
+            }
+        }
+
+        void check_solver_options()
+        {
+            geode::internal::check_solver_option_keys( problem_,
+                geode::internal::ogs_solver_options(),
+                [this]( std::string_view message ) {
+                    add_issue( "Solver options", message );
+                } );
+        }
+
+    private:
+        const geode::PhysicalProblem& problem_;
+        geode::SimulationReport& report_;
+    };
+} // namespace
+
+namespace geode::internal
+{
+    OgsSimulationChecker::OgsSimulationChecker(
+        const PhysicalProblem& problem, const BRep& model )
+        : SimulationChecker( problem, model )
+    {
+    }
+
+    OgsSimulationChecker::OgsSimulationChecker( const PhysicalProblem& problem,
+        const BRep& model,
+        OgsExportData export_data )
+        : SimulationChecker( problem, model ),
+          export_data_( std::move( export_data ) )
+    {
+    }
+
+    void OgsSimulationChecker::check_simulator()
+    {
+        report().set_simulator( "OGS" );
+        std::optional< absl::Span< const std::string > > well_names;
+        if( export_data_ )
+        {
+            well_names = export_data_->well_names;
+            for( const auto& name : export_data_->well_names )
+            {
+                if( !ogs_naming().is_valid_name( name ) )
+                {
+                    report().add_error( SIMULATION_CHECK_STAGE::simulator,
+                        absl::StrCat( "Well \"", name, "\"" ), "well ",
+                        OGS_NAME_RULE );
+                }
+            }
+        }
+        OgsProblemChecker problem_checker{ problem(), report() };
+        problem_checker.check_problem( well_names );
+        check_blocks();
+        check_unique_vertices_in_blocks();
+        check_cells();
+        if( !ogs_process( problem() ) )
+        {
+            return;
+        }
+        check_properties();
+        problem_checker.check_boundary_conditions(
+            model_boundary_conditions( model() ) );
+    }
+
+    void OgsSimulationChecker::check_cells()
+    {
+        for( const auto& block : model().blocks() )
+        {
+            const auto& mesh = block.mesh();
+            std::vector< index_t > unsupported;
+            for( const auto polyhedron : Range{ mesh.nb_polyhedra() } )
+            {
+                if( !is_ogs_cell( mesh, polyhedron ) )
+                {
+                    unsupported.push_back( polyhedron );
+                }
+            }
+            if( unsupported.empty() )
+            {
+                continue;
+            }
+            SimulationIssue issue{ SIMULATION_ISSUE_SEVERITY::error,
+                SIMULATION_CHECK_STAGE::mesh,
+                absl::StrCat(
+                    "Block ", block.name().value_or( block.id().string() ) ),
+                absl::StrCat( unsupported.size(),
+                    " polyhedra are not tetrahedra, hexahedra, prisms or "
+                    "pyramids, the only cells OGS reads" ) };
+            auto& location = issue.add_location( block );
+            location.element_type = SIMULATION_ELEMENT_TYPE::polyhedron;
+            location.elements = std::move( unsupported );
+            location.nb_elements = mesh.nb_polyhedra();
+            issue.fix = "remesh the Block with tetrahedra or hexahedra";
+            report().add_issue( std::move( issue ) );
+        }
+    }
+
+    // OGS reads a model porosity or permeability on every cell, merged from
+    // the Block meshes. Without such a property, the project uses the value
+    // of each material.
+    void OgsSimulationChecker::check_properties()
+    {
+        std::vector< PhysicalPropertyCoverage > coverages;
+        for( const auto property : { PHYSICAL_PROPERTY_NAME::porosity,
+                 PHYSICAL_PROPERTY_NAME::permeability } )
+        {
+            PhysicalPropertyRequirement requirement{ property };
+            requirement.merged = true;
+            coverages.push_back( check_physical_property( requirement ) );
+        }
+        check_rock_property_availability( coverages );
+        const auto pressure =
+            check_physical_property( PhysicalPropertyRequirement{
+                PHYSICAL_PROPERTY_NAME::boundary_pressure } );
+        if( problem().source_terms().empty() )
+        {
+            check_physical_property_presence(
+                pressure, "nothing drives the flow in the OGS project" );
+        }
+        if( ogs_process( problem() ) == OGS_PROCESS::two_phase_flow_pp )
+        {
+            check_physical_property( PhysicalPropertyRequirement{
+                PHYSICAL_PROPERTY_NAME::boundary_water_fraction } );
+            warn_ignored_physical_properties(
+                { PHYSICAL_PROPERTY_NAME::boundary_oil_fraction } );
+        }
+    }
+} // namespace geode::internal

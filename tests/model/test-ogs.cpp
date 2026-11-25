@@ -32,16 +32,27 @@
 
 #include <pugixml.hpp>
 
+#include <absl/strings/match.h>
 #include <absl/strings/str_cat.h>
 
+#include <geode/basic/attribute_manager.hpp>
+#include <geode/basic/constant_attribute.hpp>
 #include <geode/basic/logger.hpp>
 #include <geode/basic/range.hpp>
 #include <geode/basic/types.hpp>
 #include <geode/tests_config.hpp>
 
+#include <geode/geometry/bounding_box.hpp>
 #include <geode/geometry/point.hpp>
 
+#include <geode/mesh/builder/polyhedral_solid_builder.hpp>
+#include <geode/mesh/core/geode/geode_polyhedral_solid.hpp>
+#include <geode/mesh/core/surface_mesh.hpp>
+
 #include <geode/model/mixin/core/block.hpp>
+#include <geode/model/mixin/core/physical_properties.hpp>
+#include <geode/model/mixin/core/surface.hpp>
+#include <geode/model/representation/builder/brep_builder.hpp>
 #include <geode/model/representation/io/brep_input.hpp>
 
 #include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.hpp>
@@ -52,9 +63,13 @@
 #include <geode/geosciences/simulation/core/flow_model.hpp>
 #include <geode/geosciences/simulation/core/fluid.hpp>
 #include <geode/geosciences/simulation/core/initial_condition.hpp>
+#include <geode/geosciences/simulation/core/material.hpp>
 #include <geode/geosciences/simulation/core/physical_problem.hpp>
 #include <geode/geosciences/simulation/core/saturation_functions.hpp>
 #include <geode/geosciences/simulation/core/schedule.hpp>
+#include <geode/geosciences/simulation/core/solid_mechanics.hpp>
+#include <geode/geosciences/simulation/core/source_term.hpp>
+#include <geode/geosciences/simulation/helpers/simulation_checker.hpp>
 #include <geode/geosciences/simulation/core/thermal_parameters.hpp>
 
 #include <geode/geosciences_io/model/common.hpp>
@@ -398,6 +413,271 @@ void test_ogs_rules_relperm()
         "Non-wetting table coordinates are 1 - So" );
 }
 
+geode::BRep load_picasso()
+{
+    const auto model_filename =
+        absl::StrCat( geode::DATA_PATH, "picasso.og_brep" );
+    return geode::load_one( geode::load_brep( model_filename ), model_filename );
+}
+
+// Surfaces lying on the maximum x face of the model box
+std::vector< geode::uuid > east_surfaces( const geode::BRep& model )
+{
+    static constexpr double TOLERANCE{ 1e-3 };
+    const auto side = model.bounding_box().max().value( 0 );
+    std::vector< geode::uuid > surfaces;
+    for( const auto& surface : model.surfaces() )
+    {
+        const auto box = surface.mesh().bounding_box();
+        if( std::fabs( box.min().value( 0 ) - side ) < TOLERANCE
+            && std::fabs( box.max().value( 0 ) - side ) < TOLERANCE )
+        {
+            surfaces.push_back( surface.id() );
+        }
+    }
+    return surfaces;
+}
+
+void add_constant_boundary( geode::BRep& model,
+    absl::Span< const geode::uuid > surfaces,
+    geode::PHYSICAL_PROPERTY_NAME property,
+    double value )
+{
+    const geode::uuid attribute_id;
+    geode::AttributeValues< double > values;
+    values.default_value = value;
+    const auto name = geode::physical_property_string( property );
+    for( const auto& surface_id : surfaces )
+    {
+        model.surface( surface_id )
+            .mesh()
+            .polygon_attribute_manager()
+            .template create_attribute< geode::ConstantAttribute, double >(
+                name, attribute_id, values, {} );
+    }
+    geode::BRepBuilder{ model }.set_physical_property(
+        property, geode::Surface3D::component_type_static(), attribute_id );
+}
+
+geode::Material rock_material( std::string name )
+{
+    geode::Material rock;
+    rock.name = std::move( name );
+    rock.pore_compressibility = 1e-9;
+    rock.reference_pressure = 1e7;
+    rock.porosity = 0.2;
+    rock.permeability = std::array< double, 3 >{ 1e-13, 1e-13, 1e-14 };
+    return rock;
+}
+
+geode::PhysicalProblem single_phase_problem( double compressibility )
+{
+    auto problem = flow_problem( std::make_shared< geode::SinglePhaseFlow >(),
+        water_fluid( compressibility ) );
+    geode::PhysicalProblemBuilder builder{ problem };
+    builder.add_material( rock_material( "rock" ) );
+    builder.add_initial_condition(
+        std::make_shared< geode::UniformInitialCondition >(
+            std::vector< geode::uuid >{}, 1e7 ) );
+    builder.set_schedule( { 0., 1e5, 1e3, 1e4 } );
+    geode::OutputSettings output;
+    output.frequency = 5e4;
+    builder.set_output( output );
+    return problem;
+}
+
+std::shared_ptr< geode::BrooksCoreyCapillaryPressure > brooks_corey_pc()
+{
+    return std::make_shared< geode::BrooksCoreyCapillaryPressure >(
+        std::vector< geode::PHASE >{ geode::PHASE::water, geode::PHASE::oil },
+        std::vector< double >{ 0.1, 0.2 }, std::vector< double >{ 5000., 0. },
+        std::vector< double >{ 2., 2. } );
+}
+
+geode::PhysicalProblem two_phase_problem()
+{
+    auto problem = flow_problem(
+        std::make_shared< geode::MultiphaseFlow >(
+            geode::COMPOSITION_BASIS::mass ),
+        water_oil_fluid( { geode::PHASE::water, geode::PHASE::oil } ) );
+    geode::PhysicalProblemBuilder builder{ problem };
+    auto rock = rock_material( "rock" );
+    rock.relative_permeability =
+        std::make_shared< geode::BrooksCoreyRelativePermeability >(
+            std::vector< geode::PHASE >{
+                geode::PHASE::water, geode::PHASE::oil },
+            std::vector< double >{ 0.1, 0.2 }, std::vector< double >{ 2., 2. },
+            std::vector< double >{ 1., 1. } );
+    rock.capillary_pressure = brooks_corey_pc();
+    builder.add_material( rock );
+    builder.add_initial_condition(
+        std::make_shared< geode::UniformInitialCondition >(
+            std::vector< geode::uuid >{}, 1e7, std::nullopt,
+            std::vector< double >{ 0.3, 0.7 } ) );
+    builder.set_schedule( { 0., 1e3, 10., 100. } );
+    return problem;
+}
+
+geode::SimulationReport ogs_report(
+    const geode::PhysicalProblem& problem, const geode::BRep& model )
+{
+    return geode::SimulationCheckerFactory::create( "ogs", problem, model )
+        ->check();
+}
+
+void check_refused( const geode::PhysicalProblem& problem,
+    const geode::BRep& model,
+    std::string_view expected )
+{
+    const auto report = ogs_report( problem, model );
+    check( !report.is_simulable(),
+        absl::StrCat( "The problem should be refused: ", expected ) );
+    check( absl::StrContains( report.string(), expected ),
+        absl::StrCat( "Missing issue \"", expected, "\" in\n",
+            report.string() ) );
+}
+
+void test_ogs_registered_checker()
+{
+    check( geode::SimulationCheckerFactory::has_creator( "ogs" ),
+        "The ogs checker should be registered" );
+    auto model = load_picasso();
+    add_constant_boundary( model, east_surfaces( model ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, 1e7 );
+    const auto report = ogs_report( single_phase_problem( 4.5e-10 ), model );
+    check( report.is_simulable(),
+        absl::StrCat( "Picasso single-phase should be simulable:\n",
+            report.string() ) );
+    check( report.simulator() == "OGS", "Report simulator should be OGS" );
+}
+
+void test_ogs_checker_refusals()
+{
+    auto model = load_picasso();
+    add_constant_boundary( model, east_surfaces( model ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, 1e7 );
+    {
+        auto problem = single_phase_problem( 0. );
+        geode::PhysicalProblemBuilder{ problem }.set_thermal(
+            geode::ThermalParameters{ 300. } );
+        check_refused(
+            problem, model, "not supported by the OGS exporter yet" );
+    }
+    {
+        auto problem = single_phase_problem( 0. );
+        geode::PhysicalProblemBuilder{ problem }.set_solid_mechanics(
+            geode::SolidMechanics{} );
+        check_refused(
+            problem, model, "not supported by the OGS exporter yet" );
+    }
+    {
+        auto problem = two_phase_problem();
+        auto& fluid = const_cast< geode::FlowModel& >( problem.flow() );
+        fluid.set_fluid( water_oil_fluid( { geode::PHASE::water,
+            geode::PHASE::oil, geode::PHASE::gas } ) );
+        check_refused( problem, model, "gas phase" );
+    }
+    {
+        auto problem = two_phase_problem();
+        auto material = problem.materials()[0];
+        material.capillary_pressure.reset();
+        geode::PhysicalProblemBuilder{ problem }.set_material( 0, material );
+        check_refused( problem, model, "needs a capillary pressure" );
+    }
+    {
+        auto problem = two_phase_problem();
+        geode::PhysicalProblemBuilder{ problem }.add_source_term(
+            { "well", "water", 1. } );
+        check_refused( problem, model, "source terms" );
+    }
+    {
+        auto problem = two_phase_problem();
+        auto material = problem.materials()[0];
+        geode::TwoPhaseCapillaryPressureTable table;
+        table.pressure.saturations = { 0.2, 0.5, 0.9 };
+        table.pressure.values = { 1e4, 2e4, 0. };
+        material.capillary_pressure =
+            std::make_shared< geode::TableCapillaryPressure >(
+                std::vector< geode::PHASE >{
+                    geode::PHASE::water, geode::PHASE::oil },
+                std::vector< geode::TwoPhaseCapillaryPressureTable >{
+                    table } );
+        geode::PhysicalProblemBuilder{ problem }.set_material( 0, material );
+        check_refused( problem, model, "must strictly decrease" );
+    }
+    {
+        auto problem = single_phase_problem( 0. );
+        geode::PhysicalProblemBuilder{ problem }.set_solver_option(
+            "ogs", "unknown/solver_type", "BiCGSTAB" );
+        check_refused( problem, model, "unknown" );
+    }
+    auto gas_model = load_picasso();
+    add_constant_boundary( gas_model, east_surfaces( gas_model ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, 1e7 );
+    add_constant_boundary( gas_model, east_surfaces( gas_model ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_gas_fraction, 0.1 );
+    check_refused( two_phase_problem(), gas_model, "boundary_gas_fraction" );
+}
+
+void test_ogs_unsupported_cells()
+{
+    geode::BRep model;
+    geode::BRepBuilder builder{ model };
+    const auto& block = model.block( builder.add_block(
+        geode::OpenGeodePolyhedralSolid3D::impl_name_static() ) );
+    builder.set_block_name( block, "pentagonal_prism" );
+    auto mesh_builder =
+        builder.block_mesh_builder< geode::PolyhedralSolid3D >( block );
+    constexpr geode::index_t NB_SIDES{ 5 };
+    for( const auto level : geode::Range{ 2 } )
+    {
+        for( const auto side : geode::Range{ NB_SIDES } )
+        {
+            const auto angle = 2. * M_PI * side / NB_SIDES;
+            mesh_builder->create_point( geode::Point3D{
+                { std::cos( angle ), std::sin( angle ), 1. * level } } );
+        }
+    }
+    std::vector< std::vector< geode::local_index_t > > facets{
+        { 4, 3, 2, 1, 0 }, { 5, 6, 7, 8, 9 }
+    };
+    for( const auto side : geode::LRange{ NB_SIDES } )
+    {
+        const auto next = static_cast< geode::local_index_t >(
+            ( side + 1 ) % NB_SIDES );
+        facets.push_back( { side, next,
+            static_cast< geode::local_index_t >( next + NB_SIDES ),
+            static_cast< geode::local_index_t >( side + NB_SIDES ) } );
+    }
+    mesh_builder->create_polyhedron(
+        { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, facets );
+    builder.create_unique_vertices( 2 * NB_SIDES );
+    for( const auto vertex : geode::Range{ 2 * NB_SIDES } )
+    {
+        builder.set_unique_vertex( { block.component_id(), vertex }, vertex );
+    }
+    auto problem = single_phase_problem( 0. );
+    check_refused( problem, model, "pentagonal_prism" );
+    check_refused( problem, model, "tetrahedra, hexahedra, prisms or pyramids" );
+}
+
+void test_ogs_invalid_names()
+{
+    auto model = load_picasso();
+    add_constant_boundary( model, east_surfaces( model ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, 1e7 );
+    auto problem = single_phase_problem( 0. );
+    geode::PhysicalProblemBuilder builder{ problem };
+    auto material = problem.materials()[0];
+    material.name = "a b";
+    builder.set_material( 0, material );
+    check_refused( problem, model, "a b" );
+    material.name = "rock";
+    builder.set_material( 0, material );
+    builder.add_source_term( { "w/1", "water", 1. } );
+    check_refused( problem, model, "w/1" );
+}
+
 int main()
 {
     try
@@ -410,6 +690,10 @@ int main()
         test_ogs_rules_output_times();
         test_ogs_rules_saturation();
         test_ogs_rules_relperm();
+        test_ogs_registered_checker();
+        test_ogs_checker_refusals();
+        test_ogs_unsupported_cells();
+        test_ogs_invalid_names();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }

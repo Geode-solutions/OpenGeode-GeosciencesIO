@@ -40,6 +40,8 @@
 
 #include <geode/geosciences_io/model/internal/brep_fem_output.hpp>
 #include <geode/geosciences_io/model/internal/geos_simulation_checker.hpp>
+#include <geode/geosciences_io/model/internal/ogs_simulation_checker.hpp>
+#include <geode/geosciences_io/model/internal/ogs_simulation_rules.hpp>
 #include <geode/geosciences_io/model/internal/horizons_stack_skua_input.hpp>
 #include <geode/geosciences_io/model/internal/lso_input.hpp>
 #include <geode/geosciences_io/model/internal/lso_output.hpp>
@@ -104,6 +106,9 @@ namespace
         geode::SimulationCheckerFactory::register_creator<
             geode::internal::GeosSimulationChecker >(
             geode::internal::GEOS_SIMULATOR_KEY );
+        geode::SimulationCheckerFactory::register_creator<
+            geode::internal::OgsSimulationChecker >(
+            std::string{ geode::internal::OGS_SIMULATOR_KEY } );
     }
 } // namespace
 
