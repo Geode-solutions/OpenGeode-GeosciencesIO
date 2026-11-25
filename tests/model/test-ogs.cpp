@@ -24,14 +24,14 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <optional>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
-#include <sstream>
 #include <memory>
+#include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -46,32 +46,32 @@
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/constant_attribute.hpp>
 #include <geode/basic/logger.hpp>
-#include <geode/basic/variable_attribute.hpp>
 #include <geode/basic/range.hpp>
 #include <geode/basic/types.hpp>
+#include <geode/basic/variable_attribute.hpp>
 #include <geode/tests_config.hpp>
 
 #include <geode/geometry/bounding_box.hpp>
 #include <geode/geometry/point.hpp>
 
-#include <geode/mesh/builder/polyhedral_solid_builder.hpp>
-#include <geode/mesh/core/geode/geode_polyhedral_solid.hpp>
 #include <geode/mesh/builder/hybrid_solid_builder.hpp>
 #include <geode/mesh/builder/point_set_builder.hpp>
+#include <geode/mesh/builder/polyhedral_solid_builder.hpp>
 #include <geode/mesh/builder/regular_grid_solid_builder.hpp>
 #include <geode/mesh/core/geode/geode_hybrid_solid.hpp>
 #include <geode/mesh/core/geode/geode_point_set.hpp>
+#include <geode/mesh/core/geode/geode_polyhedral_solid.hpp>
 #include <geode/mesh/core/geode/geode_regular_grid_solid.hpp>
 #include <geode/mesh/core/point_set.hpp>
 #include <geode/mesh/core/solid_mesh.hpp>
 #include <geode/mesh/core/surface_mesh.hpp>
 
+#include <geode/model/helpers/component_mesh_polygons.hpp>
+#include <geode/model/helpers/convert_to_mesh.hpp>
 #include <geode/model/mixin/core/block.hpp>
 #include <geode/model/mixin/core/physical_properties.hpp>
 #include <geode/model/mixin/core/surface.hpp>
 #include <geode/model/representation/builder/brep_builder.hpp>
-#include <geode/model/helpers/component_mesh_polygons.hpp>
-#include <geode/model/helpers/convert_to_mesh.hpp>
 #include <geode/model/representation/io/brep_input.hpp>
 
 #include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.hpp>
@@ -88,8 +88,8 @@
 #include <geode/geosciences/simulation/core/schedule.hpp>
 #include <geode/geosciences/simulation/core/solid_mechanics.hpp>
 #include <geode/geosciences/simulation/core/source_term.hpp>
-#include <geode/geosciences/simulation/helpers/simulation_checker.hpp>
 #include <geode/geosciences/simulation/core/thermal_parameters.hpp>
+#include <geode/geosciences/simulation/helpers/simulation_checker.hpp>
 
 #include <geode/geosciences_io/model/common.hpp>
 #include <geode/geosciences_io/model/helpers/brep_ogs_export.hpp>
@@ -113,8 +113,8 @@ namespace
         std::string_view section,
         std::string_view name )
     {
-        const auto xpath = absl::StrCat( "//", section, "/DataArray[@Name='",
-            name, "']" );
+        const auto xpath =
+            absl::StrCat( "//", section, "/DataArray[@Name='", name, "']" );
         return document.select_node( xpath.c_str() ).node();
     }
 
@@ -196,8 +196,8 @@ void test_ogs_structural_model_regions()
             second_blocks.push_back( block.id() );
         }
     }
-    const auto regions = geode::internal::structural_model_block_regions(
-        model );
+    const auto regions =
+        geode::internal::structural_model_block_regions( model );
     check( regions.solid_regions.size() == model.nb_blocks(),
         "One region per Block expected" );
     check( regions.merged_blocks.empty(), "No Block should be merged" );
@@ -219,8 +219,8 @@ std::shared_ptr< geode::SinglePhaseFluid > water_fluid( double compressibility )
 {
     return std::make_shared< geode::SinglePhaseFluid >(
         std::vector< geode::PHASE >{ geode::PHASE::water },
-        std::vector< geode::FluidComponent >{ { "water", 0.018 } }, 1000.,
-        1e-3, compressibility, 0., 1e5 );
+        std::vector< geode::FluidComponent >{ { "water", 0.018 } }, 1000., 1e-3,
+        compressibility, 0., 1e5 );
 }
 
 std::shared_ptr< geode::DeadOilFluid > water_oil_fluid(
@@ -279,18 +279,18 @@ void test_ogs_rules_process()
     check( geode::internal::ogs_process( two_phase )
                == OGS_PROCESS::two_phase_flow_pp,
         "Water-oil dead oil is TWOPHASE_FLOW_PP" );
-    const auto three_phase =
-        flow_problem( std::make_shared< geode::MultiphaseFlow >(),
-            water_oil_fluid( { geode::PHASE::water, geode::PHASE::oil,
-                geode::PHASE::gas } ) );
+    const auto three_phase = flow_problem(
+        std::make_shared< geode::MultiphaseFlow >(),
+        water_oil_fluid(
+            { geode::PHASE::water, geode::PHASE::oil, geode::PHASE::gas } ) );
     check( !geode::internal::ogs_process( three_phase ),
         "Three-phase dead oil is not supported" );
 }
 
 void test_ogs_rules_storage_and_temperature()
 {
-    check( std::fabs( geode::internal::ogs_storage( 0.2, 1e-9 ) - 2e-10 )
-               < 1e-25,
+    check(
+        std::fabs( geode::internal::ogs_storage( 0.2, 1e-9 ) - 2e-10 ) < 1e-25,
         "Storage is porosity times pore compressibility" );
     auto problem = flow_problem(
         std::make_shared< geode::SinglePhaseFlow >(), water_fluid( 0. ) );
@@ -335,8 +335,9 @@ double interpolate( const geode::internal::OgsCurve& curve, double coord )
     {
         if( coord <= curve.coords[index] )
         {
-            const auto ratio = ( coord - curve.coords[index - 1] )
-                               / ( curve.coords[index] - curve.coords[index - 1] );
+            const auto ratio =
+                ( coord - curve.coords[index - 1] )
+                / ( curve.coords[index] - curve.coords[index - 1] );
             return curve.values[index - 1]
                    + ratio * ( curve.values[index] - curve.values[index - 1] );
         }
@@ -360,8 +361,8 @@ void test_ogs_rules_saturation()
         { 2., 2. }
     };
     const auto curve = geode::internal::saturation_curve( brooks_corey );
-    check( curve.coords.size() == curve.values.size(),
-        "Saturation curve sizes" );
+    check(
+        curve.coords.size() == curve.values.size(), "Saturation curve sizes" );
     check( curve.coords.front() == 0. && curve.values.front() == 0.8,
         "Saturation curve starts at (0, 1 - Snr)" );
     for( const auto index : geode::Range{ 1, curve.coords.size() } )
@@ -384,8 +385,7 @@ void test_ogs_rules_saturation()
     bool has_thrown{ false };
     try
     {
-        geode_unused(
-            geode::internal::saturation_curve( non_monotone ) );
+        geode_unused( geode::internal::saturation_curve( non_monotone ) );
     }
     catch( const geode::OpenGeodeException& )
     {
@@ -438,7 +438,8 @@ geode::BRep load_picasso()
 {
     const auto model_filename =
         absl::StrCat( geode::DATA_PATH, "picasso.og_brep" );
-    return geode::load_one( geode::load_brep( model_filename ), model_filename );
+    return geode::load_one(
+        geode::load_brep( model_filename ), model_filename );
 }
 
 // Surfaces lying on the maximum x face of the model box
@@ -517,9 +518,8 @@ std::shared_ptr< geode::BrooksCoreyCapillaryPressure > brooks_corey_pc()
 
 geode::PhysicalProblem two_phase_problem()
 {
-    auto problem = flow_problem(
-        std::make_shared< geode::MultiphaseFlow >(
-            geode::COMPOSITION_BASIS::mass ),
+    auto problem = flow_problem( std::make_shared< geode::MultiphaseFlow >(
+                                     geode::COMPOSITION_BASIS::mass ),
         water_oil_fluid( { geode::PHASE::water, geode::PHASE::oil } ) );
     geode::PhysicalProblemBuilder builder{ problem };
     auto rock = rock_material( "rock" );
@@ -555,8 +555,8 @@ void check_refused( const geode::PhysicalProblem& problem,
     check( !report.is_simulable(),
         absl::StrCat( "The problem should be refused: ", expected ) );
     check( absl::StrContains( report.string(), expected ),
-        absl::StrCat( "Missing issue \"", expected, "\" in\n",
-            report.string() ) );
+        absl::StrCat(
+            "Missing issue \"", expected, "\" in\n", report.string() ) );
 }
 
 void test_ogs_registered_checker()
@@ -568,8 +568,8 @@ void test_ogs_registered_checker()
         geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, 1e7 );
     const auto report = ogs_report( single_phase_problem( 4.5e-10 ), model );
     check( report.is_simulable(),
-        absl::StrCat( "Picasso single-phase should be simulable:\n",
-            report.string() ) );
+        absl::StrCat(
+            "Picasso single-phase should be simulable:\n", report.string() ) );
     check( report.simulator() == "OGS", "Report simulator should be OGS" );
 }
 
@@ -595,8 +595,8 @@ void test_ogs_checker_refusals()
     {
         auto problem = two_phase_problem();
         auto& fluid = const_cast< geode::FlowModel& >( problem.flow() );
-        fluid.set_fluid( water_oil_fluid( { geode::PHASE::water,
-            geode::PHASE::oil, geode::PHASE::gas } ) );
+        fluid.set_fluid( water_oil_fluid(
+            { geode::PHASE::water, geode::PHASE::oil, geode::PHASE::gas } ) );
         check_refused( problem, model, "gas phase" );
     }
     {
@@ -622,8 +622,7 @@ void test_ogs_checker_refusals()
             std::make_shared< geode::TableCapillaryPressure >(
                 std::vector< geode::PHASE >{
                     geode::PHASE::water, geode::PHASE::oil },
-                std::vector< geode::TwoPhaseCapillaryPressureTable >{
-                    table } );
+                std::vector< geode::TwoPhaseCapillaryPressureTable >{ table } );
         geode::PhysicalProblemBuilder{ problem }.set_material( 0, material );
         check_refused( problem, model, "must strictly decrease" );
     }
@@ -665,14 +664,13 @@ void test_ogs_unsupported_cells()
     };
     for( const auto side : geode::LRange{ NB_SIDES } )
     {
-        const auto next = static_cast< geode::local_index_t >(
-            ( side + 1 ) % NB_SIDES );
+        const auto next =
+            static_cast< geode::local_index_t >( ( side + 1 ) % NB_SIDES );
         facets.push_back( { side, next,
             static_cast< geode::local_index_t >( next + NB_SIDES ),
             static_cast< geode::local_index_t >( side + NB_SIDES ) } );
     }
-    mesh_builder->create_polyhedron(
-        { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, facets );
+    mesh_builder->create_polyhedron( { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 }, facets );
     builder.create_unique_vertices( 2 * NB_SIDES );
     for( const auto vertex : geode::Range{ 2 * NB_SIDES } )
     {
@@ -680,7 +678,8 @@ void test_ogs_unsupported_cells()
     }
     auto problem = single_phase_problem( 0. );
     check_refused( problem, model, "pentagonal_prism" );
-    check_refused( problem, model, "tetrahedra, hexahedra, prisms or pyramids" );
+    check_refused(
+        problem, model, "tetrahedra, hexahedra, prisms or pyramids" );
 }
 
 void test_ogs_invalid_names()
@@ -775,8 +774,8 @@ std::vector< std::string > boundary_files(
     std::string_view directory, std::string_view property )
 {
     std::vector< std::string > files;
-    for( const auto& entry : std::filesystem::directory_iterator{
-             std::string{ directory } } )
+    for( const auto& entry :
+        std::filesystem::directory_iterator{ std::string{ directory } } )
     {
         const auto name = entry.path().filename().string();
         if( absl::StrContains( name, property ) )
@@ -800,8 +799,8 @@ void test_ogs_mesh_only()
     check( absl::StrContains(
                vtu_array_tag( bulk, "MaterialIDs" ), "type=\"Int32\"" ),
         "MaterialIDs must be Int32" );
-    const auto material_ids = read_vtu_values< std::int32_t >(
-        bulk, "MaterialIDs" );
+    const auto material_ids =
+        read_vtu_values< std::int32_t >( bulk, "MaterialIDs" );
     std::vector< std::int32_t > expected;
     std::int32_t region{ 0 };
     for( const auto& block : model.blocks() )
@@ -887,22 +886,23 @@ void test_ogs_boundary_meshes()
             continue;
         }
         has_variable = true;
-        check( std::string{ values_node.attribute( "type" ).value() }
-                   == "Float64",
+        check(
+            std::string{ values_node.attribute( "type" ).value() } == "Float64",
             "Variable values must be Float64" );
         const auto values = ascii_values< double >( values_node );
         const auto& surface_mesh = west_surface.mesh();
         for( const auto vertex : geode::Range{ surface_mesh.nb_vertices() } )
         {
-            const auto& polygons = surface_mesh.polygons_around_vertex( vertex );
+            const auto& polygons =
+                surface_mesh.polygons_around_vertex( vertex );
             double sum{ 0 };
             for( const auto& polygon : polygons )
             {
                 sum += 1e6 + 10. * polygon.polygon_id;
             }
             const auto expected = sum / polygons.size();
-            const auto position = std::find( points.begin(), points.end(),
-                surface_mesh.point( vertex ) );
+            const auto position = std::find(
+                points.begin(), points.end(), surface_mesh.point( vertex ) );
             check( position != points.end(),
                 "Every west Surface vertex is in its boundary mesh" );
             check( std::fabs( values[position - points.begin()] - expected )
@@ -984,7 +984,8 @@ void test_ogs_output_directories()
         "Nested directories must be created" );
 }
 
-pugi::xml_node select( const pugi::xml_document& document, std::string_view xpath )
+pugi::xml_node select(
+    const pugi::xml_document& document, std::string_view xpath )
 {
     return document.select_node( std::string{ xpath }.c_str() ).node();
 }
@@ -999,9 +1000,9 @@ std::string select_text(
 pugi::xml_node parameter(
     const pugi::xml_document& project, std::string_view name )
 {
-    return select( project,
-        absl::StrCat( "/OpenGeoSysProject/parameters/parameter[name='", name,
-            "']" ) );
+    return select(
+        project, absl::StrCat( "/OpenGeoSysProject/parameters/parameter[name='",
+                     name, "']" ) );
 }
 
 geode::BRep picasso_with_boundary()
@@ -1074,16 +1075,15 @@ void test_ogs_permeability_field()
         block.mesh()
             .polyhedron_attribute_manager()
             .create_attribute< geode::VariableAttribute,
-                std::array< double, 3 > >(
-                "perm", attribute_id, values, {} );
+                std::array< double, 3 > >( "perm", attribute_id, values, {} );
     }
     geode::BRepBuilder{ model }.set_physical_property(
         geode::PHYSICAL_PROPERTY_NAME::permeability,
         geode::Block3D::component_type_static(), attribute_id );
     const auto project = export_project(
         model, single_phase_problem( 0. ), "ogs_permeability_field" );
-    const auto property = select( project,
-        "//media/medium/properties/property[name='permeability']" );
+    const auto property = select(
+        project, "//media/medium/properties/property[name='permeability']" );
     check( text( property.child( "type" ) ) == "Parameter",
         "A permeability field is a Parameter property" );
     const auto field =
@@ -1115,8 +1115,8 @@ void test_ogs_compressible_fluid()
     const auto storage =
         select( project, "//medium/properties/property[name='storage']" );
     check( text( storage.child( "type" ) ) == "Constant"
-               && std::fabs( std::stod( text( storage.child( "value" ) ) )
-                             - 2e-10 )
+               && std::fabs(
+                      std::stod( text( storage.child( "value" ) ) ) - 2e-10 )
                       < 1e-24,
         "Storage is porosity times pore compressibility" );
     const auto incompressible = export_project(
@@ -1139,8 +1139,8 @@ void test_ogs_wells_rates()
         const auto vertex = solid->polyhedron_vertex( { polyhedron, 0 } );
         const auto& point = solid->point( vertex );
         builder->create_point(
-            point + ( solid->polyhedron_barycenter( polyhedron ) - point )
-                        * 0.01 );
+            point
+            + ( solid->polyhedron_barycenter( polyhedron ) - point ) * 0.01 );
     }
     auto problem = single_phase_problem( 0. );
     geode::PhysicalProblemBuilder{ problem }.add_source_term(
@@ -1155,8 +1155,7 @@ void test_ogs_wells_rates()
     check( text( source.child( "type" ) ) == "Nodal"
                && text( source.child( "mesh" ) ) == "ogs_wells_well_injector",
         "A Nodal source term on the well mesh" );
-    const auto rate =
-        parameter( project, text( source.child( "parameter" ) ) );
+    const auto rate = parameter( project, text( source.child( "parameter" ) ) );
     check( text( rate.child( "type" ) ) == "Constant"
                && std::stod( text( rate.child( "value" ) ) ) == 1.,
         "The rate is split evenly over the well vertices" );
@@ -1201,8 +1200,8 @@ void test_ogs_initial_pressure()
     const auto model = two_hexahedra_brep();
     auto problem = single_phase_problem( 0. );
     const auto uniform = export_project( model, problem, "ogs_uniform_p0" );
-    const auto initial = select_text( uniform,
-        "//process_variables/process_variable/initial_condition" );
+    const auto initial = select_text(
+        uniform, "//process_variables/process_variable/initial_condition" );
     check( text( parameter( uniform, initial ).child( "type" ) ) == "Constant",
         "One initial pressure gives a Constant parameter" );
     geode::PhysicalProblemBuilder{ problem }.add_initial_condition(
@@ -1236,9 +1235,9 @@ void test_ogs_solver_options()
                                  "solver_type" )
                == "BiCGSTAB",
         "A linear option sets the element text" );
-    check( select_text( project,
-               "//nonlinear_solvers/nonlinear_solver/max_iter" )
-               == "7",
+    check(
+        select_text( project, "//nonlinear_solvers/nonlinear_solver/max_iter" )
+            == "7",
         "A nonlinear option sets the element text" );
 }
 
@@ -1359,19 +1358,18 @@ void test_ogs_structural_model_materials()
     geode::StructuralModelOgsExporter exporter{ model, "ogs_units" };
     exporter.set_physical_problem( problem );
     exporter.run();
-    const auto material_ids =
-        read_vtu_values< std::int32_t >( "ogs_units/ogs_units.vtu", "MaterialIDs" );
+    const auto material_ids = read_vtu_values< std::int32_t >(
+        "ogs_units/ogs_units.vtu", "MaterialIDs" );
     geode::index_t cell{ 0 };
     for( const auto& block : model.blocks() )
     {
-        const auto in_unit =
-            absl::c_linear_search( unit_blocks, block.id() );
+        const auto in_unit = absl::c_linear_search( unit_blocks, block.id() );
         for( const auto polyhedron :
             geode::Range{ block.mesh().nb_polyhedra() } )
         {
             geode_unused( polyhedron );
-            check( ( material_ids[cell] == static_cast< std::int32_t >(
-                         unit_index ) )
+            check( ( material_ids[cell]
+                       == static_cast< std::int32_t >( unit_index ) )
                        == in_unit,
                 "Cells of the unit Blocks get the unit material" );
             cell++;
@@ -1424,18 +1422,17 @@ void test_ogs_two_phase_project()
     check( select_text( project, "//processes/process/type" )
                == "TWOPHASE_FLOW_PP",
         "TWOPHASE_FLOW_PP process" );
-    for( const auto& property_name :
-        { "saturation", "relative_permeability",
-            "relative_permeability_nonwetting_phase" } )
+    for( const auto& property_name : { "saturation", "relative_permeability",
+             "relative_permeability_nonwetting_phase" } )
     {
-        const auto property = select( project,
-            absl::StrCat( "//medium/properties/property[name='",
-                property_name, "']" ) );
+        const auto property = select(
+            project, absl::StrCat( "//medium/properties/property[name='",
+                         property_name, "']" ) );
         check( text( property.child( "type" ) ) == "Curve",
             absl::StrCat( property_name, " is a Curve" ) );
-        const auto curve = select( project,
-            absl::StrCat( "/OpenGeoSysProject/curves/curve[name='",
-                text( property.child( "curve" ) ), "']" ) );
+        const auto curve = select(
+            project, absl::StrCat( "/OpenGeoSysProject/curves/curve[name='",
+                         text( property.child( "curve" ) ), "']" ) );
         check( static_cast< bool >( curve ),
             absl::StrCat( "Curve of ", property_name, " must exist" ) );
         const auto coords = ascii_values< double >( curve.child( "coords" ) );
@@ -1448,11 +1445,11 @@ void test_ogs_two_phase_project()
                 "Curve coords must strictly increase" );
         }
     }
-    const auto density_curve = select( project,
-        absl::StrCat( "/OpenGeoSysProject/curves/curve[name='",
-            select_text( project, "//phase[type='Gas']/properties/"
-                                  "property[name='density']/curve" ),
-            "']" ) );
+    const auto density_curve = select(
+        project, absl::StrCat( "/OpenGeoSysProject/curves/curve[name='",
+                     select_text( project, "//phase[type='Gas']/properties/"
+                                           "property[name='density']/curve" ),
+                     "']" ) );
     const auto densities =
         ascii_values< double >( density_curve.child( "values" ) );
     check( ascii_values< double >( density_curve.child( "coords" ) )
@@ -1495,9 +1492,9 @@ void test_ogs_two_phase_boundary()
         "//process_variable[name='gas_pressure']/boundary_conditions/"
         "boundary_condition" );
     check( text( gas.child( "type" ) ) == "Dirichlet"
-               && std::stod( text( parameter( project,
-                   text( gas.child( "parameter" ) ) )
-                                       .child( "value" ) ) )
+               && std::stod( text(
+                      parameter( project, text( gas.child( "parameter" ) ) )
+                          .child( "value" ) ) )
                       == 1e7,
         "Boundary pressure gives a Dirichlet on gas_pressure" );
 }
@@ -1511,8 +1508,8 @@ void test_ogs_two_phase_permeability()
     geode::PhysicalProblemBuilder{ problem }.set_material( 0, material );
     const auto project =
         export_project( model, problem, "ogs_two_phase_permeability" );
-    const auto property = select(
-        project, "//medium/properties/property[name='permeability']" );
+    const auto property =
+        select( project, "//medium/properties/property[name='permeability']" );
     const auto values =
         parameter( project, text( property.child( "parameter_name" ) ) );
     check( ascii_values< double >( values.child( "values" ) )

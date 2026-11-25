@@ -40,14 +40,14 @@
 
 #include <geode/geosciences_io/model/internal/brep_fem_output.hpp>
 #include <geode/geosciences_io/model/internal/geos_simulation_checker.hpp>
-#include <geode/geosciences_io/model/internal/ogs_simulation_checker.hpp>
-#include <geode/geosciences_io/model/internal/ogs_simulation_rules.hpp>
 #include <geode/geosciences_io/model/internal/horizons_stack_skua_input.hpp>
 #include <geode/geosciences_io/model/internal/lso_input.hpp>
 #include <geode/geosciences_io/model/internal/lso_output.hpp>
 #include <geode/geosciences_io/model/internal/ml_input.hpp>
 #include <geode/geosciences_io/model/internal/ml_output_brep.hpp>
 #include <geode/geosciences_io/model/internal/ml_output_structural_model.hpp>
+#include <geode/geosciences_io/model/internal/ogs_simulation_checker.hpp>
+#include <geode/geosciences_io/model/internal/ogs_simulation_rules.hpp>
 #include <geode/geosciences_io/model/internal/shp_input.hpp>
 
 namespace

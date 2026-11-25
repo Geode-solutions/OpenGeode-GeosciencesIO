@@ -52,8 +52,7 @@ namespace geode
 
     public:
         BRepOgsExporter() = delete;
-        BRepOgsExporter(
-            const BRep& model, std::string_view files_directory );
+        BRepOgsExporter( const BRep& model, std::string_view files_directory );
         ~BRepOgsExporter();
 
         void add_well_perforations(

@@ -99,7 +99,8 @@ namespace geode::internal
                 filename, *tetra, extra_polygons, cell_attributes );
             return true;
         }
-        if( const auto* hybrid = dynamic_cast< const HybridSolid3D* >( &solid ) )
+        if( const auto* hybrid =
+                dynamic_cast< const HybridSolid3D* >( &solid ) )
         {
             save_vtu< detail::VTUHybridOutputImpl >(
                 filename, *hybrid, extra_polygons, cell_attributes );

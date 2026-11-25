@@ -43,12 +43,11 @@ namespace
 
     bool is_valid_ogs_name( std::string_view name )
     {
-        return !name.empty()
-               && absl::c_all_of( name, []( char character ) {
-                      return absl::ascii_isalnum(
-                                 static_cast< unsigned char >( character ) )
-                             || character == '_' || character == '-';
-                  } );
+        return !name.empty() && absl::c_all_of( name, []( char character ) {
+            return absl::ascii_isalnum(
+                       static_cast< unsigned char >( character ) )
+                   || character == '_' || character == '-';
+        } );
     }
 
     geode::index_t phase_index(
@@ -112,7 +111,7 @@ namespace
         curve.values.push_back( max_saturation );
         // Effective saturation from 1 down to its first non-zero sample
         for( auto index = geode::internal::CURVE_SAMPLES - 1; index > 0;
-            index-- )
+             index-- )
         {
             const auto effective = sample( index );
             curve.coords.push_back(
@@ -135,8 +134,8 @@ namespace
         {
             const auto pressure = table.values[index - 1];
             geode::OpenGeodeGeosciencesIOModelException::check_exception(
-                curve.coords.empty() || pressure > curve.coords.back(),
-                nullptr, geode::OpenGeodeException::TYPE::data,
+                curve.coords.empty() || pressure > curve.coords.back(), nullptr,
+                geode::OpenGeodeException::TYPE::data,
                 "[OgsExporter] The capillary pressure table must strictly "
                 "decrease with the water saturation" );
             curve.coords.push_back( pressure );
@@ -170,9 +169,9 @@ namespace
             {
                 curve.coords.push_back( saturation );
             }
-            curves[0].values.push_back( law.max_values()[water]
-                                        * std::pow( water_effective,
-                                            law.exponents()[water] ) );
+            curves[0].values.push_back(
+                law.max_values()[water]
+                * std::pow( water_effective, law.exponents()[water] ) );
             curves[1].values.push_back(
                 law.max_values()[oil]
                 * std::pow( oil_effective, law.exponents()[oil] ) );
@@ -293,10 +292,9 @@ namespace geode::internal
         if( output.frequency && output.frequency.value() > 0. )
         {
             const auto frequency = output.frequency.value();
-            const auto nb_outputs = static_cast< index_t >(
-                std::floor( ( schedule.end_time - schedule.start_time )
-                                / frequency
-                            + GLOBAL_EPSILON ) );
+            const auto nb_outputs = static_cast< index_t >( std::floor(
+                ( schedule.end_time - schedule.start_time ) / frequency
+                + GLOBAL_EPSILON ) );
             for( const auto index : Range{ 1, nb_outputs + 1 } )
             {
                 times.push_back( schedule.start_time + index * frequency );
@@ -352,8 +350,9 @@ namespace geode::internal
             {
                 curve.coords.push_back( table.pressures[index] );
             }
-            curves[0].values.push_back( fluid.surface_densities()[oil]
-                                        / table.formation_volume_factors[index] );
+            curves[0].values.push_back(
+                fluid.surface_densities()[oil]
+                / table.formation_volume_factors[index] );
             curves[1].values.push_back( table.viscosities[index] );
         }
         return curves;

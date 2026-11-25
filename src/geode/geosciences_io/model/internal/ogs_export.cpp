@@ -142,9 +142,8 @@ namespace
     private:
         geode::index_t local_vertex( geode::index_t vertex, double value )
         {
-            const auto [iterator, inserted] =
-                local_vertices_.try_emplace(
-                    vertex, static_cast< geode::index_t >( mesh_.points.size() ) );
+            const auto [iterator, inserted] = local_vertices_.try_emplace(
+                vertex, static_cast< geode::index_t >( mesh_.points.size() ) );
             if( inserted )
             {
                 mesh_.points.push_back( bulk_.point( vertex ) );
@@ -204,8 +203,8 @@ namespace
                 const geode::ComponentMeshVertex component_vertex{
                     block.component_id(), vertex
                 };
-                builder.set_unique_vertex( component_vertex,
-                    model.unique_vertex( component_vertex ) );
+                builder.set_unique_vertex(
+                    component_vertex, model.unique_vertex( component_vertex ) );
             }
         }
         return copy;
@@ -262,9 +261,8 @@ namespace
         const auto attribute_id =
             manager.create_attribute< geode::VariableAttribute, T >(
                 name, default_values, geode::AttributeProperties{} );
-        auto attribute =
-            manager.find_attribute< geode::VariableAttribute, T >(
-                attribute_id );
+        auto attribute = manager.find_attribute< geode::VariableAttribute, T >(
+            attribute_id );
         for( const auto cell : geode::Indices{ values } )
         {
             attribute->set_value( cell, values[cell] );
@@ -340,11 +338,11 @@ namespace geode::internal
     template < typename Model >
     void OgsExporterImpl< Model >::check_problem() const
     {
-        const auto report =
-            OgsSimulationChecker{ *this->problem(), this->model(),
-                OgsExportData{ { this->well_names().begin(),
-                    this->well_names().end() } } }
-                .check();
+        const auto report = OgsSimulationChecker{
+            *this->problem(), this->model(),
+            OgsExportData{
+                { this->well_names().begin(), this->well_names().end() } }
+        }.check();
         OpenGeodeGeosciencesIOModelException::check_exception(
             report.is_simulable(), nullptr, OpenGeodeException::TYPE::data,
             context_, " Cannot write the OGS project.\n", report.string() );
@@ -445,9 +443,8 @@ namespace geode::internal
             }
             const auto& info = model.physical_property_info( property );
             const auto field = physical_property_string( property );
-            const auto name =
-                solid_->transfer_block_property( ogs_naming(), model, info,
-                    field );
+            const auto name = solid_->transfer_block_property(
+                ogs_naming(), model, info, field );
             if( !name )
             {
                 continue;
@@ -464,7 +461,8 @@ namespace geode::internal
             {
                 continue;
             }
-            if( const auto scalar = cell_values< double >( solid, name.value() ) )
+            if( const auto scalar =
+                    cell_values< double >( solid, name.value() ) )
             {
                 permeability_.emplace();
                 for( const auto value : scalar.value() )
@@ -492,10 +490,11 @@ namespace geode::internal
             storage_.emplace();
             for( const auto cell : Indices{ porosity_.value() } )
             {
-                const auto& material = problem.materials()[static_cast<
-                    index_t >( material_ids_[cell] )];
-                storage_->push_back( ogs_storage( porosity_.value()[cell],
-                    material.pore_compressibility ) );
+                const auto& material =
+                    problem.materials()[static_cast< index_t >(
+                        material_ids_[cell] )];
+                storage_->push_back( ogs_storage(
+                    porosity_.value()[cell], material.pore_compressibility ) );
             }
         }
         const auto assignment = assign_region_initial_conditions(
@@ -517,7 +516,8 @@ namespace geode::internal
             cell_pressures_.push_back( condition.pressure() );
             cell_conditions.push_back( condition_id.value() );
         }
-        initial_pressure_ = initial_value( "initial_pressure", cell_pressures_ );
+        initial_pressure_ =
+            initial_value( "initial_pressure", cell_pressures_ );
         if( ogs_process( problem ) == OGS_PROCESS::two_phase_flow_pp )
         {
             compute_two_phase_values( cell_conditions );
@@ -540,8 +540,8 @@ namespace geode::internal
             dynamic_cast< const MultiphaseFlow& >( problem.flow() ).basis();
         const auto saturation = water_saturation(
             fluid, basis, composition, cell_pressures_[cell] );
-        const auto& material = problem.materials()[static_cast< index_t >(
-            material_ids_[cell] )];
+        const auto& material =
+            problem.materials()[static_cast< index_t >( material_ids_[cell] )];
         return capillary_pressure( *material.capillary_pressure, saturation );
     }
 
@@ -563,8 +563,8 @@ namespace geode::internal
             capillary_pressures.push_back( cell_capillary_pressure(
                 cell, condition.composition()[water] ) );
         }
-        initial_capillary_pressure_ = initial_value(
-            "initial_capillary_pressure", capillary_pressures );
+        initial_capillary_pressure_ =
+            initial_value( "initial_capillary_pressure", capillary_pressures );
         convert_boundary_water_fractions();
     }
 
@@ -580,8 +580,8 @@ namespace geode::internal
             }
             auto& mesh = boundary.mesh;
             const auto nb_points = mesh.points.size();
-            std::vector< double > fractions( nb_points,
-                boundary.value.value_or( 0. ) );
+            std::vector< double > fractions(
+                nb_points, boundary.value.value_or( 0. ) );
             if( !boundary.value )
             {
                 fractions = mesh.point_arrays.front().second;
@@ -594,8 +594,8 @@ namespace geode::internal
                     static_cast< index_t >( mesh.bulk_element_ids[cell] );
                 for( const auto vertex : mesh.cells[cell] )
                 {
-                    sums[vertex] += cell_capillary_pressure(
-                        bulk_cell, fractions[vertex] );
+                    sums[vertex] +=
+                        cell_capillary_pressure( bulk_cell, fractions[vertex] );
                     counts[vertex]++;
                 }
             }
@@ -678,8 +678,7 @@ namespace geode::internal
         {
             if( property == PHYSICAL_PROPERTY_NAME::boundary_water_fraction
                 && problem != nullptr
-                && ogs_process( *problem )
-                       != OGS_PROCESS::two_phase_flow_pp )
+                && ogs_process( *problem ) != OGS_PROCESS::two_phase_flow_pp )
             {
                 continue;
             }
@@ -841,8 +840,8 @@ namespace geode::internal
         const auto written = save_simulation_vtu(
             absl::StrCat( this->files_directory(), "/", bulk_file() ), bulk(),
             {}, cells );
-        OpenGeodeGeosciencesIOModelException::check_exception( written,
-            nullptr, OpenGeodeException::TYPE::internal, context_,
+        OpenGeodeGeosciencesIOModelException::check_exception( written, nullptr,
+            OpenGeodeException::TYPE::internal, context_,
             " Cannot write the bulk mesh of type ", bulk().type_name().get() );
     }
 
@@ -862,8 +861,8 @@ namespace geode::internal
         context.reference_temperature = ogs_reference_temperature( problem );
         pugi::xml_document document;
         OgsProjectWriter{ problem, context }.write( document );
-        const auto filename =
-            absl::StrCat( this->files_directory(), "/", this->prefix(), ".prj" );
+        const auto filename = absl::StrCat(
+            this->files_directory(), "/", this->prefix(), ".prj" );
         OpenGeodeGeosciencesIOModelException::check_exception(
             document.save_file( filename.c_str(), "    " ), nullptr,
             OpenGeodeException::TYPE::data, context_, " Cannot write file ",

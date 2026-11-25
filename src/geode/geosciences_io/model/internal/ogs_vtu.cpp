@@ -74,9 +74,8 @@ namespace
     }
 
     template < typename Container, typename Format >
-    void set_values( pugi::xml_node& array,
-        const Container& values,
-        const Format& format )
+    void set_values(
+        pugi::xml_node& array, const Container& values, const Format& format )
     {
         std::string text;
         for( const auto& value : values )
@@ -150,7 +149,8 @@ namespace
 
 namespace geode::internal
 {
-    void save_ogs_mesh_file( std::string_view filename, const OgsMeshFile& mesh )
+    void save_ogs_mesh_file(
+        std::string_view filename, const OgsMeshFile& mesh )
     {
         pugi::xml_document document;
         auto root = document.append_child( "VTKFile" );

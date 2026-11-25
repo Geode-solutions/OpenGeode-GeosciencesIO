@@ -46,3 +46,16 @@ add_geode_python_test(
     DEPENDENCIES
         ${PROJECT_NAME}::py_model
 )
+
+add_geode_python_test(
+    SOURCE "test-py-ogs.py"
+    DEPENDENCIES
+        ${PROJECT_NAME}::py_model
+)
+
+add_geode_python_test(
+    NAME "test-py-ogs-exporter"
+    SOURCE "test-py-ogs-exporter.py"
+    DEPENDENCIES
+        ${PROJECT_NAME}::py_model
+)

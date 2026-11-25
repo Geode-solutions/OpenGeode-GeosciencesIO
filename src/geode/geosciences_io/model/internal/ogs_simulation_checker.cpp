@@ -70,7 +70,8 @@ namespace
 
     // Polyhedra OGS reads: tetrahedra, pyramids, prisms and hexahedra, by
     // their numbers of vertices and facets
-    bool is_ogs_cell( const geode::SolidMesh3D& mesh, geode::index_t polyhedron )
+    bool is_ogs_cell(
+        const geode::SolidMesh3D& mesh, geode::index_t polyhedron )
     {
         const auto nb_vertices = mesh.nb_polyhedron_vertices( polyhedron );
         const auto nb_facets = mesh.nb_polyhedron_facets( polyhedron );
@@ -116,10 +117,9 @@ namespace
                                            : values.value()[polygon];
                     for( const auto vertex : mesh.polygon_vertices( polygon ) )
                     {
-                        auto& [sum, count] =
-                            vertex_values[model.unique_vertex(
-                                { surface.component_id(), vertex } )]
-                                         [surface_index];
+                        auto& [sum, count] = vertex_values[model.unique_vertex(
+                            { surface.component_id(), vertex } )]
+                                                          [surface_index];
                         sum += value;
                         count += 1.;
                     }
@@ -191,8 +191,8 @@ namespace
             }
             if( problem_.thermal() )
             {
-                add_issue( "Thermal parameters", "thermal simulations are ",
-                    NOT_YET );
+                add_issue(
+                    "Thermal parameters", "thermal simulations are ", NOT_YET );
             }
             if( problem_.solid_mechanics() )
             {
@@ -271,8 +271,8 @@ namespace
                 if( !geode::internal::ogs_naming().is_valid_name(
                         source.well ) )
                 {
-                    add_issue( absl::StrCat(
-                                   "Source term on well \"", source.well, "\"" ),
+                    add_issue( absl::StrCat( "Source term on well \"",
+                                   source.well, "\"" ),
                         "well ", OGS_NAME_RULE );
                 }
             }

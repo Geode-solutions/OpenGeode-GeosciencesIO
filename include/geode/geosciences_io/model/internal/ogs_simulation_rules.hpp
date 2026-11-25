@@ -78,9 +78,8 @@ namespace geode::internal
      * TWOPHASE_FLOW_PP for a MultiphaseFlow of a water-oil DeadOilFluid,
      * nothing otherwise (thermal and solid mechanics included)
      */
-    [[nodiscard]] std::optional< OGS_PROCESS >
-        opengeode_geosciencesio_model_api ogs_process(
-            const PhysicalProblem& problem );
+    [[nodiscard]] std::optional< OGS_PROCESS > opengeode_geosciencesio_model_api
+        ogs_process( const PhysicalProblem& problem );
 
     /*!
      * Temperature (K) shared by every initial condition giving one, else
@@ -103,8 +102,8 @@ namespace geode::internal
      * to the end time (the end time included). The end time alone when
      * neither is given.
      */
-    [[nodiscard]] std::vector< double > opengeode_geosciencesio_model_api
-        ogs_output_times(
+    [[nodiscard]] std::vector< double >
+        opengeode_geosciencesio_model_api ogs_output_times(
             const Schedule& schedule, const OutputSettings& output );
 
     /*!
@@ -148,7 +147,7 @@ namespace geode::internal
         const CapillaryPressure& capillary_pressure, double water_saturation );
 
     /// Water then oil relative permeability versus the water saturation
-    [[nodiscard]] std::array< OgsCurve, 2 > opengeode_geosciencesio_model_api
-        relative_permeability_curves(
+    [[nodiscard]] std::array< OgsCurve, 2 >
+        opengeode_geosciencesio_model_api relative_permeability_curves(
             const RelativePermeability& relative_permeability );
 } // namespace geode::internal

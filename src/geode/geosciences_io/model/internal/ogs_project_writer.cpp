@@ -198,7 +198,8 @@ namespace
                 add_text( jacobian, "type", "CentralDifferences" );
                 add_text( jacobian, "epsilons", JACOBIAN_EPSILONS );
                 auto variables = process.append_child( "process_variables" );
-                add_text( variables, "capillary_pressure", "capillary_pressure" );
+                add_text(
+                    variables, "capillary_pressure", "capillary_pressure" );
                 add_text( variables, "gas_pressure", "gas_pressure" );
                 process.append_child( "secondary_variables" )
                     .append_child( "secondary_variable" )
@@ -232,16 +233,15 @@ namespace
                 add_real( property, "value", reference_value );
                 return;
             }
-            const auto& fluid =
-                dynamic_cast< const geode::SinglePhaseFluid& >(
-                    problem_.fluid() );
+            const auto& fluid = dynamic_cast< const geode::SinglePhaseFluid& >(
+                problem_.fluid() );
             add_text( property, "type", "Exponential" );
             add_real( property, "reference_value", reference_value );
             add_text( property, "offset", "0" );
             auto exponent = property.append_child( "exponent" );
             add_text( exponent, "variable_name", "liquid_phase_pressure" );
-            add_real( exponent, "reference_condition",
-                fluid.reference_pressure() );
+            add_real(
+                exponent, "reference_condition", fluid.reference_pressure() );
             add_real( exponent, "factor", factor );
         }
 
@@ -294,11 +294,10 @@ namespace
                     properties, "viscosity", fluid.water_pvt()->viscosity );
                 return;
             }
-            const auto& fluid =
-                dynamic_cast< const geode::SinglePhaseFluid& >(
-                    problem_.fluid() );
-            write_exponential( properties, "density",
-                fluid.reference_density(), fluid.compressibility() );
+            const auto& fluid = dynamic_cast< const geode::SinglePhaseFluid& >(
+                problem_.fluid() );
+            write_exponential( properties, "density", fluid.reference_density(),
+                fluid.compressibility() );
             write_exponential( properties, "viscosity",
                 fluid.reference_viscosity(), fluid.viscosibility() );
         }
@@ -316,8 +315,7 @@ namespace
             return 0;
         }
 
-        static geode::index_t oil_component(
-            const geode::DeadOilFluid& fluid )
+        static geode::index_t oil_component( const geode::DeadOilFluid& fluid )
         {
             return geode::phase_component( fluid, geode::PHASE::oil ).value();
         }
@@ -331,8 +329,8 @@ namespace
             auto properties = phase.append_child( "properties" );
             write_curve_property(
                 properties, "density", "gas_phase_pressure", "oil_density" );
-            write_curve_property( properties, "viscosity",
-                "gas_phase_pressure", "oil_viscosity" );
+            write_curve_property( properties, "viscosity", "gas_phase_pressure",
+                "oil_viscosity" );
             write_constant( properties, "molar_mass",
                 fluid.components()[oil_component( fluid )].molar_weight );
         }
@@ -376,9 +374,9 @@ namespace
                 add_text( parameter, "type", "Constant" );
                 // TWOPHASE_FLOW_PP reads a scalar permeability
                 add_text( parameter, "values",
-                    is_two_phase() ? geode::internal::xml_real(
-                        permeability[0] )
-                                   : reals( permeability ) );
+                    is_two_phase()
+                        ? geode::internal::xml_real( permeability[0] )
+                        : reals( permeability ) );
                 write_parameter_property( properties, "permeability", name );
             }
             const auto porosity = material.porosity.value_or( 0. );
@@ -423,8 +421,8 @@ namespace
         void write_time_loop()
         {
             auto time_loop = root_.append_child( "time_loop" );
-            auto process = time_loop.append_child( "processes" )
-                               .append_child( "process" );
+            auto process =
+                time_loop.append_child( "processes" ).append_child( "process" );
             process.append_attribute( "ref" ).set_value(
                 std::string{ PROCESS_NAME }.c_str() );
             add_text( process, "nonlinear_solver", NONLINEAR_SOLVER );
@@ -469,10 +467,10 @@ namespace
             add_text( stepping, "type", "FixedTimeStepping" );
             add_real( stepping, "t_initial", schedule.start_time );
             add_real( stepping, "t_end", schedule.end_time );
-            const auto nb_steps = static_cast< geode::index_t >( std::ceil(
-                ( schedule.end_time - schedule.start_time )
-                    / schedule.initial_time_step
-                - geode::GLOBAL_EPSILON ) );
+            const auto nb_steps = static_cast< geode::index_t >(
+                std::ceil( ( schedule.end_time - schedule.start_time )
+                               / schedule.initial_time_step
+                           - geode::GLOBAL_EPSILON ) );
             auto pair =
                 stepping.append_child( "timesteps" ).append_child( "pair" );
             add_text( pair, "repeat", absl::StrCat( nb_steps ) );
@@ -517,8 +515,8 @@ namespace
             return variable;
         }
 
-        void add_dirichlet_conditions( pugi::xml_node& variable,
-            geode::PHYSICAL_PROPERTY_NAME property )
+        void add_dirichlet_conditions(
+            pugi::xml_node& variable, geode::PHYSICAL_PROPERTY_NAME property )
         {
             auto conditions = variable.append_child( "boundary_conditions" );
             for( const auto& boundary : context_.boundaries )
@@ -537,7 +535,8 @@ namespace
                     add_mesh_parameter(
                         boundary.stem, "MeshNode", boundary.stem, "values" );
                 }
-                auto condition = conditions.append_child( "boundary_condition" );
+                auto condition =
+                    conditions.append_child( "boundary_condition" );
                 add_text( condition, "mesh", boundary.stem );
                 add_text( condition, "type", "Dirichlet" );
                 add_text( condition, "parameter", boundary.stem );
@@ -591,8 +590,8 @@ namespace
                     "porosity", "MeshElement", context_.prefix, "porosity" );
                 if( !is_two_phase() )
                 {
-                    add_mesh_parameter( "storage", "MeshElement",
-                        context_.prefix, "storage" );
+                    add_mesh_parameter(
+                        "storage", "MeshElement", context_.prefix, "storage" );
                 }
             }
             if( is_two_phase() )

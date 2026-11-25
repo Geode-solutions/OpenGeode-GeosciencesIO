@@ -60,5 +60,6 @@ if __name__ == "__main__":
         "    assert name in sys.modules, name\n"
         "m = opengeode_geosciencesio_py_model\n"
         "m.OpenGeodeGeosciencesIOModelLibrary.initialize()\n"
-        "assert m.BRepGeosExporter.__doc__\n",
+        "assert m.BRepGeosExporter.__doc__\n"
+        "assert m.BRepOgsExporter.__doc__\n",
     )
