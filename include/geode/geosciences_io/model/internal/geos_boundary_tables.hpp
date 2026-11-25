@@ -26,14 +26,9 @@
 #include <array>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <vector>
 
-#include <absl/container/flat_hash_map.h>
-#include <absl/container/linked_hash_map.h>
 #include <absl/types/span.h>
-
-#include <geode/basic/uuid.hpp>
 
 #include <geode/geometry/point.hpp>
 
@@ -41,10 +36,7 @@
 
 namespace geode
 {
-    class BRep;
-    FORWARD_DECLARATION_DIMENSION_CLASS( Surface );
     FORWARD_DECLARATION_DIMENSION_CLASS( SurfaceMesh );
-    ALIAS_3D( Surface );
     ALIAS_3D( SurfaceMesh );
 } // namespace geode
 
@@ -52,44 +44,7 @@ namespace geode
 namespace geode::internal
 {
     inline constexpr auto BOUNDARY_TABLES_DIRECTORY = "boundary_tables";
-    inline constexpr std::array< std::string_view, 3 > AXIS_NAMES{ "x", "y",
-        "z" };
-
     using TableCoordinates = std::array< std::vector< double >, 3 >;
-
-    // Value of the attribute on each Surface polygon, reduced to a single value
-    // for a ConstantAttribute
-    template < typename T >
-    [[nodiscard]] std::optional< std::vector< T > > surface_values(
-        const Surface3D& surface, const uuid& attribute_id );
-
-    template < typename T >
-    struct VariableSurface
-    {
-        const geode::Surface3D* surface;
-        geode::index_t region_id;
-        std::vector< T > values;
-    };
-
-    // Boundary condition values of the Surfaces: regions of the uniform
-    // Surfaces grouped by value, and the other Surfaces with their values
-    template < typename T >
-    struct SurfaceValueGroups
-    {
-        absl::linked_hash_map< T, std::vector< geode::index_t > >
-            uniform_regions;
-        std::vector< VariableSurface< T > > variable_surfaces;
-    };
-
-    template < typename T >
-    [[nodiscard]] SurfaceValueGroups< T > group_surface_values(
-        const BRep& model,
-        const absl::flat_hash_map< uuid, index_t >& surface_regions,
-        const uuid& attribute_id );
-
-    [[nodiscard]] std::vector< double > axis_values(
-        absl::Span< const std::array< double, 3 > > values,
-        local_index_t axis );
 
     // Area weighted centroid of the polygon, used by GEOS as faceCenter
     [[nodiscard]] Point3D face_center(

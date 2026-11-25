@@ -21,7 +21,7 @@
  *
  */
 
-#include <geode/geosciences_io/model/internal/geos_cell_properties.hpp>
+#include <geode/geosciences_io/model/internal/simulation_cell_properties.hpp>
 
 #include <typeinfo>
 
@@ -41,19 +41,20 @@
 
 #include <geode/geosciences/simulation/core/physical_problem.hpp>
 #include <geode/geosciences/simulation/core/solid_mechanics.hpp>
-#include <geode/geosciences_io/model/internal/geos_xml.hpp>
 
 namespace geode::internal
 {
-    double geos_stress_factor( const PhysicalProblem& problem )
+    double stress_factor(
+        const PhysicalProblem& problem, bool simulator_tension_positive )
     {
-        return problem.solid_mechanics()->sign_convention
-                       == STRESS_SIGN_CONVENTION::compression_positive
-                   ? -1.
-                   : 1.;
+        const auto tension_positive =
+            problem.solid_mechanics()->sign_convention
+            != STRESS_SIGN_CONVENTION::compression_positive;
+        return tension_positive == simulator_tension_positive ? 1. : -1.;
     }
 
-    void transfer_stress_components( const BRep& model,
+    void transfer_stress_components( const SimulationNaming& naming,
+        const BRep& model,
         const ModelToMeshMappings& model2solid,
         const PhysicalProperties::Info& property_info,
         std::string_view name,
@@ -64,7 +65,7 @@ namespace geode::internal
         const auto& attribute_id = property_info.attribute_id;
         OpenGeodeGeosciencesIOModelException::check_exception(
             property_info.component_type == Block3D::component_type_static(),
-            nullptr, OpenGeodeException::TYPE::data, "[GeosExporter] ", name,
+            nullptr, OpenGeodeException::TYPE::data, naming.context, " ", name,
             " physical property attribute ", attribute_id.string(),
             " must be defined on Blocks to be exported." );
         const auto& polyhedra_mapping = model2solid.solid_polyhedra_mapping;
@@ -75,13 +76,13 @@ namespace geode::internal
                 block_mesh.polyhedron_attribute_manager();
             OpenGeodeGeosciencesIOModelException::check_exception(
                 block_manager.attribute_exists( attribute_id ), nullptr,
-                OpenGeodeException::TYPE::data, "[GeosExporter] ", name,
+                OpenGeodeException::TYPE::data, naming.context, " ", name,
                 " physical property attribute ", attribute_id.string(),
                 " is missing on Block ", block.id().string(), "." );
             OpenGeodeGeosciencesIOModelException::check_exception(
                 block_manager.attribute_type( attribute_id )
                     == typeid( std::array< double, 3 > ).name(),
-                nullptr, OpenGeodeException::TYPE::data, "[GeosExporter] ",
+                nullptr, OpenGeodeException::TYPE::data, naming.context, " ",
                 name, " physical property attribute ", attribute_id.string(),
                 " must store std::array< double, 3 > values." );
             const auto stress = block_manager.template find_read_only_attribute<
@@ -182,57 +183,59 @@ namespace geode::internal
 
     // The VTU writer renames the attributes sharing a name, which would not
     // match the field names given to GEOS
-    std::string unique_attribute_name( const AttributeManager& manager,
+    std::string unique_attribute_name( const SimulationNaming& naming,
+        const AttributeManager& manager,
         std::string_view attribute_name,
-        std::string_view geos_name )
+        std::string_view simulator_field_name )
     {
         auto valid_name = to_string( attribute_name );
-        if( !is_valid_geos_list_item( valid_name ) )
+        if( !naming.is_valid_name( valid_name ) )
         {
             absl::c_replace_if(
                 valid_name,
-                []( char character ) {
-                    return GEOS_LIST_SEPARATORS.find( character )
+                [&naming]( char character ) {
+                    return naming.invalid_characters.find( character )
                            != std::string_view::npos;
                 },
                 '_' );
             if( valid_name.empty() )
             {
-                valid_name = to_string( geos_name );
+                valid_name = to_string( simulator_field_name );
             }
-            Logger::warning( "[GeosExporter] Attribute name \"", attribute_name,
-                "\" cannot be used in GEOS lists, it is "
-                "exported as ",
-                valid_name, "." );
+            Logger::warning( naming.context, " Attribute name \"",
+                attribute_name, "\" cannot be used in ", naming.simulator_name,
+                " lists, it is exported as ", valid_name, "." );
         }
         const std::string_view name{ valid_name };
         if( !manager.attribute_ids_matching_name( name ) )
         {
             return valid_name;
         }
-        auto unique_name = absl::StrCat( name, "_", geos_name );
+        auto unique_name = absl::StrCat( name, "_", simulator_field_name );
         for( index_t suffix{ 0 };
-            manager.attribute_ids_matching_name( unique_name ); suffix++ )
+             manager.attribute_ids_matching_name( unique_name ); suffix++ )
         {
-            unique_name = absl::StrCat( name, "_", geos_name, "_", suffix );
+            unique_name =
+                absl::StrCat( name, "_", simulator_field_name, "_", suffix );
         }
-        Logger::warning( "[GeosExporter] Attribute name ", name,
+        Logger::warning( naming.context, " Attribute name ", name,
             " is already exported, it is exported as ", unique_name, "." );
         return unique_name;
     }
 
-    std::optional< std::string > transfer_block_attribute( const BRep& model,
+    std::optional< std::string > transfer_block_attribute(
+        const SimulationNaming& naming,
+        const BRep& model,
         SolidMesh3D& solid,
         absl::Span< const index_t > block_polyhedra_offsets,
         const PhysicalProperties::Info& property_info,
-        std::string_view geos_name )
+        std::string_view simulator_field_name )
     {
         const auto& attribute_id = property_info.attribute_id;
         OpenGeodeGeosciencesIOModelException::check_exception(
             property_info.component_type == Block3D::component_type_static(),
-            nullptr, OpenGeodeException::TYPE::data,
-            "[GeosExporter] Physical property attribute ",
-            attribute_id.string(),
+            nullptr, OpenGeodeException::TYPE::data, naming.context,
+            " Physical property attribute ", attribute_id.string(),
             " must be defined on Blocks to be exported." );
         std::optional< std::string > attribute_type;
         std::optional< std::string > attribute_name;
@@ -242,9 +245,10 @@ namespace geode::internal
                 block.mesh().polyhedron_attribute_manager();
             if( !block_manager.attribute_exists( attribute_id ) )
             {
-                Logger::warning( "[GeosExporter] Physical property attribute ",
-                    attribute_id.string(), " is missing on Block ",
-                    block.id().string(), ", it is not exported." );
+                Logger::warning( naming.context,
+                    " Physical property attribute ", attribute_id.string(),
+                    " is missing on Block ", block.id().string(),
+                    ", it is not exported." );
                 return std::nullopt;
             }
             const auto type = block_manager.attribute_type( attribute_id );
@@ -257,14 +261,13 @@ namespace geode::internal
             }
             OpenGeodeGeosciencesIOModelException::check_exception(
                 type == attribute_type.value(), nullptr,
-                OpenGeodeException::TYPE::data,
-                "[GeosExporter] Physical property attribute ",
-                attribute_id.string(),
+                OpenGeodeException::TYPE::data, naming.context,
+                " Physical property attribute ", attribute_id.string(),
                 " has different value types on Blocks." );
         }
         OpenGeodeGeosciencesIOModelException::check_exception(
             attribute_name.has_value(), nullptr, OpenGeodeException::TYPE::data,
-            "[GeosExporter] Physical property attribute ",
+            naming.context, " Physical property attribute ",
             attribute_id.string(), " has no name." );
         auto& solid_manager = solid.polyhedron_attribute_manager();
         if( const auto attribute =
@@ -273,15 +276,15 @@ namespace geode::internal
             // Attribute already exported for another physical property
             return attribute->name().value();
         }
-        const auto vtu_name = unique_attribute_name(
-            solid_manager, attribute_name.value(), geos_name );
+        const auto vtu_name = unique_attribute_name( naming, solid_manager,
+            attribute_name.value(), simulator_field_name );
         OpenGeodeGeosciencesIOModelException::check_exception(
             copy_block_attribute( model, block_polyhedra_offsets,
                 attribute_type.value(), vtu_name, attribute_id, solid_manager,
                 SupportedBlockAttributeTypes{} ),
-            nullptr, OpenGeodeException::TYPE::data,
-            "[GeosExporter] Physical property attribute ",
-            attribute_name.value(), " has an unsupported value type." );
+            nullptr, OpenGeodeException::TYPE::data, naming.context,
+            " Physical property attribute ", attribute_name.value(),
+            " has an unsupported value type." );
         return vtu_name;
     }
 } // namespace geode::internal

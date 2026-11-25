@@ -40,7 +40,7 @@ namespace geode::internal
     struct GeosExportData
     {
         /// GEOS regions of the exporter
-        GeosRegions regions;
+        SimulationRegions regions;
         /// Names of the well perforation sets given to the exporter
         std::vector< std::string > well_names;
     };

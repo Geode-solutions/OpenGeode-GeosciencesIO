@@ -46,18 +46,33 @@ namespace geode
     struct ModelToMeshMappings;
 } // namespace geode
 
-// Block physical properties copied on the GEOS solid cells
+// Block physical properties copied on the simulator solid cells
 namespace geode::internal
 {
     using StressTensor = std::array< double, 6 >;
 
-    // Factor converting model stresses and normal tractions to GEOS, which
-    // counts tensions positively
-    [[nodiscard]] double geos_stress_factor( const PhysicalProblem& problem );
+    // Simulator conventions of the messages and attribute names
+    struct SimulationNaming
+    {
+        // Prefix of the exception and warning messages
+        std::string_view context;
+        // Simulator name used in the warnings
+        std::string_view simulator_name;
+        // Whether a solid attribute name can be used by the simulator
+        bool ( *is_valid_name )( std::string_view );
+        // Characters of an invalid name replaced by '_'
+        std::string_view invalid_characters;
+    };
+
+    // Factor converting model stresses and normal tractions to the simulator
+    // convention (tensions positive or compressions positive)
+    [[nodiscard]] double stress_factor(
+        const PhysicalProblem& problem, bool simulator_tension_positive );
 
     // Block values are read one by one: importing one ConstantAttribute per
     // Block onto the solid would keep only the last Block value.
-    void transfer_stress_components( const BRep& model,
+    void transfer_stress_components( const SimulationNaming& naming,
+        const BRep& model,
         const ModelToMeshMappings& model2solid,
         const PhysicalProperties::Info& property_info,
         std::string_view name,
@@ -65,19 +80,23 @@ namespace geode::internal
         double factor,
         VariableAttribute< StressTensor >& tensor );
 
-    // Name of a new solid attribute, valid in GEOS lists and different from
-    // the already exported ones
+    // Name of a new solid attribute, valid for the simulator and different
+    // from the already exported ones. simulator_field_name is the name of the
+    // simulator field reading the attribute: fallback for an empty name and
+    // suffix making the name unique.
     [[nodiscard]] std::string unique_attribute_name(
+        const SimulationNaming& naming,
         const AttributeManager& manager,
         std::string_view attribute_name,
-        std::string_view geos_name );
+        std::string_view simulator_field_name );
 
     // Copies the property attribute of the Blocks on the solid cells: name
     // of the solid attribute, none if a Block lacks the attribute
     [[nodiscard]] std::optional< std::string > transfer_block_attribute(
+        const SimulationNaming& naming,
         const BRep& model,
         SolidMesh3D& solid,
         absl::Span< const index_t > block_polyhedra_offsets,
         const PhysicalProperties::Info& property_info,
-        std::string_view geos_name );
+        std::string_view simulator_field_name );
 } // namespace geode::internal

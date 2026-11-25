@@ -28,6 +28,7 @@
 #include <typeinfo>
 
 #include <absl/algorithm/container.h>
+#include <absl/container/flat_hash_map.h>
 #include <absl/strings/str_format.h>
 
 #include <geode/basic/attribute_manager.hpp>
@@ -45,29 +46,6 @@
 namespace
 {
     using geode::internal::TableCoordinates;
-
-    template < typename T >
-    std::string_view value_type_name();
-
-    template <>
-    std::string_view value_type_name< double >()
-    {
-        return "double";
-    }
-
-    template <>
-    std::string_view value_type_name< std::array< double, 3 > >()
-    {
-        return "std::array< double, 3 >";
-    }
-
-    template < typename T >
-    bool is_uniform( absl::Span< const T > values )
-    {
-        return absl::c_all_of( values, [&values]( const T& value ) {
-            return value == values.front();
-        } );
-    }
 
     // Sorted coordinates of the given polygon centers along an axis, the ones
     // closer than GLOBAL_EPSILON being merged
@@ -173,87 +151,6 @@ namespace
 
 namespace geode::internal
 {
-    template < typename T >
-    std::optional< std::vector< T > > surface_values(
-        const geode::Surface3D& surface, const geode::uuid& attribute_id )
-    {
-        const auto& mesh = surface.mesh();
-        const auto& manager = mesh.polygon_attribute_manager();
-        if( !manager.attribute_exists( attribute_id )
-            || mesh.nb_polygons() == 0 )
-        {
-            return std::nullopt;
-        }
-        geode::OpenGeodeGeosciencesIOModelException::check_exception(
-            manager.attribute_type( attribute_id ) == typeid( T ).name(),
-            nullptr, geode::OpenGeodeException::TYPE::data,
-            "[GeosExporter] Boundary condition attribute ",
-            attribute_id.string(), " on Surface ", surface.id().string(),
-            " must store ", value_type_name< T >(), " values." );
-        const auto attribute =
-            manager.find_read_only_attribute< T >( attribute_id );
-        if( const auto* constant =
-                dynamic_cast< const geode::ConstantAttribute< T >* >(
-                    attribute.get() ) )
-        {
-            return std::vector< T >{ constant->value() };
-        }
-        std::vector< T > values;
-        values.reserve( mesh.nb_polygons() );
-        for( const auto polygon_id : geode::Range{ mesh.nb_polygons() } )
-        {
-            geode::OpenGeodeGeosciencesIOModelException::check_exception(
-                attribute->has_value( polygon_id ), nullptr,
-                geode::OpenGeodeException::TYPE::data,
-                "[GeosExporter] Boundary condition attribute ",
-                attribute_id.string(), " has no value on polygon ", polygon_id,
-                " of Surface ", surface.id().string(),
-                ". Boundary conditions must be defined on every polygon of "
-                "a Surface." );
-            values.push_back( attribute->value( polygon_id ) );
-        }
-        return values;
-    }
-
-    template < typename T >
-    SurfaceValueGroups< T > group_surface_values( const BRep& model,
-        const absl::flat_hash_map< geode::uuid, geode::index_t >&
-            surface_regions,
-        const geode::uuid& attribute_id )
-    {
-        SurfaceValueGroups< T > groups;
-        for( const auto& surface : model.surfaces() )
-        {
-            auto values = surface_values< T >( surface, attribute_id );
-            if( !values )
-            {
-                continue;
-            }
-            const auto region_id = surface_regions.at( surface.id() );
-            if( is_uniform< T >( values.value() ) )
-            {
-                groups.uniform_regions[values->front()].push_back( region_id );
-                continue;
-            }
-            groups.variable_surfaces.push_back(
-                { &surface, region_id, std::move( values.value() ) } );
-        }
-        return groups;
-    }
-
-    std::vector< double > axis_values(
-        absl::Span< const std::array< double, 3 > > values,
-        geode::local_index_t axis )
-    {
-        std::vector< double > component_values;
-        component_values.reserve( values.size() );
-        for( const auto& value : values )
-        {
-            component_values.push_back( value[axis] );
-        }
-        return component_values;
-    }
-
     geode::Point3D face_center(
         const geode::SurfaceMesh3D& mesh, geode::index_t polygon_id )
     {
@@ -377,12 +274,4 @@ namespace geode::internal
             "[GeosExporter] Cannot write file ", filename );
     }
 
-    template std::optional< std::vector< double > > surface_values(
-        const Surface3D&, const uuid& );
-    template std::optional< std::vector< std::array< double, 3 > > >
-        surface_values( const Surface3D&, const uuid& );
-    template SurfaceValueGroups< double > group_surface_values(
-        const BRep&, const absl::flat_hash_map< uuid, index_t >&, const uuid& );
-    template SurfaceValueGroups< std::array< double, 3 > > group_surface_values(
-        const BRep&, const absl::flat_hash_map< uuid, index_t >&, const uuid& );
 } // namespace geode::internal

@@ -22,13 +22,10 @@
  */
 #include <string_view>
 
-#include <absl/container/flat_hash_map.h>
-#include <absl/strings/str_cat.h>
-
 #include <geode/geosciences_io/model/helpers/brep_geos_export.hpp>
 
 #include <geode/geosciences_io/model/internal/geos_export.hpp>
-#include <geode/model/mixin/core/block.hpp>
+#include <geode/geosciences_io/model/internal/simulation_regions.hpp>
 #include <geode/model/representation/core/brep.hpp>
 
 #include <geode/basic/pimpl_impl.hpp>
@@ -48,22 +45,10 @@ namespace geode
         virtual ~Impl() = default;
 
     protected:
-        [[nodiscard]] internal::GeosRegions create_region_definitions(
+        [[nodiscard]] internal::SimulationRegions create_region_definitions(
             const BRep& model ) const final
         {
-            internal::GeosRegions definitions;
-            for( const auto& block : model.blocks() )
-            {
-                const auto region_id =
-                    static_cast< index_t >( definitions.solid_regions.size() );
-                definitions.solid_regions.push_back(
-                    { region_id, absl::StrCat( "region_", region_id ),
-                        block.name().value_or( block.id().string() ),
-                        block.id() } );
-                definitions.block_regions.emplace( block.id(), region_id );
-                definitions.regions_by_uuid[block.id()].push_back( region_id );
-            }
-            return definitions;
+            return internal::brep_block_regions( model );
         }
     };
 

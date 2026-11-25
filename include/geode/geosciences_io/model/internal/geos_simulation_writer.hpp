@@ -43,7 +43,7 @@ namespace geode::internal
 {
     struct GeosDeckContext;
     struct GeosImportedField;
-    struct GeosRegionAssignment;
+    struct RegionAssignment;
 } // namespace geode::internal
 
 namespace geode::internal
@@ -60,8 +60,8 @@ namespace geode::internal
     public:
         GeosSimulationWriter( const PhysicalProblem& problem,
             const GeosDeckContext& context,
-            const GeosRegionAssignment& materials,
-            const GeosRegionAssignment& initial_conditions );
+            const RegionAssignment& materials,
+            const RegionAssignment& initial_conditions );
         ~GeosSimulationWriter();
 
         /// Model arrays to write in the VTU file and import in GEOS

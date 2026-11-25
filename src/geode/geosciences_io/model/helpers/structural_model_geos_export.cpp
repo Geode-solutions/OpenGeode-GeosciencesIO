@@ -23,12 +23,10 @@
 
 #include <string_view>
 
-#include <absl/container/flat_hash_map.h>
-#include <absl/strings/str_cat.h>
-
 #include <geode/geosciences_io/model/helpers/structural_model_geos_export.hpp>
 
 #include <geode/geosciences_io/model/internal/geos_export.hpp>
+#include <geode/geosciences_io/model/internal/simulation_regions.hpp>
 
 #include <geode/geosciences/explicit/mixin/core/stratigraphic_units.hpp>
 
@@ -36,8 +34,6 @@
 
 #include <geode/basic/logger.hpp>
 #include <geode/basic/pimpl_impl.hpp>
-
-#include <geode/model/mixin/core/block.hpp>
 
 namespace geode
 {
@@ -50,61 +46,17 @@ namespace geode
         Impl() = delete;
         Impl( const StructuralModel& model, std::string_view files_directory )
             : internal::GeosExporterImpl< StructuralModel >(
-                  files_directory, model )
+                files_directory, model )
         {
         }
         virtual ~Impl() = default;
 
     protected:
-        [[nodiscard]] internal::GeosRegions create_region_definitions(
+        [[nodiscard]] internal::SimulationRegions create_region_definitions(
             const StructuralModel& model ) const final
         {
-            internal::GeosRegions definitions;
-            for( const auto& unit : model.stratigraphic_units() )
-            {
-                const auto region_id = add_region( definitions,
-                    unit.name().value_or( unit.id().string() ), unit.id() );
-                for( const auto& block :
-                    model.stratigraphic_unit_items( unit ) )
-                {
-                    if( !definitions.block_regions
-                            .emplace( block.id(), region_id )
-                            .second )
-                    {
-                        Logger::warning( "[StructuralModelGeosExporter] Block ",
-                            block.id().string(),
-                            " belongs to several StratigraphicUnits, only the "
-                            "first one is used as its region." );
-                        continue;
-                    }
-                    definitions.merged_blocks.emplace( block.id(), region_id );
-                }
-            }
-            for( const auto& block : model.blocks() )
-            {
-                if( definitions.block_regions.contains( block.id() ) )
-                {
-                    continue;
-                }
-                const auto region_id = add_region( definitions,
-                    block.name().value_or( block.id().string() ), block.id() );
-                definitions.block_regions.emplace( block.id(), region_id );
-            }
-            return definitions;
-        }
-
-    private:
-        static index_t add_region( internal::GeosRegions& definitions,
-            std::string_view component_name,
-            const uuid& component_id )
-        {
-            const auto region_id =
-                static_cast< index_t >( definitions.solid_regions.size() );
-            definitions.solid_regions.push_back(
-                { region_id, absl::StrCat( "region_", region_id ),
-                    to_string( component_name ), component_id } );
-            definitions.regions_by_uuid[component_id].push_back( region_id );
-            return region_id;
+            return internal::structural_model_unit_regions(
+                model, "[StructuralModelGeosExporter]" );
         }
     };
 

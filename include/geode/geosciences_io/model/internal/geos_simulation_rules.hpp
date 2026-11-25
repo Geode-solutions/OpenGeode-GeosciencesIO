@@ -26,9 +26,8 @@
 #include <optional>
 #include <string>
 
-#include <absl/container/flat_hash_map.h>
-
 #include <geode/geosciences_io/model/common.hpp>
+#include <geode/geosciences_io/model/internal/simulation_xml.hpp>
 
 namespace geode
 {
@@ -39,17 +38,17 @@ namespace geode
 
 namespace geode::internal
 {
-    struct GeosBoundaryConditions;
-    struct GeosRegionAssignment;
-    struct GeosRegions;
+    struct ModelBoundaryConditions;
 } // namespace geode::internal
 
 // GEOS rules shared by the deck writer and GeosSimulationChecker
 namespace geode::internal
 {
     /// XPath of the generated nodes that "geos" solver options can modify
-    [[nodiscard]] const absl::flat_hash_map< std::string, std::string >&
-        geos_solver_option_roles();
+    [[nodiscard]] const SolverOptionRoles& geos_solver_option_roles();
+
+    /// The "geos" solver options, as read by the writer and the checker
+    [[nodiscard]] SimulatorSolverOptions geos_solver_options();
 
     /*!
      * Temperature of an isothermal GEOS simulation: the one shared by every
@@ -64,25 +63,9 @@ namespace geode::internal
      */
     [[nodiscard]] std::optional< double > geos_default_boundary_temperature(
         const PhysicalProblem& problem,
-        const GeosBoundaryConditions& boundary_conditions );
+        const ModelBoundaryConditions& boundary_conditions );
 
     /// Name of the GEOS SourceFlux of a source term
     [[nodiscard]] std::string geos_source_term_name(
         const SourceTerm& source_term );
-
-    /*!
-     * Material of each solid region, with the materials GEOS cannot assign.
-     * Blocks covered by several materials or by none are not issues here:
-     * SimulationChecker reports them.
-     */
-    [[nodiscard]] GeosRegionAssignment assign_geos_materials(
-        const PhysicalProblem& problem,
-        const BRep& model,
-        const GeosRegions& regions );
-
-    /// Initial condition of each solid region, assigned as materials are
-    [[nodiscard]] GeosRegionAssignment assign_geos_initial_conditions(
-        const PhysicalProblem& problem,
-        const BRep& model,
-        const GeosRegions& regions );
 } // namespace geode::internal

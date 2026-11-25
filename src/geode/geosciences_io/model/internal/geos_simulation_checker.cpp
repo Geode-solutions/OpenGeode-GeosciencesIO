@@ -33,7 +33,6 @@
 
 #include <absl/algorithm/container.h>
 #include <absl/strings/str_cat.h>
-#include <absl/strings/str_split.h>
 #include <absl/types/span.h>
 
 #include <geode/basic/range.hpp>
@@ -56,6 +55,7 @@
 
 #include <geode/geosciences_io/model/internal/geos_deck_context.hpp>
 #include <geode/geosciences_io/model/internal/geos_simulation_rules.hpp>
+#include <geode/geosciences_io/model/internal/simulation_checks.hpp>
 
 namespace
 {
@@ -117,7 +117,8 @@ namespace
         }
 
         void check_boundary_conditions(
-            const geode::internal::GeosBoundaryConditions& boundary_conditions )
+            const geode::internal::ModelBoundaryConditions&
+                boundary_conditions )
         {
             if( !has_fluid() )
             {
@@ -151,7 +152,8 @@ namespace
 
     private:
         void check_single_phase_boundary_conditions(
-            const geode::internal::GeosBoundaryConditions& boundary_conditions )
+            const geode::internal::ModelBoundaryConditions&
+                boundary_conditions )
         {
             if( problem_.thermal() && boundary_conditions.has_pressure
                 && !boundary_conditions.has_temperature )
@@ -324,17 +326,10 @@ namespace
             {
                 const auto subject =
                     absl::StrCat( "Source term on well \"", source.well, "\"" );
-                if( well_names
-                    && absl::c_find( well_names.value(), source.well )
-                           == well_names->end() )
+                if( well_names )
                 {
-                    geode::SimulationIssue issue{
-                        geode::SIMULATION_ISSUE_SEVERITY::error,
-                        geode::SIMULATION_CHECK_STAGE::simulator, subject,
-                        "the well has no perforations given to the exporter"
-                    };
-                    issue.fix = "add the well perforations to the exporter";
-                    report_.add_issue( std::move( issue ) );
+                    geode::internal::check_source_term_well(
+                        source, well_names.value(), report_ );
                 }
                 if( !is_geos_name(
                         geode::internal::geos_source_term_name( source ) ) )
@@ -354,23 +349,16 @@ namespace
 
         void check_solver_options()
         {
-            const auto& roles = geode::internal::geos_solver_option_roles();
-            for( const auto& [key, value] :
-                problem_.solver_options().options( "geos" ) )
-            {
-                const std::vector< std::string_view > parts =
-                    absl::StrSplit( key, absl::MaxSplits( '/', 1 ) );
-                if( parts.size() != 2 || parts[1].empty()
-                    || !roles.contains( parts[0] ) )
-                {
-                    add_issue( "Solver options", "GEOS solver option \"", key,
-                        R"(" must be "<role>/<attribute>" with a known role)" );
-                }
-            }
+            geode::internal::check_solver_option_keys( problem_,
+                geode::internal::geos_solver_options(),
+                [this]( std::string_view message ) {
+                    add_issue( "Solver options", message );
+                } );
         }
 
         void check_boundary_components(
-            const geode::internal::GeosBoundaryConditions& boundary_conditions )
+            const geode::internal::ModelBoundaryConditions&
+                boundary_conditions )
         {
             std::vector< bool > has_fraction(
                 fluid().components().size(), false );
@@ -498,15 +486,15 @@ namespace geode::internal
         check_rock_properties();
         check_boundary_properties();
         problem_checker.check_boundary_conditions(
-            geos_boundary_conditions( model ) );
+            model_boundary_conditions( model ) );
         if( export_data_ )
         {
-            add_issues(
-                assign_geos_materials( problem, model, export_data_->regions )
-                    .issues,
+            add_issues( assign_region_materials(
+                            problem, model, export_data_->regions, "GEOS" )
+                            .issues,
                 report() );
-            add_issues( assign_geos_initial_conditions(
-                            problem, model, export_data_->regions )
+            add_issues( assign_region_initial_conditions(
+                            problem, model, export_data_->regions, "GEOS" )
                             .issues,
                 report() );
         }

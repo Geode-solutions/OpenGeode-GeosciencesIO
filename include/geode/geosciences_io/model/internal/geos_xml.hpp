@@ -30,11 +30,6 @@
 
 #include <geode/geosciences_io/model/common.hpp>
 
-namespace pugi
-{
-    class xml_node;
-} // namespace pugi
-
 namespace geode::internal
 {
     /// Real value written with the fewest significant digits (at least 15)
@@ -52,13 +47,4 @@ namespace geode::internal
     inline constexpr std::string_view GEOS_LIST_SEPARATORS{ " \t\n\r,{}" };
 
     [[nodiscard]] bool is_valid_geos_list_item( std::string_view name );
-
-    void set_attribute( pugi::xml_node& node,
-        std::string_view attribute,
-        std::string_view value );
-
-    void set_real_attribute(
-        pugi::xml_node& node, std::string_view attribute, double value );
-
-    void add_comment( pugi::xml_node& node, std::string_view comment );
 } // namespace geode::internal

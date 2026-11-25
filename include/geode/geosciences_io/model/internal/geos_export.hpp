@@ -46,6 +46,8 @@
 
 #include <geode/geosciences_io/model/common.hpp>
 #include <geode/geosciences_io/model/internal/geos_deck_context.hpp>
+#include <geode/geosciences_io/model/internal/simulation_export.hpp>
+#include <geode/geosciences_io/model/internal/simulation_solid.hpp>
 
 namespace pugi
 {
@@ -77,44 +79,37 @@ namespace geode::internal
 namespace geode::internal
 {
     template < typename Model >
-    class GeosExporterImpl
+    class GeosExporterImpl : public SimulationExporterImpl< Model >
     {
         OPENGEODE_DISABLE_COPY_AND_MOVE( GeosExporterImpl );
 
     public:
         GeosExporterImpl() = delete;
         GeosExporterImpl(
-            std::string_view files_directory, const Model& model );
-        virtual ~GeosExporterImpl();
+            std::string_view directory, const Model& exported_model );
+        ~GeosExporterImpl() override;
 
         void prepare_export();
         void write_files() const;
 
-        void add_well_perforations(
-            const PointSet3D& perforations, std::string_view name );
-
-        /// Writes a full simulation deck instead of the mesh and boundary
-        /// conditions only. The problem must outlive the export.
-        void set_physical_problem( const PhysicalProblem& problem );
-
     protected:
-        std::string_view files_directory() const;
-        std::string_view prefix() const;
+        using SimulationExporterImpl< Model >::model;
+        using SimulationExporterImpl< Model >::problem;
+        using SimulationExporterImpl< Model >::files_directory;
+        using SimulationExporterImpl< Model >::prefix;
+        using SimulationExporterImpl< Model >::well_perforations;
+        using SimulationExporterImpl< Model >::well_names;
 
         void convert_model();
-        void compute_block_polyhedra_offsets();
         void clear_export();
         void define_regions();
-        index_t initialize_solid_region_attribute();
-        void add_block_collection_regions();
+        [[nodiscard]] index_t nb_solid_regions() const;
         void initialize_surface_cells( index_t first_surface_region_id );
-        [[nodiscard]] virtual GeosRegions create_region_definitions(
+        [[nodiscard]] virtual SimulationRegions create_region_definitions(
             const Model& model ) const = 0;
 
         void compute_well_boxes();
         void write_well_perforations_boxes( pugi::xml_node& root ) const;
-        [[nodiscard]] index_t containing_cell(
-            const AABBTree3D& aabb, const Point3D& point ) const;
         void write_mesh_files( pugi::xml_node& root ) const;
         void write_boundary_conditions( pugi::xml_node& root ) const;
         void write_boundary_functions( pugi::xml_node& root ) const;
@@ -125,7 +120,7 @@ namespace geode::internal
         VariableAttribute< std::array< double, 6 > >& initial_stress_tensor();
         void compute_grain_bulk_modulus();
         void add_initial_pore_pressure(
-            const GeosRegionAssignment& initial_conditions );
+            const RegionAssignment& initial_conditions );
         void transfer_boundary_conditions();
         void transfer_mechanics_boundary_conditions();
         void transfer_displacements( const uuid& attribute_id );
@@ -144,6 +139,8 @@ namespace geode::internal
         void write_boundary_table_files() const;
 
     private:
+        void check_well_name( std::string_view name ) const override;
+
         enum struct BOUNDARY_KIND
         {
             field,
@@ -196,41 +193,27 @@ namespace geode::internal
             std::string_view name );
 
     private:
-        const Model& model_;
-        std::unique_ptr< SolidMesh3D > model_solid_{};
-        ModelToMeshMappings model2solid_;
-        // First solid polyhedron of each Block, in the model Block order,
-        // followed by the number of solid polyhedra
-        std::vector< index_t > block_polyhedra_offsets_{};
-
-        uuid region_attribute_id_;
-        std::shared_ptr< VariableAttribute< index_t > > region_attribute_{};
+        std::optional< SimulationSolid > solid_{};
 
         std::vector< PolygonVertices > surface_cells_{};
         std::vector< index_t > surface_cells_region_{};
         absl::flat_hash_map< uuid, index_t > surface_regions_{};
-
-        std::string files_directory_;
-        std::string prefix_;
 
         std::vector< std::pair< std::string, std::string > > imported_fields_{};
         std::vector< BoundaryCondition > boundary_conditions_{};
         absl::flat_hash_map< uuid, BoundaryGrid > boundary_grids_{};
         std::vector< BoundaryTable > boundary_tables_{};
 
-        std::vector< std::unique_ptr< PointSet3D > > well_perforations_{};
-        std::vector< std::string > well_names_{};
         // Perforated cells box of each well, none if outside the model
         std::vector< std::optional< BoundingBox3D > > well_boxes_{};
 
-        GeosRegions region_definitions_{};
+        SimulationRegions region_definitions_{};
         std::optional< uuid > porosity_attribute_id_{};
         std::optional< uuid > permeability_attribute_id_{};
         absl::flat_hash_map< PHYSICAL_PROPERTY_NAME, uuid >
             mechanics_attribute_ids_{};
         std::optional< uuid > initial_stress_attribute_id_{};
         std::optional< uuid > grain_bulk_modulus_attribute_id_{};
-        const PhysicalProblem* problem_{ nullptr };
         GeosDeckContext context_{};
         std::unique_ptr< GeosSimulationWriter > writer_{};
     };

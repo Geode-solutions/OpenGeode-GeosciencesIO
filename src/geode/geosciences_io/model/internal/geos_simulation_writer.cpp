@@ -33,7 +33,6 @@
 
 #include <absl/algorithm/container.h>
 #include <absl/strings/str_cat.h>
-#include <absl/strings/str_split.h>
 
 #include <geode/basic/logger.hpp>
 #include <geode/basic/pimpl_impl.hpp>
@@ -54,6 +53,7 @@
 #include <geode/geosciences_io/model/internal/geos_deck_context.hpp>
 #include <geode/geosciences_io/model/internal/geos_simulation_rules.hpp>
 #include <geode/geosciences_io/model/internal/geos_xml.hpp>
+#include <geode/geosciences_io/model/internal/simulation_xml.hpp>
 
 namespace
 {
@@ -177,8 +177,8 @@ namespace geode::internal
     public:
         Impl( const PhysicalProblem& problem,
             const GeosDeckContext& context,
-            const GeosRegionAssignment& materials,
-            const GeosRegionAssignment& initial_conditions )
+            const RegionAssignment& materials,
+            const RegionAssignment& initial_conditions )
             : problem_( problem ),
               context_( context ),
               material_of_region_( assigned_items( materials ) ),
@@ -329,25 +329,12 @@ namespace geode::internal
 
         void apply_solver_options( pugi::xml_node& problem_node ) const
         {
-            const auto& roles = geos_solver_option_roles();
-            for( const auto& [key, value] :
-                problem_.solver_options().options( "geos" ) )
-            {
-                const std::vector< std::string > parts =
-                    absl::StrSplit( key, absl::MaxSplits( '/', 1 ) );
-                const auto& xpath = roles.at( parts[0] );
-                const auto nodes = problem_node.select_nodes( xpath.c_str() );
-                if( nodes.empty() )
-                {
-                    Logger::warning( "[GeosExporter] Solver option ", key,
-                        " ignored: no ", parts[0], " node in the deck" );
-                }
-                for( const auto& selected : nodes )
-                {
-                    auto node = selected.node();
-                    set_attribute( node, parts[1], value );
-                }
-            }
+            geode::internal::apply_solver_options( problem_node, problem_,
+                geos_solver_options(),
+                []( pugi::xml_node& node, std::string_view name,
+                    std::string_view value ) {
+                    set_attribute( node, name, value );
+                } );
         }
 
     private:
@@ -395,7 +382,7 @@ namespace geode::internal
         }
 
         [[nodiscard]] static std::vector< index_t > assigned_items(
-            const GeosRegionAssignment& assignment )
+            const RegionAssignment& assignment )
         {
             std::vector< index_t > items;
             items.reserve( assignment.region_items.size() );
@@ -444,8 +431,8 @@ namespace geode::internal
                 const auto components =
                     context_.permeability_array
                         ? material.permeability.value_or(
-                              context_.mean_permeability.value_or(
-                                  std::array< double, 3 >{ 0, 0, 0 } ) )
+                            context_.mean_permeability.value_or(
+                                std::array< double, 3 >{ 0, 0, 0 } ) )
                         : material.permeability.value();
                 material_permeability_group_.push_back(
                     permeability_group( components ) );
@@ -1279,8 +1266,8 @@ namespace geode::internal
 
     GeosSimulationWriter::GeosSimulationWriter( const PhysicalProblem& problem,
         const GeosDeckContext& context,
-        const GeosRegionAssignment& materials,
-        const GeosRegionAssignment& initial_conditions )
+        const RegionAssignment& materials,
+        const RegionAssignment& initial_conditions )
         : impl_( problem, context, materials, initial_conditions )
     {
     }
