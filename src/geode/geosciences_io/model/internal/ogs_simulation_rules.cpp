@@ -275,6 +275,12 @@ namespace geode::internal
         return temperature.value_or( DEFAULT_REFERENCE_TEMPERATURE );
     }
 
+    bool is_isotropic( const std::array< double, 3 >& permeability )
+    {
+        return permeability[1] == permeability[0]
+               && permeability[2] == permeability[0];
+    }
+
     double ogs_storage( double porosity, double pore_compressibility )
     {
         return porosity * pore_compressibility;

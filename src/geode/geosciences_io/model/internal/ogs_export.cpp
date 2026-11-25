@@ -56,6 +56,8 @@
 #include <geode/model/representation/core/brep.hpp>
 
 #include <geode/geosciences/explicit/representation/core/structural_model.hpp>
+#include <geode/geosciences/simulation/core/flow_model.hpp>
+#include <geode/geosciences/simulation/core/fluid.hpp>
 #include <geode/geosciences/simulation/core/initial_condition.hpp>
 #include <geode/geosciences/simulation/core/material.hpp>
 #include <geode/geosciences/simulation/core/physical_problem.hpp>
@@ -326,6 +328,7 @@ namespace geode::internal
         porosity_.reset();
         permeability_.reset();
         storage_.reset();
+        cell_pressures_.clear();
         initial_pressure_ = OgsInitialValue{};
         initial_capillary_pressure_ = OgsInitialValue{};
         surfaces_.clear();
@@ -470,6 +473,14 @@ namespace geode::internal
                 }
             }
         }
+        if( permeability_ && is_two_phase() )
+        {
+            OpenGeodeGeosciencesIOModelException::check_exception(
+                absl::c_all_of( permeability_.value(), is_isotropic ), nullptr,
+                OpenGeodeException::TYPE::data, context_,
+                " OGS two-phase flow needs an isotropic permeability: the "
+                "model permeability differs along x, y and z." );
+        }
     }
 
     template < typename Model >
@@ -489,8 +500,9 @@ namespace geode::internal
         }
         const auto assignment = assign_region_initial_conditions(
             problem, this->model(), regions_, "OGS" );
-        std::vector< double > pressures;
-        pressures.reserve( bulk().nb_polyhedra() );
+        std::vector< index_t > cell_conditions;
+        cell_conditions.reserve( bulk().nb_polyhedra() );
+        cell_pressures_.clear();
         for( const auto cell : Range{ bulk().nb_polyhedra() } )
         {
             const auto& condition_id =
@@ -502,9 +514,109 @@ namespace geode::internal
             const auto& condition =
                 dynamic_cast< const UniformInitialCondition& >(
                     problem.initial_condition( condition_id.value() ) );
-            pressures.push_back( condition.pressure() );
+            cell_pressures_.push_back( condition.pressure() );
+            cell_conditions.push_back( condition_id.value() );
         }
-        initial_pressure_ = initial_value( "initial_pressure", pressures );
+        initial_pressure_ = initial_value( "initial_pressure", cell_pressures_ );
+        if( ogs_process( problem ) == OGS_PROCESS::two_phase_flow_pp )
+        {
+            compute_two_phase_values( cell_conditions );
+        }
+    }
+
+    template < typename Model >
+    double OgsExporterImpl< Model >::cell_capillary_pressure(
+        index_t cell, double water_fraction ) const
+    {
+        const auto& problem = *this->problem();
+        const auto& fluid =
+            dynamic_cast< const DeadOilFluid& >( problem.fluid() );
+        std::vector< double > composition( fluid.components().size(), 0. );
+        composition[phase_component( fluid, PHASE::water ).value()] =
+            water_fraction;
+        composition[phase_component( fluid, PHASE::oil ).value()] =
+            1. - water_fraction;
+        const auto basis =
+            dynamic_cast< const MultiphaseFlow& >( problem.flow() ).basis();
+        const auto saturation = water_saturation(
+            fluid, basis, composition, cell_pressures_[cell] );
+        const auto& material = problem.materials()[static_cast< index_t >(
+            material_ids_[cell] )];
+        return capillary_pressure( *material.capillary_pressure, saturation );
+    }
+
+    template < typename Model >
+    void OgsExporterImpl< Model >::compute_two_phase_values(
+        absl::Span< const index_t > cell_conditions )
+    {
+        const auto& problem = *this->problem();
+        const auto& fluid =
+            dynamic_cast< const DeadOilFluid& >( problem.fluid() );
+        const auto water = phase_component( fluid, PHASE::water ).value();
+        std::vector< double > capillary_pressures;
+        capillary_pressures.reserve( cell_conditions.size() );
+        for( const auto cell : Indices{ cell_conditions } )
+        {
+            const auto& condition =
+                dynamic_cast< const UniformInitialCondition& >(
+                    problem.initial_condition( cell_conditions[cell] ) );
+            capillary_pressures.push_back( cell_capillary_pressure(
+                cell, condition.composition()[water] ) );
+        }
+        initial_capillary_pressure_ = initial_value(
+            "initial_capillary_pressure", capillary_pressures );
+        convert_boundary_water_fractions();
+    }
+
+    template < typename Model >
+    void OgsExporterImpl< Model >::convert_boundary_water_fractions()
+    {
+        for( auto& boundary : boundary_meshes_ )
+        {
+            if( boundary.property
+                != PHYSICAL_PROPERTY_NAME::boundary_water_fraction )
+            {
+                continue;
+            }
+            auto& mesh = boundary.mesh;
+            const auto nb_points = mesh.points.size();
+            std::vector< double > fractions( nb_points,
+                boundary.value.value_or( 0. ) );
+            if( !boundary.value )
+            {
+                fractions = mesh.point_arrays.front().second;
+            }
+            std::vector< double > sums( nb_points, 0. );
+            std::vector< index_t > counts( nb_points, 0 );
+            for( const auto cell : Indices{ mesh.cells } )
+            {
+                const auto bulk_cell =
+                    static_cast< index_t >( mesh.bulk_element_ids[cell] );
+                for( const auto vertex : mesh.cells[cell] )
+                {
+                    sums[vertex] += cell_capillary_pressure(
+                        bulk_cell, fractions[vertex] );
+                    counts[vertex]++;
+                }
+            }
+            std::vector< double > pressures;
+            pressures.reserve( nb_points );
+            for( const auto vertex : Range{ nb_points } )
+            {
+                pressures.push_back(
+                    sums[vertex] / static_cast< double >( counts[vertex] ) );
+            }
+            mesh.point_arrays.clear();
+            if( absl::c_all_of( pressures, [&pressures]( double value ) {
+                    return value == pressures.front();
+                } ) )
+            {
+                boundary.value = pressures.front();
+                continue;
+            }
+            boundary.value.reset();
+            mesh.point_arrays.emplace_back( "values", std::move( pressures ) );
+        }
     }
 
     template < typename Model >
@@ -543,6 +655,14 @@ namespace geode::internal
             }
         }
         return { std::nullopt, to_string( field ) };
+    }
+
+    template < typename Model >
+    bool OgsExporterImpl< Model >::is_two_phase() const
+    {
+        return this->problem() != nullptr
+               && ogs_process( *this->problem() )
+                      == OGS_PROCESS::two_phase_flow_pp;
     }
 
     template < typename Model >
@@ -700,10 +820,23 @@ namespace geode::internal
         }
         if( permeability_ )
         {
-            add_cell_attribute( cells,
-                physical_property_string(
-                    PHYSICAL_PROPERTY_NAME::permeability ),
-                permeability_.value() );
+            const auto name = physical_property_string(
+                PHYSICAL_PROPERTY_NAME::permeability );
+            if( is_two_phase() )
+            {
+                // TWOPHASE_FLOW_PP reads a scalar permeability
+                std::vector< double > scalars;
+                scalars.reserve( permeability_->size() );
+                for( const auto& value : permeability_.value() )
+                {
+                    scalars.push_back( value[0] );
+                }
+                add_cell_attribute( cells, name, scalars );
+            }
+            else
+            {
+                add_cell_attribute( cells, name, permeability_.value() );
+            }
         }
         const auto written = save_simulation_vtu(
             absl::StrCat( this->files_directory(), "/", bulk_file() ), bulk(),

@@ -289,6 +289,13 @@ namespace
             {
                 const auto subject =
                     geode::internal::material_subject( material.name );
+                if( material.permeability
+                    && !geode::internal::is_isotropic(
+                        material.permeability.value() ) )
+                {
+                    add_issue( subject, "OGS two-phase flow needs an "
+                                        "isotropic permeability" );
+                }
                 if( material.relative_permeability )
                 {
                     check_law( subject, [&material] {

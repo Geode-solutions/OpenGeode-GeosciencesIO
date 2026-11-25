@@ -90,6 +90,10 @@ namespace geode::internal
     [[nodiscard]] double opengeode_geosciencesio_model_api
         ogs_reference_temperature( const PhysicalProblem& problem );
 
+    /// Same permeability along x, y and z: TWOPHASE_FLOW_PP reads a scalar
+    [[nodiscard]] bool opengeode_geosciencesio_model_api is_isotropic(
+        const std::array< double, 3 >& permeability );
+
     /// OGS storage (1/Pa) of a porosity with a relative pore compressibility
     [[nodiscard]] double opengeode_geosciencesio_model_api ogs_storage(
         double porosity, double pore_compressibility );

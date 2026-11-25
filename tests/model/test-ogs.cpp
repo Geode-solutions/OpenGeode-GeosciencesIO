@@ -523,6 +523,7 @@ geode::PhysicalProblem two_phase_problem()
         water_oil_fluid( { geode::PHASE::water, geode::PHASE::oil } ) );
     geode::PhysicalProblemBuilder builder{ problem };
     auto rock = rock_material( "rock" );
+    rock.permeability = std::array< double, 3 >{ 1e-13, 1e-13, 1e-13 };
     rock.relative_permeability =
         std::make_shared< geode::BrooksCoreyRelativePermeability >(
             std::vector< geode::PHASE >{
@@ -1378,6 +1379,178 @@ void test_ogs_structural_model_materials()
     }
 }
 
+std::shared_ptr< geode::DeadOilFluid > varying_oil_fluid()
+{
+    geode::HydrocarbonPvtTable oil;
+    oil.phase = geode::PHASE::oil;
+    oil.pressures = { 1e5, 1e7, 2e7 };
+    oil.formation_volume_factors = { 1.2, 1.1, 1.05 };
+    oil.viscosities = { 2e-3, 1.5e-3, 1.4e-3 };
+    return std::make_shared< geode::DeadOilFluid >(
+        std::vector< geode::PHASE >{ geode::PHASE::water, geode::PHASE::oil },
+        std::vector< geode::FluidComponent >{
+            { "water", 0.018 }, { "oil", 0.2 } },
+        std::vector< double >{ 1000., 800. },
+        std::vector< geode::HydrocarbonPvtTable >{ oil },
+        geode::WaterPvt{ 1e5, 1.01, 0., 1e-3 } );
+}
+
+geode::PhysicalProblem varying_oil_problem()
+{
+    auto problem = two_phase_problem();
+    const_cast< geode::FlowModel& >( problem.flow() )
+        .set_fluid( varying_oil_fluid() );
+    return problem;
+}
+
+double expected_capillary_pressure(
+    const geode::PhysicalProblem& problem, double water_fraction )
+{
+    const auto& fluid =
+        dynamic_cast< const geode::DeadOilFluid& >( problem.fluid() );
+    const std::array< double, 2 > composition{ water_fraction,
+        1. - water_fraction };
+    const auto saturation = geode::internal::water_saturation(
+        fluid, geode::COMPOSITION_BASIS::mass, composition, 1e7 );
+    return geode::internal::capillary_pressure(
+        *problem.materials()[0].capillary_pressure, saturation );
+}
+
+void test_ogs_two_phase_project()
+{
+    const auto model = two_hexahedra_brep();
+    const auto problem = varying_oil_problem();
+    const auto project = export_project( model, problem, "ogs_two_phase" );
+    check( select_text( project, "//processes/process/type" )
+               == "TWOPHASE_FLOW_PP",
+        "TWOPHASE_FLOW_PP process" );
+    for( const auto& property_name :
+        { "saturation", "relative_permeability",
+            "relative_permeability_nonwetting_phase" } )
+    {
+        const auto property = select( project,
+            absl::StrCat( "//medium/properties/property[name='",
+                property_name, "']" ) );
+        check( text( property.child( "type" ) ) == "Curve",
+            absl::StrCat( property_name, " is a Curve" ) );
+        const auto curve = select( project,
+            absl::StrCat( "/OpenGeoSysProject/curves/curve[name='",
+                text( property.child( "curve" ) ), "']" ) );
+        check( static_cast< bool >( curve ),
+            absl::StrCat( "Curve of ", property_name, " must exist" ) );
+        const auto coords = ascii_values< double >( curve.child( "coords" ) );
+        const auto values = ascii_values< double >( curve.child( "values" ) );
+        check( coords.size() == values.size() && coords.size() > 1,
+            "As many coords as values" );
+        for( const auto index : geode::Range{ 1, coords.size() } )
+        {
+            check( coords[index] > coords[index - 1],
+                "Curve coords must strictly increase" );
+        }
+    }
+    const auto density_curve = select( project,
+        absl::StrCat( "/OpenGeoSysProject/curves/curve[name='",
+            select_text( project, "//phase[type='Gas']/properties/"
+                                  "property[name='density']/curve" ),
+            "']" ) );
+    const auto densities =
+        ascii_values< double >( density_curve.child( "values" ) );
+    check( ascii_values< double >( density_curve.child( "coords" ) )
+                   == std::vector< double >{ 1e5, 1e7, 2e7 }
+               && std::fabs( densities[0] - 800. / 1.2 ) < 1e-9
+               && std::fabs( densities[2] - 800. / 1.05 ) < 1e-9,
+        "Oil density is surface density / Bo at the PVT pressures" );
+    const auto initial = parameter( project,
+        select_text( project, "//process_variable[name='capillary_pressure']/"
+                              "initial_condition" ) );
+    check( text( initial.child( "type" ) ) == "Constant",
+        "Uniform initial capillary pressure" );
+    check( std::fabs( std::stod( text( initial.child( "value" ) ) )
+                      - expected_capillary_pressure( problem, 0.3 ) )
+               < 1e-6,
+        "Initial capillary pressure is pc(Sw(composition))" );
+}
+
+void test_ogs_two_phase_boundary()
+{
+    auto model = picasso_with_boundary();
+    add_constant_boundary( model, east_surfaces( model ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_water_fraction, 0.8 );
+    const auto problem = varying_oil_problem();
+    const auto project =
+        export_project( model, problem, "ogs_two_phase_boundary" );
+    const auto capillary = select( project,
+        "//process_variable[name='capillary_pressure']/boundary_conditions/"
+        "boundary_condition" );
+    check( text( capillary.child( "type" ) ) == "Dirichlet",
+        "Water fraction gives a Dirichlet on capillary_pressure" );
+    const auto value =
+        parameter( project, text( capillary.child( "parameter" ) ) );
+    check( text( value.child( "type" ) ) == "Constant"
+               && std::fabs( std::stod( text( value.child( "value" ) ) )
+                             - expected_capillary_pressure( problem, 0.8 ) )
+                      < 1e-6,
+        "The capillary pressure comes from the water fraction" );
+    const auto gas = select( project,
+        "//process_variable[name='gas_pressure']/boundary_conditions/"
+        "boundary_condition" );
+    check( text( gas.child( "type" ) ) == "Dirichlet"
+               && std::stod( text( parameter( project,
+                   text( gas.child( "parameter" ) ) )
+                                       .child( "value" ) ) )
+                      == 1e7,
+        "Boundary pressure gives a Dirichlet on gas_pressure" );
+}
+
+void test_ogs_two_phase_permeability()
+{
+    const auto model = two_hexahedra_brep();
+    auto problem = varying_oil_problem();
+    auto material = problem.materials()[0];
+    material.permeability = std::array< double, 3 >{ 1e-13, 1e-13, 1e-13 };
+    geode::PhysicalProblemBuilder{ problem }.set_material( 0, material );
+    const auto project =
+        export_project( model, problem, "ogs_two_phase_permeability" );
+    const auto property = select(
+        project, "//medium/properties/property[name='permeability']" );
+    const auto values =
+        parameter( project, text( property.child( "parameter_name" ) ) );
+    check( ascii_values< double >( values.child( "values" ) )
+               == std::vector< double >{ 1e-13 },
+        "Two-phase permeability is a scalar" );
+    material.permeability = std::array< double, 3 >{ 1e-13, 1e-13, 1e-14 };
+    geode::PhysicalProblemBuilder{ problem }.set_material( 0, material );
+    check_refused( problem, model, "isotropic permeability" );
+
+    auto field_model = two_hexahedra_brep();
+    const geode::uuid attribute_id;
+    geode::AttributeValues< std::array< double, 3 > > field_values;
+    field_values.default_value = { 1e-12, 1e-12, 1e-13 };
+    for( const auto& block : field_model.blocks() )
+    {
+        block.mesh()
+            .polyhedron_attribute_manager()
+            .create_attribute< geode::VariableAttribute,
+                std::array< double, 3 > >(
+                "perm", attribute_id, field_values, {} );
+    }
+    geode::BRepBuilder{ field_model }.set_physical_property(
+        geode::PHYSICAL_PROPERTY_NAME::permeability,
+        geode::Block3D::component_type_static(), attribute_id );
+    bool has_thrown{ false };
+    try
+    {
+        geode_unused( export_project(
+            field_model, varying_oil_problem(), "ogs_anisotropic_field" ) );
+    }
+    catch( const geode::OpenGeodeException& exception )
+    {
+        has_thrown = absl::StrContains( exception.what(), "isotropic" );
+    }
+    check( has_thrown,
+        "An anisotropic permeability field must be refused in two-phase" );
+}
+
 int main()
 {
     try
@@ -1408,6 +1581,9 @@ int main()
         test_ogs_conflicting_dirichlet();
         test_ogs_run_twice();
         test_ogs_structural_model_materials();
+        test_ogs_two_phase_project();
+        test_ogs_two_phase_boundary();
+        test_ogs_two_phase_permeability();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }

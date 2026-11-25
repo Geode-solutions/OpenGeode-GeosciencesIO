@@ -109,6 +109,19 @@ namespace geode::internal
 
         [[nodiscard]] SolidMesh3D& bulk_mesh();
 
+        [[nodiscard]] bool is_two_phase() const;
+
+        // Capillary pressure of a water fraction in a bulk cell
+        [[nodiscard]] double cell_capillary_pressure(
+            index_t cell, double water_fraction ) const;
+
+        void compute_two_phase_values(
+            absl::Span< const index_t > cell_conditions );
+
+        // Replaces the water fractions of the boundary meshes by capillary
+        // pressures
+        void convert_boundary_water_fractions();
+
         void write_project() const;
 
         [[nodiscard]] const SolidMesh3D& bulk() const;
@@ -134,6 +147,7 @@ namespace geode::internal
         std::optional< std::vector< double > > porosity_;
         std::optional< std::vector< std::array< double, 3 > > > permeability_;
         std::optional< std::vector< double > > storage_;
+        std::vector< double > cell_pressures_;
         OgsInitialValue initial_pressure_;
         OgsInitialValue initial_capillary_pressure_;
         std::vector< const Surface3D* > surfaces_;

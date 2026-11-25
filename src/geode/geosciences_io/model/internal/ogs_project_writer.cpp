@@ -374,7 +374,11 @@ namespace
                 auto parameter = parameters_.append_child( "parameter" );
                 add_text( parameter, "name", name );
                 add_text( parameter, "type", "Constant" );
-                add_text( parameter, "values", reals( permeability ) );
+                // TWOPHASE_FLOW_PP reads a scalar permeability
+                add_text( parameter, "values",
+                    is_two_phase() ? geode::internal::xml_real(
+                        permeability[0] )
+                                   : reals( permeability ) );
                 write_parameter_property( properties, "permeability", name );
             }
             const auto porosity = material.porosity.value_or( 0. );
