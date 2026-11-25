@@ -24,6 +24,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -32,6 +33,8 @@
 #include <geode/basic/types.hpp>
 
 #include <geode/geometry/point.hpp>
+
+#include <geode/model/mixin/core/physical_properties.hpp>
 
 #include <geode/geosciences_io/model/common.hpp>
 
@@ -53,6 +56,26 @@ namespace geode::internal
         /// Named point values, one per point
         std::vector< std::pair< std::string, std::vector< double > > >
             point_arrays;
+    };
+
+    /// Boundary mesh of a group of Surfaces sharing a boundary property
+    struct OgsBoundaryMesh
+    {
+        PHYSICAL_PROPERTY_NAME property;
+        /// File name without extension, used by the project to name it
+        std::string stem;
+        /// Value of a uniform group, none if the mesh has a "values" array
+        std::optional< double > value;
+        OgsMeshFile mesh;
+    };
+
+    /// Point mesh of the vertices receiving a well source term
+    struct OgsWellMesh
+    {
+        std::string name;
+        /// File name without extension, used by the project to name it
+        std::string stem;
+        OgsMeshFile mesh;
     };
 
     /*!

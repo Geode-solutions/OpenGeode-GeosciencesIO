@@ -21,10 +21,16 @@
  *
  */
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <optional>
 #include <cstdint>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <sstream>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -38,6 +44,7 @@
 #include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/constant_attribute.hpp>
 #include <geode/basic/logger.hpp>
+#include <geode/basic/variable_attribute.hpp>
 #include <geode/basic/range.hpp>
 #include <geode/basic/types.hpp>
 #include <geode/tests_config.hpp>
@@ -47,12 +54,20 @@
 
 #include <geode/mesh/builder/polyhedral_solid_builder.hpp>
 #include <geode/mesh/core/geode/geode_polyhedral_solid.hpp>
+#include <geode/mesh/builder/point_set_builder.hpp>
+#include <geode/mesh/builder/regular_grid_solid_builder.hpp>
+#include <geode/mesh/core/geode/geode_point_set.hpp>
+#include <geode/mesh/core/geode/geode_regular_grid_solid.hpp>
+#include <geode/mesh/core/point_set.hpp>
+#include <geode/mesh/core/solid_mesh.hpp>
 #include <geode/mesh/core/surface_mesh.hpp>
 
 #include <geode/model/mixin/core/block.hpp>
 #include <geode/model/mixin/core/physical_properties.hpp>
 #include <geode/model/mixin/core/surface.hpp>
 #include <geode/model/representation/builder/brep_builder.hpp>
+#include <geode/model/helpers/component_mesh_polygons.hpp>
+#include <geode/model/helpers/convert_to_mesh.hpp>
 #include <geode/model/representation/io/brep_input.hpp>
 
 #include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.hpp>
@@ -73,6 +88,7 @@
 #include <geode/geosciences/simulation/core/thermal_parameters.hpp>
 
 #include <geode/geosciences_io/model/common.hpp>
+#include <geode/geosciences_io/model/helpers/brep_ogs_export.hpp>
 #include <geode/geosciences_io/model/internal/ogs_simulation_rules.hpp>
 #include <geode/geosciences_io/model/internal/ogs_vtu.hpp>
 #include <geode/geosciences_io/model/internal/simulation_regions.hpp>
@@ -678,6 +694,290 @@ void test_ogs_invalid_names()
     check_refused( problem, model, "w/1" );
 }
 
+std::string read_file( const std::string& filename )
+{
+    std::ifstream file{ filename, std::ios::binary };
+    check( file.good(), absl::StrCat( "Cannot open file ", filename ) );
+    return { std::istreambuf_iterator< char >{ file },
+        std::istreambuf_iterator< char >{} };
+}
+
+// DataArray tag of the named array in a VTU file
+std::string vtu_array_tag( const std::string& filename, std::string_view name )
+{
+    const auto content = read_file( filename );
+    const auto name_position =
+        content.find( absl::StrCat( "Name=\"", name, "\"" ) );
+    check( name_position != std::string::npos,
+        absl::StrCat( filename, " misses ", name ) );
+    const auto start = content.rfind( '<', name_position );
+    return content.substr( start, content.find( '>', name_position ) - start );
+}
+
+// Values of a named array of a VTU file in appended raw format
+template < typename T >
+std::vector< T > read_vtu_values(
+    const std::string& filename, std::string_view name )
+{
+    const auto content = read_file( filename );
+    const auto name_position =
+        content.find( absl::StrCat( "Name=\"", name, "\"" ) );
+    check( name_position != std::string::npos,
+        absl::StrCat( filename, " misses ", name ) );
+    constexpr std::string_view OFFSET{ "offset=\"" };
+    const auto offset_position =
+        content.find( OFFSET, name_position ) + OFFSET.size();
+    const auto offset = std::stoull( content.substr( offset_position,
+        content.find( '"', offset_position ) - offset_position ) );
+    const auto data_position =
+        content.find( '_', content.find( "<AppendedData" ) ) + 1 + offset;
+    std::uint64_t nb_bytes{ 0 };
+    std::memcpy( &nb_bytes, content.data() + data_position, sizeof nb_bytes );
+    std::vector< T > values( nb_bytes / sizeof( T ) );
+    std::memcpy( values.data(),
+        content.data() + data_position + sizeof nb_bytes, nb_bytes );
+    return values;
+}
+
+template < typename T >
+std::vector< T > ascii_values( const pugi::xml_node& array )
+{
+    std::istringstream stream{ text( array ) };
+    std::vector< T > values;
+    T value{};
+    while( stream >> value )
+    {
+        values.push_back( value );
+    }
+    return values;
+}
+
+std::vector< geode::Point3D > ascii_points( const pugi::xml_document& mesh )
+{
+    const auto coordinates = ascii_values< double >(
+        mesh.select_node( "//Points/DataArray" ).node() );
+    std::vector< geode::Point3D > points;
+    for( geode::index_t index = 0; index + 2 < coordinates.size(); index += 3 )
+    {
+        points.push_back( geode::Point3D{ { coordinates[index],
+            coordinates[index + 1], coordinates[index + 2] } } );
+    }
+    return points;
+}
+
+std::vector< std::string > boundary_files(
+    std::string_view directory, std::string_view property )
+{
+    std::vector< std::string > files;
+    for( const auto& entry : std::filesystem::directory_iterator{
+             std::string{ directory } } )
+    {
+        const auto name = entry.path().filename().string();
+        if( absl::StrContains( name, property ) )
+        {
+            files.push_back( entry.path().string() );
+        }
+    }
+    std::sort( files.begin(), files.end() );
+    return files;
+}
+
+void test_ogs_mesh_only()
+{
+    auto model = load_picasso();
+    add_constant_boundary( model, east_surfaces( model ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, 1e7 );
+    std::filesystem::remove_all( "ogs_mesh_only" );
+    geode::BRepOgsExporter exporter{ model, "ogs_mesh_only" };
+    exporter.run();
+    const std::string bulk{ "ogs_mesh_only/ogs_mesh_only.vtu" };
+    check( absl::StrContains(
+               vtu_array_tag( bulk, "MaterialIDs" ), "type=\"Int32\"" ),
+        "MaterialIDs must be Int32" );
+    const auto material_ids = read_vtu_values< std::int32_t >(
+        bulk, "MaterialIDs" );
+    std::vector< std::int32_t > expected;
+    std::int32_t region{ 0 };
+    for( const auto& block : model.blocks() )
+    {
+        expected.insert(
+            expected.end(), block.mesh().nb_polyhedra(), region++ );
+    }
+    check( material_ids == expected,
+        "Without problem, MaterialIDs are the Block regions" );
+    check( boundary_files( "ogs_mesh_only", "boundary_pressure" ).size() == 1,
+        "One boundary mesh per uniform boundary_pressure group" );
+    check( !std::filesystem::exists( "ogs_mesh_only/ogs_mesh_only.prj" ),
+        "No project file without problem" );
+}
+
+void test_ogs_boundary_meshes()
+{
+    auto model = load_picasso();
+    add_constant_boundary( model, east_surfaces( model ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, 1e7 );
+    const auto& property_info = model.physical_property_info(
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure );
+    // A west Surface with one value per polygon
+    std::optional< geode::uuid > west;
+    const auto side = model.bounding_box().min().value( 0 );
+    for( const auto& surface : model.surfaces() )
+    {
+        const auto box = surface.mesh().bounding_box();
+        if( std::fabs( box.max().value( 0 ) - side ) < 1e-3 )
+        {
+            west = surface.id();
+            break;
+        }
+    }
+    check( west.has_value(), "picasso should have a west Surface" );
+    const auto& west_surface = model.surface( west.value() );
+    {
+        geode::AttributeValues< double > values;
+        values.default_value = 0.;
+        auto& manager = west_surface.mesh().polygon_attribute_manager();
+        manager.create_attribute< geode::VariableAttribute, double >(
+            geode::physical_property_string(
+                geode::PHYSICAL_PROPERTY_NAME::boundary_pressure ),
+            property_info.attribute_id, values, {} );
+        auto attribute =
+            manager.find_attribute< geode::VariableAttribute, double >(
+                property_info.attribute_id );
+        for( const auto polygon :
+            geode::Range{ west_surface.mesh().nb_polygons() } )
+        {
+            attribute->set_value( polygon, 1e6 + 10. * polygon );
+        }
+    }
+    std::filesystem::remove_all( "ogs_boundaries" );
+    geode::BRepOgsExporter exporter{ model, "ogs_boundaries" };
+    exporter.run();
+    auto [solid, mappings] = geode::convert_brep_into_solid( model );
+    const auto files = boundary_files( "ogs_boundaries", "boundary_pressure" );
+    check( files.size() == 2, "One uniform and one variable boundary mesh" );
+    bool has_variable{ false };
+    for( const auto& file : files )
+    {
+        const auto mesh = load_xml( file );
+        const auto ids = ascii_values< std::uint64_t >(
+            data_array( mesh, "PointData", "bulk_node_ids" ) );
+        const auto points = ascii_points( mesh );
+        check( ids.size() == points.size(), "One bulk node id per point" );
+        for( const auto index : geode::Indices{ ids } )
+        {
+            check( solid->point( ids[index] ) == points[index],
+                "bulk_node_ids must point to the same bulk vertex" );
+        }
+        const auto values_node = data_array( mesh, "PointData", "values" );
+        if( !values_node )
+        {
+            for( const auto& point : points )
+            {
+                check( std::fabs( point.value( 0 )
+                                  - model.bounding_box().max().value( 0 ) )
+                           < 1e-3,
+                    "Uniform group points lie on the east Surfaces" );
+            }
+            continue;
+        }
+        has_variable = true;
+        check( std::string{ values_node.attribute( "type" ).value() }
+                   == "Float64",
+            "Variable values must be Float64" );
+        const auto values = ascii_values< double >( values_node );
+        const auto& surface_mesh = west_surface.mesh();
+        for( const auto vertex : geode::Range{ surface_mesh.nb_vertices() } )
+        {
+            const auto& polygons = surface_mesh.polygons_around_vertex( vertex );
+            double sum{ 0 };
+            for( const auto& polygon : polygons )
+            {
+                sum += 1e6 + 10. * polygon.polygon_id;
+            }
+            const auto expected = sum / polygons.size();
+            const auto position = std::find( points.begin(), points.end(),
+                surface_mesh.point( vertex ) );
+            check( position != points.end(),
+                "Every west Surface vertex is in its boundary mesh" );
+            check( std::fabs( values[position - points.begin()] - expected )
+                       < 1e-6,
+                "A vertex value is the mean of its polygon values" );
+        }
+    }
+    check( has_variable, "The west Surface should have a values array" );
+}
+
+void test_ogs_well_mesh()
+{
+    auto model = load_picasso();
+    auto [solid, mappings] = geode::convert_brep_into_solid( model );
+    geode::OpenGeodePointSet3D well;
+    auto builder = geode::PointSetBuilder3D::create( well );
+    std::vector< std::uint64_t > expected;
+    for( const geode::index_t polyhedron : { 0, 100, 200 } )
+    {
+        const auto vertex = solid->polyhedron_vertex( { polyhedron, 0 } );
+        const auto& point = solid->point( vertex );
+        const auto center = solid->polyhedron_barycenter( polyhedron );
+        builder->create_point( point + ( center - point ) * 0.01 );
+        expected.push_back( vertex );
+    }
+    std::filesystem::remove_all( "ogs_well" );
+    geode::BRepOgsExporter exporter{ model, "ogs_well" };
+    exporter.add_well_perforations( well, "producer" );
+    exporter.run();
+    const auto mesh = load_xml( "ogs_well/ogs_well_well_producer.vtu" );
+    check( ascii_values< std::uint64_t >(
+               data_array( mesh, "PointData", "bulk_node_ids" ) )
+               == expected,
+        "Well vertices are the nearest vertices of the containing cells" );
+    check( text( data_array( mesh, "Cells", "types" ) ) == "1 1 1",
+        "Well cells are VTK vertices" );
+}
+
+void test_ogs_regular_grid()
+{
+    geode::BRep model;
+    geode::BRepBuilder builder{ model };
+    const auto& block = model.block( builder.add_block(
+        geode::OpenGeodeRegularGrid3D::impl_name_static() ) );
+    builder.block_mesh_builder< geode::RegularGrid3D >( block )
+        ->initialize_grid( geode::Point3D{ { 0., 0., 0. } }, { 2, 2, 2 }, 1. );
+    const auto nb_vertices = block.mesh().nb_vertices();
+    builder.create_unique_vertices( nb_vertices );
+    for( const auto vertex : geode::Range{ nb_vertices } )
+    {
+        builder.set_unique_vertex( { block.component_id(), vertex }, vertex );
+    }
+    std::filesystem::remove_all( "ogs_grid" );
+    geode::BRepOgsExporter exporter{ model, "ogs_grid" };
+    exporter.run();
+    const auto types =
+        read_vtu_values< std::uint8_t >( "ogs_grid/ogs_grid.vtu", "types" );
+    check( types == std::vector< std::uint8_t >( 8, 12 ),
+        "RegularGrid Blocks are exported as hexahedra" );
+}
+
+void test_ogs_output_directories()
+{
+    const auto model = load_picasso();
+    bool has_thrown{ false };
+    try
+    {
+        geode::BRepOgsExporter exporter{ model, "" };
+    }
+    catch( const geode::OpenGeodeException& )
+    {
+        has_thrown = true;
+    }
+    check( has_thrown, "An empty directory must throw" );
+    std::filesystem::remove_all( "ogs_nested" );
+    geode::BRepOgsExporter nested{ model, "ogs_nested/./directory/" };
+    nested.run();
+    check( std::filesystem::exists( "ogs_nested/directory/directory.vtu" ),
+        "Nested directories must be created" );
+}
+
 int main()
 {
     try
@@ -694,6 +994,11 @@ int main()
         test_ogs_checker_refusals();
         test_ogs_unsupported_cells();
         test_ogs_invalid_names();
+        test_ogs_mesh_only();
+        test_ogs_boundary_meshes();
+        test_ogs_well_mesh();
+        test_ogs_regular_grid();
+        test_ogs_output_directories();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }
