@@ -47,6 +47,7 @@ add_geode_library(
         "internal/ml_input.cpp"
         "internal/ml_output_brep.cpp"
         "internal/ml_output_structural_model.cpp"
+        "internal/ogs_simulation_rules.cpp"
         "internal/ogs_vtu.cpp"
         "internal/shp_input.cpp"
     PUBLIC_HEADERS
@@ -78,6 +79,7 @@ add_geode_library(
         "internal/ml_output_brep.hpp"
         "internal/ml_output_impl.hpp"
         "internal/ml_output_structural_model.hpp"
+        "internal/ogs_simulation_rules.hpp"
         "internal/ogs_vtu.hpp"
         "internal/shp_input.hpp"
     PUBLIC_DEPENDENCIES
