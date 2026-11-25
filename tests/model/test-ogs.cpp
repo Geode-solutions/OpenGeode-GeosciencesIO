@@ -57,10 +57,12 @@
 
 #include <geode/mesh/builder/hybrid_solid_builder.hpp>
 #include <geode/mesh/builder/point_set_builder.hpp>
+#include <geode/mesh/builder/polygonal_surface_builder.hpp>
 #include <geode/mesh/builder/polyhedral_solid_builder.hpp>
 #include <geode/mesh/builder/regular_grid_solid_builder.hpp>
 #include <geode/mesh/core/geode/geode_hybrid_solid.hpp>
 #include <geode/mesh/core/geode/geode_point_set.hpp>
+#include <geode/mesh/core/geode/geode_polygonal_surface.hpp>
 #include <geode/mesh/core/geode/geode_polyhedral_solid.hpp>
 #include <geode/mesh/core/geode/geode_regular_grid_solid.hpp>
 #include <geode/mesh/core/point_set.hpp>
@@ -379,10 +381,10 @@ void test_ogs_rules_saturation()
     check( geode::internal::capillary_pressure( brooks_corey, 0.8 ) == 5000.,
         "The maximum water saturation has the entry pressure, as "
         "Pc(Se = 1) = entry pressure" );
-    check( std::fabs(
-               geode::internal::capillary_pressure( brooks_corey, expected )
-               - 4. * 5000. )
-               < 1e-4 * 4. * 5000.,
+    check(
+        std::fabs( geode::internal::capillary_pressure( brooks_corey, expected )
+                   - 4. * 5000. )
+            < 1e-4 * 4. * 5000.,
         "Capillary pressure inverts the saturation curve" );
 
     geode::TwoPhaseCapillaryPressureTable table;
@@ -1590,6 +1592,100 @@ void test_ogs_cell_orientation()
     }
 }
 
+// Two hexahedra Blocks stacked along z (z = 1 shared), vertex order top face
+// first, and a Surface on the x = 0 side of the upper Block
+geode::BRep stacked_mirrored_hexahedra_brep()
+{
+    geode::BRep model;
+    geode::BRepBuilder builder{ model };
+    builder.create_unique_vertices( 12 );
+    const auto unique_vertex = []( geode::index_t x, geode::index_t y,
+                                   geode::index_t z ) {
+        return x + 2 * ( y + 2 * z );
+    };
+    for( const geode::index_t block_z : { 0, 1 } )
+    {
+        const auto& block = model.block( builder.add_block(
+            geode::OpenGeodeHybridSolid3D::impl_name_static() ) );
+        auto mesh_builder =
+            builder.block_mesh_builder< geode::HybridSolid3D >( block );
+        geode::index_t vertex{ 0 };
+        for( const geode::index_t dz : { 0, 1 } )
+        {
+            for( const auto& [x, y] :
+                std::array< std::pair< geode::index_t, geode::index_t >, 4 >{
+                    { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } } } )
+            {
+                mesh_builder->create_point( geode::Point3D{
+                    { 1. * x, 1. * y, 1. * ( block_z + dz ) } } );
+                builder.set_unique_vertex( { block.component_id(), vertex++ },
+                    unique_vertex( x, y, block_z + dz ) );
+            }
+        }
+        mesh_builder->create_hexahedron( { 4, 5, 6, 7, 0, 1, 2, 3 } );
+    }
+    const auto& surface = model.surface( builder.add_surface(
+        geode::OpenGeodePolygonalSurface3D::impl_name_static() ) );
+    auto surface_builder =
+        builder.surface_mesh_builder< geode::PolygonalSurface3D >( surface );
+    geode::index_t vertex{ 0 };
+    for( const auto& [y, z] :
+        std::array< std::pair< geode::index_t, geode::index_t >, 4 >{
+            { { 0, 1 }, { 1, 1 }, { 1, 2 }, { 0, 2 } } } )
+    {
+        surface_builder->create_point(
+            geode::Point3D{ { 0., 1. * y, 1. * z } } );
+        builder.set_unique_vertex(
+            { surface.component_id(), vertex++ }, unique_vertex( 0, y, z ) );
+    }
+    surface_builder->create_polygon( { 0, 1, 2, 3 } );
+    return model;
+}
+
+// Mirrored cells keep their neighbours: initial values are averaged over
+// every cell around a vertex, and a boundary polygon gets its owning cell
+void test_ogs_mirrored_adjacencies()
+{
+    auto model = stacked_mirrored_hexahedra_brep();
+    add_constant_boundary( model,
+        std::vector< geode::uuid >{ ( *model.surfaces().begin() ).id() },
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, 1e7 );
+    auto problem = single_phase_problem( 0. );
+    geode::PhysicalProblemBuilder{ problem }.add_initial_condition(
+        std::make_shared< geode::UniformInitialCondition >(
+            std::vector< geode::uuid >{ ( *model.blocks().begin() ).id() },
+            2e7 ) );
+    geode_unused( export_project( model, problem, "ogs_mirrored" ) );
+    const auto values = read_vtu_values< double >(
+        "ogs_mirrored/ogs_mirrored.vtu", "initial_pressure" );
+    check( values.size() == 12, "One initial pressure per vertex" );
+    for( const geode::index_t shared : { 4, 5, 6, 7 } )
+    {
+        check( values[shared] == 1.5e7,
+            "A vertex between stacked mirrored cells gets their mean" );
+    }
+    const auto boundary =
+        load_xml( "ogs_mirrored/ogs_mirrored_boundary_pressure_0.vtu" );
+    check(
+        text( data_array( boundary, "CellData", "bulk_element_ids" ) ) == "1",
+        "The boundary polygon belongs to the upper cell" );
+}
+
+void test_ogs_zero_entry_pressure()
+{
+    auto model = picasso_with_boundary();
+    auto problem = two_phase_problem();
+    auto material = problem.materials()[0];
+    material.capillary_pressure =
+        std::make_shared< geode::BrooksCoreyCapillaryPressure >(
+            std::vector< geode::PHASE >{
+                geode::PHASE::water, geode::PHASE::oil },
+            std::vector< double >{ 0.1, 0.2 }, std::vector< double >{ 0., 0. },
+            std::vector< double >{ 2., 2. } );
+    geode::PhysicalProblemBuilder{ problem }.set_material( 0, material );
+    check_refused( problem, model, "entry pressure" );
+}
+
 int main()
 {
     try
@@ -1624,6 +1720,8 @@ int main()
         test_ogs_two_phase_boundary();
         test_ogs_two_phase_permeability();
         test_ogs_cell_orientation();
+        test_ogs_mirrored_adjacencies();
+        test_ogs_zero_entry_pressure();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }

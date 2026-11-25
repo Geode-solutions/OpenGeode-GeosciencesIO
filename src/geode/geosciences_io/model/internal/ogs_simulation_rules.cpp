@@ -106,6 +106,11 @@ namespace
         const auto max_saturation = 1. - law.residual_saturations()[oil];
         const auto mobile = max_saturation - water_residual;
         const auto entry_pressure = law.entry_pressures()[water];
+        geode::OpenGeodeGeosciencesIOModelException::check_exception(
+            entry_pressure > 0., nullptr, geode::OpenGeodeException::TYPE::data,
+            "[OgsExporter] The water entry pressure of a Brooks-Corey "
+            "capillary pressure must be positive: OGS needs strictly "
+            "increasing capillary pressures" );
         const auto inverse_lambda =
             1. / law.pore_size_distribution_indices()[water];
         geode::internal::OgsCurve curve;

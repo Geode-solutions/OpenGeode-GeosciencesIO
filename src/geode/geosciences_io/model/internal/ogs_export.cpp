@@ -99,7 +99,8 @@ namespace
 
         // Adds the polygon if it lies on a bulk facet, the current value
         // being given to each of its vertices
-        void add_polygon( const geode::Surface3D& surface, geode::index_t polygon )
+        void add_polygon(
+            const geode::Surface3D& surface, geode::index_t polygon )
         {
             if( !mappings_.surface_polygons_mapping.has_mapping_input(
                     { surface.id(), polygon } ) )
@@ -120,8 +121,12 @@ namespace
             }
             const auto polyhedra =
                 bulk_.polyhedra_from_facet_vertices( facet_vertices );
-            mesh_.bulk_element_ids.push_back(
-                polyhedra.empty() ? 0 : polyhedra.front().polyhedron_id );
+            geode::OpenGeodeGeosciencesIOModelException::check_exception(
+                !polyhedra.empty(), nullptr,
+                geode::OpenGeodeException::TYPE::internal,
+                "[OgsExporter] No bulk cell owns polygon ", polygon,
+                " of Surface ", surface.id().string() );
+            mesh_.bulk_element_ids.push_back( polyhedra.front().polyhedron_id );
             mesh_.cells.push_back( std::move( cell ) );
         }
 
@@ -134,8 +139,8 @@ namespace
             }
         }
 
-        void add_surface_values( const geode::Surface3D& surface,
-            absl::Span< const double > values )
+        void add_surface_values(
+            const geode::Surface3D& surface, absl::Span< const double > values )
         {
             for( const auto polygon : geode::Indices{ values } )
             {
@@ -253,9 +258,8 @@ namespace
         absl::InlinedVector< std::array< geode::local_index_t, 2 >, 4 > swaps;
         for( const auto vertex : geode::LRange{ nb_base_vertices } )
         {
-            swaps.push_back( { vertex,
-                static_cast< geode::local_index_t >(
-                    vertex + nb_base_vertices ) } );
+            swaps.push_back( { vertex, static_cast< geode::local_index_t >(
+                                           vertex + nb_base_vertices ) } );
         }
         return swaps;
     }
@@ -281,7 +285,8 @@ namespace
         if( nb_vertices == geode::internal::NB_HEXAHEDRON_VERTICES )
         {
             return OgsCellOrientation{ { 0, 1, 3, 4 },
-                ogs_base_top_swaps( geode::internal::NB_HEXAHEDRON_VERTICES / 2 ) };
+                ogs_base_top_swaps(
+                    geode::internal::NB_HEXAHEDRON_VERTICES / 2 ) };
         }
         return std::nullopt;
     }
@@ -290,6 +295,7 @@ namespace
     void orient_ogs_cells( geode::SolidMesh3D& mesh )
     {
         auto builder = geode::SolidMeshBuilder3D::create( mesh );
+        bool has_mirrored{ false };
         for( const auto cell : geode::Range{ mesh.nb_polyhedra() } )
         {
             const auto orientation =
@@ -310,6 +316,7 @@ namespace
             {
                 continue;
             }
+            has_mirrored = true;
             const auto cell_vertices = mesh.polyhedron_vertices( cell );
             for( const auto& [local, other] : orientation->swaps )
             {
@@ -318,6 +325,11 @@ namespace
                 builder->set_polyhedron_vertex(
                     { cell, other }, cell_vertices[local] );
             }
+        }
+        // Mirroring moves the facets: their adjacencies are recomputed
+        if( has_mirrored )
+        {
+            builder->compute_polyhedron_adjacencies();
         }
     }
 
@@ -368,7 +380,8 @@ namespace
         ogs_permeability_values(
             const geode::SolidMesh3D& solid, std::string_view name )
     {
-        if( auto values = cell_values< std::array< double, 3 > >( solid, name ) )
+        if( auto values =
+                cell_values< std::array< double, 3 > >( solid, name ) )
         {
             return values;
         }
@@ -387,7 +400,8 @@ namespace
     }
 
     // The value shared by every item, none if they differ or if there is none
-    std::optional< double > ogs_uniform_value( absl::Span< const double > values )
+    std::optional< double > ogs_uniform_value(
+        absl::Span< const double > values )
     {
         if( values.empty()
             || !absl::c_all_of( values, [&values]( double value ) {

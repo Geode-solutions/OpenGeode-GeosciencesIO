@@ -280,8 +280,8 @@ namespace
             add_text( property, "parameter_name", parameter );
         }
 
-        void write_curve_property( pugi::xml_node& properties,
-            const OgsCurveProperty& curve ) const
+        void write_curve_property(
+            pugi::xml_node& properties, const OgsCurveProperty& curve ) const
         {
             auto property = properties.append_child( "property" );
             add_text( property, "name", curve.name );

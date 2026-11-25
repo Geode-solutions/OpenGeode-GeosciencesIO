@@ -126,7 +126,8 @@ namespace
         geode::index_t surface_index{ 0 };
         for( const auto& surface : model.surfaces() )
         {
-            if( const auto values = ogs_surface_values( surface, attribute_id ) )
+            if( const auto values =
+                    ogs_surface_values( surface, attribute_id ) )
             {
                 add_ogs_surface_values( model, { surface, surface_index },
                     values.value(), vertex_values );
@@ -263,7 +264,8 @@ namespace
                 add_issue( "Fluid", "Co2BrineFluid is not supported by OGS" );
                 return;
             }
-            if( dynamic_cast< const geode::DeadOilFluid* >( &fluid ) == nullptr )
+            if( dynamic_cast< const geode::DeadOilFluid* >( &fluid )
+                == nullptr )
             {
                 add_issue( "Flow model", problem_.flow().type_name(), " with ",
                     fluid.type_name(), " is not supported by OGS" );
