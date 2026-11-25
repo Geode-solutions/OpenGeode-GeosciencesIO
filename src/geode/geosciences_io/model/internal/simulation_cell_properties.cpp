@@ -213,7 +213,7 @@ namespace geode::internal
         }
         auto unique_name = absl::StrCat( name, "_", simulator_field_name );
         for( index_t suffix{ 0 };
-             manager.attribute_ids_matching_name( unique_name ); suffix++ )
+            manager.attribute_ids_matching_name( unique_name ); suffix++ )
         {
             unique_name =
                 absl::StrCat( name, "_", simulator_field_name, "_", suffix );

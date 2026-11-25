@@ -93,13 +93,6 @@ namespace geode::internal
         void write_files() const;
 
     protected:
-        using SimulationExporterImpl< Model >::model;
-        using SimulationExporterImpl< Model >::problem;
-        using SimulationExporterImpl< Model >::files_directory;
-        using SimulationExporterImpl< Model >::prefix;
-        using SimulationExporterImpl< Model >::well_perforations;
-        using SimulationExporterImpl< Model >::well_names;
-
         void convert_model();
         void clear_export();
         void define_regions();

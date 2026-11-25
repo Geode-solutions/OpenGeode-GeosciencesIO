@@ -222,7 +222,7 @@ namespace geode::internal
             for( const auto& block : model.stratigraphic_unit_items( unit ) )
             {
                 if( !definitions.block_regions.emplace( block.id(), region_id )
-                         .second )
+                        .second )
                 {
                     Logger::warning( context, " Block ", block.id().string(),
                         " belongs to several StratigraphicUnits, only the "

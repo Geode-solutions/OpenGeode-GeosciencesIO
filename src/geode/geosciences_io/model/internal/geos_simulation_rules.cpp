@@ -23,37 +23,19 @@
 
 #include <geode/geosciences_io/model/internal/geos_simulation_rules.hpp>
 
-#include <array>
 #include <optional>
 #include <string>
-#include <utility>
-#include <vector>
 
 #include <absl/strings/str_cat.h>
 
 #include <geode/basic/range.hpp>
-#include <geode/basic/uuid.hpp>
 
-#include <geode/model/mixin/core/block.hpp>
-#include <geode/model/representation/core/brep.hpp>
-
-#include <geode/geosciences/simulation/core/flow_model.hpp>
-#include <geode/geosciences/simulation/core/fluid.hpp>
 #include <geode/geosciences/simulation/core/initial_condition.hpp>
-#include <geode/geosciences/simulation/core/material.hpp>
 #include <geode/geosciences/simulation/core/physical_problem.hpp>
-#include <geode/geosciences/simulation/core/saturation_functions.hpp>
-#include <geode/geosciences/simulation/core/solver_options.hpp>
 #include <geode/geosciences/simulation/core/source_term.hpp>
 #include <geode/geosciences/simulation/helpers/internal/simulation_checker_helpers.hpp>
-#include <geode/geosciences/simulation/helpers/simulation_report.hpp>
 
-#include <geode/geosciences_io/model/internal/geos_deck_context.hpp>
-
-namespace
-{
-    using geode::PHYSICAL_PROPERTY_NAME;
-} // namespace
+#include <geode/geosciences_io/model/internal/simulation_boundary_values.hpp>
 
 namespace geode::internal
 {

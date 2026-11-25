@@ -43,7 +43,7 @@ namespace geode
         Impl() = delete;
         Impl( const StructuralModel& model, std::string_view files_directory )
             : internal::OgsExporterImpl< StructuralModel >(
-                files_directory, model, "[StructuralModelOgsExporter]" )
+                  files_directory, model, "[StructuralModelOgsExporter]" )
         {
         }
         ~Impl() override = default;

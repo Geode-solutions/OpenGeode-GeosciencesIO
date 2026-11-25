@@ -31,7 +31,6 @@
 
 namespace geode
 {
-    class BRep;
     class PhysicalProblem;
     struct SourceTerm;
 } // namespace geode

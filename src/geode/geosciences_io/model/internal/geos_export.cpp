@@ -277,8 +277,8 @@ namespace geode::internal
     template < typename Model >
     void GeosExporterImpl< Model >::convert_model()
     {
-        bool all_regular_grids{ model().nb_blocks() != 0 };
-        for( const auto& block : model().blocks() )
+        bool all_regular_grids{ this->model().nb_blocks() != 0 };
+        for( const auto& block : this->model().blocks() )
         {
             if( block.mesh().type_name() != RegularGrid3D::type_name_static() )
             {
@@ -291,7 +291,7 @@ namespace geode::internal
             "[GeosExporter] Cannot export a model whose Blocks are all "
             "RegularGrids: convert the Block meshes into HybridSolids "
             "first." );
-        solid_.emplace( model(), region_definitions_, "[GeosExporter]" );
+        solid_.emplace( this->model(), region_definitions_, "[GeosExporter]" );
     }
 
     template < typename Model >
@@ -306,7 +306,7 @@ namespace geode::internal
         auto mesh_node = pb_node.append_child( "Mesh" );
         write_mesh_files( mesh_node );
 
-        if( !well_perforations().empty() )
+        if( !this->well_perforations().empty() )
         {
             auto geometry_node = pb_node.append_child( "Geometry" );
             write_well_perforations_boxes( geometry_node );
@@ -337,8 +337,8 @@ namespace geode::internal
             write_boundary_table_files();
         }
 
-        const auto filename_xml =
-            absl::StrCat( files_directory(), "/", prefix(), "_simulation.xml" );
+        const auto filename_xml = absl::StrCat(
+            this->files_directory(), "/", this->prefix(), "_simulation.xml" );
         OpenGeodeGeosciencesIOModelException::check_exception(
             doc_xml.save_file( filename_xml.c_str(), PUGIXML_TEXT( "    " ),
                 pugi::format_indent_attributes ),
@@ -362,7 +362,7 @@ namespace geode::internal
     {
         clear_export();
         define_regions();
-        if( problem() != nullptr )
+        if( this->problem() != nullptr )
         {
             check_problem();
         }
@@ -370,13 +370,13 @@ namespace geode::internal
         initialize_surface_cells( nb_solid_regions() );
         transfer_physical_properties();
         transfer_boundary_conditions();
-        if( problem() != nullptr && problem()->solid_mechanics() )
+        if( this->problem() != nullptr && this->problem()->solid_mechanics() )
         {
             transfer_mechanics_properties();
             transfer_mechanics_boundary_conditions();
         }
         compute_well_boxes();
-        if( problem() != nullptr )
+        if( this->problem() != nullptr )
         {
             prepare_simulation();
         }
@@ -404,8 +404,8 @@ namespace geode::internal
     template < typename Model >
     void GeosExporterImpl< Model >::define_regions()
     {
-        region_definitions_ = create_region_definitions( model() );
-        add_block_collection_regions( model(), region_definitions_ );
+        region_definitions_ = create_region_definitions( this->model() );
+        add_block_collection_regions( this->model(), region_definitions_ );
     }
 
     template < typename Model >
@@ -422,7 +422,7 @@ namespace geode::internal
         const auto& polygons_mapping =
             solid_->mappings().surface_polygons_mapping;
         auto region_id = first_surface_region_id;
-        for( const auto& surface : model().surfaces() )
+        for( const auto& surface : this->model().surfaces() )
         {
             index_t nb_skipped_polygons{ 0 };
             for( const auto polygon_id : Range{ surface.mesh().nb_polygons() } )
@@ -434,8 +434,8 @@ namespace geode::internal
                     nb_skipped_polygons++;
                     continue;
                 }
-                auto vertices =
-                    polygon_unique_vertices( model(), surface, polygon_id );
+                auto vertices = polygon_unique_vertices(
+                    this->model(), surface, polygon_id );
                 for( auto& vertex : vertices )
                 {
                     vertex = solid_->mappings().unique_vertices_mapping.in2out(
@@ -460,15 +460,15 @@ namespace geode::internal
     void GeosExporterImpl< Model >::compute_well_boxes()
     {
         well_boxes_.clear();
-        if( well_perforations().empty() )
+        if( this->well_perforations().empty() )
         {
             return;
         }
         const auto aabb = create_aabb_tree( solid_->mesh() );
-        for( const auto well_id : Indices{ well_perforations() } )
+        for( const auto well_id : Indices{ this->well_perforations() } )
         {
-            const auto& well = well_perforations()[well_id];
-            const auto& well_name = well_names()[well_id];
+            const auto& well = this->well_perforations()[well_id];
+            const auto& well_name = this->well_names()[well_id];
             BoundingBox3D perf_box;
             bool has_perforated_cell{ false };
             for( const auto point_id : Range( well->nb_vertices() ) )
@@ -515,7 +515,7 @@ namespace geode::internal
             }
             auto box_node = root.append_child( "Box" );
             box_node.append_attribute( "name" ).set_value(
-                well_names()[well_id].c_str() );
+                this->well_names()[well_id].c_str() );
             static constexpr auto SAFETY_OFFSET = 100. * GLOBAL_EPSILON;
             const auto box_corner = []( const Point3D& corner, double offset ) {
                 return absl::StrCat( "{",
@@ -538,7 +538,7 @@ namespace geode::internal
 
         auto vtk_mesh_node = root.append_child( "VTKMesh" );
         vtk_mesh_node.append_attribute( "name" ).set_value(
-            to_string( prefix() ).c_str() );
+            to_string( this->prefix() ).c_str() );
         vtk_mesh_node.append_attribute( "file" ).set_value(
             absl::StrCat( "./", file_vtu ).c_str() );
         if( writer_ )
@@ -625,7 +625,7 @@ namespace geode::internal
             specification_node.append_attribute( "setNames" )
                 .set_value( absl::StrCat(
                     "{ ", absl::StrJoin( condition.region_ids, ", " ), " }" )
-                                .c_str() );
+                        .c_str() );
         }
     }
 
@@ -648,7 +648,7 @@ namespace geode::internal
                             absl::StrAppend( out, "./", file );
                         } ),
                     " }" )
-                                .c_str() );
+                        .c_str() );
             function_node.append_attribute( "voxelFile" )
                 .set_value( absl::StrCat( "./", table.voxel_file ).c_str() );
             function_node.append_attribute( "interpolation" )
@@ -661,14 +661,14 @@ namespace geode::internal
     {
         for( const auto& [property, geos_name] : PHYSICAL_PROPERTY_GEOS_NAMES )
         {
-            if( !model().has_physical_property( property ) )
+            if( !this->model().has_physical_property( property ) )
             {
                 continue;
             }
             const auto& property_info =
-                model().physical_property_info( property );
+                this->model().physical_property_info( property );
             auto attribute_name = solid_->transfer_block_property(
-                GEOS_NAMING, model(), property_info, geos_name );
+                GEOS_NAMING, this->model(), property_info, geos_name );
             if( !attribute_name )
             {
                 continue;
@@ -691,15 +691,15 @@ namespace geode::internal
     {
         for( const auto& [property, geos_name] : MECHANICS_PROPERTIES )
         {
-            if( !model().has_physical_property( property )
-                || !is_physical_property_read( *problem(), property ) )
+            if( !this->model().has_physical_property( property )
+                || !is_physical_property_read( *this->problem(), property ) )
             {
                 continue;
             }
             const auto& property_info =
-                model().physical_property_info( property );
+                this->model().physical_property_info( property );
             if( !solid_->transfer_block_property(
-                    GEOS_NAMING, model(), property_info, geos_name ) )
+                    GEOS_NAMING, this->model(), property_info, geos_name ) )
             {
                 continue;
             }
@@ -707,7 +707,7 @@ namespace geode::internal
                 property, property_info.attribute_id );
         }
         transfer_initial_stress();
-        if( problem()->has_flow() )
+        if( this->problem()->has_flow() )
         {
             compute_grain_bulk_modulus();
         }
@@ -716,7 +716,7 @@ namespace geode::internal
     template < typename Model >
     void GeosExporterImpl< Model >::transfer_initial_stress()
     {
-        const auto factor = stress_factor( *problem(), true );
+        const auto factor = stress_factor( *this->problem(), true );
         // Index of the first tensor component given by each property
         for( const auto& [property, name, first_component] :
             { std::tuple{ PHYSICAL_PROPERTY_NAME::initial_stress,
@@ -724,17 +724,18 @@ namespace geode::internal
                 std::tuple{ PHYSICAL_PROPERTY_NAME::initial_shear_stress,
                     "initial_shear_stress", local_index_t{ 3 } } } )
         {
-            if( !model().has_physical_property( property ) )
+            if( !this->model().has_physical_property( property ) )
             {
                 continue;
             }
-            transfer_stress_components( GEOS_NAMING, model(),
-                solid_->mappings(), model().physical_property_info( property ),
-                name, first_component, factor, initial_stress_tensor() );
+            transfer_stress_components( GEOS_NAMING, this->model(),
+                solid_->mappings(),
+                this->model().physical_property_info( property ), name,
+                first_component, factor, initial_stress_tensor() );
         }
         // Created even without initial stress property: build_deck_context
         // imports it, then add_initial_pore_pressure shifts it
-        if( problem()->has_flow() )
+        if( this->problem()->has_flow() )
         {
             initial_stress_tensor();
         }
@@ -809,7 +810,7 @@ namespace geode::internal
         {
             region_pressures.push_back(
                 dynamic_cast< const UniformInitialCondition& >(
-                    problem()->initial_condition( condition_id.value() ) )
+                    this->problem()->initial_condition( condition_id.value() ) )
                     .pressure() );
         }
         auto& tensor = initial_stress_tensor();
@@ -832,24 +833,24 @@ namespace geode::internal
     {
         for( const auto& [property, field] : BOUNDARY_CONDITION_GEOS_FIELDS )
         {
-            if( !model().has_physical_property( property ) )
+            if( !this->model().has_physical_property( property ) )
             {
                 continue;
             }
             BoundaryCondition prototype;
             prototype.field_name = to_string( field.field_name );
             transfer_boundary_condition(
-                boundary_condition_attribute_id( model(), property ),
+                boundary_condition_attribute_id( this->model(), property ),
                 field.name_prefix, prototype, 1. );
         }
         for( const auto& [property, fraction] : FLUID_FRACTION_GEOS_NAMES )
         {
-            if( !model().has_physical_property( property ) )
+            if( !this->model().has_physical_property( property ) )
             {
                 continue;
             }
             const auto component =
-                boundary_fraction_component( problem(), fraction );
+                boundary_fraction_component( this->problem(), fraction );
             if( !component )
             {
                 // Reported by GeosSimulationChecker
@@ -859,7 +860,7 @@ namespace geode::internal
             prototype.field_name = "globalCompFraction";
             prototype.component = component;
             transfer_boundary_condition(
-                boundary_condition_attribute_id( model(), property ),
+                boundary_condition_attribute_id( this->model(), property ),
                 absl::StrCat( "boundaryComposition_", fraction.fluid ),
                 prototype, 1. );
         }
@@ -868,29 +869,30 @@ namespace geode::internal
     template < typename Model >
     void GeosExporterImpl< Model >::transfer_mechanics_boundary_conditions()
     {
-        if( model().has_physical_property(
+        if( this->model().has_physical_property(
                 PHYSICAL_PROPERTY_NAME::boundary_displacement ) )
         {
-            transfer_displacements( boundary_condition_attribute_id(
-                model(), PHYSICAL_PROPERTY_NAME::boundary_displacement ) );
+            transfer_displacements(
+                boundary_condition_attribute_id( this->model(),
+                    PHYSICAL_PROPERTY_NAME::boundary_displacement ) );
         }
-        if( model().has_physical_property(
+        if( this->model().has_physical_property(
                 PHYSICAL_PROPERTY_NAME::boundary_traction ) )
         {
             transfer_tractions( boundary_condition_attribute_id(
-                model(), PHYSICAL_PROPERTY_NAME::boundary_traction ) );
+                this->model(), PHYSICAL_PROPERTY_NAME::boundary_traction ) );
         }
-        if( model().has_physical_property(
+        if( this->model().has_physical_property(
                 PHYSICAL_PROPERTY_NAME::boundary_normal_traction ) )
         {
             BoundaryCondition prototype;
             prototype.kind = BOUNDARY_KIND::normal_traction;
             // GEOS normal tractions pull the faces outwards
             transfer_boundary_condition(
-                boundary_condition_attribute_id(
-                    model(), PHYSICAL_PROPERTY_NAME::boundary_normal_traction ),
+                boundary_condition_attribute_id( this->model(),
+                    PHYSICAL_PROPERTY_NAME::boundary_normal_traction ),
                 "boundaryNormalTraction", prototype,
-                stress_factor( *problem(), true ) );
+                stress_factor( *this->problem(), true ) );
         }
     }
 
@@ -901,7 +903,7 @@ namespace geode::internal
         absl::linked_hash_map< std::pair< local_index_t, double >,
             std::vector< index_t > >
             value_regions;
-        for( const auto& surface : model().surfaces() )
+        for( const auto& surface : this->model().surfaces() )
         {
             const auto values = surface_values< std::array< double, 3 > >(
                 surface, attribute_id, GEOS_NAMING.context );
@@ -943,8 +945,9 @@ namespace geode::internal
     void GeosExporterImpl< Model >::transfer_tractions(
         const uuid& attribute_id )
     {
-        auto groups = group_surface_values< std::array< double, 3 > >(
-            model(), surface_regions_, attribute_id, GEOS_NAMING.context );
+        auto groups =
+            group_surface_values< std::array< double, 3 > >( this->model(),
+                surface_regions_, attribute_id, GEOS_NAMING.context );
         for( const auto& variable : groups.variable_surfaces )
         {
             for( const auto axis : LRange{ 3 } )
@@ -999,8 +1002,8 @@ namespace geode::internal
         const BoundaryCondition& prototype,
         double factor )
     {
-        auto groups = group_surface_values< double >(
-            model(), surface_regions_, attribute_id, GEOS_NAMING.context );
+        auto groups = group_surface_values< double >( this->model(),
+            surface_regions_, attribute_id, GEOS_NAMING.context );
         for( auto& variable : groups.variable_surfaces )
         {
             for( auto& value : variable.values )
@@ -1093,21 +1096,21 @@ namespace geode::internal
     template < typename Model >
     void GeosExporterImpl< Model >::write_boundary_table_files() const
     {
-        std::filesystem::create_directories(
-            absl::StrCat( files_directory(), "/", BOUNDARY_TABLES_DIRECTORY ) );
+        std::filesystem::create_directories( absl::StrCat(
+            this->files_directory(), "/", BOUNDARY_TABLES_DIRECTORY ) );
         for( const auto& [surface_id, grid] : boundary_grids_ )
         {
             for( const auto axis : LRange{ 3 } )
             {
-                write_table_values(
-                    absl::StrCat( files_directory(), "/", grid.files[axis] ),
+                write_table_values( absl::StrCat( this->files_directory(), "/",
+                                        grid.files[axis] ),
                     grid.coordinates[axis] );
             }
         }
         for( const auto& table : boundary_tables_ )
         {
             write_table_values(
-                absl::StrCat( files_directory(), "/", table.voxel_file ),
+                absl::StrCat( this->files_directory(), "/", table.voxel_file ),
                 table.values );
         }
     }
@@ -1115,8 +1118,9 @@ namespace geode::internal
     template < typename Model >
     std::string GeosExporterImpl< Model >::write_solid_file() const
     {
-        const auto filename = absl::StrCat( prefix(), ".vtu" );
-        const auto file_vtu = absl::StrCat( files_directory(), "/", filename );
+        const auto filename = absl::StrCat( this->prefix(), ".vtu" );
+        const auto file_vtu =
+            absl::StrCat( this->files_directory(), "/", filename );
         const auto nb_polyhedra = solid_->mesh().nb_polyhedra();
         AttributeManager cell_attributes;
         cell_attributes.copy( solid_->mesh().polyhedron_attribute_manager() );
@@ -1146,10 +1150,10 @@ namespace geode::internal
     void GeosExporterImpl< Model >::write_well_perforation_file() const
     {
         index_t well_id{ 0 };
-        for( const auto& well : well_perforations() )
+        for( const auto& well : this->well_perforations() )
         {
-            const auto file = absl::StrCat(
-                files_directory(), "/", prefix(), "_well", well_id, ".vtp" );
+            const auto file = absl::StrCat( this->files_directory(), "/",
+                this->prefix(), "_well", well_id, ".vtp" );
             save_point_set( *well, file );
             well_id++;
         }
@@ -1260,13 +1264,14 @@ namespace geode::internal
                 GeosCellArray{ initial_stress_attribute_id_.value(),
                     INITIAL_STRESS_TENSOR };
         }
-        context.boundary_conditions = model_boundary_conditions( model() );
+        context.boundary_conditions =
+            model_boundary_conditions( this->model() );
         // Only the wells perforating the model define a GEOS set
         for( const auto well_id : Indices{ well_boxes_ } )
         {
             if( well_boxes_[well_id] )
             {
-                context.well_names.push_back( well_names()[well_id] );
+                context.well_names.push_back( this->well_names()[well_id] );
             }
         }
         return context;
@@ -1276,9 +1281,9 @@ namespace geode::internal
     void GeosExporterImpl< Model >::check_problem() const
     {
         const auto report = GeosSimulationChecker{
-            *problem(), model(),
+            *this->problem(), this->model(),
             GeosExportData{ region_definitions_,
-                { well_names().begin(), well_names().end() } }
+                { this->well_names().begin(), this->well_names().end() } }
         }.check();
         OpenGeodeGeosciencesIOModelException::check_exception(
             report.is_simulable(), nullptr, OpenGeodeException::TYPE::data,
@@ -1298,24 +1303,24 @@ namespace geode::internal
         // Solid mechanics data are cell properties: no material to assign
         RegionAssignment materials;
         RegionAssignment initial_conditions;
-        if( problem()->has_flow() )
+        if( this->problem()->has_flow() )
         {
             materials = assign_region_materials(
-                *problem(), model(), context_.regions, "GEOS" );
+                *this->problem(), this->model(), context_.regions, "GEOS" );
             initial_conditions = assign_region_initial_conditions(
-                *problem(), model(), context_.regions, "GEOS" );
+                *this->problem(), this->model(), context_.regions, "GEOS" );
         }
-        if( problem()->has_flow() && problem()->solid_mechanics() )
+        if( this->problem()->has_flow() && this->problem()->solid_mechanics() )
         {
             add_initial_pore_pressure( initial_conditions );
         }
         if( const auto temperature = geos_default_boundary_temperature(
-                *problem(), context_.boundary_conditions ) )
+                *this->problem(), context_.boundary_conditions ) )
         {
             add_isothermal_boundary_temperature( temperature.value() );
         }
         writer_ = std::make_unique< GeosSimulationWriter >(
-            *problem(), context_, materials, initial_conditions );
+            *this->problem(), context_, materials, initial_conditions );
     }
 
     template < typename Model >

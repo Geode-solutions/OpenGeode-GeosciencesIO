@@ -118,7 +118,7 @@ namespace
         curve.values.push_back( max_saturation );
         // Effective saturation from 1 down to its first non-zero sample
         for( auto index = geode::internal::CURVE_SAMPLES - 1; index > 0;
-             index-- )
+            index-- )
         {
             const auto effective = sample( index );
             curve.coords.push_back(

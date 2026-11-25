@@ -41,7 +41,7 @@ namespace geode
         Impl() = delete;
         Impl( const BRep& brep, std::string_view files_directory )
             : internal::OgsExporterImpl< BRep >(
-                files_directory, brep, "[OgsExporter]" )
+                  files_directory, brep, "[OgsExporter]" )
         {
         }
         ~Impl() override = default;
