@@ -245,6 +245,22 @@ namespace geode::internal
         return definitions;
     }
 
+    SimulationRegions structural_model_block_regions(
+        const StructuralModel& model )
+    {
+        auto definitions = brep_block_regions( model );
+        for( const auto& unit : model.stratigraphic_units() )
+        {
+            auto& unit_regions = definitions.regions_by_uuid[unit.id()];
+            for( const auto& block : model.stratigraphic_unit_items( unit ) )
+            {
+                unit_regions.push_back(
+                    definitions.block_regions.at( block.id() ) );
+            }
+        }
+        return definitions;
+    }
+
     void add_block_collection_regions(
         const BRep& model, SimulationRegions& regions )
     {

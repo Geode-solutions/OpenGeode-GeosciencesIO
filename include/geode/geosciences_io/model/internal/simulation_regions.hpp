@@ -86,6 +86,11 @@ namespace geode::internal
     [[nodiscard]] SimulationRegions structural_model_unit_regions(
         const StructuralModel& model, std::string_view context );
 
+    /// One region per Block, as brep_block_regions. Each StratigraphicUnit
+    /// uuid maps to the regions of its Blocks (no merging).
+    [[nodiscard]] SimulationRegions opengeode_geosciencesio_model_api
+        structural_model_block_regions( const StructuralModel& model );
+
     /// Maps the uuid of each BlockCollection to the regions of its Blocks.
     /// A collection with a Block merged into another region is skipped.
     /// regions must come from brep_block_regions or

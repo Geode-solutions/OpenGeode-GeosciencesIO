@@ -35,8 +35,16 @@
 
 #include <geode/geometry/point.hpp>
 
+#include <geode/model/mixin/core/block.hpp>
+#include <geode/model/representation/io/brep_input.hpp>
+
+#include <geode/geosciences/explicit/mixin/core/stratigraphic_unit.hpp>
+#include <geode/geosciences/explicit/representation/builder/structural_model_builder.hpp>
+#include <geode/geosciences/explicit/representation/core/structural_model.hpp>
+
 #include <geode/geosciences_io/model/common.hpp>
 #include <geode/geosciences_io/model/internal/ogs_vtu.hpp>
+#include <geode/geosciences_io/model/internal/simulation_regions.hpp>
 
 namespace
 {
@@ -109,12 +117,59 @@ void test_ogs_mesh_file()
         "Single-vertex cells must be VTK type 1" );
 }
 
+void test_ogs_structural_model_regions()
+{
+    const auto model_filename =
+        absl::StrCat( geode::DATA_PATH, "picasso.og_brep" );
+    geode::StructuralModel model{ geode::load_one(
+        geode::load_brep( model_filename ), model_filename ) };
+    check( model.nb_blocks() >= 3, "picasso should have 3 Blocks or more" );
+    geode::StructuralModelBuilder builder{ model };
+    const auto& first_id = builder.add_stratigraphic_unit();
+    const auto& second_id = builder.add_stratigraphic_unit();
+    std::vector< geode::uuid > first_blocks;
+    std::vector< geode::uuid > second_blocks;
+    for( const auto& block : model.blocks() )
+    {
+        if( first_blocks.size() < 2 )
+        {
+            builder.add_block_in_stratigraphic_unit(
+                block, model.stratigraphic_unit( first_id ) );
+            first_blocks.push_back( block.id() );
+        }
+        else if( second_blocks.empty() )
+        {
+            builder.add_block_in_stratigraphic_unit(
+                block, model.stratigraphic_unit( second_id ) );
+            second_blocks.push_back( block.id() );
+        }
+    }
+    const auto regions = geode::internal::structural_model_block_regions(
+        model );
+    check( regions.solid_regions.size() == model.nb_blocks(),
+        "One region per Block expected" );
+    check( regions.merged_blocks.empty(), "No Block should be merged" );
+    const auto check_unit = [&regions]( const geode::uuid& unit,
+                                absl::Span< const geode::uuid > blocks ) {
+        std::vector< geode::index_t > expected;
+        for( const auto& block : blocks )
+        {
+            expected.push_back( regions.block_regions.at( block ) );
+        }
+        check( regions.regions_by_uuid.at( unit ) == expected,
+            "A unit should map to the regions of its Blocks" );
+    };
+    check_unit( first_id, first_blocks );
+    check_unit( second_id, second_blocks );
+}
+
 int main()
 {
     try
     {
         geode::OpenGeodeGeosciencesIOModelLibrary::initialize();
         test_ogs_mesh_file();
+        test_ogs_structural_model_regions();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }
