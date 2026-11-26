@@ -23,7 +23,9 @@
 
 #include <geode/geosciences_io/model/internal/ogs_project_writer.hpp>
 
+#include <array>
 #include <cmath>
+#include <utility>
 #include <vector>
 
 #include <pugixml.hpp>
@@ -53,6 +55,9 @@ namespace
     constexpr std::string_view TWO_PHASE_ABSTOLS{ "1e-05 1e-05" };
     constexpr std::string_view TWO_PHASE_RELTOLS{ "1e-08 1e-06" };
     constexpr std::string_view JACOBIAN_EPSILONS{ "0.001 0.01" };
+    // HeatTransportInStationaryFlow benchmark, temperature then pressure
+    constexpr std::string_view HT_RELTOLS{ "1e-10 1e-10" };
+    constexpr geode::index_t HT_MAX_ITERATIONS{ 50 };
     // IterationNumberBasedTimeStepping values of the OGS benchmarks
     constexpr std::string_view NUMBER_ITERATIONS{ "1 4 10" };
     constexpr std::string_view MULTIPLIERS{ "2 1 0.5" };
@@ -83,6 +88,43 @@ namespace
             values, " ", []( std::string* out, double value ) {
                 absl::StrAppend( out, geode::internal::xml_real( value ) );
             } );
+    }
+
+    // Real term of an OGS (exprtk) expression, negative ones in parentheses
+    std::string expression_real( double value )
+    {
+        const auto real = geode::internal::xml_real( value );
+        return value < 0. ? absl::StrCat( "(", real, ")" ) : real;
+    }
+
+    // Value of an exponential law in the OGS variables
+    std::string law_expression( const geode::internal::OgsExponentialLaw& law )
+    {
+        return absl::StrCat( expression_real( law.reference_value ), "*exp(",
+            expression_real( law.pressure_factor ), "*(liquid_phase_pressure-",
+            expression_real( law.reference_pressure ), ")+",
+            expression_real( law.temperature_factor ), "*(temperature-",
+            expression_real( law.reference_temperature ), "))" );
+    }
+
+    // Function property of a law of pressure and temperature: its value and
+    // both derivatives (OGS stops when HT asks a missing one)
+    void write_function_law( pugi::xml_node& property,
+        const geode::internal::OgsExponentialLaw& law )
+    {
+        add_text( property, "type", "Function" );
+        const auto value = law_expression( law );
+        add_text( property.append_child( "value" ), "expression", value );
+        for( const auto& [variable, factor] :
+            std::array< std::pair< std::string_view, double >, 2 >{
+                { { "liquid_phase_pressure", law.pressure_factor },
+                    { "temperature", law.temperature_factor } } } )
+        {
+            auto dvalue = property.append_child( "dvalue" );
+            add_text( dvalue, "variable_name", variable );
+            add_text( dvalue, "expression",
+                absl::StrCat( expression_real( factor ), "*", value ) );
+        }
     }
 
     // Sets the text of the descendant at path ("a/b"), created if missing
@@ -153,6 +195,11 @@ namespace
                    == geode::internal::OGS_PROCESS::two_phase_flow_pp;
         }
 
+        [[nodiscard]] bool is_ht() const
+        {
+            return context_.process == geode::internal::OGS_PROCESS::ht;
+        }
+
         void add_constant_parameter( std::string_view name, double value )
         {
             auto node = parameters_.append_child( "parameter" );
@@ -202,62 +249,110 @@ namespace
             auto process =
                 root_.append_child( "processes" ).append_child( "process" );
             add_text( process, "name", PROCESS_NAME );
-            const auto& gravity = problem_.gravity();
-            const std::array< double, 3 > body_force{ gravity.value( 0 ),
-                gravity.value( 1 ), gravity.value( 2 ) };
-            if( is_two_phase() )
+            switch( context_.process )
             {
-                add_text( process, "type", "TWOPHASE_FLOW_PP" );
-                add_text( process, "integration_order", "2" );
-                auto jacobian = process.append_child( "jacobian_assembler" );
-                add_text( jacobian, "type", "CentralDifferences" );
-                add_text( jacobian, "epsilons", JACOBIAN_EPSILONS );
-                auto variables = process.append_child( "process_variables" );
-                add_text(
-                    variables, "capillary_pressure", "capillary_pressure" );
-                add_text( variables, "gas_pressure", "gas_pressure" );
-                process.append_child( "secondary_variables" )
-                    .append_child( "secondary_variable" )
-                    .append_attribute( "name" )
-                    .set_value( "saturation" );
-                add_text( process, "specific_body_force", reals( body_force ) );
-                add_text( process, "mass_lumping", "true" );
-                add_text( process, "temperature", "temperature" );
-                add_constant_parameter(
-                    "temperature", context_.reference_temperature );
-                return;
+                case geode::internal::OGS_PROCESS::two_phase_flow_pp:
+                    write_two_phase_process( process );
+                    return;
+                case geode::internal::OGS_PROCESS::ht:
+                    write_ht_process( process );
+                    return;
+                case geode::internal::OGS_PROCESS::liquid_flow:
+                    write_liquid_flow_process( process );
+                    return;
             }
+        }
+
+        [[nodiscard]] std::string body_force() const
+        {
+            const auto& gravity = problem_.gravity();
+            return reals( std::array< double, 3 >{
+                gravity.value( 0 ), gravity.value( 1 ), gravity.value( 2 ) } );
+        }
+
+        void write_two_phase_process( pugi::xml_node& process )
+        {
+            add_text( process, "type", "TWOPHASE_FLOW_PP" );
+            add_text( process, "integration_order", "2" );
+            auto jacobian = process.append_child( "jacobian_assembler" );
+            add_text( jacobian, "type", "CentralDifferences" );
+            add_text( jacobian, "epsilons", JACOBIAN_EPSILONS );
+            auto variables = process.append_child( "process_variables" );
+            add_text( variables, "capillary_pressure", "capillary_pressure" );
+            add_text( variables, "gas_pressure", "gas_pressure" );
+            process.append_child( "secondary_variables" )
+                .append_child( "secondary_variable" )
+                .append_attribute( "name" )
+                .set_value( "saturation" );
+            add_text( process, "specific_body_force", body_force() );
+            add_text( process, "mass_lumping", "true" );
+            add_text( process, "temperature", "temperature" );
+            add_constant_parameter(
+                "temperature", context_.reference_temperature );
+        }
+
+        void write_ht_process( pugi::xml_node& process ) const
+        {
+            add_text( process, "type", "HT" );
+            add_text( process, "integration_order", "2" );
+            auto variables = process.append_child( "process_variables" );
+            add_text( variables, "temperature", "temperature" );
+            add_text( variables, "pressure", "pressure" );
+            add_text( process, "specific_body_force", body_force() );
+            add_text( process, "equation_balance_type", "mass" );
+        }
+
+        void write_liquid_flow_process( pugi::xml_node& process ) const
+        {
             add_text( process, "type", "LIQUID_FLOW" );
             add_text( process, "integration_order", "2" );
             add_text( process.append_child( "process_variables" ),
                 "process_variable", "pressure" );
-            add_text( process, "specific_body_force", reals( body_force ) );
+            add_text( process, "specific_body_force", body_force() );
             add_text( process, "equation_balance_type", "mass" );
         }
 
-        void write_exponential( pugi::xml_node& properties,
-            std::string_view name,
-            double reference_value,
-            double factor ) const
+        // Variable of the exponent of an Exponential property
+        struct OgsExponent
         {
-            auto property = properties.append_child( "property" );
-            add_text( property, "name", name );
-            if( factor == 0. )
+            std::string_view variable;
+            double reference_condition{ 0 };
+            double factor{ 0 };
+        };
+
+        // Constant without factor, Exponential with one, Function with both
+        void write_fluid_law( pugi::xml_node& properties,
+            std::string_view name,
+            const geode::internal::OgsExponentialLaw& law ) const
+        {
+            const auto on_pressure = law.pressure_factor != 0.;
+            const auto on_temperature = law.temperature_factor != 0.;
+            if( !on_pressure && !on_temperature )
             {
-                add_text( property, "type", "Constant" );
-                add_real( property, "value", reference_value );
+                write_constant( properties, name, law.reference_value );
                 return;
             }
-            const auto& fluid = dynamic_cast< const geode::SinglePhaseFluid& >(
-                problem_.fluid() );
+            auto property = properties.append_child( "property" );
+            add_text( property, "name", name );
+            if( on_pressure && on_temperature )
+            {
+                write_function_law( property, law );
+                return;
+            }
             add_text( property, "type", "Exponential" );
-            add_real( property, "reference_value", reference_value );
+            add_real( property, "reference_value", law.reference_value );
             add_text( property, "offset", "0" );
-            auto exponent = property.append_child( "exponent" );
-            add_text( exponent, "variable_name", "liquid_phase_pressure" );
+            const auto exponent =
+                on_pressure
+                    ? OgsExponent{ "liquid_phase_pressure",
+                          law.reference_pressure, law.pressure_factor }
+                    : OgsExponent{ "temperature", law.reference_temperature,
+                          law.temperature_factor };
+            auto node = property.append_child( "exponent" );
+            add_text( node, "variable_name", exponent.variable );
             add_real(
-                exponent, "reference_condition", fluid.reference_pressure() );
-            add_real( exponent, "factor", factor );
+                node, "reference_condition", exponent.reference_condition );
+            add_real( node, "factor", exponent.factor );
         }
 
         void write_constant( pugi::xml_node& properties,
@@ -307,12 +402,49 @@ namespace
                     properties, "viscosity", fluid.water_pvt()->viscosity );
                 return;
             }
-            const auto& fluid = dynamic_cast< const geode::SinglePhaseFluid& >(
-                problem_.fluid() );
-            write_exponential( properties, "density", fluid.reference_density(),
-                fluid.compressibility() );
-            write_exponential( properties, "viscosity",
-                fluid.reference_viscosity(), fluid.viscosibility() );
+            write_fluid_law( properties, "density",
+                geode::internal::ogs_density_law( problem_ ) );
+            write_fluid_law( properties, "viscosity",
+                geode::internal::ogs_viscosity_law( problem_ ) );
+            if( is_ht() )
+            {
+                const auto& fluid =
+                    dynamic_cast< const geode::SinglePhaseFluid& >(
+                        problem_.fluid() );
+                write_constant( properties, "specific_heat_capacity",
+                    fluid.thermal().value().specific_heat_capacity );
+                // Unread: the medium has its own conductivity
+                write_constant( properties, "thermal_conductivity", 0. );
+            }
+        }
+
+        // HT reads the rock heat capacity as rho_s * c_s * (1 - phi): a unit
+        // density and the volumetric heat capacity give it per solid volume
+        void write_solid_phase(
+            pugi::xml_node& phases, const geode::Material& material ) const
+        {
+            auto phase = phases.append_child( "phase" );
+            add_text( phase, "type", "Solid" );
+            auto properties = phase.append_child( "properties" );
+            write_storage( properties, material );
+            write_constant( properties, "density", 1. );
+            write_constant( properties, "specific_heat_capacity",
+                material.thermal.value().volumetric_heat_capacity );
+            // Unread: the medium has its own conductivity
+            write_constant( properties, "thermal_conductivity", 0. );
+        }
+
+        void write_storage(
+            pugi::xml_node& properties, const geode::Material& material ) const
+        {
+            if( context_.has_porosity_field )
+            {
+                write_parameter_property( properties, "storage", "storage" );
+                return;
+            }
+            write_constant( properties, "storage",
+                geode::internal::ogs_storage( material.porosity.value_or( 0. ),
+                    material.pore_compressibility ) );
         }
 
         static geode::index_t water_phase_index(
@@ -363,12 +495,79 @@ namespace
                 {
                     write_oil_phase( phases );
                 }
+                if( is_ht() )
+                {
+                    write_solid_phase( phases, material );
+                }
                 auto properties = medium.append_child( "properties" );
                 write_rock_properties( properties, material, material_id );
             }
         }
 
         void write_rock_properties( pugi::xml_node& properties,
+            const geode::Material& material,
+            geode::index_t material_id )
+        {
+            write_permeability( properties, material, material_id );
+            if( context_.has_porosity_field )
+            {
+                write_parameter_property( properties, "porosity", "porosity" );
+            }
+            else
+            {
+                write_constant(
+                    properties, "porosity", material.porosity.value_or( 0. ) );
+            }
+            switch( context_.process )
+            {
+                case geode::internal::OGS_PROCESS::two_phase_flow_pp:
+                    write_saturation_properties( properties, material_id );
+                    return;
+                case geode::internal::OGS_PROCESS::ht:
+                    write_thermal_medium( properties, material );
+                    return;
+                case geode::internal::OGS_PROCESS::liquid_flow:
+                    write_storage( properties, material );
+                    write_constant( properties, "reference_temperature",
+                        context_.reference_temperature );
+                    return;
+            }
+        }
+
+        // Diagonal bulk conductivity, no dispersion
+        void write_thermal_medium(
+            pugi::xml_node& properties, const geode::Material& material ) const
+        {
+            auto conductivity = properties.append_child( "property" );
+            add_text( conductivity, "name", "thermal_conductivity" );
+            add_text( conductivity, "type", "Constant" );
+            add_text( conductivity, "value",
+                reals( material.thermal.value().thermal_conductivity ) );
+            write_constant(
+                properties, "thermal_longitudinal_dispersivity", 0. );
+            write_constant(
+                properties, "thermal_transversal_dispersivity", 0. );
+        }
+
+        void write_saturation_properties(
+            pugi::xml_node& properties, geode::index_t material_id ) const
+        {
+            const auto curves = absl::StrCat( "_", material_id );
+            const auto saturation = absl::StrCat( "saturation", curves );
+            const auto wetting =
+                absl::StrCat( "relative_permeability", curves );
+            const auto non_wetting = absl::StrCat(
+                "relative_permeability_nonwetting_phase", curves );
+            write_curve_property( properties,
+                { "saturation", "capillary_pressure", saturation } );
+            write_curve_property( properties,
+                { "relative_permeability", "liquid_saturation", wetting } );
+            write_curve_property(
+                properties, { "relative_permeability_nonwetting_phase",
+                                "liquid_saturation", non_wetting } );
+        }
+
+        void write_permeability( pugi::xml_node& properties,
             const geode::Material& material,
             geode::index_t material_id )
         {
@@ -392,44 +591,6 @@ namespace
                         : reals( permeability ) );
                 write_parameter_property( properties, "permeability", name );
             }
-            const auto porosity = material.porosity.value_or( 0. );
-            if( context_.has_porosity_field )
-            {
-                write_parameter_property( properties, "porosity", "porosity" );
-            }
-            else
-            {
-                write_constant( properties, "porosity", porosity );
-            }
-            if( is_two_phase() )
-            {
-                const auto curves = absl::StrCat( "_", material_id );
-                const auto saturation = absl::StrCat( "saturation", curves );
-                const auto wetting =
-                    absl::StrCat( "relative_permeability", curves );
-                const auto non_wetting = absl::StrCat(
-                    "relative_permeability_nonwetting_phase", curves );
-                write_curve_property( properties,
-                    { "saturation", "capillary_pressure", saturation } );
-                write_curve_property( properties,
-                    { "relative_permeability", "liquid_saturation", wetting } );
-                write_curve_property(
-                    properties, { "relative_permeability_nonwetting_phase",
-                                    "liquid_saturation", non_wetting } );
-                return;
-            }
-            if( context_.has_porosity_field )
-            {
-                write_parameter_property( properties, "storage", "storage" );
-            }
-            else
-            {
-                write_constant( properties, "storage",
-                    geode::internal::ogs_storage(
-                        porosity, material.pore_compressibility ) );
-            }
-            write_constant( properties, "reference_temperature",
-                context_.reference_temperature );
         }
 
         void write_time_loop()
@@ -440,24 +601,35 @@ namespace
             process.append_attribute( "ref" ).set_value(
                 std::string{ PROCESS_NAME }.c_str() );
             add_text( process, "nonlinear_solver", NONLINEAR_SOLVER );
-            auto convergence = process.append_child( "convergence_criterion" );
-            if( is_two_phase() )
-            {
-                add_text( convergence, "type", "PerComponentDeltaX" );
-                add_text( convergence, "norm_type", "NORM2" );
-                add_text( convergence, "abstols", TWO_PHASE_ABSTOLS );
-                add_text( convergence, "reltols", TWO_PHASE_RELTOLS );
-            }
-            else
-            {
-                add_text( convergence, "type", "DeltaX" );
-                add_text( convergence, "norm_type", "NORM2" );
-                add_real( convergence, "reltol", LIQUID_FLOW_RELTOL );
-            }
+            write_convergence(
+                process.append_child( "convergence_criterion" ) );
             add_text( process.append_child( "time_discretization" ), "type",
                 "BackwardEuler" );
             write_time_stepping( process );
             write_output( time_loop );
+        }
+
+        void write_convergence( pugi::xml_node convergence ) const
+        {
+            switch( context_.process )
+            {
+                case geode::internal::OGS_PROCESS::two_phase_flow_pp:
+                    add_text( convergence, "type", "PerComponentDeltaX" );
+                    add_text( convergence, "norm_type", "NORM2" );
+                    add_text( convergence, "abstols", TWO_PHASE_ABSTOLS );
+                    add_text( convergence, "reltols", TWO_PHASE_RELTOLS );
+                    return;
+                case geode::internal::OGS_PROCESS::ht:
+                    add_text( convergence, "type", "PerComponentDeltaX" );
+                    add_text( convergence, "norm_type", "NORM2" );
+                    add_text( convergence, "reltols", HT_RELTOLS );
+                    return;
+                case geode::internal::OGS_PROCESS::liquid_flow:
+                    add_text( convergence, "type", "DeltaX" );
+                    add_text( convergence, "norm_type", "NORM2" );
+                    add_real( convergence, "reltol", LIQUID_FLOW_RELTOL );
+                    return;
+            }
         }
 
         void write_time_stepping( pugi::xml_node& process ) const
@@ -503,18 +675,27 @@ namespace
             add_text( output, "fixed_output_times",
                 reals( geode::internal::ogs_output_times(
                     problem_.schedule(), problem_.output() ) ) );
-            auto variables = output.append_child( "variables" );
-            if( is_two_phase() )
-            {
-                add_text( variables, "variable", "capillary_pressure" );
-                add_text( variables, "variable", "gas_pressure" );
-                add_text( variables, "variable", "saturation" );
-            }
-            else
-            {
-                add_text( variables, "variable", "pressure" );
-            }
+            write_output_variables( output.append_child( "variables" ) );
             add_text( output, "suffix", "_ts_{:timestep}_t_{:time}" );
+        }
+
+        void write_output_variables( pugi::xml_node variables ) const
+        {
+            switch( context_.process )
+            {
+                case geode::internal::OGS_PROCESS::two_phase_flow_pp:
+                    add_text( variables, "variable", "capillary_pressure" );
+                    add_text( variables, "variable", "gas_pressure" );
+                    add_text( variables, "variable", "saturation" );
+                    return;
+                case geode::internal::OGS_PROCESS::ht:
+                    add_text( variables, "variable", "temperature" );
+                    add_text( variables, "variable", "pressure" );
+                    return;
+                case geode::internal::OGS_PROCESS::liquid_flow:
+                    add_text( variables, "variable", "pressure" );
+                    return;
+            }
         }
 
         pugi::xml_node add_process_variable( pugi::xml_node& variables,
@@ -608,22 +789,51 @@ namespace
                         context_.prefix, "storage" } );
                 }
             }
-            if( is_two_phase() )
+            switch( context_.process )
             {
-                add_initial_parameter( "initial_capillary_pressure",
-                    context_.initial_capillary_pressure );
-                auto capillary = add_process_variable( variables,
-                    "capillary_pressure", "initial_capillary_pressure" );
-                add_dirichlet_conditions( capillary,
-                    geode::PHYSICAL_PROPERTY_NAME::boundary_water_fraction );
-                add_initial_parameter(
-                    "initial_gas_pressure", context_.initial_pressure );
-                auto gas = add_process_variable(
-                    variables, "gas_pressure", "initial_gas_pressure" );
-                add_dirichlet_conditions(
-                    gas, geode::PHYSICAL_PROPERTY_NAME::boundary_pressure );
-                return;
+                case geode::internal::OGS_PROCESS::two_phase_flow_pp:
+                    write_two_phase_variables( variables );
+                    return;
+                case geode::internal::OGS_PROCESS::ht:
+                    write_temperature_variable( variables );
+                    write_pressure_variable( variables );
+                    return;
+                case geode::internal::OGS_PROCESS::liquid_flow:
+                    write_pressure_variable( variables );
+                    return;
             }
+        }
+
+        void write_two_phase_variables( pugi::xml_node& variables )
+        {
+            add_initial_parameter( "initial_capillary_pressure",
+                context_.initial_capillary_pressure );
+            auto capillary = add_process_variable(
+                variables, "capillary_pressure", "initial_capillary_pressure" );
+            add_dirichlet_conditions( capillary,
+                geode::PHYSICAL_PROPERTY_NAME::boundary_water_fraction );
+            add_initial_parameter(
+                "initial_gas_pressure", context_.initial_pressure );
+            auto gas = add_process_variable(
+                variables, "gas_pressure", "initial_gas_pressure" );
+            add_dirichlet_conditions(
+                gas, geode::PHYSICAL_PROPERTY_NAME::boundary_pressure );
+        }
+
+        void write_temperature_variable( pugi::xml_node& variables )
+        {
+            add_initial_parameter(
+                "initial_temperature", context_.initial_temperature );
+            auto temperature = add_process_variable(
+                variables, "temperature", "initial_temperature" );
+            add_dirichlet_conditions( temperature,
+                geode::PHYSICAL_PROPERTY_NAME::boundary_temperature );
+        }
+
+        // Source terms on pressure only: in HT, injected fluid enters at the
+        // local temperature
+        void write_pressure_variable( pugi::xml_node& variables )
+        {
             add_initial_parameter(
                 "initial_pressure", context_.initial_pressure );
             auto pressure = add_process_variable(
@@ -638,18 +848,7 @@ namespace
             auto nonlinear = root_.append_child( "nonlinear_solvers" )
                                  .append_child( "nonlinear_solver" );
             add_text( nonlinear, "name", NONLINEAR_SOLVER );
-            if( is_two_phase() )
-            {
-                add_text( nonlinear, "type", "Newton" );
-                add_text( nonlinear, "max_iter",
-                    absl::StrCat( NEWTON_MAX_ITERATIONS ) );
-            }
-            else
-            {
-                add_text( nonlinear, "type", "Picard" );
-                add_text( nonlinear, "max_iter",
-                    absl::StrCat( PICARD_MAX_ITERATIONS ) );
-            }
+            write_nonlinear_type( nonlinear );
             add_text( nonlinear, "linear_solver", LINEAR_SOLVER );
             auto linear = root_.append_child( "linear_solvers" )
                               .append_child( "linear_solver" );
@@ -657,6 +856,28 @@ namespace
             auto eigen = linear.append_child( "eigen" );
             add_text( eigen, "solver_type", "SparseLU" );
             add_text( eigen, "scaling", "true" );
+        }
+
+        void write_nonlinear_type( pugi::xml_node& nonlinear ) const
+        {
+            switch( context_.process )
+            {
+                case geode::internal::OGS_PROCESS::two_phase_flow_pp:
+                    add_text( nonlinear, "type", "Newton" );
+                    add_text( nonlinear, "max_iter",
+                        absl::StrCat( NEWTON_MAX_ITERATIONS ) );
+                    return;
+                case geode::internal::OGS_PROCESS::ht:
+                    add_text( nonlinear, "type", "Picard" );
+                    add_text( nonlinear, "max_iter",
+                        absl::StrCat( HT_MAX_ITERATIONS ) );
+                    return;
+                case geode::internal::OGS_PROCESS::liquid_flow:
+                    add_text( nonlinear, "type", "Picard" );
+                    add_text( nonlinear, "max_iter",
+                        absl::StrCat( PICARD_MAX_ITERATIONS ) );
+                    return;
+            }
         }
 
         void add_curve( pugi::xml_node& curves,

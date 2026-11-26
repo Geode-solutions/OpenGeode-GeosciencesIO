@@ -73,8 +73,9 @@
 
 namespace
 {
-    // Surface properties exported as boundary meshes: every one without
-    // problem, the ones of the primary variables of the process otherwise
+    // Surface properties exported as boundary meshes: boundary_pressure and
+    // boundary_water_fraction without problem, the ones of the primary
+    // variables of the process otherwise
     absl::InlinedVector< geode::PHYSICAL_PROPERTY_NAME, 2 >
         ogs_boundary_properties( const geode::PhysicalProblem* problem )
     {
@@ -720,7 +721,7 @@ namespace geode::internal
             initial_temperature_ =
                 initial_value( "initial_temperature", cell_temperatures );
         }
-        if( ogs_process( problem ) == OGS_PROCESS::two_phase_flow_pp )
+        if( is_two_phase() )
         {
             compute_two_phase_values( cell_conditions );
         }

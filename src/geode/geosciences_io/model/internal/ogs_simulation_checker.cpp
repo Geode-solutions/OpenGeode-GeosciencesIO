@@ -455,7 +455,8 @@ namespace geode::internal
         check_blocks();
         check_unique_vertices_in_blocks();
         check_cells();
-        if( !ogs_process( problem() ) )
+        const auto process = ogs_process( problem() );
+        if( !process )
         {
             return;
         }
@@ -464,10 +465,15 @@ namespace geode::internal
             model_boundary_conditions( model() ) );
         check_conflicting_boundaries(
             PHYSICAL_PROPERTY_NAME::boundary_pressure );
-        if( ogs_process( problem() ) == OGS_PROCESS::two_phase_flow_pp )
+        if( process == OGS_PROCESS::two_phase_flow_pp )
         {
             check_conflicting_boundaries(
                 PHYSICAL_PROPERTY_NAME::boundary_water_fraction );
+        }
+        if( process == OGS_PROCESS::ht )
+        {
+            check_conflicting_boundaries(
+                PHYSICAL_PROPERTY_NAME::boundary_temperature );
         }
     }
 

@@ -638,16 +638,24 @@ geode::PhysicalProblem single_phase_problem( double compressibility )
     return problem;
 }
 
-// Thermal single-phase problem (OGS HT): incompressible water with a heat
-// capacity and no thermal factors, rock with thermal properties, 300 K
-geode::PhysicalProblem thermal_problem()
+// Factors of the water of a thermal problem
+struct FluidFactors
+{
+    double compressibility{ 0 };
+    double viscosibility{ 0 };
+    geode::FluidThermalProperties thermal{ 4182., 0., 0. };
+};
+
+// Thermal single-phase problem (OGS HT) whose water has these factors, rock
+// with thermal properties, 300 K
+geode::PhysicalProblem thermal_fluid_problem( const FluidFactors& factors )
 {
     auto problem = flow_problem( std::make_shared< geode::SinglePhaseFlow >(),
         std::make_shared< geode::SinglePhaseFluid >(
             std::vector< geode::PHASE >{ geode::PHASE::water },
             std::vector< geode::FluidComponent >{ { "water", 0.018 } }, 1000.,
-            1e-3, 0., 0., 1e5,
-            geode::FluidThermalProperties{ 4182., 0., 0. } ) );
+            1e-3, factors.compressibility, factors.viscosibility, 1e5,
+            factors.thermal ) );
     geode::PhysicalProblemBuilder builder{ problem };
     auto rock = rock_material( "rock" );
     rock.thermal = geode::RockThermalProperties{ 2e6, { 2., 2., 3. } };
@@ -661,6 +669,12 @@ geode::PhysicalProblem thermal_problem()
     output.frequency = 5e4;
     builder.set_output( output );
     return problem;
+}
+
+// Incompressible water with a heat capacity and no thermal factors
+geode::PhysicalProblem thermal_problem()
+{
+    return thermal_fluid_problem( FluidFactors{} );
 }
 
 std::shared_ptr< geode::BrooksCoreyCapillaryPressure > brooks_corey_pc()
@@ -1495,18 +1509,38 @@ void test_ogs_boundary_temperature()
     auto model = picasso_with_boundary();
     add_constant_boundary( model, east_surfaces( model ),
         geode::PHYSICAL_PROPERTY_NAME::boundary_temperature, 350. );
-    geode_unused(
-        export_project( model, thermal_problem(), "ogs_ht_boundary" ) );
-    check(
-        boundary_files( "ogs_ht_boundary", "boundary_temperature" ).size() == 1,
+    const auto project =
+        export_project( model, thermal_problem(), "ogs_ht_boundary" );
+    const auto temperature_files =
+        boundary_files( "ogs_ht_boundary", "boundary_temperature" );
+    check( temperature_files.size() == 1,
         "A thermal problem gets one boundary_temperature mesh" );
     check( boundary_files( "ogs_ht_boundary", "boundary_pressure" ).size() == 1,
         "A thermal problem keeps its boundary_pressure mesh" );
-    geode_unused( export_project(
-        model, single_phase_problem( 0. ), "ogs_isothermal_boundary" ) );
+    const auto conditions = project.select_nodes(
+        "//process_variable[name='temperature']/boundary_conditions/"
+        "boundary_condition" );
+    check( conditions.size() == 1,
+        "One Dirichlet condition on temperature for the east Surfaces" );
+    const auto condition = conditions.first().node();
+    check( text( condition.child( "type" ) ) == "Dirichlet"
+               && text( condition.child( "mesh" ) )
+                      == std::filesystem::path{ temperature_files.front() }
+                          .stem()
+                          .string(),
+        "The temperature Dirichlet is on the boundary_temperature mesh" );
+    const auto value =
+        parameter( project, text( condition.child( "parameter" ) ) );
+    check( text( value.child( "type" ) ) == "Constant"
+               && std::stod( text( value.child( "value" ) ) ) == 350.,
+        "The temperature Dirichlet value is the Surface value" );
+    const auto isothermal = export_project(
+        model, single_phase_problem( 0. ), "ogs_isothermal_boundary" );
     check( boundary_files( "ogs_isothermal_boundary", "boundary_temperature" )
                .empty(),
         "An isothermal problem gets no boundary_temperature mesh" );
+    check( !select( isothermal, "//process_variable[name='temperature']" ),
+        "An isothermal problem has no temperature process variable" );
     std::filesystem::remove_all( "ogs_mesh_only_temperature" );
     geode::BRepOgsExporter exporter{ model, "ogs_mesh_only_temperature" };
     exporter.run();
@@ -1519,15 +1553,28 @@ void test_ogs_initial_temperature()
 {
     const auto model = two_hexahedra_brep();
     auto problem = thermal_problem();
-    geode_unused( export_project( model, problem, "ogs_uniform_t0" ) );
+    const auto uniform = export_project( model, problem, "ogs_uniform_t0" );
     check( !absl::StrContains( read_file( "ogs_uniform_t0/ogs_uniform_t0.vtu" ),
                "Name=\"initial_temperature\"" ),
         "One initial temperature gives no initial_temperature array" );
+    const auto uniform_initial = parameter( uniform,
+        select_text( uniform,
+            "//process_variable[name='temperature']/initial_condition" ) );
+    check( text( uniform_initial.child( "type" ) ) == "Constant"
+               && std::stod( text( uniform_initial.child( "value" ) ) ) == 300.,
+        "One initial temperature gives a Constant parameter" );
     geode::PhysicalProblemBuilder{ problem }.add_initial_condition(
         std::make_shared< geode::UniformInitialCondition >(
             std::vector< geode::uuid >{ ( *model.blocks().begin() ).id() }, 1e7,
             320. ) );
-    geode_unused( export_project( model, problem, "ogs_varying_t0" ) );
+    const auto varying = export_project( model, problem, "ogs_varying_t0" );
+    const auto field = parameter( varying,
+        select_text( varying,
+            "//process_variable[name='temperature']/initial_condition" ) );
+    check( text( field.child( "type" ) ) == "MeshNode"
+               && text( field.child( "mesh" ) ) == "ogs_varying_t0"
+               && text( field.child( "field_name" ) ) == "initial_temperature",
+        "Several initial temperatures give a MeshNode parameter" );
     const std::string bulk{ "ogs_varying_t0/ogs_varying_t0.vtu" };
     check( absl::StrContains( vtu_array_tag( bulk, "initial_temperature" ),
                "type=\"Float64\"" ),
@@ -1539,6 +1586,237 @@ void test_ogs_initial_temperature()
         "Shared vertices get the mean of their cell temperatures" );
     check( !absl::StrContains( read_file( bulk ), "Name=\"initial_pressure\"" ),
         "A uniform initial pressure gives no initial_pressure array" );
+}
+
+// XPath of a named property below its owner
+std::string property_path( std::string_view name )
+{
+    return absl::StrCat( "/properties/property[name='", name, "']" );
+}
+
+pugi::xml_node medium_property(
+    const pugi::xml_document& project, std::string_view name )
+{
+    return select( project, absl::StrCat( "//medium", property_path( name ) ) );
+}
+
+pugi::xml_node solid_property(
+    const pugi::xml_document& project, std::string_view name )
+{
+    return select( project,
+        absl::StrCat( "//phase[type='Solid']", property_path( name ) ) );
+}
+
+pugi::xml_node liquid_property(
+    const pugi::xml_document& project, std::string_view name )
+{
+    return select( project, absl::StrCat( "//phase[type='AqueousLiquid']",
+                                property_path( name ) ) );
+}
+
+bool is_constant(
+    const pugi::xml_node& property, std::string_view expected_value )
+{
+    return text( property.child( "type" ) ) == "Constant"
+           && text( property.child( "value" ) ) == expected_value;
+}
+
+void test_ogs_ht_project()
+{
+    const auto model = picasso_with_boundary();
+    const auto project =
+        export_project( model, thermal_problem(), "ogs_ht_project" );
+    check( select_text( project, "//processes/process/type" ) == "HT",
+        "HT process" );
+    const auto variables =
+        select( project, "//processes/process/process_variables" );
+    check( std::string{ variables.first_child().name() } == "temperature"
+               && text( variables.first_child() ) == "temperature"
+               && text( variables.child( "pressure" ) ) == "pressure",
+        "HT process variables: temperature first, then pressure" );
+    check( select_text( project, "//processes/process/equation_balance_type" )
+               == "mass",
+        "HT mass balance" );
+    check( is_constant(
+               medium_property( project, "thermal_conductivity" ), "2 2 3" ),
+        "The medium conductivity is the diagonal rock conductivity" );
+    for( const auto* const name : { "thermal_longitudinal_dispersivity",
+             "thermal_transversal_dispersivity" } )
+    {
+        check( is_constant( medium_property( project, name ), "0" ),
+            absl::StrCat( name, " is 0" ) );
+    }
+    check( is_constant( solid_property( project, "storage" ),
+               geode::internal::xml_real(
+                   geode::internal::ogs_storage( 0.2, 1e-9 ) ) ),
+        "The Solid storage is porosity times pore compressibility" );
+    check( is_constant( solid_property( project, "density" ), "1" ),
+        "The Solid density is 1" );
+    check( is_constant(
+               solid_property( project, "specific_heat_capacity" ), "2000000" ),
+        "The Solid heat capacity is the rock volumetric heat capacity" );
+    check(
+        is_constant( solid_property( project, "thermal_conductivity" ), "0" ),
+        "The Solid conductivity is 0" );
+    check( !medium_property( project, "storage" )
+               && !medium_property( project, "reference_temperature" ),
+        "The HT medium has no storage nor reference_temperature" );
+    check( is_constant(
+               liquid_property( project, "specific_heat_capacity" ), "4182" ),
+        "The liquid heat capacity is the fluid one" );
+    check(
+        is_constant( liquid_property( project, "thermal_conductivity" ), "0" ),
+        "The liquid conductivity is 0" );
+    const auto convergence = select( project, "//convergence_criterion" );
+    check( text( convergence.child( "type" ) ) == "PerComponentDeltaX"
+               && text( convergence.child( "norm_type" ) ) == "NORM2"
+               && text( convergence.child( "reltols" ) ) == "1e-10 1e-10",
+        "HT convergence is PerComponentDeltaX on temperature and pressure" );
+    const auto nonlinear =
+        select( project, "//nonlinear_solvers/nonlinear_solver" );
+    check( text( nonlinear.child( "type" ) ) == "Picard"
+               && text( nonlinear.child( "max_iter" ) ) == "50",
+        "HT Picard with 50 iterations" );
+    std::vector< std::string > outputs;
+    for( const auto& variable :
+        project.select_nodes( "//output/variables/variable" ) )
+    {
+        outputs.push_back( text( variable.node() ) );
+    }
+    check( outputs == std::vector< std::string >{ "temperature", "pressure" },
+        "HT outputs temperature and pressure" );
+}
+
+// Exponential law on one variable with this factor, reference 300 K
+void check_temperature_exponential(
+    const pugi::xml_node& law, double factor, std::string_view message )
+{
+    const auto exponent = law.child( "exponent" );
+    check( text( law.child( "type" ) ) == "Exponential"
+               && text( law.child( "offset" ) ) == "0"
+               && text( exponent.child( "variable_name" ) ) == "temperature"
+               && std::stod( text( exponent.child( "factor" ) ) ) == factor
+               && std::stod( text( exponent.child( "reference_condition" ) ) )
+                      == 300.,
+        message );
+}
+
+// Function law of pressure and temperature: the value and both dvalues
+// written with the factors and references of the law
+void check_function_law( const pugi::xml_node& law,
+    const geode::internal::OgsExponentialLaw& expected,
+    std::string_view message )
+{
+    using geode::internal::xml_real;
+    const auto value = text( law.child( "value" ).child( "expression" ) );
+    for( const auto& part : { std::string{ "liquid_phase_pressure" },
+             std::string{ "temperature" }, xml_real( expected.reference_value ),
+             xml_real( expected.pressure_factor ),
+             xml_real( expected.reference_pressure ),
+             xml_real( expected.temperature_factor ),
+             xml_real( expected.reference_temperature ) } )
+    {
+        check( absl::StrContains( value, part ),
+            absl::StrCat( message, ": value ", value, " misses ", part ) );
+    }
+    std::vector< std::pair< std::string, std::string > > dvalues;
+    for( const auto& dvalue : law.children( "dvalue" ) )
+    {
+        dvalues.emplace_back( text( dvalue.child( "variable_name" ) ),
+            text( dvalue.child( "expression" ) ) );
+    }
+    check( text( law.child( "type" ) ) == "Function" && dvalues.size() == 2
+               && dvalues[0].first == "liquid_phase_pressure"
+               && dvalues[1].first == "temperature",
+        absl::StrCat( message, ": Function with a pressure and a "
+                               "temperature dvalue" ) );
+    // d/dx of exp(... + factor * x ...) is factor * value, a negative
+    // factor written in parentheses
+    const auto derivative = [&value]( double factor ) {
+        const auto real = xml_real( factor );
+        return absl::StrCat(
+            factor < 0. ? absl::StrCat( "(", real, ")" ) : real, "*", value );
+    };
+    const auto pressure_derivative = derivative( expected.pressure_factor );
+    const auto temperature_derivative =
+        derivative( expected.temperature_factor );
+    check( dvalues[0].second == pressure_derivative
+               && dvalues[1].second == temperature_derivative,
+        absl::StrCat( message,
+            ": each dvalue is its factor times the value, expected ",
+            pressure_derivative, " and ", temperature_derivative, ", got ",
+            dvalues[0].second, " and ", dvalues[1].second ) );
+}
+
+void test_ogs_ht_fluid_laws()
+{
+    const auto model = picasso_with_boundary();
+    FluidFactors expansion;
+    expansion.thermal.thermal_expansion = 3e-4;
+    const auto expanding = export_project(
+        model, thermal_fluid_problem( expansion ), "ogs_ht_expansion" );
+    check_temperature_exponential( liquid_property( expanding, "density" ),
+        -3e-4, "A thermal expansion alone gives an Exponential density on T" );
+    check( is_constant( liquid_property( expanding, "viscosity" ), "0.001" ),
+        "No viscosity factor gives a Constant viscosity" );
+
+    FluidFactors both = expansion;
+    both.compressibility = 4.5e-10;
+    const auto both_problem = thermal_fluid_problem( both );
+    const auto compressible =
+        export_project( model, both_problem, "ogs_ht_density_function" );
+    check_function_law( liquid_property( compressible, "density" ),
+        geode::internal::ogs_density_law( both_problem ),
+        "Compressibility and expansion" );
+
+    FluidFactors viscous;
+    viscous.thermal.viscosity_temperature_coefficient = 0.02;
+    const auto viscous_project = export_project(
+        model, thermal_fluid_problem( viscous ), "ogs_ht_viscosity" );
+    check_temperature_exponential(
+        liquid_property( viscous_project, "viscosity" ), -0.02,
+        "A viscosity temperature coefficient alone gives an Exponential "
+        "viscosity on T" );
+    check( is_constant( liquid_property( viscous_project, "density" ), "1000" ),
+        "No density factor gives a Constant density" );
+
+    viscous.viscosibility = 1e-9;
+    const auto viscous_problem = thermal_fluid_problem( viscous );
+    const auto function_viscosity =
+        export_project( model, viscous_problem, "ogs_ht_viscosity_function" );
+    check_function_law( liquid_property( function_viscosity, "viscosity" ),
+        geode::internal::ogs_viscosity_law( viscous_problem ),
+        "Viscosibility and viscosity temperature coefficient" );
+}
+
+void test_ogs_ht_porosity_field()
+{
+    auto model = picasso_with_boundary();
+    const geode::uuid attribute_id;
+    geode::AttributeValues< double > values;
+    values.default_value = 0.25;
+    for( const auto& block : model.blocks() )
+    {
+        block.mesh()
+            .polyhedron_attribute_manager()
+            .create_attribute< geode::VariableAttribute, double >(
+                "poro", attribute_id, values, {} );
+    }
+    geode::BRepBuilder{ model }.set_physical_property(
+        geode::PHYSICAL_PROPERTY_NAME::porosity,
+        geode::Block3D::component_type_static(), attribute_id );
+    const auto project =
+        export_project( model, thermal_problem(), "ogs_ht_porosity_field" );
+    const auto storage = solid_property( project, "storage" );
+    check( text( storage.child( "type" ) ) == "Parameter"
+               && text( storage.child( "parameter_name" ) ) == "storage",
+        "A porosity field gives a Parameter Solid storage" );
+    const auto field = parameter( project, "storage" );
+    check( text( field.child( "type" ) ) == "MeshElement"
+               && text( field.child( "field_name" ) ) == "storage",
+        "The storage parameter is MeshElement on the storage array" );
+    check( !medium_property( project, "storage" ),
+        "The HT medium has no storage" );
 }
 
 void test_ogs_solver_options()
@@ -1560,68 +1838,108 @@ void test_ogs_solver_options()
         "A nonlinear option sets the element text" );
 }
 
-void test_ogs_conflicting_dirichlet()
+// Unique vertices of a Surface
+absl::flat_hash_set< geode::index_t > surface_unique_vertices(
+    const geode::BRep& model, const geode::Surface3D& surface )
 {
-    auto model = load_picasso();
-    const auto first = ( *model.surfaces().begin() ).id();
-    std::optional< geode::uuid > neighbour;
-    absl::flat_hash_set< geode::index_t > first_vertices;
-    for( const auto vertex :
-        geode::Range{ model.surface( first ).mesh().nb_vertices() } )
+    absl::flat_hash_set< geode::index_t > vertices;
+    for( const auto vertex : geode::Range{ surface.mesh().nb_vertices() } )
     {
-        first_vertices.insert( model.unique_vertex(
-            { model.surface( first ).component_id(), vertex } ) );
+        vertices.insert(
+            model.unique_vertex( { surface.component_id(), vertex } ) );
     }
+    return vertices;
+}
+
+// The first Surface of the model and a Surface sharing vertices with it
+std::array< geode::uuid, 2 > touching_surfaces( const geode::BRep& model )
+{
+    const auto& first = *model.surfaces().begin();
+    const auto first_vertices = surface_unique_vertices( model, first );
     for( const auto& surface : model.surfaces() )
     {
-        if( surface.id() == first )
+        if( surface.id() == first.id() )
         {
             continue;
         }
-        for( const auto vertex : geode::Range{ surface.mesh().nb_vertices() } )
+        if( absl::c_any_of( surface_unique_vertices( model, surface ),
+                [&first_vertices]( geode::index_t vertex ) {
+                    return first_vertices.contains( vertex );
+                } ) )
         {
-            if( first_vertices.contains( model.unique_vertex(
-                    { surface.component_id(), vertex } ) ) )
-            {
-                neighbour = surface.id();
-                break;
-            }
-        }
-        if( neighbour )
-        {
-            break;
+            return { first.id(), surface.id() };
         }
     }
-    check( neighbour.has_value(), "A Surface should touch the first one" );
+    check( false, "A Surface should touch the first one" );
+    return {};
+}
+
+// The two touching Surfaces get a different constant value of the property
+void add_conflicting_boundary( geode::BRep& model,
+    geode::PHYSICAL_PROPERTY_NAME property,
+    const std::array< double, 2 >& values )
+{
+    const auto surfaces = touching_surfaces( model );
     const geode::uuid attribute_id;
-    for( const auto& [surface_id, value] :
-        std::array< std::pair< geode::uuid, double >, 2 >{
-            { { first, 1e5 }, { neighbour.value(), 2e5 } } } )
+    for( const auto index : geode::LRange{ 2 } )
     {
-        geode::AttributeValues< double > values;
-        values.default_value = value;
-        model.surface( surface_id )
+        geode::AttributeValues< double > attribute_values;
+        attribute_values.default_value = values[index];
+        model.surface( surfaces[index] )
             .mesh()
             .polygon_attribute_manager()
             .create_attribute< geode::ConstantAttribute, double >(
-                "boundary_pressure", attribute_id, values, {} );
+                geode::physical_property_string( property ), attribute_id,
+                attribute_values, {} );
     }
     geode::BRepBuilder{ model }.set_physical_property(
-        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure,
-        geode::Surface3D::component_type_static(), attribute_id );
-    const auto report = ogs_report( single_phase_problem( 0. ), model );
-    geode::index_t nb_conflicts{ 0 };
+        property, geode::Surface3D::component_type_static(), attribute_id );
+}
+
+// Warnings on Surfaces sharing vertices with different values of a property
+geode::index_t nb_conflicts(
+    const geode::SimulationReport& report, std::string_view property )
+{
+    geode::index_t count{ 0 };
     for( const auto& issue : report.issues() )
     {
-        if( !issue.is_error()
+        if( !issue.is_error() && issue.subject == property
             && absl::StrContains( issue.message, "share vertices" ) )
         {
-            nb_conflicts++;
+            count++;
         }
     }
-    check( report.is_simulable() && nb_conflicts == 1,
+    return count;
+}
+
+void test_ogs_conflicting_dirichlet()
+{
+    auto model = load_picasso();
+    add_conflicting_boundary(
+        model, geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, { 1e5, 2e5 } );
+    const auto report = ogs_report( single_phase_problem( 0. ), model );
+    check( report.is_simulable()
+               && nb_conflicts( report, "boundary_pressure" ) == 1,
         absl::StrCat( "One warning per pair of conflicting Surfaces:\n",
             report.string() ) );
+}
+
+void test_ogs_conflicting_temperature()
+{
+    auto model = picasso_with_boundary();
+    add_conflicting_boundary( model,
+        geode::PHYSICAL_PROPERTY_NAME::boundary_temperature, { 300., 350. } );
+    const auto report = ogs_report( thermal_problem(), model );
+    check( report.is_simulable()
+               && nb_conflicts( report, "boundary_temperature" ) == 1,
+        absl::StrCat( "One temperature warning per pair of conflicting "
+                      "Surfaces in HT:\n",
+            report.string() ) );
+    const auto isothermal = ogs_report( single_phase_problem( 0. ), model );
+    check( nb_conflicts( isothermal, "boundary_temperature" ) == 0,
+        absl::StrCat( "No temperature conflict when the temperature is "
+                      "ignored:\n",
+            isothermal.string() ) );
 }
 
 void test_ogs_run_twice()
@@ -2018,8 +2336,12 @@ int main()
         test_ogs_initial_pressure();
         test_ogs_boundary_temperature();
         test_ogs_initial_temperature();
+        test_ogs_ht_project();
+        test_ogs_ht_fluid_laws();
+        test_ogs_ht_porosity_field();
         test_ogs_solver_options();
         test_ogs_conflicting_dirichlet();
+        test_ogs_conflicting_temperature();
         test_ogs_run_twice();
         test_ogs_structural_model_materials();
         test_ogs_two_phase_project();
