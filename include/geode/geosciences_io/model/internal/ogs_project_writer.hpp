@@ -62,12 +62,14 @@ namespace geode::internal
         bool has_porosity_field{ false };
         bool has_permeability_field{ false };
         /// Boundary meshes; boundary_water_fraction ones carry capillary
-        /// pressures
+        /// pressures, boundary_temperature ones (HT only) temperatures
         absl::Span< const OgsBoundaryMesh > boundaries;
         absl::Span< const OgsWellMesh > wells;
         OgsInitialValue initial_pressure;
         /// Two-phase only
         OgsInitialValue initial_capillary_pressure;
+        /// HT only
+        OgsInitialValue initial_temperature;
         double reference_temperature{ 0 };
     };
 

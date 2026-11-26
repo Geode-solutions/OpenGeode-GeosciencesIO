@@ -1490,6 +1490,57 @@ void test_ogs_initial_pressure()
         "Shared vertices get the mean of their cells" );
 }
 
+void test_ogs_boundary_temperature()
+{
+    auto model = picasso_with_boundary();
+    add_constant_boundary( model, east_surfaces( model ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_temperature, 350. );
+    geode_unused(
+        export_project( model, thermal_problem(), "ogs_ht_boundary" ) );
+    check(
+        boundary_files( "ogs_ht_boundary", "boundary_temperature" ).size() == 1,
+        "A thermal problem gets one boundary_temperature mesh" );
+    check( boundary_files( "ogs_ht_boundary", "boundary_pressure" ).size() == 1,
+        "A thermal problem keeps its boundary_pressure mesh" );
+    geode_unused( export_project(
+        model, single_phase_problem( 0. ), "ogs_isothermal_boundary" ) );
+    check( boundary_files( "ogs_isothermal_boundary", "boundary_temperature" )
+               .empty(),
+        "An isothermal problem gets no boundary_temperature mesh" );
+    std::filesystem::remove_all( "ogs_mesh_only_temperature" );
+    geode::BRepOgsExporter exporter{ model, "ogs_mesh_only_temperature" };
+    exporter.run();
+    check( boundary_files( "ogs_mesh_only_temperature", "boundary_temperature" )
+               .empty(),
+        "A mesh-only export gets no boundary_temperature mesh" );
+}
+
+void test_ogs_initial_temperature()
+{
+    const auto model = two_hexahedra_brep();
+    auto problem = thermal_problem();
+    geode_unused( export_project( model, problem, "ogs_uniform_t0" ) );
+    check( !absl::StrContains( read_file( "ogs_uniform_t0/ogs_uniform_t0.vtu" ),
+               "Name=\"initial_temperature\"" ),
+        "One initial temperature gives no initial_temperature array" );
+    geode::PhysicalProblemBuilder{ problem }.add_initial_condition(
+        std::make_shared< geode::UniformInitialCondition >(
+            std::vector< geode::uuid >{ ( *model.blocks().begin() ).id() }, 1e7,
+            320. ) );
+    geode_unused( export_project( model, problem, "ogs_varying_t0" ) );
+    const std::string bulk{ "ogs_varying_t0/ogs_varying_t0.vtu" };
+    check( absl::StrContains( vtu_array_tag( bulk, "initial_temperature" ),
+               "type=\"Float64\"" ),
+        "initial_temperature must be Float64" );
+    const auto values =
+        read_vtu_values< double >( bulk, "initial_temperature" );
+    check( values.size() == 12, "One initial temperature per vertex" );
+    check( values[0] == 320. && values[1] == 310. && values[2] == 300.,
+        "Shared vertices get the mean of their cell temperatures" );
+    check( !absl::StrContains( read_file( bulk ), "Name=\"initial_pressure\"" ),
+        "A uniform initial pressure gives no initial_pressure array" );
+}
+
 void test_ogs_solver_options()
 {
     const auto model = picasso_with_boundary();
@@ -1965,6 +2016,8 @@ int main()
         test_ogs_ht_missing_thermal();
         test_ogs_ht_source_terms();
         test_ogs_initial_pressure();
+        test_ogs_boundary_temperature();
+        test_ogs_initial_temperature();
         test_ogs_solver_options();
         test_ogs_conflicting_dirichlet();
         test_ogs_run_twice();

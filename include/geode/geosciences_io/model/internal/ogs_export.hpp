@@ -181,6 +181,8 @@ namespace geode::internal
         std::vector< double > cell_pressures_;
         OgsInitialValue initial_pressure_;
         OgsInitialValue initial_capillary_pressure_;
+        // HT only
+        OgsInitialValue initial_temperature_;
         std::vector< const Surface3D* > surfaces_;
         absl::flat_hash_map< uuid, index_t > surface_indices_;
         std::vector< OgsBoundaryMesh > boundary_meshes_;

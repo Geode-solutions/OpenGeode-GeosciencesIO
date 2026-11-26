@@ -73,11 +73,44 @@
 
 namespace
 {
-    constexpr std::array< geode::PHYSICAL_PROPERTY_NAME, 2 >
-        OGS_BOUNDARY_PROPERTIES{
-            geode::PHYSICAL_PROPERTY_NAME::boundary_pressure,
-            geode::PHYSICAL_PROPERTY_NAME::boundary_water_fraction
+    // Surface properties exported as boundary meshes: every one without
+    // problem, the ones of the primary variables of the process otherwise
+    absl::InlinedVector< geode::PHYSICAL_PROPERTY_NAME, 2 >
+        ogs_boundary_properties( const geode::PhysicalProblem* problem )
+    {
+        absl::InlinedVector< geode::PHYSICAL_PROPERTY_NAME, 2 > properties{
+            geode::PHYSICAL_PROPERTY_NAME::boundary_pressure
         };
+        const auto process = problem == nullptr
+                                 ? std::nullopt
+                                 : geode::internal::ogs_process( *problem );
+        if( problem == nullptr
+            || process == geode::internal::OGS_PROCESS::two_phase_flow_pp )
+        {
+            properties.push_back(
+                geode::PHYSICAL_PROPERTY_NAME::boundary_water_fraction );
+        }
+        if( process == geode::internal::OGS_PROCESS::ht )
+        {
+            properties.push_back(
+                geode::PHYSICAL_PROPERTY_NAME::boundary_temperature );
+        }
+        return properties;
+    }
+
+    // Initial temperature of a cell in a thermal problem
+    double ogs_cell_temperature(
+        const geode::UniformInitialCondition& condition,
+        geode::index_t cell,
+        std::string_view context )
+    {
+        const auto& temperature = condition.temperature();
+        geode::OpenGeodeGeosciencesIOModelException::check_exception(
+            temperature.has_value(), nullptr,
+            geode::OpenGeodeException::TYPE::data, context, " Cell ", cell,
+            " has no initial temperature: a thermal problem needs one." );
+        return temperature.value();
+    }
 
     // Builds the mesh of Surface polygons lying on bulk facets, its points
     // being the bulk vertices of the polygons
@@ -492,6 +525,7 @@ namespace geode::internal
         cell_pressures_.clear();
         initial_pressure_ = OgsInitialValue{};
         initial_capillary_pressure_ = OgsInitialValue{};
+        initial_temperature_ = OgsInitialValue{};
         surfaces_.clear();
         surface_indices_.clear();
         boundary_meshes_.clear();
@@ -655,8 +689,10 @@ namespace geode::internal
         }
         const auto assignment = assign_region_initial_conditions(
             problem, this->model(), regions_, "OGS" );
+        const auto is_thermal = ogs_process( problem ) == OGS_PROCESS::ht;
         std::vector< index_t > cell_conditions;
         cell_conditions.reserve( bulk().nb_polyhedra() );
+        std::vector< double > cell_temperatures;
         cell_pressures_.clear();
         for( const auto cell : Range{ bulk().nb_polyhedra() } )
         {
@@ -671,9 +707,19 @@ namespace geode::internal
                     problem.initial_condition( condition_id.value() ) );
             cell_pressures_.push_back( condition.pressure() );
             cell_conditions.push_back( condition_id.value() );
+            if( is_thermal )
+            {
+                cell_temperatures.push_back(
+                    ogs_cell_temperature( condition, cell, context_ ) );
+            }
         }
         initial_pressure_ =
             initial_value( "initial_pressure", cell_pressures_ );
+        if( is_thermal )
+        {
+            initial_temperature_ =
+                initial_value( "initial_temperature", cell_temperatures );
+        }
         if( ogs_process( problem ) == OGS_PROCESS::two_phase_flow_pp )
         {
             compute_two_phase_values( cell_conditions );
@@ -836,15 +882,8 @@ namespace geode::internal
             surface_indices_.emplace( surface.id(), surfaces_.size() );
             surfaces_.push_back( &surface );
         }
-        const auto* problem = this->problem();
-        for( const auto property : OGS_BOUNDARY_PROPERTIES )
+        for( const auto property : ogs_boundary_properties( this->problem() ) )
         {
-            if( property == PHYSICAL_PROPERTY_NAME::boundary_water_fraction
-                && problem != nullptr
-                && ogs_process( *problem ) != OGS_PROCESS::two_phase_flow_pp )
-            {
-                continue;
-            }
             build_boundary_meshes( property );
         }
     }
@@ -1027,6 +1066,7 @@ namespace geode::internal
         context.wells = well_meshes_;
         context.initial_pressure = initial_pressure_;
         context.initial_capillary_pressure = initial_capillary_pressure_;
+        context.initial_temperature = initial_temperature_;
         context.reference_temperature = ogs_reference_temperature( problem );
         pugi::xml_document document;
         OgsProjectWriter{ problem, context }.write( document );
