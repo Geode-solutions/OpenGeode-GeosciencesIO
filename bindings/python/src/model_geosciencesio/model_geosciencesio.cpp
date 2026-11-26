@@ -96,10 +96,10 @@ namespace
         "well is split evenly over these vertices.",
         "Write the OGS project file (process, media, parameters, initial "
         "and boundary conditions, time loop, solvers) described by the "
-        "PhysicalProblem: LIQUID_FLOW for single-phase flow, HT for "
-        "thermal single-phase flow (heat transport), TWOPHASE_FLOW_PP for "
-        "water-oil DeadOilFluid flow. Without it, only the meshes are "
-        "written. The exporter keeps the problem alive.",
+        "PhysicalProblem: LIQUID_FLOW for isothermal single-phase flow, HT "
+        "for thermal single-phase flow (heat transport), TWOPHASE_FLOW_PP "
+        "for isothermal water-oil DeadOilFluid flow. Without it, only the "
+        "meshes are written. The exporter keeps the problem alive.",
         "Write the OGS files in the directory: <prefix>.vtu (bulk mesh "
         "with MaterialIDs), one mesh per boundary condition group, one "
         "point mesh per well and, with a problem, <prefix>.prj; raises "

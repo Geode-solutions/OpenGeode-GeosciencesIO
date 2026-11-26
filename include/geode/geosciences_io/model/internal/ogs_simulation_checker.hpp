@@ -61,6 +61,10 @@ namespace geode::internal
 
         void check_properties();
 
+        /// Checks boundary_temperature in HT, warns that the other processes
+        /// ignore it
+        void check_boundary_temperature();
+
         /// Warns once per pair of Surfaces giving different values to a
         /// shared vertex
         void check_conflicting_boundaries( PHYSICAL_PROPERTY_NAME property );

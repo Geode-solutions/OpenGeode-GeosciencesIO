@@ -1367,6 +1367,7 @@ void test_ogs_ht_missing_thermal()
     rock.thermal.reset();
     geode::PhysicalProblemBuilder{ problem }.set_material( 0, rock );
     std::string message;
+    std::optional< geode::OpenGeodeException::TYPE > type;
     try
     {
         geode_unused(
@@ -1375,7 +1376,10 @@ void test_ogs_ht_missing_thermal()
     catch( const geode::OpenGeodeException& exception )
     {
         message = exception.what();
+        type = exception.type();
     }
+    check( type == geode::OpenGeodeException::TYPE::data,
+        "A material without thermal properties is a data error" );
     check( absl::StrContains(
                message, "needs thermal properties for a thermal problem" ),
         absl::StrCat( "A material without thermal properties must be "
@@ -1504,6 +1508,96 @@ void test_ogs_initial_pressure()
         "Shared vertices get the mean of their cells" );
 }
 
+// Warning of the checker that OGS ignores the property
+bool has_ignored_warning(
+    const geode::SimulationReport& report, std::string_view property )
+{
+    return absl::c_any_of(
+        report.issues(), [&property]( const geode::SimulationIssue& issue ) {
+            return !issue.is_error() && issue.subject == property
+                   && absl::StrContains( issue.message, "ignored by OGS" );
+        } );
+}
+
+// Error whose subject or message names the text
+bool has_error_about(
+    const geode::SimulationReport& report, std::string_view about )
+{
+    return absl::c_any_of(
+        report.issues(), [&about]( const geode::SimulationIssue& issue ) {
+            return issue.is_error()
+                   && ( absl::StrContains( issue.subject, about )
+                        || absl::StrContains( issue.message, about ) );
+        } );
+}
+
+void test_ogs_boundary_temperature_values()
+{
+    {
+        auto model = picasso_with_boundary();
+        add_constant_boundary( model, east_surfaces( model ),
+            geode::PHYSICAL_PROPERTY_NAME::boundary_temperature, -10. );
+        const auto report = ogs_report( thermal_problem(), model );
+        check( !report.is_simulable()
+                   && has_error_about( report, "boundary_temperature" ),
+            absl::StrCat( "A negative boundary temperature is refused in "
+                          "HT:\n",
+                report.string() ) );
+    }
+    auto model = picasso_with_boundary();
+    const geode::uuid attribute_id;
+    geode::AttributeValues< double > values;
+    values.default_value = 350.;
+    for( const auto& block : model.blocks() )
+    {
+        block.mesh()
+            .polyhedron_attribute_manager()
+            .create_attribute< geode::ConstantAttribute, double >(
+                "temperature", attribute_id, values, {} );
+    }
+    geode::BRepBuilder{ model }.set_physical_property(
+        geode::PHYSICAL_PROPERTY_NAME::boundary_temperature,
+        geode::Block3D::component_type_static(), attribute_id );
+    const auto report = ogs_report( thermal_problem(), model );
+    check( !report.is_simulable()
+               && has_error_about( report, "boundary_temperature" ),
+        absl::StrCat( "A boundary temperature on Blocks is refused in HT:\n",
+            report.string() ) );
+}
+
+// Warnings that OGS lets the temperature evolve on pressure boundaries
+geode::index_t nb_free_temperature_warnings(
+    const geode::SimulationReport& report )
+{
+    return static_cast< geode::index_t >( absl::c_count_if(
+        report.issues(), []( const geode::SimulationIssue& issue ) {
+            return !issue.is_error() && issue.subject == "Boundary conditions"
+                   && absl::StrContains( issue.message,
+                       "pressure boundaries without boundary_temperature" );
+        } ) );
+}
+
+void test_ogs_pressure_boundary_without_temperature()
+{
+    auto model = picasso_with_boundary();
+    const auto pressure_only = ogs_report( thermal_problem(), model );
+    check( pressure_only.is_simulable()
+               && nb_free_temperature_warnings( pressure_only ) == 1,
+        absl::StrCat( "One warning for pressure boundaries without "
+                      "temperature in HT:\n",
+            pressure_only.string() ) );
+    const auto isothermal = ogs_report( single_phase_problem( 0. ), model );
+    check( nb_free_temperature_warnings( isothermal ) == 0,
+        "No free temperature warning without HT" );
+    add_constant_boundary( model, east_surfaces( model ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_temperature, 350. );
+    const auto with_temperature = ogs_report( thermal_problem(), model );
+    check( nb_free_temperature_warnings( with_temperature ) == 0,
+        absl::StrCat( "No free temperature warning when every pressure "
+                      "Surface has a temperature:\n",
+            with_temperature.string() ) );
+}
+
 void test_ogs_boundary_temperature()
 {
     auto model = picasso_with_boundary();
@@ -1541,6 +1635,23 @@ void test_ogs_boundary_temperature()
         "An isothermal problem gets no boundary_temperature mesh" );
     check( !select( isothermal, "//process_variable[name='temperature']" ),
         "An isothermal problem has no temperature process variable" );
+    check(
+        select_text( isothermal, "//processes/process/type" ) == "LIQUID_FLOW",
+        "An isothermal problem with boundary_temperature stays LIQUID_FLOW" );
+    const auto isothermal_report =
+        ogs_report( single_phase_problem( 0. ), model );
+    check( has_ignored_warning( isothermal_report, "boundary_temperature" ),
+        absl::StrCat( "An isothermal problem warns that boundary_temperature "
+                      "is ignored:\n",
+            isothermal_report.string() ) );
+    const auto two_phase_report = ogs_report( two_phase_problem(), model );
+    check( has_ignored_warning( two_phase_report, "boundary_temperature" ),
+        absl::StrCat( "Two-phase flow warns that boundary_temperature is "
+                      "ignored:\n",
+            two_phase_report.string() ) );
+    const auto thermal_report = ogs_report( thermal_problem(), model );
+    check( !has_ignored_warning( thermal_report, "boundary_temperature" ),
+        "HT reads boundary_temperature" );
     std::filesystem::remove_all( "ogs_mesh_only_temperature" );
     geode::BRepOgsExporter exporter{ model, "ogs_mesh_only_temperature" };
     exporter.run();
@@ -1687,18 +1798,41 @@ void test_ogs_ht_project()
         "HT outputs temperature and pressure" );
 }
 
-// Exponential law on one variable with this factor, reference 300 K
-void check_temperature_exponential(
-    const pugi::xml_node& law, double factor, std::string_view message )
+// Exponent of an Exponential law
+struct ExpectedExponent
+{
+    std::string_view variable;
+    double factor;
+    double reference_condition;
+};
+
+void check_exponential( const pugi::xml_node& law,
+    const ExpectedExponent& expected,
+    std::string_view message )
 {
     const auto exponent = law.child( "exponent" );
     check( text( law.child( "type" ) ) == "Exponential"
                && text( law.child( "offset" ) ) == "0"
-               && text( exponent.child( "variable_name" ) ) == "temperature"
-               && std::stod( text( exponent.child( "factor" ) ) ) == factor
+               && text( exponent.child( "variable_name" ) ) == expected.variable
+               && std::stod( text( exponent.child( "factor" ) ) )
+                      == expected.factor
                && std::stod( text( exponent.child( "reference_condition" ) ) )
-                      == 300.,
+                      == expected.reference_condition,
         message );
+}
+
+// Exponential law on the temperature with this factor, reference 300 K
+void check_temperature_exponential(
+    const pugi::xml_node& law, double factor, std::string_view message )
+{
+    check_exponential( law, { "temperature", factor, 300. }, message );
+}
+
+// Real term of an expected expression, a negative one in parentheses
+std::string expression_term( double real )
+{
+    const auto written = geode::internal::xml_real( real );
+    return real < 0. ? absl::StrCat( "(", written, ")" ) : written;
 }
 
 // Function law of pressure and temperature: the value and both dvalues
@@ -1707,18 +1841,15 @@ void check_function_law( const pugi::xml_node& law,
     const geode::internal::OgsExponentialLaw& expected,
     std::string_view message )
 {
-    using geode::internal::xml_real;
     const auto value = text( law.child( "value" ).child( "expression" ) );
-    for( const auto& part : { std::string{ "liquid_phase_pressure" },
-             std::string{ "temperature" }, xml_real( expected.reference_value ),
-             xml_real( expected.pressure_factor ),
-             xml_real( expected.reference_pressure ),
-             xml_real( expected.temperature_factor ),
-             xml_real( expected.reference_temperature ) } )
-    {
-        check( absl::StrContains( value, part ),
-            absl::StrCat( message, ": value ", value, " misses ", part ) );
-    }
+    const auto expected_value = absl::StrCat(
+        expression_term( expected.reference_value ), "*exp(",
+        expression_term( expected.pressure_factor ), "*(liquid_phase_pressure-",
+        expression_term( expected.reference_pressure ), ")+",
+        expression_term( expected.temperature_factor ), "*(temperature-",
+        expression_term( expected.reference_temperature ), "))" );
+    check( value == expected_value, absl::StrCat( message, ": value expected ",
+                                        expected_value, ", got ", value ) );
     std::vector< std::pair< std::string, std::string > > dvalues;
     for( const auto& dvalue : law.children( "dvalue" ) )
     {
@@ -1730,16 +1861,11 @@ void check_function_law( const pugi::xml_node& law,
                && dvalues[1].first == "temperature",
         absl::StrCat( message, ": Function with a pressure and a "
                                "temperature dvalue" ) );
-    // d/dx of exp(... + factor * x ...) is factor * value, a negative
-    // factor written in parentheses
-    const auto derivative = [&value]( double factor ) {
-        const auto real = xml_real( factor );
-        return absl::StrCat(
-            factor < 0. ? absl::StrCat( "(", real, ")" ) : real, "*", value );
-    };
-    const auto pressure_derivative = derivative( expected.pressure_factor );
-    const auto temperature_derivative =
-        derivative( expected.temperature_factor );
+    // d/dx of exp(... + factor * x ...) is factor * value
+    const auto pressure_derivative = absl::StrCat(
+        expression_term( expected.pressure_factor ), "*", expected_value );
+    const auto temperature_derivative = absl::StrCat(
+        expression_term( expected.temperature_factor ), "*", expected_value );
     check( dvalues[0].second == pressure_derivative
                && dvalues[1].second == temperature_derivative,
         absl::StrCat( message,
@@ -1759,6 +1885,15 @@ void test_ogs_ht_fluid_laws()
         -3e-4, "A thermal expansion alone gives an Exponential density on T" );
     check( is_constant( liquid_property( expanding, "viscosity" ), "0.001" ),
         "No viscosity factor gives a Constant viscosity" );
+
+    FluidFactors compressibility;
+    compressibility.compressibility = 4.5e-10;
+    const auto compressible_only = export_project( model,
+        thermal_fluid_problem( compressibility ), "ogs_ht_compressibility" );
+    check_exponential( liquid_property( compressible_only, "density" ),
+        { "liquid_phase_pressure", 4.5e-10, 1e5 },
+        "A compressibility alone gives an Exponential density on the "
+        "pressure, at the fluid reference pressure" );
 
     FluidFactors both = expansion;
     both.compressibility = 4.5e-10;
@@ -2335,6 +2470,8 @@ int main()
         test_ogs_ht_source_terms();
         test_ogs_initial_pressure();
         test_ogs_boundary_temperature();
+        test_ogs_boundary_temperature_values();
+        test_ogs_pressure_boundary_without_temperature();
         test_ogs_initial_temperature();
         test_ogs_ht_project();
         test_ogs_ht_fluid_laws();

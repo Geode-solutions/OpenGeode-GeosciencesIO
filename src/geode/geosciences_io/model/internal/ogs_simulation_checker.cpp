@@ -34,6 +34,7 @@
 #include <absl/strings/strip.h>
 #include <absl/types/span.h>
 
+#include <geode/basic/attribute_manager.hpp>
 #include <geode/basic/range.hpp>
 
 #include <geode/mesh/core/solid_mesh.hpp>
@@ -176,6 +177,51 @@ namespace
             add_ogs_conflicts( surface_values, conflicts );
         }
         return conflicts;
+    }
+
+    // Attribute of the boundary condition when registered on the Surfaces
+    std::optional< geode::uuid > surface_boundary_attribute(
+        const geode::BRep& model, geode::PHYSICAL_PROPERTY_NAME property )
+    {
+        if( !model.has_physical_property( property ) )
+        {
+            return std::nullopt;
+        }
+        const auto& info = model.physical_property_info( property );
+        if( info.component_type != geode::Surface3D::component_type_static() )
+        {
+            return std::nullopt;
+        }
+        return info.attribute_id;
+    }
+
+    // The Surface has values of the attribute, as the boundary meshes read
+    // them
+    bool has_surface_values( const geode::Surface3D& surface,
+        const std::optional< geode::uuid >& attribute_id )
+    {
+        const auto& mesh = surface.mesh();
+        return attribute_id && mesh.nb_polygons() != 0
+               && mesh.polygon_attribute_manager().attribute_exists(
+                   attribute_id.value() );
+    }
+
+    // A Surface has a boundary pressure and no boundary temperature
+    bool has_pressure_without_temperature( const geode::BRep& model )
+    {
+        const auto pressure = surface_boundary_attribute(
+            model, geode::PHYSICAL_PROPERTY_NAME::boundary_pressure );
+        const auto temperature = surface_boundary_attribute(
+            model, geode::PHYSICAL_PROPERTY_NAME::boundary_temperature );
+        for( const auto& surface : model.surfaces() )
+        {
+            if( has_surface_values( surface, pressure )
+                && !has_surface_values( surface, temperature ) )
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     class OgsProblemChecker
@@ -569,6 +615,29 @@ namespace geode::internal
                 PHYSICAL_PROPERTY_NAME::boundary_water_fraction } );
             warn_ignored_physical_properties(
                 { PHYSICAL_PROPERTY_NAME::boundary_oil_fraction } );
+        }
+        check_boundary_temperature();
+    }
+
+    // Only HT reads boundary_temperature. On a pressure boundary without
+    // one, OGS keeps a zero conductive flux and inflowing fluid takes the
+    // temperature of the boundary vertex: warned once.
+    void OgsSimulationChecker::check_boundary_temperature()
+    {
+        if( ogs_process( problem() ) != OGS_PROCESS::ht )
+        {
+            warn_ignored_physical_properties(
+                { PHYSICAL_PROPERTY_NAME::boundary_temperature } );
+            return;
+        }
+        check_physical_property( PhysicalPropertyRequirement{
+            PHYSICAL_PROPERTY_NAME::boundary_temperature } );
+        if( has_pressure_without_temperature( model() ) )
+        {
+            report().add_warning( SIMULATION_CHECK_STAGE::simulator,
+                "Boundary conditions",
+                "OGS lets the temperature evolve on pressure boundaries "
+                "without boundary_temperature" );
         }
     }
 } // namespace geode::internal

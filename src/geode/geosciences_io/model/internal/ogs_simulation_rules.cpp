@@ -111,6 +111,40 @@ namespace
         return fluid.thermal().value();
     }
 
+    // Fluid property following an exponential law of pressure and
+    // temperature
+    struct OgsFluidProperty
+    {
+        double reference_value{ 0 };
+        double pressure_factor{ 0 };
+        // Thermal coefficient, minus the temperature factor of the law
+        double geode::FluidThermalProperties::* temperature_coefficient{
+            nullptr
+        };
+    };
+
+    // Law of the property, at the fluid reference pressure and the reference
+    // temperature of the problem, with no temperature factor when the
+    // problem is not thermal
+    geode::internal::OgsExponentialLaw ogs_fluid_law(
+        const geode::PhysicalProblem& problem,
+        const geode::SinglePhaseFluid& fluid,
+        const OgsFluidProperty& property )
+    {
+        geode::internal::OgsExponentialLaw law;
+        law.reference_value = property.reference_value;
+        law.pressure_factor = property.pressure_factor;
+        law.reference_pressure = fluid.reference_pressure();
+        law.reference_temperature =
+            geode::internal::ogs_reference_temperature( problem );
+        if( problem.thermal() )
+        {
+            law.temperature_factor =
+                -( fluid_thermal( fluid ).*property.temperature_coefficient );
+        }
+        return law;
+    }
+
     double clamp_unit( double value )
     {
         return std::clamp( value, 0., 1. );
@@ -320,32 +354,17 @@ namespace geode::internal
     OgsExponentialLaw ogs_density_law( const PhysicalProblem& problem )
     {
         const auto& fluid = single_phase_fluid( problem );
-        OgsExponentialLaw law;
-        law.reference_value = fluid.reference_density();
-        law.pressure_factor = fluid.compressibility();
-        law.reference_pressure = fluid.reference_pressure();
-        law.reference_temperature = ogs_reference_temperature( problem );
-        if( problem.thermal() )
-        {
-            law.temperature_factor = -fluid_thermal( fluid ).thermal_expansion;
-        }
-        return law;
+        return ogs_fluid_law( problem, fluid,
+            { fluid.reference_density(), fluid.compressibility(),
+                &FluidThermalProperties::thermal_expansion } );
     }
 
     OgsExponentialLaw ogs_viscosity_law( const PhysicalProblem& problem )
     {
         const auto& fluid = single_phase_fluid( problem );
-        OgsExponentialLaw law;
-        law.reference_value = fluid.reference_viscosity();
-        law.pressure_factor = fluid.viscosibility();
-        law.reference_pressure = fluid.reference_pressure();
-        law.reference_temperature = ogs_reference_temperature( problem );
-        if( problem.thermal() )
-        {
-            law.temperature_factor =
-                -fluid_thermal( fluid ).viscosity_temperature_coefficient;
-        }
-        return law;
+        return ogs_fluid_law( problem, fluid,
+            { fluid.reference_viscosity(), fluid.viscosibility(),
+                &FluidThermalProperties::viscosity_temperature_coefficient } );
     }
 
     double ogs_law_value(
