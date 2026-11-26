@@ -20,7 +20,8 @@
 # SOFTWARE.
 
 """Export of picasso with a single-phase problem to OpenGeoSys: the project
-file names the LIQUID_FLOW process and the written meshes."""
+file names the LIQUID_FLOW process and the written meshes; with thermal
+parameters, the HT process and its temperature variable."""
 
 import os
 import tempfile
@@ -71,6 +72,52 @@ def picasso_problem(model):
     return problem
 
 
+def thermal_problem(model):
+    """Thermal single-phase problem (OGS HT): the values of the C++
+    test_ogs_ht_project"""
+    problem = geosciences.PhysicalProblem()
+    builder = geosciences.PhysicalProblemBuilder(problem)
+    builder.set_name("picasso_thermal")
+    builder.set_model_id(model.id())
+    fluid_thermal = geosciences.FluidThermalProperties()
+    fluid_thermal.specific_heat_capacity = 4182.0
+    fluid_thermal.thermal_expansion = 0.0
+    fluid_thermal.viscosity_temperature_coefficient = 0.0
+    fluid = geosciences.SinglePhaseFluid(
+        [geosciences.Phase.water],
+        [geosciences.FluidComponent("water", 0.018)],
+        reference_density=1000.0,
+        reference_viscosity=1e-3,
+        compressibility=0.0,
+        viscosibility=0.0,
+        reference_pressure=1e5,
+        thermal=fluid_thermal,
+    )
+    flow = geosciences.SinglePhaseFlow()
+    flow.set_fluid(fluid)
+    builder.set_flow(flow)
+    rock = geosciences.Material()
+    rock.name = "rock"
+    rock.pore_compressibility = 1e-9
+    rock.reference_pressure = 1e7
+    rock.porosity = 0.2
+    rock.permeability = [1e-13, 1e-13, 1e-14]
+    rock_thermal = geosciences.RockThermalProperties()
+    rock_thermal.volumetric_heat_capacity = 2e6
+    rock_thermal.thermal_conductivity = [2.0, 2.0, 3.0]
+    rock.thermal = rock_thermal
+    builder.add_material(rock)
+    builder.add_initial_condition(
+        geosciences.UniformInitialCondition([], 1e7, temperature=300.0)
+    )
+    builder.set_thermal(geosciences.ThermalParameters(300.0))
+    builder.set_schedule(geosciences.Schedule(0.0, 1e5, 1e3, 1e4))
+    output = geosciences.OutputSettings()
+    output.frequency = 5e4
+    builder.set_output(output)
+    return problem
+
+
 def add_east_pressure(model):
     side = model.bounding_box().max().value(0)
     attribute_id = opengeode.uuid()
@@ -110,6 +157,28 @@ def test_brep_export(data_dir, directory):
         check(os.path.exists(os.path.join(folder, mesh)), f"{mesh} should be written")
 
 
+def test_thermal_export(data_dir, directory):
+    model_filename = os.path.join(data_dir, "picasso.og_brep")
+    model = opengeode.load_one(opengeode.load_brep(model_filename), model_filename)
+    add_east_pressure(model)
+    folder = os.path.join(directory, "python_ogs_ht")
+    exporter = geosciences_io.BRepOgsExporter(model, folder)
+    exporter.set_physical_problem(thermal_problem(model))
+    exporter.run()
+    project = ElementTree.parse(os.path.join(folder, "python_ogs_ht.prj")).getroot()
+    process_type = project.findtext("processes/process/type")
+    check(process_type == "HT", f"The project should use HT, not {process_type}")
+    temperature = project.find(
+        "process_variables/process_variable[name='temperature']"
+    )
+    check(temperature is not None, "The temperature process variable is missing")
+    variables = project.find("processes/process/process_variables")
+    check(
+        [child.tag for child in variables] == ["temperature", "pressure"],
+        "The HT process variables are temperature, then pressure",
+    )
+
+
 if __name__ == "__main__":
     geosciences_io.OpenGeodeGeosciencesIOModelLibrary.initialize()
     data = os.path.abspath(
@@ -117,3 +186,4 @@ if __name__ == "__main__":
     )
     with tempfile.TemporaryDirectory() as directory:
         test_brep_export(data, directory)
+        test_thermal_export(data, directory)
