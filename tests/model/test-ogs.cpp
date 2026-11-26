@@ -274,14 +274,21 @@ void test_ogs_rules_process()
         "Single-phase flow is LIQUID_FLOW" );
     geode::PhysicalProblemBuilder{ single }.set_thermal(
         geode::ThermalParameters{ 300. } );
+    check( geode::internal::ogs_process( single ) == OGS_PROCESS::ht,
+        "Thermal single-phase flow is HT" );
+    geode::PhysicalProblemBuilder{ single }.set_solid_mechanics(
+        geode::SolidMechanics{} );
     check( !geode::internal::ogs_process( single ),
-        "Thermal single-phase flow is not supported yet" );
-    const auto two_phase =
-        flow_problem( std::make_shared< geode::MultiphaseFlow >(),
-            water_oil_fluid( { geode::PHASE::water, geode::PHASE::oil } ) );
+        "Thermal single-phase flow with mechanics is not supported yet" );
+    auto two_phase = flow_problem( std::make_shared< geode::MultiphaseFlow >(),
+        water_oil_fluid( { geode::PHASE::water, geode::PHASE::oil } ) );
     check( geode::internal::ogs_process( two_phase )
                == OGS_PROCESS::two_phase_flow_pp,
         "Water-oil dead oil is TWOPHASE_FLOW_PP" );
+    geode::PhysicalProblemBuilder{ two_phase }.set_thermal(
+        geode::ThermalParameters{ 300. } );
+    check( !geode::internal::ogs_process( two_phase ),
+        "Thermal two-phase flow is not supported" );
     const auto three_phase = flow_problem(
         std::make_shared< geode::MultiphaseFlow >(),
         water_oil_fluid(
@@ -315,6 +322,106 @@ void test_ogs_rules_storage_and_temperature()
     check(
         geode::internal::ogs_reference_temperature( with_temperature ) == 350.,
         "Shared initial temperature is the reference temperature" );
+}
+
+std::shared_ptr< geode::SinglePhaseFluid > thermal_water_fluid()
+{
+    return std::make_shared< geode::SinglePhaseFluid >(
+        std::vector< geode::PHASE >{ geode::PHASE::water },
+        std::vector< geode::FluidComponent >{ { "water", 0.018 } }, 1000., 1e-3,
+        4.5e-10, 1e-9, 1e5,
+        geode::FluidThermalProperties{ 4180., 3e-4, 0.02 } );
+}
+
+bool law_value_is( const geode::internal::OgsExponentialLaw& law,
+    const geode::internal::OgsFluidState& state,
+    double expected )
+{
+    const auto value = geode::internal::ogs_law_value( law, state );
+    return std::fabs( value - expected ) <= 1e-12 * std::fabs( expected );
+}
+
+template < typename Function >
+bool throws( const Function& function )
+{
+    try
+    {
+        function();
+    }
+    catch( const geode::OpenGeodeException& )
+    {
+        return true;
+    }
+    return false;
+}
+
+void test_ogs_rules_thermal_laws()
+{
+    auto thermal = flow_problem(
+        std::make_shared< geode::SinglePhaseFlow >(), thermal_water_fluid() );
+    geode::PhysicalProblemBuilder{ thermal }.set_thermal(
+        geode::ThermalParameters{ 300. } );
+    check( geode::internal::ogs_reference_temperature( thermal ) == 300.,
+        "The thermal reference temperature is the OGS one" );
+    const auto density = geode::internal::ogs_density_law( thermal );
+    check( density.reference_value == 1000.
+               && density.pressure_factor == 4.5e-10
+               && density.reference_pressure == 1e5
+               && density.reference_temperature == 300.,
+        "Density law: reference density, compressibility, references" );
+    check( density.temperature_factor == -3e-4,
+        "Density temperature factor is minus the thermal expansion" );
+    const auto viscosity = geode::internal::ogs_viscosity_law( thermal );
+    check( viscosity.reference_value == 1e-3
+               && viscosity.pressure_factor == 1e-9
+               && viscosity.reference_pressure == 1e5
+               && viscosity.reference_temperature == 300.,
+        "Viscosity law: reference viscosity, viscosibility, references" );
+    check( viscosity.temperature_factor == -0.02,
+        "Viscosity temperature factor is minus its temperature coefficient" );
+    const geode::internal::OgsFluidState state{ 2e5, 310. };
+    check( law_value_is(
+               density, state, 1000. * std::exp( 4.5e-10 * 1e5 - 3e-4 * 10. ) ),
+        "Density law value is the GEOS exponential" );
+    check( law_value_is(
+               viscosity, state, 1e-3 * std::exp( 1e-9 * 1e5 - 0.02 * 10. ) ),
+        "Viscosity law value is the GEOS exponential" );
+    check( geode::internal::ogs_law_value( density, { 1e5, 300. } ) == 1000.,
+        "Law value at the references is the reference value" );
+
+    const auto isothermal = flow_problem(
+        std::make_shared< geode::SinglePhaseFlow >(), thermal_water_fluid() );
+    const auto isothermal_density =
+        geode::internal::ogs_density_law( isothermal );
+    check( isothermal_density.temperature_factor == 0.
+               && isothermal_density.pressure_factor == 4.5e-10,
+        "Isothermal density law does not depend on the temperature" );
+    check( geode::internal::ogs_viscosity_law( isothermal ).temperature_factor
+               == 0.,
+        "Isothermal viscosity law does not depend on the temperature" );
+    check( isothermal_density.reference_temperature
+               == geode::internal::ogs_reference_temperature( isothermal ),
+        "Isothermal law reference temperature is the OGS one" );
+
+    auto no_fluid_thermal = flow_problem(
+        std::make_shared< geode::SinglePhaseFlow >(), water_fluid( 0. ) );
+    geode::PhysicalProblemBuilder{ no_fluid_thermal }.set_thermal(
+        geode::ThermalParameters{ 300. } );
+    check( throws( [&no_fluid_thermal] {
+        geode_unused( geode::internal::ogs_density_law( no_fluid_thermal ) );
+    } ),
+        "A thermal problem needs the fluid thermal properties" );
+    const auto two_phase =
+        flow_problem( std::make_shared< geode::MultiphaseFlow >(),
+            water_oil_fluid( { geode::PHASE::water, geode::PHASE::oil } ) );
+    check( throws( [&two_phase] {
+        geode_unused( geode::internal::ogs_density_law( two_phase ) );
+    } ),
+        "A density law needs a single-phase fluid" );
+    check( throws( [&two_phase] {
+        geode_unused( geode::internal::ogs_viscosity_law( two_phase ) );
+    } ),
+        "A viscosity law needs a single-phase fluid" );
 }
 
 void test_ogs_rules_output_times()
@@ -594,7 +701,7 @@ void test_ogs_checker_refusals()
         geode::PhysicalProblemBuilder{ problem }.set_thermal(
             geode::ThermalParameters{ 300. } );
         check_refused(
-            problem, model, "not supported by the OGS exporter yet" );
+            problem, model, "needs thermal properties for a thermal problem" );
     }
     {
         auto problem = single_phase_problem( 0. );
@@ -1695,6 +1802,7 @@ int main()
         test_ogs_structural_model_regions();
         test_ogs_rules_process();
         test_ogs_rules_storage_and_temperature();
+        test_ogs_rules_thermal_laws();
         test_ogs_rules_output_times();
         test_ogs_rules_saturation();
         test_ogs_rules_relperm();

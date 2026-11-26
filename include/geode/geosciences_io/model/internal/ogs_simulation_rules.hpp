@@ -82,24 +82,72 @@ namespace geode::internal
     enum struct OGS_PROCESS
     {
         liquid_flow,
-        two_phase_flow_pp
+        two_phase_flow_pp,
+        ht
     };
 
     /*!
-     * LIQUID_FLOW for a SinglePhaseFlow of a SinglePhaseFluid,
-     * TWOPHASE_FLOW_PP for a MultiphaseFlow of a water-oil DeadOilFluid,
-     * nothing otherwise (thermal and solid mechanics included)
+     * Without solid mechanics: LIQUID_FLOW for an isothermal SinglePhaseFlow
+     * of a SinglePhaseFluid, HT for a thermal one, TWOPHASE_FLOW_PP for an
+     * isothermal MultiphaseFlow of a water-oil DeadOilFluid. Nothing
+     * otherwise (thermal multiphase and solid mechanics included).
      */
     [[nodiscard]] std::optional< OGS_PROCESS > opengeode_geosciencesio_model_api
         ogs_process( const PhysicalProblem& problem );
 
     /*!
-     * Temperature (K) shared by every initial condition giving one, else
-     * 293.15 K. OGS needs it as LIQUID_FLOW reference_temperature and as
-     * TWOPHASE_FLOW_PP temperature, both unused by isothermal flow.
+     * The ThermalParameters reference temperature (K) of a thermal problem.
+     * Otherwise the temperature shared by every initial condition giving
+     * one, else 293.15 K: OGS needs it as LIQUID_FLOW reference_temperature
+     * and as TWOPHASE_FLOW_PP temperature, both unused by isothermal flow.
      */
     [[nodiscard]] double opengeode_geosciencesio_model_api
         ogs_reference_temperature( const PhysicalProblem& problem );
+
+    /*!
+     * reference_value * exp( pressure_factor * ( p - reference_pressure )
+     * + temperature_factor * ( T - reference_temperature ) ), as the GEOS
+     * ThermalCompressibleSinglePhaseFluid. Pressures in Pa, temperatures in
+     * K, factors in 1/Pa and 1/K.
+     */
+    struct OgsExponentialLaw
+    {
+        double reference_value{ 0 };
+        double pressure_factor{ 0 };
+        double reference_pressure{ 0 };
+        double temperature_factor{ 0 };
+        double reference_temperature{ 0 };
+    };
+
+    /// Pressure (Pa) and temperature (K) at which a law is evaluated
+    struct OgsFluidState
+    {
+        double pressure{ 0 };
+        double temperature{ 0 };
+    };
+
+    /*!
+     * Density (kg/m3) law of the SinglePhaseFluid of the problem: its
+     * compressibility, and minus its thermal expansion when the problem is
+     * thermal (0 otherwise). The reference temperature is
+     * ogs_reference_temperature. Throws if the fluid is not a
+     * SinglePhaseFluid, or has no thermal properties in a thermal problem.
+     */
+    [[nodiscard]] OgsExponentialLaw opengeode_geosciencesio_model_api
+        ogs_density_law( const PhysicalProblem& problem );
+
+    /*!
+     * Viscosity (Pa.s) law of the SinglePhaseFluid of the problem: its
+     * viscosibility, and minus its viscosity temperature coefficient when the
+     * problem is thermal (0 otherwise). Same references and exceptions as
+     * ogs_density_law.
+     */
+    [[nodiscard]] OgsExponentialLaw opengeode_geosciencesio_model_api
+        ogs_viscosity_law( const PhysicalProblem& problem );
+
+    /// Value of the law at a fluid state
+    [[nodiscard]] double opengeode_geosciencesio_model_api ogs_law_value(
+        const OgsExponentialLaw& law, const OgsFluidState& state );
 
     /// Same permeability along x, y and z: TWOPHASE_FLOW_PP reads a scalar
     [[nodiscard]] bool opengeode_geosciencesio_model_api is_isotropic(

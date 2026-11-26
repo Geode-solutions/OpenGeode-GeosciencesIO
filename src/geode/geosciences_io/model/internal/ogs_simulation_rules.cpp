@@ -85,6 +85,32 @@ namespace
             "[OgsExporter] The fluid has no oil PVT table" };
     }
 
+    const geode::SinglePhaseFluid& single_phase_fluid(
+        const geode::PhysicalProblem& problem )
+    {
+        const auto* fluid =
+            problem.has_flow() && problem.flow().has_fluid()
+                ? dynamic_cast< const geode::SinglePhaseFluid* >(
+                      &problem.flow().fluid() )
+                : nullptr;
+        geode::OpenGeodeGeosciencesIOModelException::check_exception(
+            fluid != nullptr, nullptr,
+            geode::OpenGeodeException::TYPE::internal,
+            "[OgsExporter] Fluid laws need a SinglePhaseFluid" );
+        return *fluid;
+    }
+
+    const geode::FluidThermalProperties& fluid_thermal(
+        const geode::SinglePhaseFluid& fluid )
+    {
+        geode::OpenGeodeGeosciencesIOModelException::check_exception(
+            fluid.thermal().has_value(), nullptr,
+            geode::OpenGeodeException::TYPE::data,
+            "[OgsExporter] The fluid needs thermal properties for a thermal "
+            "problem" );
+        return fluid.thermal().value();
+    }
+
     double clamp_unit( double value )
     {
         return std::clamp( value, 0., 1. );
@@ -238,8 +264,8 @@ namespace geode::internal
 
     std::optional< OGS_PROCESS > ogs_process( const PhysicalProblem& problem )
     {
-        if( !problem.has_flow() || problem.thermal()
-            || problem.solid_mechanics() || !problem.flow().has_fluid() )
+        if( !problem.has_flow() || problem.solid_mechanics()
+            || !problem.flow().has_fluid() )
         {
             return std::nullopt;
         }
@@ -248,7 +274,12 @@ namespace geode::internal
         if( dynamic_cast< const SinglePhaseFlow* >( &flow ) != nullptr
             && dynamic_cast< const SinglePhaseFluid* >( &fluid ) != nullptr )
         {
-            return OGS_PROCESS::liquid_flow;
+            return problem.thermal() ? OGS_PROCESS::ht
+                                     : OGS_PROCESS::liquid_flow;
+        }
+        if( problem.thermal() )
+        {
+            return std::nullopt;
         }
         if( dynamic_cast< const MultiphaseFlow* >( &flow ) != nullptr
             && dynamic_cast< const DeadOilFluid* >( &fluid ) != nullptr
@@ -261,6 +292,10 @@ namespace geode::internal
 
     double ogs_reference_temperature( const PhysicalProblem& problem )
     {
+        if( problem.thermal() )
+        {
+            return problem.thermal()->reference_temperature;
+        }
         std::optional< double > temperature;
         for( const auto condition_id :
             Range{ problem.nb_initial_conditions() } )
@@ -280,6 +315,48 @@ namespace geode::internal
             temperature = value;
         }
         return temperature.value_or( DEFAULT_REFERENCE_TEMPERATURE );
+    }
+
+    OgsExponentialLaw ogs_density_law( const PhysicalProblem& problem )
+    {
+        const auto& fluid = single_phase_fluid( problem );
+        OgsExponentialLaw law;
+        law.reference_value = fluid.reference_density();
+        law.pressure_factor = fluid.compressibility();
+        law.reference_pressure = fluid.reference_pressure();
+        law.reference_temperature = ogs_reference_temperature( problem );
+        if( problem.thermal() )
+        {
+            law.temperature_factor = -fluid_thermal( fluid ).thermal_expansion;
+        }
+        return law;
+    }
+
+    OgsExponentialLaw ogs_viscosity_law( const PhysicalProblem& problem )
+    {
+        const auto& fluid = single_phase_fluid( problem );
+        OgsExponentialLaw law;
+        law.reference_value = fluid.reference_viscosity();
+        law.pressure_factor = fluid.viscosibility();
+        law.reference_pressure = fluid.reference_pressure();
+        law.reference_temperature = ogs_reference_temperature( problem );
+        if( problem.thermal() )
+        {
+            law.temperature_factor =
+                -fluid_thermal( fluid ).viscosity_temperature_coefficient;
+        }
+        return law;
+    }
+
+    double ogs_law_value(
+        const OgsExponentialLaw& law, const OgsFluidState& state )
+    {
+        return law.reference_value
+               * std::exp(
+                   law.pressure_factor
+                       * ( state.pressure - law.reference_pressure )
+                   + law.temperature_factor
+                         * ( state.temperature - law.reference_temperature ) );
     }
 
     bool is_ogs_polyhedron( const SolidMesh3D& mesh, index_t polyhedron )
