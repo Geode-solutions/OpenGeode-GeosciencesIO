@@ -322,6 +322,18 @@ void test_ogs_rules_storage_and_temperature()
     check(
         geode::internal::ogs_reference_temperature( with_temperature ) == 350.,
         "Shared initial temperature is the reference temperature" );
+    auto thermal = flow_problem(
+        std::make_shared< geode::SinglePhaseFlow >(), water_fluid( 0. ) );
+    geode::PhysicalProblemBuilder thermal_builder{ thermal };
+    for( const auto pressure : { 1e5, 2e5 } )
+    {
+        thermal_builder.add_initial_condition(
+            std::make_shared< geode::UniformInitialCondition >(
+                std::vector< geode::uuid >{ geode::uuid{} }, pressure, 320. ) );
+    }
+    thermal_builder.set_thermal( geode::ThermalParameters{ 300. } );
+    check( geode::internal::ogs_reference_temperature( thermal ) == 300.,
+        "The thermal reference temperature wins over a shared initial one" );
 }
 
 std::shared_ptr< geode::SinglePhaseFluid > thermal_water_fluid()
@@ -626,6 +638,31 @@ geode::PhysicalProblem single_phase_problem( double compressibility )
     return problem;
 }
 
+// Thermal single-phase problem (OGS HT): incompressible water with a heat
+// capacity and no thermal factors, rock with thermal properties, 300 K
+geode::PhysicalProblem thermal_problem()
+{
+    auto problem = flow_problem( std::make_shared< geode::SinglePhaseFlow >(),
+        std::make_shared< geode::SinglePhaseFluid >(
+            std::vector< geode::PHASE >{ geode::PHASE::water },
+            std::vector< geode::FluidComponent >{ { "water", 0.018 } }, 1000.,
+            1e-3, 0., 0., 1e5,
+            geode::FluidThermalProperties{ 4182., 0., 0. } ) );
+    geode::PhysicalProblemBuilder builder{ problem };
+    auto rock = rock_material( "rock" );
+    rock.thermal = geode::RockThermalProperties{ 2e6, { 2., 2., 3. } };
+    builder.add_material( rock );
+    builder.add_initial_condition(
+        std::make_shared< geode::UniformInitialCondition >(
+            std::vector< geode::uuid >{}, 1e7, 300. ) );
+    builder.set_thermal( geode::ThermalParameters{ 300. } );
+    builder.set_schedule( { 0., 1e5, 1e3, 1e4 } );
+    geode::OutputSettings output;
+    output.frequency = 5e4;
+    builder.set_output( output );
+    return problem;
+}
+
 std::shared_ptr< geode::BrooksCoreyCapillaryPressure > brooks_corey_pc()
 {
     return std::make_shared< geode::BrooksCoreyCapillaryPressure >(
@@ -697,11 +734,28 @@ void test_ogs_checker_refusals()
     add_constant_boundary( model, east_surfaces( model ),
         geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, 1e7 );
     {
-        auto problem = single_phase_problem( 0. );
+        const auto report = ogs_report( thermal_problem(), model );
+        check( report.is_simulable(),
+            absl::StrCat( "Thermal single-phase flow should be simulable:\n",
+                report.string() ) );
+    }
+    {
+        auto problem = thermal_problem();
+        geode::PhysicalProblemBuilder{ problem }.set_solid_mechanics(
+            geode::SolidMechanics{} );
+        check_refused( problem, model,
+            "solid mechanics is not supported by the OGS exporter yet" );
+    }
+    {
+        auto problem = two_phase_problem();
         geode::PhysicalProblemBuilder{ problem }.set_thermal(
             geode::ThermalParameters{ 300. } );
-        check_refused(
-            problem, model, "needs thermal properties for a thermal problem" );
+        check_refused( problem, model,
+            "OGS thermal two-phase flow is not supported by the OGS "
+            "exporter" );
+        check( !absl::StrContains( ogs_report( problem, model ).string(),
+                   "needs a MultiphaseFlow of water and oil" ),
+            "A thermal water-oil flow is not an unsupported fluid" );
     }
     {
         auto problem = single_phase_problem( 0. );
@@ -1279,6 +1333,95 @@ void test_ogs_wells_rates()
         "The rate is split evenly over the well vertices" );
 }
 
+bool has_project_file( const std::filesystem::path& directory )
+{
+    if( !std::filesystem::exists( directory ) )
+    {
+        return false;
+    }
+    return absl::c_any_of( std::filesystem::directory_iterator{ directory },
+        []( const std::filesystem::directory_entry& entry ) {
+            return entry.path().extension() == ".prj";
+        } );
+}
+
+void test_ogs_ht_missing_thermal()
+{
+    const auto model = picasso_with_boundary();
+    auto problem = thermal_problem();
+    auto rock = problem.materials()[0];
+    rock.thermal.reset();
+    geode::PhysicalProblemBuilder{ problem }.set_material( 0, rock );
+    std::string message;
+    try
+    {
+        geode_unused(
+            export_project( model, problem, "ogs_ht_missing_thermal" ) );
+    }
+    catch( const geode::OpenGeodeException& exception )
+    {
+        message = exception.what();
+    }
+    check( absl::StrContains(
+               message, "needs thermal properties for a thermal problem" ),
+        absl::StrCat( "A material without thermal properties must be "
+                      "refused in HT, got: ",
+            message ) );
+    check( !has_project_file( "ogs_ht_missing_thermal" ),
+        "No .prj must be written for a refused thermal problem" );
+}
+
+// Points near the first vertex of each given polyhedron of the model
+std::unique_ptr< geode::PointSet3D > well_perforations(
+    const geode::BRep& model, absl::Span< const geode::index_t > polyhedra )
+{
+    const auto [solid, mappings] = geode::convert_brep_into_solid( model );
+    auto well = geode::PointSet3D::create();
+    auto builder = geode::PointSetBuilder3D::create( *well );
+    for( const auto polyhedron : polyhedra )
+    {
+        const auto& point =
+            solid->point( solid->polyhedron_vertex( { polyhedron, 0 } ) );
+        builder->create_point(
+            point
+            + ( solid->polyhedron_barycenter( polyhedron ) - point ) * 0.01 );
+    }
+    return well;
+}
+
+void test_ogs_ht_source_terms()
+{
+    const auto model = picasso_with_boundary();
+    auto problem = thermal_problem();
+    geode::PhysicalProblemBuilder builder{ problem };
+    builder.add_source_term( { "injector", "water", 1. } );
+    builder.add_source_term( { "producer", "water", -1. } );
+    const auto report = ogs_report( problem, model );
+    std::vector< std::string > subjects;
+    for( const auto& issue : report.issues() )
+    {
+        if( !issue.is_error()
+            && absl::StrContains( issue.message, "local temperature" ) )
+        {
+            subjects.push_back( issue.subject );
+        }
+    }
+    check( report.is_simulable() && subjects.size() == 1
+               && subjects.front() == "Source term on well \"injector\"",
+        absl::StrCat( "One local temperature warning, on the injector:\n",
+            report.string() ) );
+    std::filesystem::remove_all( "ogs_ht_wells" );
+    geode::BRepOgsExporter exporter{ model, "ogs_ht_wells" };
+    const auto injector = well_perforations( model, { 0, 100 } );
+    const auto producer = well_perforations( model, { 200 } );
+    exporter.add_well_perforations( *injector, "injector" );
+    exporter.add_well_perforations( *producer, "producer" );
+    exporter.set_physical_problem( problem );
+    exporter.run();
+    check( has_project_file( "ogs_ht_wells" ),
+        "A thermal problem with an injecting well is exported" );
+}
+
 // Two hexahedra Blocks sharing the face x = 1, top face first if mirrored
 geode::BRep two_hexahedra_brep( bool mirrored = false )
 {
@@ -1819,6 +1962,8 @@ int main()
         test_ogs_permeability_field();
         test_ogs_compressible_fluid();
         test_ogs_wells_rates();
+        test_ogs_ht_missing_thermal();
+        test_ogs_ht_source_terms();
         test_ogs_initial_pressure();
         test_ogs_solver_options();
         test_ogs_conflicting_dirichlet();

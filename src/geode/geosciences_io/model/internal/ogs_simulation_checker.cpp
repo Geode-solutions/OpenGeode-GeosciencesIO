@@ -73,6 +73,11 @@ namespace
         return surface.name().value_or( surface.id().string() );
     }
 
+    std::string source_subject( const geode::SourceTerm& source )
+    {
+        return absl::StrCat( "Source term on well \"", source.well, "\"" );
+    }
+
     // Mean value of each Surface at each of its unique vertices
     using OgsVertexSurfaceValues = absl::flat_hash_map< geode::index_t,
         absl::flat_hash_map< geode::index_t, std::pair< double, double > > >;
@@ -232,23 +237,25 @@ namespace
             {
                 return true;
             }
-            if( problem_.thermal() )
-            {
-                add_issue(
-                    "Thermal parameters", "thermal simulations are ", NOT_YET );
-            }
             if( problem_.solid_mechanics() )
             {
                 add_issue( "Solid mechanics", "solid mechanics is ", NOT_YET );
-            }
-            if( problem_.thermal() || problem_.solid_mechanics() )
-            {
                 return false;
             }
             if( !problem_.has_flow() || !problem_.flow().has_fluid() )
             {
                 add_issue( "Flow model", "the OGS exporter needs a flow model "
                                          "with a fluid" );
+                return false;
+            }
+            if( problem_.thermal()
+                && dynamic_cast< const geode::MultiphaseFlow* >(
+                       &problem_.flow() )
+                       != nullptr )
+            {
+                add_issue( "Thermal parameters",
+                    "OGS thermal two-phase flow is not supported by the OGS "
+                    "exporter" );
                 return false;
             }
             report_unsupported_fluid();
@@ -311,6 +318,8 @@ namespace
         void check_source_terms(
             std::optional< absl::Span< const std::string > > well_names )
         {
+            const auto is_ht = geode::internal::ogs_process( problem_ )
+                               == geode::internal::OGS_PROCESS::ht;
             for( const auto& source : problem_.source_terms() )
             {
                 if( well_names )
@@ -321,9 +330,15 @@ namespace
                 if( !geode::internal::ogs_naming().is_valid_name(
                         source.well ) )
                 {
-                    add_issue( absl::StrCat( "Source term on well \"",
-                                   source.well, "\"" ),
-                        "well ", OGS_NAME_RULE );
+                    add_issue(
+                        source_subject( source ), "well ", OGS_NAME_RULE );
+                }
+                // The Nodal source term is on the pressure only
+                if( is_ht && source.rate > 0 )
+                {
+                    report_.add_warning( SIMULATION_CHECK_STAGE::simulator,
+                        source_subject( source ),
+                        "OGS injects the fluid at the local temperature" );
                 }
             }
         }
