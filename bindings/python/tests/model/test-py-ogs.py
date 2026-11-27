@@ -21,7 +21,9 @@
 
 """Export of picasso with a single-phase problem to OpenGeoSys: the project
 file names the LIQUID_FLOW process and the written meshes; with thermal
-parameters, the HT process and its temperature variable."""
+parameters, the HT process and its temperature variable; with solid
+mechanics and heat sources, the THERMO_HYDRO_MECHANICS process and its
+Volumetric and Nodal temperature source terms."""
 
 import os
 import tempfile
@@ -179,6 +181,124 @@ def test_thermal_export(data_dir, directory):
     )
 
 
+FREE = float("nan")
+
+
+def add_block_property(model, name, value):
+    attribute_id = opengeode.uuid()
+    values = opengeode.AttributeValuesDouble()
+    values.default_value = value
+    for block in model.blocks():
+        block.mesh().polyhedron_attribute_manager().create_attribute_constant_double(
+            name, attribute_id, values, opengeode.AttributeProperties()
+        )
+    opengeode.BRepBuilder(model).set_physical_property(
+        getattr(opengeode.PhysicalPropertyName, name),
+        opengeode.Block3D.component_type_static(),
+        attribute_id,
+    )
+
+
+def add_rollers(model):
+    """Lateral faces slide, the bottom face is fixed vertically"""
+    box = model.bounding_box()
+    attribute_id = opengeode.uuid()
+    sides = [(axis, side) for axis in (0, 1) for side in (box.min(), box.max())]
+    sides.append((2, box.min()))
+    for surface in model.surfaces():
+        surface_box = surface.mesh().bounding_box()
+        for axis, side in sides:
+            value = side.value(axis)
+            if (
+                abs(surface_box.min().value(axis) - value) < 1e-3
+                and abs(surface_box.max().value(axis) - value) < 1e-3
+            ):
+                displacement = [FREE, FREE, FREE]
+                displacement[axis] = 0.0
+                values = opengeode.AttributeValuesArrayDouble3()
+                values.default_value = displacement
+                surface.mesh().polygon_attribute_manager().create_attribute_constant_arraydouble3(
+                    "boundary_displacement", attribute_id, values, opengeode.AttributeProperties()
+                )
+    opengeode.BRepBuilder(model).set_physical_property(
+        opengeode.PhysicalPropertyName.boundary_displacement,
+        opengeode.Surface3D.component_type_static(),
+        attribute_id,
+    )
+
+
+def thermo_hydro_mechanics_problem(model, block_id):
+    """The HT problem with solid mechanics (the Biot coefficient gives the
+    pore compressibility), a Block heat source and a point one"""
+    problem = thermal_problem(model)
+    builder = geosciences.PhysicalProblemBuilder(problem)
+    builder.set_solid_mechanics(geosciences.SolidMechanics())
+    rock = problem.materials()[0]
+    rock.pore_compressibility = 0.0
+    rock.reference_pressure = 0.0
+    builder.set_material(material_id=0, material=rock)
+    builder.add_heat_source(
+        geosciences.HeatSource(name="canister", block=block_id, times=[], powers=[1000.0])
+    )
+    builder.add_heat_source(
+        geosciences.HeatSource(name="probe", block=None, times=[0.0, 1e4], powers=[150.0, 100.0])
+    )
+    return problem
+
+
+def test_thermo_hydro_mechanics_export(data_dir, directory):
+    model_filename = os.path.join(data_dir, "picasso.og_brep")
+    model = opengeode.load_one(opengeode.load_brep(model_filename), model_filename)
+    add_east_pressure(model)
+    for name, value in [
+        ("bulk_modulus", 5e9),
+        ("shear_modulus", 3e9),
+        ("grain_density", 2650.0),
+        ("biot_coefficient", 0.8),
+        ("thermal_expansion_coefficient", 1e-5),
+    ]:
+        add_block_property(model, name, value)
+    add_rollers(model)
+    block_id = next(iter(model.blocks())).id()
+    problem = thermo_hydro_mechanics_problem(model, block_id)
+    folder = os.path.join(directory, "python_ogs_thm")
+    exporter = geosciences_io.BRepOgsExporter(model, folder)
+    probe = opengeode.PointSet3D.create()
+    opengeode.PointSetBuilder3D.create(probe).create_point(
+        model.bounding_box().center()
+    )
+    exporter.add_heat_source_points(points=probe, name="probe")
+    try:
+        exporter.add_heat_source_points(probe, "probe")
+        raise ValueError("[Test] Heat source points added twice should raise")
+    except opengeode.OpenGeodeDataError:
+        pass
+    exporter.set_physical_problem(problem)
+    exporter.run()
+    project = ElementTree.parse(os.path.join(folder, "python_ogs_thm.prj")).getroot()
+    process_type = project.findtext("processes/process/type")
+    check(
+        process_type == "THERMO_HYDRO_MECHANICS",
+        f"The project should use THERMO_HYDRO_MECHANICS, not {process_type}",
+    )
+    sources = {
+        term.findtext("mesh"): term.findtext("type")
+        for term in project.findall(
+            "process_variables/process_variable[name='temperature']/source_terms/source_term"
+        )
+    }
+    check(
+        sources == {"python_ogs_thm_heat_canister": "Volumetric", "python_ogs_thm_heat_probe": "Nodal"},
+        f"One Volumetric and one Nodal temperature source term: {sources}",
+    )
+    check(
+        project.find("curves/curve[name='heat_probe']") is not None,
+        "The power table of the probe is a curve",
+    )
+    for mesh in sources:
+        check(os.path.exists(os.path.join(folder, mesh + ".vtu")), f"{mesh} should be written")
+
+
 if __name__ == "__main__":
     geosciences_io.OpenGeodeGeosciencesIOModelLibrary.initialize()
     data = os.path.abspath(
@@ -187,3 +307,4 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory() as directory:
         test_brep_export(data, directory)
         test_thermal_export(data, directory)
+        test_thermo_hydro_mechanics_export(data, directory)

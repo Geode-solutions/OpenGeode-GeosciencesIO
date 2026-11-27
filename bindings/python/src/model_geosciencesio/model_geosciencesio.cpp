@@ -44,6 +44,7 @@ namespace
     {
         const char* class_doc;
         const char* well_name_rule;
+        const char* heat_source_doc;
         const char* problem_doc;
         const char* run_doc;
     };
@@ -65,6 +66,9 @@ namespace
             .def( "add_well_perforations", &Exporter::add_well_perforations,
                 pybind11::arg( "well_perforations" ), pybind11::arg( "name" ),
                 docs.well_name_rule )
+            .def( "add_heat_source_points", &Exporter::add_heat_source_points,
+                pybind11::arg( "points" ), pybind11::arg( "name" ),
+                docs.heat_source_doc )
             .def( "set_physical_problem", &Exporter::set_physical_problem,
                 pybind11::arg( "problem" ), pybind11::keep_alive< 1, 2 >(),
                 docs.problem_doc )
@@ -78,6 +82,10 @@ namespace
         "the given name, which must be non empty, contain no space, "
         "comma nor brace and be different from the previous ones "
         "(OpenGeodeDataError otherwise).",
+        "Add the points (copied at once) of the point HeatSource of the "
+        "problem with this name; raises OpenGeodeDataError if points of "
+        "this name were already added. GEOS has no energy source term: "
+        "run() refuses a problem with heat sources.",
         "Write a full simulation deck (solvers, fluid, rock, initial "
         "conditions, events) described by the PhysicalProblem; "
         "without it, only the mesh, wells and boundary conditions "
@@ -94,15 +102,29 @@ namespace
         "nearest to it of the cell containing it (points outside the "
         "model are ignored with a warning); a source term rate on the "
         "well is split evenly over these vertices.",
+        "Add the points (copied at once) of the point HeatSource of the "
+        "problem with this name; raises OpenGeodeDataError if points of "
+        "this name were already added. Each point gives the vertex nearest "
+        "to it of the cell containing it (points outside the model are "
+        "ignored with a warning, and run() raises OpenGeodeDataError if "
+        "none is inside); the heat source power is split evenly over these "
+        "vertices.",
         "Write the OGS project file (process, media, parameters, initial "
         "and boundary conditions, time loop, solvers) described by the "
         "PhysicalProblem: LIQUID_FLOW for isothermal single-phase flow, HT "
         "for thermal single-phase flow (heat transport), TWOPHASE_FLOW_PP "
-        "for isothermal water-oil DeadOilFluid flow. Without it, only the "
-        "meshes are written. The exporter keeps the problem alive.",
+        "for isothermal water-oil DeadOilFluid flow, SMALL_DEFORMATION for "
+        "solid mechanics without flow, HYDRO_MECHANICS and "
+        "THERMO_HYDRO_MECHANICS for solid mechanics with isothermal and "
+        "thermal single-phase flow. The heat sources of HT and "
+        "THERMO_HYDRO_MECHANICS heat the vertices of their points (Nodal "
+        "source terms) or the cells of their Block (Volumetric source "
+        "terms). Without a problem, only the meshes are written. The "
+        "exporter keeps the problem alive.",
         "Write the OGS files in the directory: <prefix>.vtu (bulk mesh "
         "with MaterialIDs), one mesh per boundary condition group, one "
-        "point mesh per well and, with a problem, <prefix>.prj; raises "
+        "point mesh per well and, with a problem, one mesh per heat source "
+        "and <prefix>.prj; raises "
         "OpenGeodeDataError if the model or the problem cannot be "
         "exported. The GIL is released during the export." };
 
