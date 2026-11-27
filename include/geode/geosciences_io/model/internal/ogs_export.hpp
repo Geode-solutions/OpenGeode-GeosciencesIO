@@ -29,6 +29,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <absl/container/flat_hash_map.h>
@@ -62,10 +63,29 @@ namespace geode::internal
         double water_fraction;
     };
 
+    /// How the warnings name a point of a set: "<point> <id> of <owner>"
+    struct OgsPointDescription
+    {
+        std::string_view point;
+        std::string owner;
+    };
+
+    /// Mechanical parameters of the project, see OgsProjectContext
+    struct OgsMechanicsValues
+    {
+        OgsCellValue youngs_modulus;
+        OgsCellValue poissons_ratio;
+        OgsCellValue solid_density;
+        OgsCellValue biot_coefficient;
+        OgsCellValue thermal_expansivity;
+        OgsCellValue solid_heat_capacity;
+    };
+
     /*!
      * Writes an OpenGeoSys project: the bulk mesh with its MaterialIDs, one
      * boundary mesh per group of Surfaces sharing a boundary condition, one
-     * point mesh per well and, with a physical problem, the project file.
+     * point mesh per well and, with a physical problem, one mesh per heat
+     * source and the project file.
      */
     template < typename Model >
     class opengeode_geosciencesio_model_api OgsExporterImpl
@@ -111,6 +131,28 @@ namespace geode::internal
         [[nodiscard]] std::optional< std::string > transfer_property(
             PHYSICAL_PROPERTY_NAME property );
 
+        // Process of the problem, none without problem
+        [[nodiscard]] std::optional< OGS_PROCESS > process() const;
+
+        // Value of a double Block property on each bulk cell, zero if the
+        // model lacks it
+        [[nodiscard]] std::vector< double > property_cell_values(
+            PHYSICAL_PROPERTY_NAME property );
+
+        // Uniform value, or a new bulk cell array named field
+        [[nodiscard]] OgsCellValue cell_value(
+            std::string_view field, std::vector< double > values );
+
+        void transfer_mechanics_properties();
+
+        // C_v of the cell material / grain density of the cell
+        void compute_solid_heat_capacity(
+            absl::Span< const double > grain_densities );
+
+        // OGS initial stress of every cell: written when the model has one,
+        // and always (zeros) with flow since OGS starts from it
+        void transfer_initial_stress();
+
         void build_boundary_meshes();
 
         void build_boundary_meshes( PHYSICAL_PROPERTY_NAME property );
@@ -119,10 +161,39 @@ namespace geode::internal
             index_t nb_skipped_polygons,
             OgsBoundaryMesh&& boundary );
 
+        void build_mechanics_boundary_meshes();
+
+        // One Dirichlet mesh per (axis, value) group of uniform Surfaces
+        void build_displacement_meshes( const uuid& attribute_id );
+
+        // One mesh per traction component, faces ordered outward
+        void build_traction_meshes( const uuid& attribute_id );
+
+        // Per polygon tractions: one mesh per non-zero component
+        void build_variable_traction_meshes( const Surface3D& surface,
+            absl::Span< const std::array< double, 3 > > tractions );
+
+        // Faces ordered outward, values in the OGS convention
+        void build_normal_traction_meshes( const uuid& attribute_id );
+
         void build_well_meshes();
 
         [[nodiscard]] OgsWellMesh build_well_mesh(
             index_t well_id, const AABBTree3D& aabb ) const;
+
+        // Bulk vertex nearest to each point in its containing cell, without
+        // duplicates; warns about the ignored points outside the model
+        [[nodiscard]] OgsMeshFile point_vertices( const PointSet3D& points,
+            const AABBTree3D& aabb,
+            const OgsPointDescription& description ) const;
+
+        void build_heat_source_meshes();
+
+        [[nodiscard]] OgsHeatSourceMesh build_point_heat_source_mesh(
+            index_t heat_source_id ) const;
+
+        [[nodiscard]] OgsHeatSourceMesh build_block_heat_source_mesh(
+            index_t heat_source_id ) const;
 
         void compute_initial_values();
 
@@ -181,11 +252,18 @@ namespace geode::internal
         std::vector< double > cell_pressures_;
         OgsInitialValue initial_pressure_;
         OgsInitialValue initial_capillary_pressure_;
-        // HT only
+        // HT and THERMO_HYDRO_MECHANICS only
         OgsInitialValue initial_temperature_;
+        // Mechanics only
+        OgsMechanicsValues mechanics_;
+        std::optional< std::vector< OgsStressTensor > > initial_stress_;
+        // Bulk cell arrays of the cell values
+        std::vector< std::pair< std::string, std::vector< double > > >
+            cell_arrays_;
         std::vector< const Surface3D* > surfaces_;
         absl::flat_hash_map< uuid, index_t > surface_indices_;
         std::vector< OgsBoundaryMesh > boundary_meshes_;
         std::vector< OgsWellMesh > well_meshes_;
+        std::vector< OgsHeatSourceMesh > heat_source_meshes_;
     };
 } // namespace geode::internal

@@ -29,11 +29,14 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <limits>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 #include <pugixml.hpp>
@@ -84,6 +87,7 @@
 #include <geode/geosciences/simulation/builder/physical_problem_builder.hpp>
 #include <geode/geosciences/simulation/core/flow_model.hpp>
 #include <geode/geosciences/simulation/core/fluid.hpp>
+#include <geode/geosciences/simulation/core/heat_source.hpp>
 #include <geode/geosciences/simulation/core/initial_condition.hpp>
 #include <geode/geosciences/simulation/core/material.hpp>
 #include <geode/geosciences/simulation/core/physical_problem.hpp>
@@ -97,6 +101,7 @@
 #include <geode/geosciences_io/model/common.hpp>
 #include <geode/geosciences_io/model/helpers/brep_ogs_export.hpp>
 #include <geode/geosciences_io/model/helpers/structural_model_ogs_export.hpp>
+#include <geode/geosciences_io/model/internal/ogs_simulation_checker.hpp>
 #include <geode/geosciences_io/model/internal/ogs_simulation_rules.hpp>
 #include <geode/geosciences_io/model/internal/ogs_vtu.hpp>
 #include <geode/geosciences_io/model/internal/simulation_regions.hpp>
@@ -276,10 +281,6 @@ void test_ogs_rules_process()
         geode::ThermalParameters{ 300. } );
     check( geode::internal::ogs_process( single ) == OGS_PROCESS::ht,
         "Thermal single-phase flow is HT" );
-    geode::PhysicalProblemBuilder{ single }.set_solid_mechanics(
-        geode::SolidMechanics{} );
-    check( !geode::internal::ogs_process( single ),
-        "Thermal single-phase flow with mechanics is not supported yet" );
     auto two_phase = flow_problem( std::make_shared< geode::MultiphaseFlow >(),
         water_oil_fluid( { geode::PHASE::water, geode::PHASE::oil } ) );
     check( geode::internal::ogs_process( two_phase )
@@ -295,6 +296,151 @@ void test_ogs_rules_process()
             { geode::PHASE::water, geode::PHASE::oil, geode::PHASE::gas } ) );
     check( !geode::internal::ogs_process( three_phase ),
         "Three-phase dead oil is not supported" );
+}
+
+void test_ogs_rules_mechanics_process()
+{
+    using geode::internal::OGS_PROCESS;
+    geode::PhysicalProblem mechanics;
+    geode::PhysicalProblemBuilder{ mechanics }.set_solid_mechanics(
+        geode::SolidMechanics{} );
+    check( geode::internal::ogs_process( mechanics )
+               == OGS_PROCESS::small_deformation,
+        "Mechanics without flow is SMALL_DEFORMATION" );
+    auto poromechanics = flow_problem(
+        std::make_shared< geode::SinglePhaseFlow >(), water_fluid( 0. ) );
+    geode::PhysicalProblemBuilder poromechanics_builder{ poromechanics };
+    poromechanics_builder.set_solid_mechanics( geode::SolidMechanics{} );
+    check( geode::internal::ogs_process( poromechanics )
+               == OGS_PROCESS::hydro_mechanics,
+        "Mechanics with single-phase flow is HYDRO_MECHANICS" );
+    poromechanics_builder.set_thermal( geode::ThermalParameters{ 300. } );
+    check( geode::internal::ogs_process( poromechanics )
+               == OGS_PROCESS::thermo_hydro_mechanics,
+        "Thermal mechanics with single-phase flow is THERMO_HYDRO_MECHANICS" );
+    auto multiphase = flow_problem( std::make_shared< geode::MultiphaseFlow >(),
+        water_oil_fluid( { geode::PHASE::water, geode::PHASE::oil } ) );
+    geode::PhysicalProblemBuilder{ multiphase }.set_solid_mechanics(
+        geode::SolidMechanics{} );
+    check( !geode::internal::ogs_process( multiphase ),
+        "Mechanics with multiphase flow has no OGS process" );
+    check(
+        geode::internal::has_temperature( OGS_PROCESS::ht )
+            && geode::internal::has_temperature(
+                OGS_PROCESS::thermo_hydro_mechanics )
+            && !geode::internal::has_temperature( OGS_PROCESS::hydro_mechanics )
+            && !geode::internal::has_temperature(
+                OGS_PROCESS::small_deformation )
+            && !geode::internal::has_temperature( OGS_PROCESS::liquid_flow ),
+        "HT and THERMO_HYDRO_MECHANICS have a temperature" );
+    check(
+        geode::internal::has_displacement( OGS_PROCESS::small_deformation )
+            && geode::internal::has_displacement( OGS_PROCESS::hydro_mechanics )
+            && geode::internal::has_displacement(
+                OGS_PROCESS::thermo_hydro_mechanics )
+            && !geode::internal::has_displacement( OGS_PROCESS::ht ),
+        "The mechanics processes have a displacement" );
+}
+
+void test_ogs_rules_elasticity()
+{
+    const auto elasticity = geode::internal::ogs_elasticity( { 5e8, 3e8 } );
+    check( elasticity.youngs_modulus == 7.5e8,
+        "E = 9KG / (3K + G) = 7.5e8 for K 5e8, G 3e8" );
+    check( elasticity.poissons_ratio == 0.25,
+        "nu = (3K - 2G) / (2 (3K + G)) = 0.25 for K 5e8, G 3e8" );
+}
+
+void test_ogs_rules_stress_order()
+{
+    const auto tensor = geode::internal::ogs_stress_tensor(
+        geode::internal::StressTensor{ 1., 2., 3., 4., 5., 6. }, -1. );
+    check( tensor == std::array< double, 6 >{ -1., -2., -3., -6., -4., -5. },
+        "Our xx yy zz yz xz xy become OGS xx yy zz xy yz xz, times the "
+        "factor" );
+}
+
+// Volume of the single polyhedron of a HybridSolid
+double single_cell_volume( absl::Span< const geode::Point3D > points,
+    geode::local_index_t nb_vertices )
+{
+    auto solid = geode::HybridSolid3D::create();
+    auto builder = geode::HybridSolidBuilder3D::create( *solid );
+    for( const auto& point : points )
+    {
+        builder->create_point( point );
+    }
+    std::vector< geode::index_t > vertices( nb_vertices );
+    absl::c_iota( vertices, 0 );
+    if( nb_vertices == 8 )
+    {
+        builder->create_hexahedron( { vertices[0], vertices[1], vertices[2],
+            vertices[3], vertices[4], vertices[5], vertices[6], vertices[7] } );
+    }
+    else if( nb_vertices == 6 )
+    {
+        builder->create_prism( { vertices[0], vertices[1], vertices[2],
+            vertices[3], vertices[4], vertices[5] } );
+    }
+    else if( nb_vertices == 5 )
+    {
+        builder->create_pyramid( { vertices[0], vertices[1], vertices[2],
+            vertices[3], vertices[4] } );
+    }
+    else
+    {
+        builder->create_tetrahedron(
+            { vertices[0], vertices[1], vertices[2], vertices[3] } );
+    }
+    return geode::internal::ogs_cell_volume( *solid, 0 );
+}
+
+void test_ogs_rules_cell_volume()
+{
+    // Planar hexahedron on a quadrilateral of area 1.5, extruded by 1
+    std::vector< geode::Point3D > hexahedron;
+    for( const double z : { 0., 1. } )
+    {
+        for( const auto& [x, y] : std::array< std::pair< double, double >, 4 >{
+                 { { 1., 0. }, { 1., 1. }, { 0., 2. }, { 0., 0. } } } )
+        {
+            hexahedron.push_back( geode::Point3D{ { x, y, z } } );
+        }
+    }
+    check( std::fabs( single_cell_volume( hexahedron, 8 ) - 1.5 ) < 1e-12,
+        "Skewed hexahedron volume is the trilinear one: 1.5" );
+    // Trilinear hexahedron: unit cube with the top corner 6 raised by 1
+    std::vector< geode::Point3D > raised;
+    for( const double z : { 0., 1. } )
+    {
+        for( const auto& [x, y] : std::array< std::pair< double, double >, 4 >{
+                 { { 0., 0. }, { 1., 0. }, { 1., 1. }, { 0., 1. } } } )
+        {
+            raised.push_back( geode::Point3D{ { x, y, z } } );
+        }
+    }
+    raised[6] = geode::Point3D{ { 1., 1., 2. } };
+    // z(top) = 1 + xi.eta bilinear: mean height 1.25
+    check( std::fabs( single_cell_volume( raised, 8 ) - 1.25 ) < 1e-12,
+        "Trilinear hexahedron volume" );
+    const std::vector< geode::Point3D > prism{ geode::Point3D{ { 0., 0., 0. } },
+        geode::Point3D{ { 1., 0., 0. } }, geode::Point3D{ { 0., 1., 0. } },
+        geode::Point3D{ { 0., 0., 2. } }, geode::Point3D{ { 1., 0., 2. } },
+        geode::Point3D{ { 0., 1., 2. } } };
+    check( std::fabs( single_cell_volume( prism, 6 ) - 1. ) < 1e-12,
+        "Prism volume" );
+    const std::vector< geode::Point3D > pyramid{ geode::Point3D{
+                                                     { 0., 0., 0. } },
+        geode::Point3D{ { 1., 0., 0. } }, geode::Point3D{ { 1., 1., 0. } },
+        geode::Point3D{ { 0., 1., 0. } }, geode::Point3D{ { 0.5, 0.5, 3. } } };
+    check( std::fabs( single_cell_volume( pyramid, 5 ) - 1. ) < 1e-12,
+        "Pyramid volume" );
+    const std::vector< geode::Point3D > tetrahedron{
+        geode::Point3D{ { 0., 0., 0. } }, geode::Point3D{ { 1., 0., 0. } },
+        geode::Point3D{ { 0., 1., 0. } }, geode::Point3D{ { 0., 0., 6. } }
+    };
+    check( std::fabs( single_cell_volume( tetrahedron, 4 ) - 1. ) < 1e-12,
+        "Tetrahedron volume" );
 }
 
 void test_ogs_rules_storage_and_temperature()
@@ -728,6 +874,257 @@ void check_refused( const geode::PhysicalProblem& problem,
             "Missing issue \"", expected, "\" in\n", report.string() ) );
 }
 
+// Surfaces lying on the minimum or maximum face of the model box along axis
+std::vector< geode::uuid > boundary_surfaces(
+    const geode::BRep& model, geode::local_index_t axis, bool is_max )
+{
+    static constexpr double TOLERANCE{ 1e-3 };
+    const auto model_box = model.bounding_box();
+    const auto side =
+        is_max ? model_box.max().value( axis ) : model_box.min().value( axis );
+    std::vector< geode::uuid > surfaces;
+    for( const auto& surface : model.surfaces() )
+    {
+        const auto box = surface.mesh().bounding_box();
+        if( std::fabs( box.min().value( axis ) - side ) < TOLERANCE
+            && std::fabs( box.max().value( axis ) - side ) < TOLERANCE )
+        {
+            surfaces.push_back( surface.id() );
+        }
+    }
+    return surfaces;
+}
+
+template < typename T >
+void add_surface_property( geode::BRep& model,
+    absl::Span< const geode::uuid > surfaces,
+    geode::PHYSICAL_PROPERTY_NAME property,
+    const geode::uuid& attribute_id,
+    T value )
+{
+    geode::AttributeValues< T > values;
+    values.default_value = value;
+    const auto name = geode::physical_property_string( property );
+    for( const auto& surface_id : surfaces )
+    {
+        model.surface( surface_id )
+            .mesh()
+            .polygon_attribute_manager()
+            .template create_attribute< geode::ConstantAttribute, T >(
+                name, attribute_id, values, {} );
+    }
+    geode::BRepBuilder{ model }.set_physical_property(
+        property, geode::Surface3D::component_type_static(), attribute_id );
+}
+
+void add_block_property(
+    geode::BRep& model, geode::PHYSICAL_PROPERTY_NAME property, double value )
+{
+    const geode::uuid attribute_id;
+    geode::AttributeValues< double > values;
+    values.default_value = value;
+    const auto name = geode::physical_property_string( property );
+    for( const auto& block : model.blocks() )
+    {
+        block.mesh()
+            .polyhedron_attribute_manager()
+            .create_attribute< geode::ConstantAttribute, double >(
+                name, attribute_id, values, {} );
+    }
+    geode::BRepBuilder{ model }.set_physical_property(
+        property, geode::Block3D::component_type_static(), attribute_id );
+}
+
+constexpr double FREE{ std::numeric_limits< double >::quiet_NaN() };
+
+// Lateral faces slide along the box, the bottom one is fixed vertically
+void add_rollers( geode::BRep& model, const geode::uuid& attribute_id )
+{
+    for( const auto is_max : { false, true } )
+    {
+        add_surface_property( model, boundary_surfaces( model, 0, is_max ),
+            geode::PHYSICAL_PROPERTY_NAME::boundary_displacement, attribute_id,
+            std::array< double, 3 >{ 0., FREE, FREE } );
+        add_surface_property( model, boundary_surfaces( model, 1, is_max ),
+            geode::PHYSICAL_PROPERTY_NAME::boundary_displacement, attribute_id,
+            std::array< double, 3 >{ FREE, 0., FREE } );
+    }
+    add_surface_property( model, boundary_surfaces( model, 2, false ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_displacement, attribute_id,
+        std::array< double, 3 >{ FREE, FREE, 0. } );
+}
+
+// Picasso with elastic, poromechanical and thermal rock properties and
+// rollers, and the east boundary pressure for flow
+geode::BRep mechanics_picasso( bool with_flow )
+{
+    auto model = load_picasso();
+    if( with_flow )
+    {
+        add_constant_boundary( model, east_surfaces( model ),
+            geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, 1e7 );
+    }
+    add_block_property(
+        model, geode::PHYSICAL_PROPERTY_NAME::bulk_modulus, 5e9 );
+    add_block_property(
+        model, geode::PHYSICAL_PROPERTY_NAME::shear_modulus, 3e9 );
+    if( !with_flow )
+    {
+        add_block_property(
+            model, geode::PHYSICAL_PROPERTY_NAME::density, 2500. );
+    }
+    else
+    {
+        add_block_property(
+            model, geode::PHYSICAL_PROPERTY_NAME::grain_density, 2650. );
+        add_block_property(
+            model, geode::PHYSICAL_PROPERTY_NAME::biot_coefficient, 0.8 );
+        add_block_property( model,
+            geode::PHYSICAL_PROPERTY_NAME::thermal_expansion_coefficient,
+            1e-5 );
+    }
+    add_rollers( model, geode::uuid{} );
+    return model;
+}
+
+geode::PhysicalProblem small_deformation_problem()
+{
+    geode::PhysicalProblem problem;
+    geode::PhysicalProblemBuilder builder{ problem };
+    builder.set_solid_mechanics( geode::SolidMechanics{} );
+    builder.set_schedule( { 0., 1., 1., std::nullopt } );
+    return problem;
+}
+
+// The Biot coefficient gives the pore compressibility
+void add_mechanics( geode::PhysicalProblem& problem )
+{
+    geode::PhysicalProblemBuilder builder{ problem };
+    builder.set_solid_mechanics( geode::SolidMechanics{} );
+    for( const auto material_id : geode::Indices{ problem.materials() } )
+    {
+        auto material = problem.materials()[material_id];
+        material.pore_compressibility = 0.;
+        material.reference_pressure = 0.;
+        builder.set_material( material_id, material );
+    }
+}
+
+geode::PhysicalProblem hydro_mechanics_problem()
+{
+    auto problem = single_phase_problem( 4.5e-10 );
+    add_mechanics( problem );
+    return problem;
+}
+
+geode::PhysicalProblem thermo_hydro_mechanics_problem()
+{
+    auto problem = thermal_problem();
+    add_mechanics( problem );
+    return problem;
+}
+
+void check_simulable( const geode::PhysicalProblem& problem,
+    const geode::BRep& model,
+    std::string_view name )
+{
+    const auto report = ogs_report( problem, model );
+    check( report.is_simulable(),
+        absl::StrCat( name, " should be simulable:\n", report.string() ) );
+}
+
+// First Surface between two Blocks
+geode::uuid internal_surface( const geode::BRep& model )
+{
+    for( const auto& surface : model.surfaces() )
+    {
+        if( model.nb_incidences( surface.id() ) == 2 )
+        {
+            return surface.id();
+        }
+    }
+    check( false, "Picasso should have an internal Surface" );
+    return {};
+}
+
+void test_ogs_mechanics_checks()
+{
+    check_simulable( small_deformation_problem(), mechanics_picasso( false ),
+        "SMALL_DEFORMATION" );
+    const auto model = mechanics_picasso( true );
+    check_simulable( hydro_mechanics_problem(), model, "HYDRO_MECHANICS" );
+    check_simulable(
+        thermo_hydro_mechanics_problem(), model, "THERMO_HYDRO_MECHANICS" );
+    {
+        auto problem = two_phase_problem();
+        add_mechanics( problem );
+        check_refused( problem, model,
+            "OGS has no multiphase poromechanics process in the OGS "
+            "exporter" );
+    }
+    for( const auto property :
+        { geode::PHYSICAL_PROPERTY_NAME::boundary_normal_traction,
+            geode::PHYSICAL_PROPERTY_NAME::boundary_traction } )
+    {
+        auto traction_model = mechanics_picasso( false );
+        const std::array< geode::uuid, 1 > surfaces{ internal_surface(
+            traction_model ) };
+        if( property == geode::PHYSICAL_PROPERTY_NAME::boundary_traction )
+        {
+            add_surface_property( traction_model, surfaces, property,
+                geode::uuid{}, std::array< double, 3 >{ 0., 0., 1e6 } );
+        }
+        else
+        {
+            add_surface_property(
+                traction_model, surfaces, property, geode::uuid{}, 1e6 );
+        }
+        check_refused( small_deformation_problem(), traction_model,
+            "is between two Blocks: OGS loads a traction on the outer side "
+            "of a model boundary" );
+    }
+    {
+        auto no_grain_model = mechanics_picasso( true );
+        add_block_property(
+            no_grain_model, geode::PHYSICAL_PROPERTY_NAME::grain_density, 0. );
+        check_refused( thermo_hydro_mechanics_problem(), no_grain_model,
+            "OGS needs a positive grain_density to carry the rock heat "
+            "capacity" );
+        check_simulable(
+            hydro_mechanics_problem(), no_grain_model, "HM without grain" );
+    }
+}
+
+void test_ogs_heat_source_checks()
+{
+    auto model = load_picasso();
+    add_constant_boundary( model, east_surfaces( model ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_pressure, 1e7 );
+    auto problem = thermal_problem();
+    geode::PhysicalProblemBuilder builder{ problem };
+    builder.add_heat_source(
+        { "canister", ( *model.blocks().begin() ).id(), {}, { 1000. } } );
+    builder.add_heat_source( { "probe", std::nullopt, {}, { 150. } } );
+    check_simulable( problem, model, "HT with heat sources" );
+    const auto missing = geode::internal::OgsSimulationChecker{
+        problem, model, geode::internal::OgsExportData{ {}, { "other" } }
+    }.check();
+    check( !missing.is_simulable()
+               && absl::StrContains( missing.string(),
+                   "the heat source has no points given to the exporter" ),
+        absl::StrCat(
+            "A point heat source needs its points:\n", missing.string() ) );
+    const auto given = geode::internal::OgsSimulationChecker{
+        problem, model, geode::internal::OgsExportData{ {}, { "probe" } }
+    }.check();
+    check( given.is_simulable(),
+        absl::StrCat( "Given heat source points:\n", given.string() ) );
+    auto invalid = thermal_problem();
+    geode::PhysicalProblemBuilder{ invalid }.add_heat_source(
+        { "bad name", std::nullopt, {}, { 150. } } );
+    check_refused( invalid, model, "Heat source \"bad name\"" );
+}
+
 void test_ogs_registered_checker()
 {
     check( geode::SimulationCheckerFactory::has_creator( "ogs" ),
@@ -754,13 +1151,6 @@ void test_ogs_checker_refusals()
                 report.string() ) );
     }
     {
-        auto problem = thermal_problem();
-        geode::PhysicalProblemBuilder{ problem }.set_solid_mechanics(
-            geode::SolidMechanics{} );
-        check_refused( problem, model,
-            "solid mechanics is not supported by the OGS exporter yet" );
-    }
-    {
         auto problem = two_phase_problem();
         geode::PhysicalProblemBuilder{ problem }.set_thermal(
             geode::ThermalParameters{ 300. } );
@@ -770,13 +1160,6 @@ void test_ogs_checker_refusals()
         check( !absl::StrContains( ogs_report( problem, model ).string(),
                    "needs a MultiphaseFlow of water and oil" ),
             "A thermal water-oil flow is not an unsupported fluid" );
-    }
-    {
-        auto problem = single_phase_problem( 0. );
-        geode::PhysicalProblemBuilder{ problem }.set_solid_mechanics(
-            geode::SolidMechanics{} );
-        check_refused(
-            problem, model, "not supported by the OGS exporter yet" );
     }
     {
         auto problem = two_phase_problem();
@@ -2440,6 +2823,839 @@ void test_ogs_zero_entry_pressure()
     check_refused( problem, model, "entry pressure" );
 }
 
+// Row of unit hexahedron Blocks along x, each face being a one-quad Surface
+// named west, east, interface_<i>, south_<i>, north_<i>, bottom_<i> and
+// top_<i>; with flipped, every Surface polygon has the opposite order
+geode::BRep cube_row_brep( geode::index_t nb_blocks, bool flipped )
+{
+    geode::BRep model;
+    geode::BRepBuilder builder{ model };
+    builder.create_unique_vertices( 4 * ( nb_blocks + 1 ) );
+    const auto unique_vertex = [nb_blocks]( geode::index_t x, geode::index_t y,
+                                   geode::index_t z ) {
+        return x + ( nb_blocks + 1 ) * ( y + 2 * z );
+    };
+    std::vector< geode::uuid > blocks;
+    for( const auto block_x : geode::Range{ nb_blocks } )
+    {
+        const auto& block = model.block( builder.add_block(
+            geode::OpenGeodeHybridSolid3D::impl_name_static() ) );
+        blocks.push_back( block.id() );
+        auto mesh_builder =
+            builder.block_mesh_builder< geode::HybridSolid3D >( block );
+        geode::index_t vertex{ 0 };
+        for( const geode::index_t z : { 0, 1 } )
+        {
+            for( const auto& [dx, y] :
+                std::array< std::pair< geode::index_t, geode::index_t >, 4 >{
+                    { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } } } )
+            {
+                mesh_builder->create_point( geode::Point3D{
+                    { 1. * ( block_x + dx ), 1. * y, 1. * z } } );
+                builder.set_unique_vertex( { block.component_id(), vertex++ },
+                    unique_vertex( block_x + dx, y, z ) );
+            }
+        }
+        mesh_builder->create_hexahedron( { 0, 1, 2, 3, 4, 5, 6, 7 } );
+    }
+    using Corner = std::array< geode::index_t, 3 >;
+    const auto add_face = [&]( std::string_view name,
+                              const std::array< Corner, 4 >& corners,
+                              absl::Span< const geode::index_t > owners ) {
+        const auto& surface = model.surface( builder.add_surface(
+            geode::OpenGeodePolygonalSurface3D::impl_name_static() ) );
+        builder.set_surface_name( surface, name );
+        auto surface_builder =
+            builder.surface_mesh_builder< geode::PolygonalSurface3D >(
+                surface );
+        geode::index_t vertex{ 0 };
+        for( const auto& corner : corners )
+        {
+            surface_builder->create_point( geode::Point3D{
+                { 1. * corner[0], 1. * corner[1], 1. * corner[2] } } );
+            builder.set_unique_vertex( { surface.component_id(), vertex++ },
+                unique_vertex( corner[0], corner[1], corner[2] ) );
+        }
+        if( flipped )
+        {
+            surface_builder->create_polygon( { 3, 2, 1, 0 } );
+        }
+        else
+        {
+            surface_builder->create_polygon( { 0, 1, 2, 3 } );
+        }
+        for( const auto owner : owners )
+        {
+            builder.add_surface_block_boundary_relationship(
+                surface, model.block( blocks[owner] ) );
+        }
+    };
+    const auto x_face = [&]( geode::index_t x ) {
+        return std::array< Corner, 4 >{ Corner{ x, 0, 0 }, Corner{ x, 1, 0 },
+            Corner{ x, 1, 1 }, Corner{ x, 0, 1 } };
+    };
+    add_face( "west", x_face( 0 ), { 0 } );
+    add_face( "east", x_face( nb_blocks ), { nb_blocks - 1 } );
+    for( const auto block : geode::Range{ nb_blocks } )
+    {
+        if( block != 0 )
+        {
+            add_face( absl::StrCat( "interface_", block ), x_face( block ),
+                { block - 1, block } );
+        }
+        const auto x = block;
+        for( const geode::index_t side : { 0, 1 } )
+        {
+            add_face( absl::StrCat( side == 0 ? "south_" : "north_", block ),
+                { Corner{ x, side, 0 }, Corner{ x + 1, side, 0 },
+                    Corner{ x + 1, side, 1 }, Corner{ x, side, 1 } },
+                { block } );
+            add_face( absl::StrCat( side == 0 ? "bottom_" : "top_", block ),
+                { Corner{ x, 0, side }, Corner{ x + 1, 0, side },
+                    Corner{ x + 1, 1, side }, Corner{ x, 1, side } },
+                { block } );
+        }
+    }
+    return model;
+}
+
+std::vector< geode::uuid > named_surfaces(
+    const geode::BRep& model, absl::Span< const std::string_view > prefixes )
+{
+    std::vector< geode::uuid > surfaces;
+    for( const auto& surface : model.surfaces() )
+    {
+        for( const auto prefix : prefixes )
+        {
+            if( absl::StartsWith( surface.name().value_or( "" ), prefix ) )
+            {
+                surfaces.push_back( surface.id() );
+            }
+        }
+    }
+    return surfaces;
+}
+
+// Elastic row of cubes, west face fixed along x, south faces along y and
+// bottom faces along z
+geode::BRep elastic_cube_row( geode::index_t nb_blocks, bool flipped )
+{
+    auto model = cube_row_brep( nb_blocks, flipped );
+    add_block_property(
+        model, geode::PHYSICAL_PROPERTY_NAME::bulk_modulus, 5e8 );
+    add_block_property(
+        model, geode::PHYSICAL_PROPERTY_NAME::shear_modulus, 3e8 );
+    add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::density, 2000. );
+    const geode::uuid displacement;
+    const auto fixed = [&]( std::string_view prefix,
+                           const std::array< double, 3 >& value ) {
+        add_surface_property( model, named_surfaces( model, { prefix } ),
+            geode::PHYSICAL_PROPERTY_NAME::boundary_displacement, displacement,
+            value );
+    };
+    fixed( "west", { 0., FREE, FREE } );
+    fixed( "south_", { FREE, 0., FREE } );
+    fixed( "bottom_", { FREE, FREE, 0. } );
+    return model;
+}
+
+// Sets the Block values of a double Block property, one Block after the
+// other
+void set_block_values( geode::BRep& model,
+    geode::PHYSICAL_PROPERTY_NAME property,
+    absl::Span< const double > values )
+{
+    const auto& info = model.physical_property_info( property );
+    geode::index_t block_id{ 0 };
+    for( const auto& block : model.blocks() )
+    {
+        auto& manager = block.mesh().polyhedron_attribute_manager();
+        manager.delete_attribute( info.attribute_id );
+        geode::AttributeValues< double > values_init;
+        values_init.default_value = values[block_id++];
+        manager.create_attribute< geode::ConstantAttribute, double >(
+            geode::physical_property_string( property ), info.attribute_id,
+            values_init, {} );
+    }
+}
+
+void test_ogs_mechanics_cell_arrays()
+{
+    auto model = elastic_cube_row( 2, false );
+    const auto uniform =
+        export_project( model, small_deformation_problem(), "ogs_sd_uniform" );
+    const auto bulk_uniform = read_file( "ogs_sd_uniform/ogs_sd_uniform.vtu" );
+    check( !absl::StrContains( bulk_uniform, "Name=\"youngs_modulus\"" )
+               && !absl::StrContains( bulk_uniform, "Name=\"poissons_ratio\"" ),
+        "Uniform moduli give no cell array" );
+    const auto youngs = parameter( uniform, "youngs_modulus" );
+    check( text( youngs.child( "type" ) ) == "Constant"
+               && text( youngs.child( "value" ) ) == "750000000",
+        "A uniform Young's modulus is a Constant 7.5e8" );
+    check( text( parameter( uniform, "poissons_ratio" ).child( "value" ) )
+               == "0.25",
+        "A uniform Poisson's ratio is a Constant 0.25" );
+    set_block_values(
+        model, geode::PHYSICAL_PROPERTY_NAME::bulk_modulus, { 5e8, 1e9 } );
+    const auto varying =
+        export_project( model, small_deformation_problem(), "ogs_sd_varying" );
+    const std::string bulk{ "ogs_sd_varying/ogs_sd_varying.vtu" };
+    check( absl::StrContains(
+               vtu_array_tag( bulk, "youngs_modulus" ), "type=\"Float64\"" ),
+        "youngs_modulus is a Float64 cell array" );
+    const auto youngs_values =
+        read_vtu_values< double >( bulk, "youngs_modulus" );
+    const auto poisson_values =
+        read_vtu_values< double >( bulk, "poissons_ratio" );
+    const auto second = geode::internal::ogs_elasticity( { 1e9, 3e8 } );
+    check( youngs_values.size() == 2 && youngs_values[0] == 7.5e8
+               && youngs_values[1] == second.youngs_modulus,
+        "One Young's modulus per cell, E = 9KG / (3K + G)" );
+    check( poisson_values.size() == 2 && poisson_values[0] == 0.25
+               && poisson_values[1] == second.poissons_ratio,
+        "One Poisson's ratio per cell" );
+    const auto field = parameter( varying, "youngs_modulus" );
+    check( text( field.child( "type" ) ) == "MeshElement"
+               && text( field.child( "mesh" ) ) == "ogs_sd_varying"
+               && text( field.child( "field_name" ) ) == "youngs_modulus",
+        "Varying moduli are MeshElement parameters of the bulk mesh" );
+}
+
+void test_ogs_initial_stress_array()
+{
+    auto model = elastic_cube_row( 1, false );
+    const geode::uuid stress_id;
+    const geode::uuid shear_id;
+    geode::AttributeValues< std::array< double, 3 > > stress;
+    stress.default_value = { 1e7, 2e7, 3e7 };
+    geode::AttributeValues< std::array< double, 3 > > shear;
+    // yz, xz, xy
+    shear.default_value = { 1e6, 2e6, 3e6 };
+    for( const auto& block : model.blocks() )
+    {
+        auto& manager = block.mesh().polyhedron_attribute_manager();
+        manager.create_attribute< geode::ConstantAttribute,
+            std::array< double, 3 > >(
+            "initial_stress", stress_id, stress, {} );
+        manager.create_attribute< geode::ConstantAttribute,
+            std::array< double, 3 > >(
+            "initial_shear_stress", shear_id, shear, {} );
+    }
+    geode::BRepBuilder model_builder{ model };
+    model_builder.set_physical_property(
+        geode::PHYSICAL_PROPERTY_NAME::initial_stress,
+        geode::Block3D::component_type_static(), stress_id );
+    model_builder.set_physical_property(
+        geode::PHYSICAL_PROPERTY_NAME::initial_shear_stress,
+        geode::Block3D::component_type_static(), shear_id );
+    const auto project = export_project(
+        model, small_deformation_problem(), "ogs_initial_stress" );
+    const std::string bulk{ "ogs_initial_stress/ogs_initial_stress.vtu" };
+    check( absl::StrContains( vtu_array_tag( bulk, "initial_stress" ),
+               "NumberOfComponents=\"6\"" ),
+        "initial_stress has 6 components" );
+    // Compression positive input: OGS is tension positive
+    check( read_vtu_values< double >( bulk, "initial_stress" )
+               == std::vector< double >{ -1e7, -2e7, -3e7, -3e6, -1e6, -2e6 },
+        "initial_stress is xx yy zz xy yz xz, tension positive" );
+    const auto process = select( project, "//processes/process" );
+    check( text( process.child( "initial_stress" ) ) == "initial_stress"
+               && !process.child( "initial_stress" ).attribute( "type" ),
+        "SMALL_DEFORMATION reads the initial stress without type" );
+    const auto field = parameter( project, "initial_stress" );
+    check( text( field.child( "type" ) ) == "MeshElement"
+               && text( field.child( "field_name" ) ) == "initial_stress",
+        "The initial stress is a MeshElement parameter" );
+}
+
+// Boundary condition of the displacement with this parameter
+pugi::xml_node displacement_condition(
+    const pugi::xml_document& project, std::string_view mesh )
+{
+    return select(
+        project, absl::StrCat( "//process_variable[name='displacement']/"
+                               "boundary_conditions/boundary_condition[mesh='",
+                     mesh, "']" ) );
+}
+
+void test_ogs_displacement_groups()
+{
+    auto model = cube_row_brep( 1, false );
+    add_block_property(
+        model, geode::PHYSICAL_PROPERTY_NAME::bulk_modulus, 5e8 );
+    add_block_property(
+        model, geode::PHYSICAL_PROPERTY_NAME::shear_modulus, 3e8 );
+    add_block_property( model, geode::PHYSICAL_PROPERTY_NAME::density, 2000. );
+    const geode::uuid displacement;
+    const auto fixed = [&]( std::string_view prefix,
+                           const std::array< double, 3 >& value ) {
+        add_surface_property( model, named_surfaces( model, { prefix } ),
+            geode::PHYSICAL_PROPERTY_NAME::boundary_displacement, displacement,
+            value );
+    };
+    fixed( "west", { 0., FREE, FREE } );
+    fixed( "south_", { 0., 0., FREE } );
+    fixed( "top_", { FREE, FREE, 0.1 } );
+    const auto project = export_project(
+        model, small_deformation_problem(), "ogs_displacement_groups" );
+    const auto files =
+        boundary_files( "ogs_displacement_groups", "boundary_displacement" );
+    check( files.size() == 3, "One boundary mesh per (axis, value) group" );
+    // Expected component, value, number of polygons of each mesh
+    const std::array< std::tuple< std::string, std::string, std::size_t >, 3 >
+        expected{ { { "0", "0", 2 }, { "1", "0", 1 }, { "2", "0.1", 1 } } };
+    for( const auto index : geode::Indices{ files } )
+    {
+        const auto stem = std::filesystem::path{ files[index] }.stem().string();
+        const auto condition = displacement_condition( project, stem );
+        const auto& [component, value, nb_polygons] = expected[index];
+        check( text( condition.child( "type" ) ) == "Dirichlet"
+                   && text( condition.child( "component" ) ) == component,
+            absl::StrCat( stem, " is a Dirichlet on component ", component ) );
+        check(
+            text( parameter( project, text( condition.child( "parameter" ) ) )
+                    .child( "value" ) )
+                == value,
+            absl::StrCat( stem, " imposes ", value ) );
+        const auto mesh = load_xml( files[index] );
+        check(
+            ascii_values< std::uint8_t >( data_array( mesh, "Cells", "types" ) )
+                    .size()
+                == nb_polygons,
+            absl::StrCat( stem, " has ", nb_polygons, " polygons" ) );
+    }
+}
+
+// Bulk vertices of the faces of the only normal traction boundary mesh of
+// an export, in the face orders
+std::vector< std::uint64_t > normal_traction_faces( std::string_view directory )
+{
+    const auto files = boundary_files( directory, "normal_traction" );
+    check( files.size() == 1, "One normal traction mesh" );
+    const auto mesh = load_xml( files.front() );
+    const auto bulk_ids = ascii_values< std::uint64_t >(
+        data_array( mesh, "PointData", "bulk_node_ids" ) );
+    std::vector< std::uint64_t > faces;
+    for( const auto vertex : ascii_values< geode::index_t >(
+             data_array( mesh, "Cells", "connectivity" ) ) )
+    {
+        faces.push_back( bulk_ids[vertex] );
+    }
+    return faces;
+}
+
+void test_ogs_normal_traction_orientation()
+{
+    std::array< std::vector< std::uint64_t >, 2 > faces;
+    for( const auto flipped : { false, true } )
+    {
+        auto model = elastic_cube_row( 1, flipped );
+        add_surface_property( model, named_surfaces( model, { "top_" } ),
+            geode::PHYSICAL_PROPERTY_NAME::boundary_normal_traction,
+            geode::uuid{}, 1e6 );
+        const auto name = absl::StrCat( "ogs_nt", flipped ? "_flipped" : "" );
+        const auto project =
+            export_project( model, small_deformation_problem(), name );
+        faces[flipped ? 1 : 0] = normal_traction_faces( name );
+        const auto files = boundary_files( name, "normal_traction" );
+        const auto mesh = load_xml( files.front() );
+        const auto points = ascii_points( mesh );
+        const auto face = ascii_values< geode::index_t >(
+            data_array( mesh, "Cells", "connectivity" ) );
+        const geode::Vector3D first{ points[face[0]], points[face[1]] };
+        const geode::Vector3D second{ points[face[0]], points[face[2]] };
+        check( first.cross( second ).value( 2 ) > 0,
+            "The top face normal points out of the cube" );
+        const auto stem =
+            std::filesystem::path{ files.front() }.stem().string();
+        const auto condition = select( project,
+            absl::StrCat( "//process_variable[name='displacement']/"
+                          "boundary_conditions/boundary_condition[mesh='",
+                stem, "']" ) );
+        check( text( condition.child( "type" ) ) == "NormalTraction"
+                   && !condition.child( "component" ),
+            "A normal traction is a NormalTraction with no component" );
+        check(
+            text( parameter( project, text( condition.child( "parameter" ) ) )
+                    .child( "value" ) )
+                == "-1000000",
+            "A compression positive normal traction is negative in OGS" );
+    }
+    check( faces[0] == faces[1],
+        "The face order does not depend on the Surface polygon order" );
+}
+
+void test_ogs_small_deformation_project()
+{
+    auto model = mechanics_picasso( false );
+    add_surface_property( model, boundary_surfaces( model, 2, true ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_normal_traction, geode::uuid{},
+        2e6 );
+    add_surface_property( model, boundary_surfaces( model, 1, true ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_traction, geode::uuid{},
+        std::array< double, 3 >{ 0., 0., -1e5 } );
+    const auto project =
+        export_project( model, small_deformation_problem(), "ogs_sd" );
+    const auto process = select( project, "//processes/process" );
+    check( text( process.child( "type" ) ) == "SMALL_DEFORMATION",
+        "SMALL_DEFORMATION process" );
+    check(
+        text( process.child( "process_variables" ).child( "process_variable" ) )
+            == "displacement",
+        "The displacement is the process variable" );
+    const auto relation = process.child( "constitutive_relation" );
+    check(
+        text( relation.child( "type" ) ) == "LinearElasticIsotropic"
+            && text( relation.child( "youngs_modulus" ) ) == "youngs_modulus"
+            && text( relation.child( "poissons_ratio" ) ) == "poissons_ratio",
+        "LinearElasticIsotropic with the E and nu parameters" );
+    const auto elasticity = geode::internal::ogs_elasticity( { 5e9, 3e9 } );
+    check( text( parameter( project, "youngs_modulus" ).child( "value" ) )
+               == geode::internal::xml_real( elasticity.youngs_modulus ),
+        "E of K 5e9, G 3e9" );
+    check( text( process.child( "specific_body_force" ) ) == "0 0 -9.81",
+        "The gravity is the specific body force" );
+    check( !process.child( "initial_stress" ),
+        "No initial stress without model initial stress" );
+    check( is_constant( solid_property( project, "density" ), "2500" ),
+        "The Solid density is the model density" );
+    check( select( project, "//media" ).select_nodes( "medium" ).size() == 1,
+        "One medium without flow" );
+    const auto variable =
+        select( project, "//process_variable[name='displacement']" );
+    check( text( variable.child( "components" ) ) == "3"
+               && text( variable.child( "order" ) ) == "1",
+        "Linear displacement with 3 components" );
+    const auto conditions =
+        variable.child( "boundary_conditions" ).select_nodes( "*" );
+    std::array< geode::index_t, 3 > dirichlet_components{ 0, 0, 0 };
+    geode::index_t nb_neumann{ 0 };
+    geode::index_t nb_normal{ 0 };
+    for( const auto& node : conditions )
+    {
+        const auto condition = node.node();
+        const auto type = text( condition.child( "type" ) );
+        const auto value =
+            text( parameter( project, text( condition.child( "parameter" ) ) )
+                    .child( "value" ) );
+        if( type == "Dirichlet" )
+        {
+            dirichlet_components[std::stoul(
+                text( condition.child( "component" ) ) )]++;
+            check( value == "0", "Roller displacements are 0" );
+        }
+        else if( type == "Neumann" )
+        {
+            nb_neumann++;
+            check( text( condition.child( "component" ) ) == "2"
+                       && value == "-100000",
+                "The traction is a Neumann on z" );
+        }
+        else
+        {
+            nb_normal++;
+            check( type == "NormalTraction" && value == "-2000000",
+                "Compression positive normal traction: -2e6 in OGS" );
+        }
+    }
+    check( dirichlet_components == std::array< geode::index_t, 3 >{ 1, 1, 1 },
+        "One Dirichlet mesh per (axis, value) group" );
+    check( nb_neumann == 1 && nb_normal == 1,
+        "One Neumann and one NormalTraction" );
+    const auto convergence = select(
+        project, "//time_loop/processes/process/convergence_criterion" );
+    check( text( convergence.child( "type" ) ) == "PerComponentDeltaX"
+               && text( convergence.child( "reltols" ) ) == "1e-10 1e-10 1e-10"
+               && text( convergence.child( "abstols" ) ) == "1e-15 1e-15 1e-15",
+        "PerComponentDeltaX with one tolerance per component" );
+    check( select_text( project, "//nonlinear_solvers/nonlinear_solver/type" )
+               == "Newton",
+        "Newton" );
+    std::vector< std::string > outputs;
+    for( const auto& node :
+        project.select_nodes( "//output/variables/variable" ) )
+    {
+        outputs.push_back( text( node.node() ) );
+    }
+    check(
+        outputs
+            == std::vector< std::string >{ "displacement", "sigma", "epsilon" },
+        "Outputs displacement, sigma and epsilon" );
+    check( !std::filesystem::exists( "ogs_sd/ogs_sd_boundary_pressure_0.vtu" ),
+        "No flow boundary mesh without flow" );
+}
+
+void test_ogs_hm_project()
+{
+    const auto model = mechanics_picasso( true );
+    const auto project =
+        export_project( model, hydro_mechanics_problem(), "ogs_hm" );
+    const auto process = select( project, "//processes/process" );
+    check( text( process.child( "type" ) ) == "HYDRO_MECHANICS",
+        "HYDRO_MECHANICS process" );
+    const auto variables = process.child( "process_variables" );
+    check( text( variables.child( "pressure" ) ) == "pressure"
+               && text( variables.child( "displacement" ) ) == "displacement",
+        "Pressure and displacement process variables" );
+    check( !process.child( "equation_balance_type" ),
+        "HYDRO_MECHANICS has no equation balance type" );
+    const auto stress = process.child( "initial_stress" );
+    check( text( stress ) == "initial_stress"
+               && std::string{ stress.attribute( "type" ).value() } == "total",
+        "HYDRO_MECHANICS reads a total initial stress" );
+    check( is_constant( medium_property( project, "biot_coefficient" ), "0.8" ),
+        "Medium Biot coefficient" );
+    check( is_constant( solid_property( project, "density" ), "2650" ),
+        "The Solid density is the grain density" );
+    check( is_constant(
+               medium_property( project, "reference_temperature" ), "293.15" ),
+        "HYDRO_MECHANICS needs a reference temperature" );
+    check( !medium_property( project, "storage" )
+               && !solid_property( project, "storage" ),
+        "HYDRO_MECHANICS reads no storage" );
+    check( static_cast< bool >( medium_property( project, "porosity" ) )
+               && static_cast< bool >(
+                   medium_property( project, "permeability" ) ),
+        "Porosity and permeability of the medium" );
+    const auto density = liquid_property( project, "density" );
+    check( text( density.child( "type" ) ) == "Exponential",
+        "Compressible water: Exponential density" );
+    const auto pressure_condition =
+        select( project, "//process_variable[name='pressure']/"
+                         "boundary_conditions/boundary_condition" );
+    check( text( pressure_condition.child( "type" ) ) == "Dirichlet",
+        "Pressure boundary condition" );
+    check( select_text( project,
+               "//time_loop/processes/process/convergence_criterion/reltols" )
+               == "1e-10 1e-10 1e-10 1e-10",
+        "One reltol per component: pressure and displacement" );
+    const auto stepping =
+        select( project, "//time_loop/processes/process/time_stepping" );
+    check(
+        text( stepping.child( "type" ) ) == "IterationNumberBasedTimeStepping"
+            && text( stepping.child( "number_iterations" ) ) == "5 8 15"
+            && text( stepping.child( "multiplier" ) ) == "2 1 0.5",
+        "Newton takes 3 to 5 iterations to the reltol: the steps grow up to 5 "
+        "iterations" );
+    std::vector< std::string > outputs;
+    for( const auto& node :
+        project.select_nodes( "//output/variables/variable" ) )
+    {
+        outputs.push_back( text( node.node() ) );
+    }
+    check( outputs
+               == std::vector< std::string >{ "pressure", "displacement",
+                   "sigma", "epsilon" },
+        "Outputs pressure, displacement, sigma and epsilon" );
+    check( !absl::StrContains(
+               read_file( "ogs_hm/ogs_hm.vtu" ), "Name=\"storage\"" ),
+        "No storage array" );
+}
+
+void test_ogs_hm_initial_stress_always()
+{
+    const auto model = mechanics_picasso( true );
+    const auto project = export_project(
+        model, hydro_mechanics_problem(), "ogs_hm_zero_stress" );
+    check( text( select( project, "//processes/process/initial_stress" ) )
+               == "initial_stress",
+        "HYDRO_MECHANICS writes an initial stress without model one" );
+    const auto values = read_vtu_values< double >(
+        "ogs_hm_zero_stress/ogs_hm_zero_stress.vtu", "initial_stress" );
+    check( !values.empty()
+               && absl::c_all_of( values,
+                   []( double value ) {
+                       return value == 0.;
+                   } ),
+        "The total initial stress is 0 without model initial stress" );
+}
+
+void test_ogs_thm_project()
+{
+    auto model = mechanics_picasso( true );
+    add_constant_boundary( model, east_surfaces( model ),
+        geode::PHYSICAL_PROPERTY_NAME::boundary_temperature, 320. );
+    const auto project =
+        export_project( model, thermo_hydro_mechanics_problem(), "ogs_thm" );
+    const auto process = select( project, "//processes/process" );
+    check( text( process.child( "type" ) ) == "THERMO_HYDRO_MECHANICS",
+        "THERMO_HYDRO_MECHANICS process" );
+    const auto variables = process.child( "process_variables" );
+    check( text( variables.child( "temperature" ) ) == "temperature"
+               && text( variables.child( "pressure" ) ) == "pressure"
+               && text( variables.child( "displacement" ) ) == "displacement",
+        "Temperature, pressure and displacement process variables" );
+    check( text( process.child( "equation_balance_type" ) ) == "mass",
+        "THERMO_HYDRO_MECHANICS balances the mass" );
+    check(
+        std::string{
+            process.child( "initial_stress" ).attribute( "type" ).value() }
+            == "total",
+        "Total initial stress" );
+    check( is_constant( solid_property( project, "density" ), "2650" ),
+        "The Solid density is the grain density" );
+    check( is_constant( solid_property( project, "specific_heat_capacity" ),
+               geode::internal::xml_real( 2e6 / 2650. ) ),
+        "The Solid heat capacity is C_v / grain density" );
+    check( is_constant(
+               solid_property( project, "thermal_expansivity" ), "1e-05" ),
+        "The Solid thermal expansivity is the model one" );
+    check( is_constant(
+               medium_property( project, "thermal_conductivity" ), "2 2 3" ),
+        "Medium thermal conductivity of the material" );
+    check( is_constant( medium_property( project, "biot_coefficient" ), "0.8" ),
+        "Medium Biot coefficient" );
+    check( is_constant(
+               liquid_property( project, "specific_heat_capacity" ), "4182" ),
+        "Fluid heat capacity" );
+    const auto temperature =
+        select( project, "//process_variable[name='temperature']" );
+    check( text( parameter(
+               project, text( temperature.child( "initial_condition" ) ) )
+                   .child( "value" ) )
+               == "300",
+        "Initial temperature" );
+    const auto condition = temperature.child( "boundary_conditions" )
+                               .child( "boundary_condition" );
+    check( text( condition.child( "type" ) ) == "Dirichlet"
+               && text( parameter(
+                      project, text( condition.child( "parameter" ) ) )
+                          .child( "value" ) )
+                      == "320",
+        "Temperature boundary condition" );
+    check( select_text( project,
+               "//time_loop/processes/process/convergence_criterion/reltols" )
+               == "1e-10 1e-10 1e-10 1e-10 1e-10",
+        "One reltol per component: temperature, pressure, displacement" );
+    std::vector< std::string > outputs;
+    for( const auto& node :
+        project.select_nodes( "//output/variables/variable" ) )
+    {
+        outputs.push_back( text( node.node() ) );
+    }
+    check( outputs
+               == std::vector< std::string >{ "temperature", "pressure",
+                   "displacement", "sigma", "epsilon" },
+        "Outputs temperature, pressure, displacement, sigma and epsilon" );
+}
+
+// Source term of the temperature on the mesh
+pugi::xml_node temperature_source(
+    const pugi::xml_document& project, std::string_view mesh )
+{
+    return select( project,
+        absl::StrCat( "//process_variable[name='temperature']/source_terms/"
+                      "source_term[mesh='",
+            mesh, "']" ) );
+}
+
+void test_ogs_heat_source_points()
+{
+    const auto model = picasso_with_boundary();
+    auto problem = thermal_problem();
+    geode::PhysicalProblemBuilder{ problem }.add_heat_source(
+        { "probe", std::nullopt, {}, { 150. } } );
+    std::filesystem::remove_all( "ogs_heat_points" );
+    geode::BRepOgsExporter exporter{ model, "ogs_heat_points" };
+    const auto points = well_perforations( model, { 0, 100, 200 } );
+    exporter.add_heat_source_points( *points, "probe" );
+    exporter.set_physical_problem( problem );
+    exporter.run();
+    const auto project = load_xml( "ogs_heat_points/ogs_heat_points.prj" );
+    const auto mesh =
+        load_xml( "ogs_heat_points/ogs_heat_points_heat_probe.vtu" );
+    check( ascii_values< std::uint64_t >(
+               data_array( mesh, "PointData", "bulk_node_ids" ) )
+                   .size()
+               == 3,
+        "One heat source vertex per point" );
+    const auto source =
+        temperature_source( project, "ogs_heat_points_heat_probe" );
+    check( text( source.child( "type" ) ) == "Nodal",
+        "A point heat source is a Nodal source term of the temperature" );
+    const auto power =
+        parameter( project, text( source.child( "parameter" ) ) );
+    check( text( power.child( "type" ) ) == "Constant"
+               && text( power.child( "value" ) ) == "50",
+        "150 W over 3 vertices: 50 W per vertex" );
+    check( select_text( project, "/OpenGeoSysProject/meshes/mesh[last()]" )
+               == "ogs_heat_points_heat_probe.vtu",
+        "The heat source mesh is listed" );
+}
+
+// Model of one RegularGrid Block of 3 x 2 x 2 cells of 0.5 m
+geode::BRep grid_brep()
+{
+    geode::BRep model;
+    geode::BRepBuilder builder{ model };
+    const auto& block = model.block( builder.add_block(
+        geode::OpenGeodeRegularGrid3D::impl_name_static() ) );
+    builder.block_mesh_builder< geode::RegularGrid3D >( block )
+        ->initialize_grid( geode::Point3D{ { 0., 0., 0. } }, { 3, 2, 2 }, 0.5 );
+    const auto nb_vertices = block.mesh().nb_vertices();
+    builder.create_unique_vertices( nb_vertices );
+    for( const auto vertex : geode::Range{ nb_vertices } )
+    {
+        builder.set_unique_vertex( { block.component_id(), vertex }, vertex );
+    }
+    return model;
+}
+
+void test_ogs_heat_source_block_volume()
+{
+    const auto model = grid_brep();
+    auto problem = thermal_problem();
+    geode::PhysicalProblemBuilder{ problem }.add_heat_source(
+        { "canister", ( *model.blocks().begin() ).id(), {}, { 1000. } } );
+    const auto project = export_project( model, problem, "ogs_heat_block" );
+    const auto source =
+        temperature_source( project, "ogs_heat_block_heat_canister" );
+    check( text( source.child( "type" ) ) == "Volumetric",
+        "A Block heat source is a Volumetric source term of the temperature" );
+    const auto density = std::stod(
+        text( parameter( project, text( source.child( "parameter" ) ) )
+                .child( "value" ) ) );
+    // 12 hexahedra of 0.125 m3
+    check( std::fabs( density * 1.5 - 1000. ) <= 1e-12 * 1000.,
+        "Power density times the exported volume is the power" );
+    const auto mesh =
+        load_xml( "ogs_heat_block/ogs_heat_block_heat_canister.vtu" );
+    check( ascii_values< std::uint64_t >(
+               data_array( mesh, "CellData", "bulk_element_ids" ) )
+                   .size()
+               == 12,
+        "One subdomain cell per exported Block cell" );
+    check( ascii_values< std::uint64_t >(
+               data_array( mesh, "PointData", "bulk_node_ids" ) )
+                   .size()
+               == 36,
+        "One subdomain point per vertex of the Block cells" );
+    check( ascii_values< int >( data_array( mesh, "Cells", "types" ) )
+               == std::vector< int >( 12, 12 ),
+        "The subdomain cells are VTK hexahedra" );
+}
+
+// One Block of one hexahedron on the quadrilateral (1,0) (1,1) (0,2) (0,0)
+// of area 1.5, extruded by 1
+geode::BRep skewed_hexahedron_brep()
+{
+    geode::BRep model;
+    geode::BRepBuilder builder{ model };
+    builder.create_unique_vertices( 8 );
+    const auto& block = model.block( builder.add_block(
+        geode::OpenGeodeHybridSolid3D::impl_name_static() ) );
+    auto mesh_builder =
+        builder.block_mesh_builder< geode::HybridSolid3D >( block );
+    geode::index_t vertex{ 0 };
+    for( const double z : { 0., 1. } )
+    {
+        for( const auto& [x, y] : std::array< std::pair< double, double >, 4 >{
+                 { { 1., 0. }, { 1., 1. }, { 0., 2. }, { 0., 0. } } } )
+        {
+            mesh_builder->create_point( geode::Point3D{ { x, y, z } } );
+            builder.set_unique_vertex(
+                { block.component_id(), vertex }, vertex );
+            vertex++;
+        }
+    }
+    mesh_builder->create_hexahedron( { 0, 1, 2, 3, 4, 5, 6, 7 } );
+    return model;
+}
+
+void test_ogs_heat_source_skewed_block()
+{
+    const auto model = skewed_hexahedron_brep();
+    auto problem = thermal_problem();
+    geode::PhysicalProblemBuilder{ problem }.add_heat_source(
+        { "canister", ( *model.blocks().begin() ).id(), {}, { 300. } } );
+    const auto project = export_project( model, problem, "ogs_heat_skewed" );
+    const auto source =
+        temperature_source( project, "ogs_heat_skewed_heat_canister" );
+    const auto density = std::stod(
+        text( parameter( project, text( source.child( "parameter" ) ) )
+                .child( "value" ) ) );
+    check( std::fabs( density * 1.5 - 300. ) <= 1e-12 * 300.,
+        "Power density times the trilinear volume (1.5) is the power" );
+}
+
+void test_ogs_heat_source_table()
+{
+    const auto model = grid_brep();
+    auto problem = thermal_problem();
+    geode::PhysicalProblemBuilder{ problem }.add_heat_source( { "decay",
+        ( *model.blocks().begin() ).id(), { 0., 3.15e7 }, { 1837., 1545. } } );
+    const auto project = export_project( model, problem, "ogs_heat_table" );
+    const auto source =
+        temperature_source( project, "ogs_heat_table_heat_decay" );
+    const auto power =
+        parameter( project, text( source.child( "parameter" ) ) );
+    check( text( power.child( "type" ) ) == "CurveScaled"
+               && text( power.child( "curve" ) ) == "heat_decay",
+        "A power table is a CurveScaled parameter of the curve heat_decay" );
+    const auto scale = parameter( project, text( power.child( "parameter" ) ) );
+    check( text( scale.child( "type" ) ) == "Constant"
+               && std::fabs(
+                      std::stod( text( scale.child( "value" ) ) ) * 1.5 - 1. )
+                      <= 1e-12,
+        "The curve is scaled by 1 / V" );
+    const auto curve = select( project, "//curves/curve[name='heat_decay']" );
+    check( text( curve.child( "coords" ) ) == "0 31500000"
+               && text( curve.child( "values" ) ) == "1837 1545",
+        "The curve gives the powers (W) at the times (s)" );
+}
+
+void test_ogs_heat_source_points_missing()
+{
+    const auto model = picasso_with_boundary();
+    auto problem = thermal_problem();
+    geode::PhysicalProblemBuilder{ problem }.add_heat_source(
+        { "probe", std::nullopt, {}, { 150. } } );
+    const auto refused = [&problem, &model]( std::string_view name,
+                             const geode::PointSet3D* points,
+                             std::string_view expected ) {
+        std::filesystem::remove_all( std::string{ name } );
+        geode::BRepOgsExporter exporter{ model, name };
+        if( points != nullptr )
+        {
+            exporter.add_heat_source_points( *points, "probe" );
+        }
+        exporter.set_physical_problem( problem );
+        bool has_thrown{ false };
+        try
+        {
+            exporter.run();
+        }
+        catch( const geode::OpenGeodeException& exception )
+        {
+            has_thrown = absl::StrContains( exception.what(), expected );
+        }
+        check( has_thrown,
+            absl::StrCat( name, ": export refused with \"", expected, "\"" ) );
+        check( std::filesystem::is_empty( std::string{ name } ),
+            absl::StrCat( name, ": no file is written" ) );
+    };
+    refused( "ogs_heat_not_given", nullptr,
+        "the heat source has no points given to the exporter" );
+    auto outside = geode::PointSet3D::create();
+    geode::PointSetBuilder3D::create( *outside )
+        ->create_point( geode::Point3D{ { -1e6, -1e6, -1e6 } } );
+    refused( "ogs_heat_outside", outside.get(),
+        "No point of heat source probe is inside the model" );
+}
+
+void test_ogs_thm_heat_source()
+{
+    auto model = mechanics_picasso( true );
+    auto problem = thermo_hydro_mechanics_problem();
+    geode::PhysicalProblemBuilder{ problem }.add_heat_source(
+        { "canister", ( *model.blocks().begin() ).id(), {}, { 1000. } } );
+    const auto project = export_project( model, problem, "ogs_thm_heat" );
+    check( text( temperature_source( project, "ogs_thm_heat_heat_canister" )
+                   .child( "type" ) )
+               == "Volumetric",
+        "THERMO_HYDRO_MECHANICS writes the Block heat source" );
+}
+
 int main()
 {
     try
@@ -2448,6 +3664,10 @@ int main()
         test_ogs_mesh_file();
         test_ogs_structural_model_regions();
         test_ogs_rules_process();
+        test_ogs_rules_mechanics_process();
+        test_ogs_rules_elasticity();
+        test_ogs_rules_stress_order();
+        test_ogs_rules_cell_volume();
         test_ogs_rules_storage_and_temperature();
         test_ogs_rules_thermal_laws();
         test_ogs_rules_output_times();
@@ -2455,6 +3675,8 @@ int main()
         test_ogs_rules_relperm();
         test_ogs_registered_checker();
         test_ogs_checker_refusals();
+        test_ogs_mechanics_checks();
+        test_ogs_heat_source_checks();
         test_ogs_unsupported_cells();
         test_ogs_invalid_names();
         test_ogs_mesh_only();
@@ -2487,6 +3709,20 @@ int main()
         test_ogs_cell_orientation();
         test_ogs_mirrored_adjacencies();
         test_ogs_zero_entry_pressure();
+        test_ogs_mechanics_cell_arrays();
+        test_ogs_initial_stress_array();
+        test_ogs_displacement_groups();
+        test_ogs_normal_traction_orientation();
+        test_ogs_small_deformation_project();
+        test_ogs_hm_project();
+        test_ogs_hm_initial_stress_always();
+        test_ogs_thm_project();
+        test_ogs_heat_source_points();
+        test_ogs_heat_source_block_volume();
+        test_ogs_heat_source_skewed_block();
+        test_ogs_heat_source_table();
+        test_ogs_heat_source_points_missing();
+        test_ogs_thm_heat_source();
         geode::Logger::info( "TEST SUCCESS" );
         return 0;
     }

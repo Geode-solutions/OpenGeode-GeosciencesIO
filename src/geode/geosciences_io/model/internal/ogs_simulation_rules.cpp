@@ -70,6 +70,147 @@ namespace
                && absl::c_linear_search( phases, geode::PHASE::oil );
     }
 
+    using Vector3 = std::array< double, 3 >;
+
+    // Gauss points of 2 points per axis on [-1, 1], weight 1
+    constexpr double GAUSS_POINT{ 0.57735026918962576 };
+
+    double determinant( const std::array< Vector3, 3 >& columns )
+    {
+        const auto& [a, b, c] = columns;
+        return a[0] * ( b[1] * c[2] - b[2] * c[1] )
+               - b[0] * ( a[1] * c[2] - a[2] * c[1] )
+               + c[0] * ( a[1] * b[2] - a[2] * b[1] );
+    }
+
+    Vector3 edge( const geode::Point3D& start, const geode::Point3D& end )
+    {
+        return { end.value( 0 ) - start.value( 0 ),
+            end.value( 1 ) - start.value( 1 ),
+            end.value( 2 ) - start.value( 2 ) };
+    }
+
+    // Jacobian determinant of the map sum_i N_i x_i, given the derivatives
+    // of the shape functions along the 3 reference axes
+    double jacobian( absl::Span< const geode::Point3D > points,
+        absl::Span< const Vector3 > derivatives )
+    {
+        std::array< Vector3, 3 > columns{};
+        for( const auto vertex : geode::Indices{ points } )
+        {
+            for( const auto axis : geode::LRange{ 3 } )
+            {
+                for( const auto coordinate : geode::LRange{ 3 } )
+                {
+                    columns[axis][coordinate] +=
+                        derivatives[vertex][axis]
+                        * points[vertex].value( coordinate );
+                }
+            }
+        }
+        return determinant( columns );
+    }
+
+    // Reference corners of the VTK hexahedron
+    constexpr std::array< Vector3, 8 > HEXAHEDRON_CORNERS{ { { -1, -1, -1 },
+        { 1, -1, -1 }, { 1, 1, -1 }, { -1, 1, -1 }, { -1, -1, 1 }, { 1, -1, 1 },
+        { 1, 1, 1 }, { -1, 1, 1 } } };
+
+    // Derivatives of the trilinear shape function of the corner at the
+    // reference point
+    Vector3 trilinear_derivatives(
+        const Vector3& corner, const Vector3& reference )
+    {
+        const Vector3 factors{ 1. + reference[0] * corner[0],
+            1. + reference[1] * corner[1], 1. + reference[2] * corner[2] };
+        return { corner[0] * factors[1] * factors[2] / 8.,
+            corner[1] * factors[0] * factors[2] / 8.,
+            corner[2] * factors[0] * factors[1] / 8. };
+    }
+
+    // Trilinear hexahedron, VTK order, 2 x 2 x 2 Gauss points (exact); a
+    // pyramid is the hexahedron whose top vertices are its apex
+    double hexahedron_volume( absl::Span< const geode::Point3D > points )
+    {
+        double volume{ 0 };
+        for( const auto& gauss : HEXAHEDRON_CORNERS )
+        {
+            const Vector3 reference{ gauss[0] * GAUSS_POINT,
+                gauss[1] * GAUSS_POINT, gauss[2] * GAUSS_POINT };
+            std::array< Vector3, 8 > derivatives{};
+            for( const auto vertex : geode::Indices{ HEXAHEDRON_CORNERS } )
+            {
+                derivatives[vertex] = trilinear_derivatives(
+                    HEXAHEDRON_CORNERS[vertex], reference );
+            }
+            volume += jacobian( points, derivatives );
+        }
+        return std::fabs( volume );
+    }
+
+    // Triangle (0 1 2) times segment (bottom, top), VTK order: exact with 3
+    // triangle points (weight 1/6) times 2 Gauss points
+    double prism_volume( absl::Span< const geode::Point3D > points )
+    {
+        static constexpr std::array< std::array< double, 2 >, 3 > TRIANGLE{
+            { { 1. / 6., 1. / 6. }, { 2. / 3., 1. / 6. }, { 1. / 6., 2. / 3. } }
+        };
+        double volume{ 0 };
+        for( const auto& [xi, eta] : TRIANGLE )
+        {
+            for( const auto zeta : { -GAUSS_POINT, GAUSS_POINT } )
+            {
+                const std::array< double, 3 > area{ 1. - xi - eta, xi, eta };
+                const Vector3 d_xi{ -1., 1., 0. };
+                const Vector3 d_eta{ -1., 0., 1. };
+                std::array< Vector3, 6 > derivatives{};
+                for( const auto vertex : geode::LRange{ 3 } )
+                {
+                    for( const auto& [level, sign] :
+                        { std::pair< geode::local_index_t, double >{ 0, -1. },
+                            { 3, 1. } } )
+                    {
+                        const auto height = ( 1. + sign * zeta ) / 2.;
+                        derivatives[vertex + level] = { d_xi[vertex] * height,
+                            d_eta[vertex] * height, sign * area[vertex] / 2. };
+                    }
+                }
+                volume += jacobian( points, derivatives ) / 6.;
+            }
+        }
+        return std::fabs( volume );
+    }
+
+    bool is_single_phase( const geode::FlowModel& flow )
+    {
+        return dynamic_cast< const geode::SinglePhaseFlow* >( &flow ) != nullptr
+               && dynamic_cast< const geode::SinglePhaseFluid* >(
+                      &flow.fluid() )
+                      != nullptr;
+    }
+
+    bool is_water_oil_flow( const geode::FlowModel& flow )
+    {
+        return dynamic_cast< const geode::MultiphaseFlow* >( &flow ) != nullptr
+               && dynamic_cast< const geode::DeadOilFluid* >( &flow.fluid() )
+                      != nullptr
+               && is_water_oil( flow.fluid().phases() );
+    }
+
+    // Process of a SinglePhaseFlow of a SinglePhaseFluid
+    geode::internal::OGS_PROCESS single_phase_process(
+        const geode::PhysicalProblem& problem )
+    {
+        using geode::internal::OGS_PROCESS;
+        const auto is_thermal = problem.thermal().has_value();
+        if( problem.solid_mechanics() )
+        {
+            return is_thermal ? OGS_PROCESS::thermo_hydro_mechanics
+                              : OGS_PROCESS::hydro_mechanics;
+        }
+        return is_thermal ? OGS_PROCESS::ht : OGS_PROCESS::liquid_flow;
+    }
+
     const geode::HydrocarbonPvtTable& oil_table(
         const geode::DeadOilFluid& fluid )
     {
@@ -298,30 +439,52 @@ namespace geode::internal
 
     std::optional< OGS_PROCESS > ogs_process( const PhysicalProblem& problem )
     {
-        if( !problem.has_flow() || problem.solid_mechanics()
-            || !problem.flow().has_fluid() )
+        const auto has_mechanics = problem.solid_mechanics().has_value();
+        if( has_mechanics && !problem.has_flow() )
+        {
+            return OGS_PROCESS::small_deformation;
+        }
+        if( !problem.has_flow() || !problem.flow().has_fluid() )
         {
             return std::nullopt;
         }
         const auto& flow = problem.flow();
-        const auto& fluid = flow.fluid();
-        if( dynamic_cast< const SinglePhaseFlow* >( &flow ) != nullptr
-            && dynamic_cast< const SinglePhaseFluid* >( &fluid ) != nullptr )
+        if( is_single_phase( flow ) )
         {
-            return problem.thermal() ? OGS_PROCESS::ht
-                                     : OGS_PROCESS::liquid_flow;
+            return single_phase_process( problem );
         }
-        if( problem.thermal() )
+        if( problem.thermal() || has_mechanics || !is_water_oil_flow( flow ) )
         {
             return std::nullopt;
         }
-        if( dynamic_cast< const MultiphaseFlow* >( &flow ) != nullptr
-            && dynamic_cast< const DeadOilFluid* >( &fluid ) != nullptr
-            && is_water_oil( fluid.phases() ) )
-        {
-            return OGS_PROCESS::two_phase_flow_pp;
-        }
-        return std::nullopt;
+        return OGS_PROCESS::two_phase_flow_pp;
+    }
+
+    bool has_temperature( OGS_PROCESS process )
+    {
+        return process == OGS_PROCESS::ht
+               || process == OGS_PROCESS::thermo_hydro_mechanics;
+    }
+
+    bool has_displacement( OGS_PROCESS process )
+    {
+        return process == OGS_PROCESS::small_deformation
+               || process == OGS_PROCESS::hydro_mechanics
+               || process == OGS_PROCESS::thermo_hydro_mechanics;
+    }
+
+    OgsElasticity ogs_elasticity( const OgsModuli& moduli )
+    {
+        const auto denominator = 3. * moduli.bulk + moduli.shear;
+        return { 9. * moduli.bulk * moduli.shear / denominator,
+            ( 3. * moduli.bulk - 2. * moduli.shear ) / ( 2. * denominator ) };
+    }
+
+    OgsStressTensor ogs_stress_tensor(
+        const StressTensor& tensor, double factor )
+    {
+        return { factor * tensor[0], factor * tensor[1], factor * tensor[2],
+            factor * tensor[5], factor * tensor[3], factor * tensor[4] };
     }
 
     double ogs_reference_temperature( const PhysicalProblem& problem )
@@ -392,6 +555,30 @@ namespace geode::internal
                     && nb_facets == NB_PRISM_FACETS )
                || ( nb_vertices == NB_HEXAHEDRON_VERTICES
                     && nb_facets == NB_HEXAHEDRON_FACETS );
+    }
+
+    double ogs_cell_volume( const SolidMesh3D& mesh, index_t polyhedron )
+    {
+        std::vector< Point3D > points;
+        for( const auto vertex : mesh.polyhedron_vertices( polyhedron ) )
+        {
+            points.push_back( mesh.point( vertex ) );
+        }
+        switch( points.size() )
+        {
+            case NB_TETRAHEDRON_VERTICES:
+                return std::fabs( determinant( { edge( points[0], points[1] ),
+                           edge( points[0], points[2] ),
+                           edge( points[0], points[3] ) } ) )
+                       / 6.;
+            case NB_PYRAMID_VERTICES:
+                points.insert( points.end(), 3, points.back() );
+                return hexahedron_volume( points );
+            case NB_PRISM_VERTICES:
+                return prism_volume( points );
+            default:
+                return hexahedron_volume( points );
+        }
     }
 
     bool is_isotropic( const std::array< double, 3 >& permeability )

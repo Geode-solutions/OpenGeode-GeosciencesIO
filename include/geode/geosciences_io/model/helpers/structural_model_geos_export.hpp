@@ -54,6 +54,13 @@ namespace geode
             const PointSet3D& well_perforations, std::string_view name );
 
         /*!
+         * Points of the HeatSource of the problem with this name. GEOS has no
+         * energy source term: a problem with heat sources is refused.
+         */
+        void add_heat_source_points(
+            const PointSet3D& points, std::string_view name );
+
+        /*!
          * Writes a full simulation deck (solvers, fluid, rock, initial
          * conditions, events) described by the problem. Without it, only the
          * mesh, wells and boundary conditions are written.

@@ -155,6 +155,19 @@ namespace geode::internal
     }
 
     template < typename Model >
+    void SimulationExporterImpl< Model >::add_heat_source_points(
+        const PointSet3D& points, std::string_view name )
+    {
+        OpenGeodeGeosciencesIOModelException::check_exception(
+            absl::c_find( heat_source_names_, name )
+                == heat_source_names_.end(),
+            nullptr, OpenGeodeException::TYPE::data, context_,
+            " Heat source points named ", name, " already added." );
+        heat_source_points_.push_back( points.clone() );
+        heat_source_names_.emplace_back( to_string( name ) );
+    }
+
+    template < typename Model >
     const Model& SimulationExporterImpl< Model >::model() const
     {
         return model_;
@@ -190,6 +203,20 @@ namespace geode::internal
         SimulationExporterImpl< Model >::well_names() const
     {
         return well_names_;
+    }
+
+    template < typename Model >
+    absl::Span< const std::unique_ptr< PointSet3D > >
+        SimulationExporterImpl< Model >::heat_source_points() const
+    {
+        return heat_source_points_;
+    }
+
+    template < typename Model >
+    absl::Span< const std::string >
+        SimulationExporterImpl< Model >::heat_source_names() const
+    {
+        return heat_source_names_;
     }
 
     template class opengeode_geosciencesio_model_api

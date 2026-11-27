@@ -55,7 +55,7 @@ namespace geode::internal
         const Point3D& point );
 
     /// Simulator-neutral part of a model exporter: output directory and file
-    /// prefix, physical problem and well perforations.
+    /// prefix, physical problem, well perforations and heat source points.
     template < typename Model >
     class SimulationExporterImpl
     {
@@ -77,6 +77,10 @@ namespace geode::internal
         void add_well_perforations(
             const PointSet3D& perforations, std::string_view name );
 
+        /// Throws if points of this heat source name were already added
+        void add_heat_source_points(
+            const PointSet3D& points, std::string_view name );
+
     protected:
         [[nodiscard]] const Model& model() const;
         [[nodiscard]] const PhysicalProblem* problem() const;
@@ -85,6 +89,9 @@ namespace geode::internal
         [[nodiscard]] absl::Span< const std::unique_ptr< PointSet3D > >
             well_perforations() const;
         [[nodiscard]] absl::Span< const std::string > well_names() const;
+        [[nodiscard]] absl::Span< const std::unique_ptr< PointSet3D > >
+            heat_source_points() const;
+        [[nodiscard]] absl::Span< const std::string > heat_source_names() const;
 
     private:
         /// Throws if the simulator cannot use the name for a well
@@ -98,5 +105,7 @@ namespace geode::internal
         const PhysicalProblem* problem_{ nullptr };
         std::vector< std::unique_ptr< PointSet3D > > well_perforations_{};
         std::vector< std::string > well_names_{};
+        std::vector< std::unique_ptr< PointSet3D > > heat_source_points_{};
+        std::vector< std::string > heat_source_names_{};
     };
 } // namespace geode::internal

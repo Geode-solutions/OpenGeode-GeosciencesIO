@@ -46,12 +46,14 @@
 
 #include <geode/geosciences/simulation/core/flow_model.hpp>
 #include <geode/geosciences/simulation/core/fluid.hpp>
+#include <geode/geosciences/simulation/core/heat_source.hpp>
 #include <geode/geosciences/simulation/core/initial_condition.hpp>
 #include <geode/geosciences/simulation/core/material.hpp>
 #include <geode/geosciences/simulation/core/physical_problem.hpp>
 #include <geode/geosciences/simulation/core/saturation_functions.hpp>
 #include <geode/geosciences/simulation/core/schedule.hpp>
 #include <geode/geosciences/simulation/core/source_term.hpp>
+#include <geode/geosciences/simulation/helpers/internal/physical_problem_blocks.hpp>
 #include <geode/geosciences/simulation/helpers/internal/simulation_checker_helpers.hpp>
 
 #include <geode/geosciences_io/model/internal/ogs_simulation_rules.hpp>
@@ -77,6 +79,52 @@ namespace
     std::string source_subject( const geode::SourceTerm& source )
     {
         return absl::StrCat( "Source term on well \"", source.well, "\"" );
+    }
+
+    std::string heat_source_subject( const geode::HeatSource& source )
+    {
+        return absl::StrCat( "Heat source \"", source.name, "\"" );
+    }
+
+    // Values of a double Block property, none if the Block has none
+    std::optional< std::vector< double > > block_property_values(
+        const geode::BRep& model,
+        const geode::Block3D& block,
+        geode::PHYSICAL_PROPERTY_NAME property )
+    {
+        if( !model.has_physical_property( property ) )
+        {
+            return std::nullopt;
+        }
+        const auto& info = model.physical_property_info( property );
+        const auto& manager = block.mesh().polyhedron_attribute_manager();
+        if( info.component_type != geode::Block3D::component_type_static()
+            || !manager.attribute_exists( info.attribute_id )
+            || manager.attribute_type( info.attribute_id )
+                   != typeid( double ).name() )
+        {
+            return std::nullopt;
+        }
+        const auto attribute =
+            manager.find_read_only_attribute< double >( info.attribute_id );
+        std::vector< double > values;
+        for( const auto polyhedron :
+            geode::Range{ block.mesh().nb_polyhedra() } )
+        {
+            values.push_back( attribute->value( polyhedron ) );
+        }
+        return values;
+    }
+
+    // Every cell of the Block has a positive value of the property
+    bool is_positive_everywhere( const geode::BRep& model,
+        const geode::Block3D& block,
+        geode::PHYSICAL_PROPERTY_NAME property )
+    {
+        const auto values = block_property_values( model, block, property );
+        return values && absl::c_all_of( values.value(), []( double value ) {
+            return value > 0.;
+        } );
     }
 
     // Mean value of each Surface at each of its unique vertices
@@ -233,9 +281,17 @@ namespace
         {
         }
 
-        void check_problem(
-            std::optional< absl::Span< const std::string > > well_names )
+        // Wells and heat source points are only checked with the export
+        // data
+        void check_problem( const geode::internal::OgsExportData* export_data )
         {
+            std::optional< absl::Span< const std::string > > well_names;
+            std::optional< absl::Span< const std::string > > heat_source_names;
+            if( export_data != nullptr )
+            {
+                well_names = export_data->well_names;
+                heat_source_names = export_data->heat_source_names;
+            }
             check_solver_options();
             check_material_names();
             check_restart();
@@ -244,6 +300,7 @@ namespace
                 return;
             }
             check_source_terms( well_names );
+            check_heat_sources( heat_source_names );
             if( geode::internal::ogs_process( problem_ )
                 == geode::internal::OGS_PROCESS::two_phase_flow_pp )
             {
@@ -283,9 +340,14 @@ namespace
             {
                 return true;
             }
-            if( problem_.solid_mechanics() )
+            if( problem_.solid_mechanics() && problem_.has_flow()
+                && dynamic_cast< const geode::MultiphaseFlow* >(
+                       &problem_.flow() )
+                       != nullptr )
             {
-                add_issue( "Solid mechanics", "solid mechanics is ", NOT_YET );
+                add_issue( "Solid mechanics", "OGS has no multiphase "
+                                              "poromechanics process in the "
+                                              "OGS exporter" );
                 return false;
             }
             if( !problem_.has_flow() || !problem_.flow().has_fluid() )
@@ -364,8 +426,8 @@ namespace
         void check_source_terms(
             std::optional< absl::Span< const std::string > > well_names )
         {
-            const auto is_ht = geode::internal::ogs_process( problem_ )
-                               == geode::internal::OGS_PROCESS::ht;
+            const auto is_thermal = geode::internal::has_temperature(
+                geode::internal::ogs_process( problem_ ).value() );
             for( const auto& source : problem_.source_terms() )
             {
                 if( well_names )
@@ -380,12 +442,39 @@ namespace
                         source_subject( source ), "well ", OGS_NAME_RULE );
                 }
                 // The Nodal source term is on the pressure only
-                if( is_ht && source.rate > 0 )
+                if( is_thermal && source.rate > 0 )
                 {
                     report_.add_warning( SIMULATION_CHECK_STAGE::simulator,
                         source_subject( source ),
                         "OGS injects the fluid at the local temperature" );
                 }
+            }
+        }
+
+        // Point heat sources are located by the points given to the exporter
+        void check_heat_sources(
+            std::optional< absl::Span< const std::string > > names )
+        {
+            for( const auto& source : problem_.heat_sources() )
+            {
+                if( !geode::internal::ogs_naming().is_valid_name(
+                        source.name ) )
+                {
+                    add_issue( heat_source_subject( source ), OGS_NAME_RULE );
+                }
+                if( source.block || !names
+                    || absl::c_linear_search( names.value(), source.name ) )
+                {
+                    continue;
+                }
+                geode::SimulationIssue issue{
+                    geode::SIMULATION_ISSUE_SEVERITY::error,
+                    SIMULATION_CHECK_STAGE::simulator,
+                    heat_source_subject( source ),
+                    "the heat source has no points given to the exporter"
+                };
+                issue.fix = "add the heat source points to the exporter";
+                report_.add_issue( std::move( issue ) );
             }
         }
 
@@ -482,10 +571,8 @@ namespace geode::internal
     void OgsSimulationChecker::check_simulator()
     {
         report().set_simulator( "OGS" );
-        std::optional< absl::Span< const std::string > > well_names;
         if( export_data_ )
         {
-            well_names = export_data_->well_names;
             for( const auto& name : export_data_->well_names )
             {
                 if( !ogs_naming().is_valid_name( name ) )
@@ -497,7 +584,8 @@ namespace geode::internal
             }
         }
         OgsProblemChecker problem_checker{ problem(), report() };
-        problem_checker.check_problem( well_names );
+        problem_checker.check_problem(
+            export_data_ ? &export_data_.value() : nullptr );
         check_blocks();
         check_unique_vertices_in_blocks();
         check_cells();
@@ -509,14 +597,23 @@ namespace geode::internal
         check_properties();
         problem_checker.check_boundary_conditions(
             model_boundary_conditions( model() ) );
-        check_conflicting_boundaries(
-            PHYSICAL_PROPERTY_NAME::boundary_pressure );
+        check_conflicting_boundaries( process.value() );
+    }
+
+    void OgsSimulationChecker::check_conflicting_boundaries(
+        OGS_PROCESS process )
+    {
+        if( process != OGS_PROCESS::small_deformation )
+        {
+            check_conflicting_boundaries(
+                PHYSICAL_PROPERTY_NAME::boundary_pressure );
+        }
         if( process == OGS_PROCESS::two_phase_flow_pp )
         {
             check_conflicting_boundaries(
                 PHYSICAL_PROPERTY_NAME::boundary_water_fraction );
         }
-        if( process == OGS_PROCESS::ht )
+        if( has_temperature( process ) )
         {
             check_conflicting_boundaries(
                 PHYSICAL_PROPERTY_NAME::boundary_temperature );
@@ -592,6 +689,20 @@ namespace geode::internal
     // of each material.
     void OgsSimulationChecker::check_properties()
     {
+        const auto process = ogs_process( problem() ).value();
+        if( has_displacement( process ) )
+        {
+            check_internal_tractions();
+        }
+        if( process == OGS_PROCESS::thermo_hydro_mechanics )
+        {
+            check_heat_capacity_density();
+        }
+        check_boundary_temperature();
+        if( process == OGS_PROCESS::small_deformation )
+        {
+            return;
+        }
         std::vector< PhysicalPropertyCoverage > coverages;
         for( const auto property : { PHYSICAL_PROPERTY_NAME::porosity,
                  PHYSICAL_PROPERTY_NAME::permeability } )
@@ -616,7 +727,66 @@ namespace geode::internal
             warn_ignored_physical_properties(
                 { PHYSICAL_PROPERTY_NAME::boundary_oil_fraction } );
         }
-        check_boundary_temperature();
+    }
+
+    void OgsSimulationChecker::check_internal_tractions()
+    {
+        for( const auto property : { PHYSICAL_PROPERTY_NAME::boundary_traction,
+                 PHYSICAL_PROPERTY_NAME::boundary_normal_traction } )
+        {
+            const auto attribute =
+                surface_boundary_attribute( model(), property );
+            for( const auto& surface : model().surfaces() )
+            {
+                if( !has_surface_values( surface, attribute )
+                    || model().nb_incidences( surface.id() ) < 2 )
+                {
+                    continue;
+                }
+                SimulationIssue issue{ SIMULATION_ISSUE_SEVERITY::error,
+                    SIMULATION_CHECK_STAGE::simulator,
+                    to_string( physical_property_string( property ) ),
+                    absl::StrCat( "Surface ", ogs_surface_name( surface ),
+                        " is between two Blocks: OGS loads a traction on the "
+                        "outer side of a model boundary" ) };
+                issue.add_location( surface );
+                issue.fix = "load the traction on model boundary Surfaces only";
+                report().add_issue( std::move( issue ) );
+            }
+        }
+    }
+
+    // The Solid density of THERMO_HYDRO_MECHANICS is the grain density, and
+    // its specific heat capacity C_v / grain density
+    void OgsSimulationChecker::check_heat_capacity_density()
+    {
+        const auto block_materials =
+            physical_problem_block_materials( problem(), model() );
+        for( const auto& block : model().blocks() )
+        {
+            const auto material = block_materials.find( block.id() );
+            if( material == block_materials.end() )
+            {
+                continue;
+            }
+            const auto& thermal =
+                problem().materials()[material->second].thermal;
+            if( !thermal || thermal->volumetric_heat_capacity <= 0.
+                || is_positive_everywhere(
+                    model(), block, PHYSICAL_PROPERTY_NAME::grain_density ) )
+            {
+                continue;
+            }
+            SimulationIssue issue{ SIMULATION_ISSUE_SEVERITY::error,
+                SIMULATION_CHECK_STAGE::simulator,
+                absl::StrCat(
+                    "Block ", block.name().value_or( block.id().string() ) ),
+                "OGS needs a positive grain_density to carry the rock heat "
+                "capacity" };
+            issue.add_location( block );
+            issue.fix = "give the Block a positive grain_density";
+            report().add_issue( std::move( issue ) );
+        }
     }
 
     // Only HT reads boundary_temperature. On a pressure boundary without
@@ -624,7 +794,7 @@ namespace geode::internal
     // temperature of the boundary vertex: warned once.
     void OgsSimulationChecker::check_boundary_temperature()
     {
-        if( ogs_process( problem() ) != OGS_PROCESS::ht )
+        if( !has_temperature( ogs_process( problem() ).value() ) )
         {
             warn_ignored_physical_properties(
                 { PHYSICAL_PROPERTY_NAME::boundary_temperature } );

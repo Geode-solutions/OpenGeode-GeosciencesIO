@@ -30,6 +30,7 @@
 #include <geode/geosciences/simulation/helpers/simulation_checker.hpp>
 
 #include <geode/geosciences_io/model/common.hpp>
+#include <geode/geosciences_io/model/internal/ogs_simulation_rules.hpp>
 
 namespace geode::internal
 {
@@ -38,12 +39,15 @@ namespace geode::internal
     {
         /// Names of the well perforation sets given to the exporter
         std::vector< std::string > well_names;
+        /// Names of the heat source point sets given to the exporter
+        std::vector< std::string > heat_source_names;
     };
 
     /*!
      * Checks that an OGS project can be written for a problem on a model.
-     * Registered as OGS_SIMULATOR_KEY, it does not know the exporter wells:
-     * source term wells are only checked with OgsExportData.
+     * Registered as OGS_SIMULATOR_KEY, it does not know the exporter wells
+     * and heat source points: source term wells and point heat sources are
+     * only checked with OgsExportData.
      */
     class OgsSimulationChecker final : public SimulationChecker
     {
@@ -61,13 +65,23 @@ namespace geode::internal
 
         void check_properties();
 
-        /// Checks boundary_temperature in HT, warns that the other processes
-        /// ignore it
+        /// A traction on a Surface between two Blocks has no outer side
+        void check_internal_tractions();
+
+        /// THERMO_HYDRO_MECHANICS carries the rock heat capacity with the
+        /// grain density
+        void check_heat_capacity_density();
+
+        /// Checks boundary_temperature in HT and THERMO_HYDRO_MECHANICS, warns
+        /// that the other processes ignore it
         void check_boundary_temperature();
 
         /// Warns once per pair of Surfaces giving different values to a
         /// shared vertex
         void check_conflicting_boundaries( PHYSICAL_PROPERTY_NAME property );
+
+        /// Conflicting values of the boundary conditions the process reads
+        void check_conflicting_boundaries( OGS_PROCESS process );
 
     private:
         std::optional< OgsExportData > export_data_;

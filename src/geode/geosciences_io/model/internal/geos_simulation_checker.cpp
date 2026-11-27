@@ -45,6 +45,7 @@
 
 #include <geode/geosciences/simulation/core/flow_model.hpp>
 #include <geode/geosciences/simulation/core/fluid.hpp>
+#include <geode/geosciences/simulation/core/heat_source.hpp>
 #include <geode/geosciences/simulation/core/initial_condition.hpp>
 #include <geode/geosciences/simulation/core/material.hpp>
 #include <geode/geosciences/simulation/core/physical_problem.hpp>
@@ -105,6 +106,7 @@ namespace
             std::optional< absl::Span< const std::string > > well_names )
         {
             check_solver_options();
+            check_heat_sources();
             if( !has_fluid() )
             {
                 return;
@@ -316,6 +318,16 @@ namespace
                 add_issue( "Initial conditions",
                     "GEOS isothermal multiphase simulations need the same "
                     "temperature in every initial condition" );
+            }
+        }
+
+        void check_heat_sources()
+        {
+            if( !problem_.heat_sources().empty() )
+            {
+                add_issue( "Heat sources",
+                    "GEOS has no energy source term: heat sources are not "
+                    "supported by the GEOS exporter" );
             }
         }
 

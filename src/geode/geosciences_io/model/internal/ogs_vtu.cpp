@@ -31,6 +31,7 @@
 
 #include <geode/basic/range.hpp>
 
+#include <geode/geosciences_io/model/internal/ogs_simulation_rules.hpp>
 #include <geode/geosciences_io/model/internal/simulation_xml.hpp>
 
 namespace
@@ -40,11 +41,34 @@ namespace
     constexpr std::uint8_t VTK_TRIANGLE{ 5 };
     constexpr std::uint8_t VTK_POLYGON{ 7 };
     constexpr std::uint8_t VTK_QUAD{ 9 };
+    constexpr std::uint8_t VTK_TETRA{ 10 };
+    constexpr std::uint8_t VTK_HEXAHEDRON{ 12 };
+    constexpr std::uint8_t VTK_WEDGE{ 13 };
+    constexpr std::uint8_t VTK_PYRAMID{ 14 };
     constexpr geode::index_t NB_TRIANGLE_VERTICES{ 3 };
     constexpr geode::index_t NB_QUAD_VERTICES{ 4 };
 
-    std::uint8_t vtk_cell_type( geode::index_t nb_vertices )
+    std::uint8_t vtk_polyhedron_type( geode::index_t nb_vertices )
     {
+        switch( nb_vertices )
+        {
+            case geode::internal::NB_TETRAHEDRON_VERTICES:
+                return VTK_TETRA;
+            case geode::internal::NB_PYRAMID_VERTICES:
+                return VTK_PYRAMID;
+            case geode::internal::NB_PRISM_VERTICES:
+                return VTK_WEDGE;
+            default:
+                return VTK_HEXAHEDRON;
+        }
+    }
+
+    std::uint8_t vtk_cell_type( geode::index_t nb_vertices, bool volumetric )
+    {
+        if( volumetric )
+        {
+            return vtk_polyhedron_type( nb_vertices );
+        }
         if( nb_vertices == 1 )
         {
             return VTK_VERTEX;
@@ -132,7 +156,7 @@ namespace
         {
             connectivity.insert( connectivity.end(), cell.begin(), cell.end() );
             offsets.push_back( connectivity.size() );
-            types.push_back( vtk_cell_type( cell.size() ) );
+            types.push_back( vtk_cell_type( cell.size(), mesh.volumetric ) );
         }
         const auto as_is = []( geode::index_t value ) {
             return value;
@@ -174,6 +198,11 @@ namespace geode::internal
         auto cell_data = piece.append_child( "CellData" );
         add_ids( cell_data, "bulk_element_ids", mesh.bulk_element_ids );
         add_ids( cell_data, "bulk_face_ids", mesh.bulk_face_ids );
+        for( const auto& [name, values] : mesh.cell_arrays )
+        {
+            auto array = add_data_array( cell_data, "Float64", name );
+            set_values( array, values, xml_real );
+        }
         add_points( piece, mesh );
         add_cells( piece, mesh );
         const auto file = std::string{ filename };

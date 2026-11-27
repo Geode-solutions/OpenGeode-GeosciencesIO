@@ -59,6 +59,14 @@ namespace geode
             const PointSet3D& well_perforations, std::string_view name );
 
         /*!
+         * Points of the HeatSource of the problem with this name: each point
+         * heats the vertex of its containing cell nearest to it, the power
+         * being shared equally among these vertices.
+         */
+        void add_heat_source_points(
+            const PointSet3D& points, std::string_view name );
+
+        /*!
          * Writes the OGS project file (processes, media, parameters, initial
          * and boundary conditions, time loop) described by the problem.
          * Without it, only the meshes are written.

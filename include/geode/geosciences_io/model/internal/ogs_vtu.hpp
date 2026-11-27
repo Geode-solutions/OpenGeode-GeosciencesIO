@@ -44,8 +44,11 @@ namespace geode::internal
     struct OgsMeshFile
     {
         std::vector< Point3D > points;
-        /// Polygon (triangle, quad, polygon) or single-vertex cells
+        /// Polygon (triangle, quad, polygon) or single-vertex cells, or
+        /// polyhedra (tetrahedron, pyramid, prism, hexahedron in the VTK
+        /// vertex order) if volumetric
         std::vector< std::vector< index_t > > cells;
+        bool volumetric{ false };
         /// Bulk mesh vertex of each point
         std::vector< std::uint64_t > bulk_node_ids;
         /// Bulk mesh cell owning each face cell, empty if not needed
@@ -56,6 +59,9 @@ namespace geode::internal
         /// Named point values, one per point
         std::vector< std::pair< std::string, std::vector< double > > >
             point_arrays;
+        /// Named cell values, one per cell
+        std::vector< std::pair< std::string, std::vector< double > > >
+            cell_arrays;
     };
 
     /// Boundary mesh of a group of Surfaces sharing a boundary property
@@ -64,9 +70,13 @@ namespace geode::internal
         PHYSICAL_PROPERTY_NAME property;
         /// File name without extension, used by the project to name it
         std::string stem;
-        /// Value of a uniform group, none if the mesh has a "values" array
+        /// Value of a uniform group, none if the mesh has a "values" array:
+        /// a point array for the flow properties, a cell array for the
+        /// tractions
         std::optional< double > value;
         OgsMeshFile mesh;
+        /// Axis of a boundary_displacement or boundary_traction component
+        std::optional< local_index_t > component;
     };
 
     /// Point mesh of the vertices receiving a well source term
@@ -78,10 +88,24 @@ namespace geode::internal
         OgsMeshFile mesh;
     };
 
+    /// Mesh receiving a HeatSource of the problem: the point mesh of its
+    /// vertices, or the subdomain mesh of the bulk cells of its Block
+    struct OgsHeatSourceMesh
+    {
+        /// Index of the HeatSource in the problem
+        index_t heat_source;
+        /// File name without extension, used by the project to name it
+        std::string stem;
+        OgsMeshFile mesh;
+        /// Volume (m3) of the subdomain cells, 0 for a point mesh
+        double volume{ 0 };
+    };
+
     /*!
      * Writes an ASCII VTU file: bulk_node_ids as UInt64 point data, the
-     * non-empty bulk_element_ids and bulk_face_ids as UInt64 cell data and
-     * the point arrays as Float64 point data
+     * non-empty bulk_element_ids and bulk_face_ids as UInt64 cell data, the
+     * point arrays as Float64 point data and the cell arrays as Float64 cell
+     * data
      */
     void opengeode_geosciencesio_model_api save_ogs_mesh_file(
         std::string_view filename, const OgsMeshFile& mesh );

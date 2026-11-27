@@ -25,11 +25,13 @@
 
 #include <array>
 #include <cmath>
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include <pugixml.hpp>
 
+#include <absl/algorithm/container.h>
 #include <absl/strings/str_cat.h>
 #include <absl/strings/str_join.h>
 #include <absl/strings/str_split.h>
@@ -38,6 +40,7 @@
 #include <geode/basic/range.hpp>
 
 #include <geode/geosciences/simulation/core/fluid.hpp>
+#include <geode/geosciences/simulation/core/heat_source.hpp>
 #include <geode/geosciences/simulation/core/material.hpp>
 #include <geode/geosciences/simulation/core/physical_problem.hpp>
 #include <geode/geosciences/simulation/core/schedule.hpp>
@@ -58,9 +61,19 @@ namespace
     // HeatTransportInStationaryFlow benchmark, temperature then pressure
     constexpr std::string_view HT_RELTOLS{ "1e-10 1e-10" };
     constexpr geode::index_t HT_MAX_ITERATIONS{ 50 };
+    // Newton of the mechanics processes: one reltol per component, and a
+    // tiny abstol stopping on components that stay exactly 0 (a relative
+    // criterion never holds on them)
+    constexpr double MECHANICS_RELTOL{ 1e-10 };
+    constexpr double MECHANICS_ABSTOL{ 1e-15 };
+    constexpr geode::index_t MECHANICS_MAX_ITERATIONS{ 50 };
     // IterationNumberBasedTimeStepping values of the OGS benchmarks
     constexpr std::string_view NUMBER_ITERATIONS{ "1 4 10" };
     constexpr std::string_view MULTIPLIERS{ "2 1 0.5" };
+    // Newton of the mechanics processes needs 3 to 5 iterations to reach
+    // MECHANICS_RELTOL on nonlinear (thermal) problems: the steps grow up to
+    // 5 iterations
+    constexpr std::string_view MECHANICS_NUMBER_ITERATIONS{ "5 8 15" };
     // Output only at the fixed output times and at the last step
     constexpr geode::index_t OUTPUT_EACH_STEPS{ 1000000000 };
 
@@ -182,9 +195,14 @@ namespace
             write_time_loop();
             write_process_variables();
             write_solvers();
-            if( is_two_phase() )
+            if( is_two_phase() || has_heat_curves() )
             {
-                write_curves();
+                auto curves = root_.append_child( "curves" );
+                if( is_two_phase() )
+                {
+                    write_two_phase_curves( curves );
+                }
+                write_heat_curves( curves );
             }
         }
 
@@ -198,6 +216,305 @@ namespace
         [[nodiscard]] bool is_ht() const
         {
             return context_.process == geode::internal::OGS_PROCESS::ht;
+        }
+
+        [[nodiscard]] bool is_mechanics() const
+        {
+            return geode::internal::has_displacement( context_.process );
+        }
+
+        [[nodiscard]] bool is_small_deformation() const
+        {
+            return context_.process
+                   == geode::internal::OGS_PROCESS::small_deformation;
+        }
+
+        // Primary variable components: temperature, pressure, displacement
+        [[nodiscard]] geode::index_t nb_components() const
+        {
+            geode::index_t count{ 3 };
+            count += is_small_deformation() ? 0 : 1;
+            count +=
+                geode::internal::has_temperature( context_.process ) ? 1 : 0;
+            return count;
+        }
+
+        // Uniform value as a Constant, a bulk cell array as a MeshElement
+        void add_cell_parameter(
+            std::string_view name, const geode::internal::OgsCellValue& value )
+        {
+            if( value.value )
+            {
+                add_constant_parameter( name, value.value.value() );
+                return;
+            }
+            add_mesh_parameter(
+                { name, "MeshElement", context_.prefix, value.field_name } );
+        }
+
+        // Constant property of a uniform value, Parameter property of the
+        // bulk cell parameter otherwise
+        void write_cell_property( pugi::xml_node& properties,
+            std::string_view name,
+            std::string_view parameter,
+            const geode::internal::OgsCellValue& value ) const
+        {
+            if( value.value )
+            {
+                write_constant( properties, name, value.value.value() );
+                return;
+            }
+            write_parameter_property( properties, name, parameter );
+        }
+
+        void write_mechanics_process( pugi::xml_node& process )
+        {
+            add_text( process, "type", mechanics_process_type() );
+            add_text( process, "integration_order", "2" );
+            if( geode::internal::has_temperature( context_.process ) )
+            {
+                add_text( process, "equation_balance_type", "mass" );
+            }
+            auto relation = process.append_child( "constitutive_relation" );
+            add_text( relation, "type", "LinearElasticIsotropic" );
+            add_text( relation, "youngs_modulus", "youngs_modulus" );
+            add_text( relation, "poissons_ratio", "poissons_ratio" );
+            add_cell_parameter( "youngs_modulus", context_.youngs_modulus );
+            add_cell_parameter( "poissons_ratio", context_.poissons_ratio );
+            write_mechanics_process_variables(
+                process.append_child( "process_variables" ) );
+            auto secondary = process.append_child( "secondary_variables" );
+            for( const auto* name : { "sigma", "epsilon" } )
+            {
+                secondary.append_child( "secondary_variable" )
+                    .append_attribute( "name" )
+                    .set_value( name );
+            }
+            add_text( process, "specific_body_force", body_force() );
+            write_initial_stress( process );
+        }
+
+        [[nodiscard]] std::string_view mechanics_process_type() const
+        {
+            if( is_small_deformation() )
+            {
+                return "SMALL_DEFORMATION";
+            }
+            return geode::internal::has_temperature( context_.process )
+                       ? "THERMO_HYDRO_MECHANICS"
+                       : "HYDRO_MECHANICS";
+        }
+
+        void write_mechanics_process_variables( pugi::xml_node variables ) const
+        {
+            if( is_small_deformation() )
+            {
+                add_text( variables, "process_variable", "displacement" );
+                return;
+            }
+            if( geode::internal::has_temperature( context_.process ) )
+            {
+                add_text( variables, "temperature", "temperature" );
+            }
+            add_text( variables, "pressure", "pressure" );
+            add_text( variables, "displacement", "displacement" );
+        }
+
+        // SMALL_DEFORMATION reads an effective stress, the poromechanics
+        // processes a total one
+        void write_initial_stress( pugi::xml_node& process )
+        {
+            if( context_.initial_stress_field.empty() )
+            {
+                return;
+            }
+            auto stress =
+                add_text( process, "initial_stress", "initial_stress" );
+            if( !is_small_deformation() )
+            {
+                stress.append_attribute( "type" ).set_value( "total" );
+            }
+            add_mesh_parameter( { "initial_stress", "MeshElement",
+                context_.prefix, context_.initial_stress_field } );
+        }
+
+        // Bulk cell parameters shared by every medium
+        void add_media_cell_parameters()
+        {
+            for( const auto& [name, value] :
+                std::array< std::pair< std::string_view,
+                                const geode::internal::OgsCellValue* >,
+                    4 >{ { { "solid_density", &context_.solid_density },
+                    { "biot_coefficient", &context_.biot_coefficient },
+                    { "thermal_expansivity", &context_.thermal_expansivity },
+                    { "solid_heat_capacity",
+                        &context_.solid_heat_capacity } } } )
+            {
+                if( !value->value && !value->field_name.empty() )
+                {
+                    add_cell_parameter( name, *value );
+                }
+            }
+        }
+
+        // Without flow, a single medium with the solid density
+        void write_mechanics_media( pugi::xml_node& media )
+        {
+            add_media_cell_parameters();
+            if( is_small_deformation() )
+            {
+                auto medium = media.append_child( "medium" );
+                medium.append_attribute( "id" ).set_value( 0 );
+                write_mechanics_solid_phase( medium.append_child( "phases" ) );
+                medium.append_child( "properties" );
+                return;
+            }
+            for( const auto material_id :
+                geode::Indices{ problem_.materials() } )
+            {
+                const auto& material = problem_.materials()[material_id];
+                auto medium = media.append_child( "medium" );
+                medium.append_attribute( "id" ).set_value( material_id );
+                auto phases = medium.append_child( "phases" );
+                write_liquid_phase( phases );
+                write_mechanics_solid_phase( phases );
+                auto properties = medium.append_child( "properties" );
+                write_permeability( properties, material, material_id );
+                write_porosity( properties, material );
+                write_cell_property( properties, "biot_coefficient",
+                    "biot_coefficient", context_.biot_coefficient );
+                if( geode::internal::has_temperature( context_.process ) )
+                {
+                    write_constant_values( properties, "thermal_conductivity",
+                        material.thermal.value().thermal_conductivity );
+                    continue;
+                }
+                write_constant( properties, "reference_temperature",
+                    context_.reference_temperature );
+            }
+        }
+
+        void write_mechanics_solid_phase( pugi::xml_node phases ) const
+        {
+            auto solid = phases.append_child( "phase" );
+            add_text( solid, "type", "Solid" );
+            auto properties = solid.append_child( "properties" );
+            write_cell_property( properties, "density", "solid_density",
+                context_.solid_density );
+            if( !geode::internal::has_temperature( context_.process ) )
+            {
+                return;
+            }
+            // The rock heat capacity is rho_s c_s (1 - phi) with the grain
+            // density, also the density of the gravity
+            write_cell_property( properties, "specific_heat_capacity",
+                "solid_heat_capacity", context_.solid_heat_capacity );
+            write_cell_property( properties, "thermal_expansivity",
+                "thermal_expansivity", context_.thermal_expansivity );
+        }
+
+        void write_mechanics_convergence( pugi::xml_node& convergence ) const
+        {
+            add_text( convergence, "type", "PerComponentDeltaX" );
+            add_text( convergence, "norm_type", "NORM2" );
+            const std::vector< double > abstols(
+                nb_components(), MECHANICS_ABSTOL );
+            const std::vector< double > reltols(
+                nb_components(), MECHANICS_RELTOL );
+            add_text( convergence, "abstols", reals( abstols ) );
+            add_text( convergence, "reltols", reals( reltols ) );
+        }
+
+        void write_mechanics_output_variables( pugi::xml_node& variables ) const
+        {
+            if( geode::internal::has_temperature( context_.process ) )
+            {
+                add_text( variables, "variable", "temperature" );
+            }
+            if( !is_small_deformation() )
+            {
+                add_text( variables, "variable", "pressure" );
+            }
+            for( const auto* name : { "displacement", "sigma", "epsilon" } )
+            {
+                add_text( variables, "variable", name );
+            }
+        }
+
+        void write_mechanics_variables( pugi::xml_node& variables )
+        {
+            if( geode::internal::has_temperature( context_.process ) )
+            {
+                write_temperature_variable( variables );
+            }
+            if( !is_small_deformation() )
+            {
+                write_pressure_variable( variables );
+            }
+            write_displacement_variable( variables );
+        }
+
+        void write_displacement_variable( pugi::xml_node& variables )
+        {
+            auto initial = parameters_.append_child( "parameter" );
+            add_text( initial, "name", "initial_displacement" );
+            add_text( initial, "type", "Constant" );
+            add_text( initial, "values", "0 0 0" );
+            auto variable = variables.append_child( "process_variable" );
+            add_text( variable, "name", "displacement" );
+            add_text( variable, "components", "3" );
+            add_text( variable, "order", "1" );
+            add_text( variable, "initial_condition", "initial_displacement" );
+            auto conditions = variable.append_child( "boundary_conditions" );
+            for( const auto& boundary : context_.boundaries )
+            {
+                if( const auto type = mechanics_condition_type( boundary ) )
+                {
+                    add_mechanics_condition( conditions, boundary, *type );
+                }
+            }
+        }
+
+        static std::optional< std::string_view > mechanics_condition_type(
+            const geode::internal::OgsBoundaryMesh& boundary )
+        {
+            switch( boundary.property )
+            {
+                case geode::PHYSICAL_PROPERTY_NAME::boundary_displacement:
+                    return "Dirichlet";
+                case geode::PHYSICAL_PROPERTY_NAME::boundary_traction:
+                    return "Neumann";
+                case geode::PHYSICAL_PROPERTY_NAME::boundary_normal_traction:
+                    return "NormalTraction";
+                default:
+                    return std::nullopt;
+            }
+        }
+
+        // Uniform value as a Constant, per polygon values as a MeshElement
+        // parameter of the boundary mesh
+        void add_mechanics_condition( pugi::xml_node& conditions,
+            const geode::internal::OgsBoundaryMesh& boundary,
+            std::string_view type )
+        {
+            if( boundary.value )
+            {
+                add_constant_parameter( boundary.stem, boundary.value.value() );
+            }
+            else
+            {
+                add_mesh_parameter(
+                    { boundary.stem, "MeshElement", boundary.stem, "values" } );
+            }
+            auto condition = conditions.append_child( "boundary_condition" );
+            add_text( condition, "mesh", boundary.stem );
+            add_text( condition, "type", type );
+            if( boundary.component )
+            {
+                add_text( condition, "component",
+                    absl::StrCat( boundary.component.value() ) );
+            }
+            add_text( condition, "parameter", boundary.stem );
         }
 
         void add_constant_parameter( std::string_view name, double value )
@@ -242,6 +559,11 @@ namespace
             {
                 add_text( meshes, "mesh", absl::StrCat( well.stem, ".vtu" ) );
             }
+            for( const auto& heat_source : context_.heat_sources )
+            {
+                add_text(
+                    meshes, "mesh", absl::StrCat( heat_source.stem, ".vtu" ) );
+            }
         }
 
         void write_process()
@@ -256,6 +578,11 @@ namespace
                     return;
                 case geode::internal::OGS_PROCESS::ht:
                     write_ht_process( process );
+                    return;
+                case geode::internal::OGS_PROCESS::small_deformation:
+                case geode::internal::OGS_PROCESS::hydro_mechanics:
+                case geode::internal::OGS_PROCESS::thermo_hydro_mechanics:
+                    write_mechanics_process( process );
                     return;
                 case geode::internal::OGS_PROCESS::liquid_flow:
                     write_liquid_flow_process( process );
@@ -406,13 +733,16 @@ namespace
                 geode::internal::ogs_density_law( problem_ ) );
             write_fluid_law( properties, "viscosity",
                 geode::internal::ogs_viscosity_law( problem_ ) );
-            if( is_ht() )
+            if( geode::internal::has_temperature( context_.process ) )
             {
                 const auto& fluid =
                     dynamic_cast< const geode::SinglePhaseFluid& >(
                         problem_.fluid() );
                 write_constant( properties, "specific_heat_capacity",
                     fluid.thermal().value().specific_heat_capacity );
+            }
+            if( is_ht() )
+            {
                 // Unread: the medium has its own conductivity
                 write_constant( properties, "thermal_conductivity", 0. );
             }
@@ -483,6 +813,11 @@ namespace
         void write_media()
         {
             auto media = root_.append_child( "media" );
+            if( is_mechanics() )
+            {
+                write_mechanics_media( media );
+                return;
+            }
             for( const auto material_id :
                 geode::Indices{ problem_.materials() } )
             {
@@ -509,15 +844,7 @@ namespace
             geode::index_t material_id )
         {
             write_permeability( properties, material, material_id );
-            if( context_.has_porosity_field )
-            {
-                write_parameter_property( properties, "porosity", "porosity" );
-            }
-            else
-            {
-                write_constant(
-                    properties, "porosity", material.porosity.value_or( 0. ) );
-            }
+            write_porosity( properties, material );
             switch( context_.process )
             {
                 case geode::internal::OGS_PROCESS::two_phase_flow_pp:
@@ -525,6 +852,11 @@ namespace
                     return;
                 case geode::internal::OGS_PROCESS::ht:
                     write_thermal_medium( properties, material );
+                    return;
+                case geode::internal::OGS_PROCESS::small_deformation:
+                case geode::internal::OGS_PROCESS::hydro_mechanics:
+                case geode::internal::OGS_PROCESS::thermo_hydro_mechanics:
+                    // Written by write_mechanics_media
                     return;
                 case geode::internal::OGS_PROCESS::liquid_flow:
                     write_storage( properties, material );
@@ -534,15 +866,34 @@ namespace
             }
         }
 
+        void write_porosity(
+            pugi::xml_node& properties, const geode::Material& material ) const
+        {
+            if( context_.has_porosity_field )
+            {
+                write_parameter_property( properties, "porosity", "porosity" );
+                return;
+            }
+            write_constant(
+                properties, "porosity", material.porosity.value_or( 0. ) );
+        }
+
+        void write_constant_values( pugi::xml_node& properties,
+            std::string_view name,
+            absl::Span< const double > values ) const
+        {
+            auto property = properties.append_child( "property" );
+            add_text( property, "name", name );
+            add_text( property, "type", "Constant" );
+            add_text( property, "value", reals( values ) );
+        }
+
         // Diagonal bulk conductivity, no dispersion
         void write_thermal_medium(
             pugi::xml_node& properties, const geode::Material& material ) const
         {
-            auto conductivity = properties.append_child( "property" );
-            add_text( conductivity, "name", "thermal_conductivity" );
-            add_text( conductivity, "type", "Constant" );
-            add_text( conductivity, "value",
-                reals( material.thermal.value().thermal_conductivity ) );
+            write_constant_values( properties, "thermal_conductivity",
+                material.thermal.value().thermal_conductivity );
             write_constant(
                 properties, "thermal_longitudinal_dispersivity", 0. );
             write_constant(
@@ -624,6 +975,11 @@ namespace
                     add_text( convergence, "norm_type", "NORM2" );
                     add_text( convergence, "reltols", HT_RELTOLS );
                     return;
+                case geode::internal::OGS_PROCESS::small_deformation:
+                case geode::internal::OGS_PROCESS::hydro_mechanics:
+                case geode::internal::OGS_PROCESS::thermo_hydro_mechanics:
+                    write_mechanics_convergence( convergence );
+                    return;
                 case geode::internal::OGS_PROCESS::liquid_flow:
                     add_text( convergence, "type", "DeltaX" );
                     add_text( convergence, "norm_type", "NORM2" );
@@ -646,7 +1002,9 @@ namespace
                 add_real( stepping, "minimum_dt", schedule.initial_time_step );
                 add_real(
                     stepping, "maximum_dt", schedule.max_time_step.value() );
-                add_text( stepping, "number_iterations", NUMBER_ITERATIONS );
+                add_text( stepping, "number_iterations",
+                    is_mechanics() ? MECHANICS_NUMBER_ITERATIONS
+                                   : NUMBER_ITERATIONS );
                 add_text( stepping, "multiplier", MULTIPLIERS );
                 return;
             }
@@ -691,6 +1049,11 @@ namespace
                 case geode::internal::OGS_PROCESS::ht:
                     add_text( variables, "variable", "temperature" );
                     add_text( variables, "variable", "pressure" );
+                    return;
+                case geode::internal::OGS_PROCESS::small_deformation:
+                case geode::internal::OGS_PROCESS::hydro_mechanics:
+                case geode::internal::OGS_PROCESS::thermo_hydro_mechanics:
+                    write_mechanics_output_variables( variables );
                     return;
                 case geode::internal::OGS_PROCESS::liquid_flow:
                     add_text( variables, "variable", "pressure" );
@@ -783,7 +1146,8 @@ namespace
             {
                 add_mesh_parameter( { "porosity", "MeshElement",
                     context_.prefix, "porosity" } );
-                if( !is_two_phase() )
+                // Only LIQUID_FLOW and HT read a storage
+                if( !is_two_phase() && !is_mechanics() )
                 {
                     add_mesh_parameter( { "storage", "MeshElement",
                         context_.prefix, "storage" } );
@@ -797,6 +1161,11 @@ namespace
                 case geode::internal::OGS_PROCESS::ht:
                     write_temperature_variable( variables );
                     write_pressure_variable( variables );
+                    return;
+                case geode::internal::OGS_PROCESS::small_deformation:
+                case geode::internal::OGS_PROCESS::hydro_mechanics:
+                case geode::internal::OGS_PROCESS::thermo_hydro_mechanics:
+                    write_mechanics_variables( variables );
                     return;
                 case geode::internal::OGS_PROCESS::liquid_flow:
                     write_pressure_variable( variables );
@@ -828,6 +1197,54 @@ namespace
                 variables, "temperature", "initial_temperature" );
             add_dirichlet_conditions( temperature,
                 geode::PHYSICAL_PROPERTY_NAME::boundary_temperature );
+            add_heat_source_terms( temperature );
+        }
+
+        // Nodal power (W) shared by the vertices of a point heat source,
+        // Volumetric power density (W/m3) of a Block heat source. A power
+        // table is a curve scaled by 1 / (number of vertices or volume).
+        void add_heat_source_terms( pugi::xml_node& variable )
+        {
+            if( context_.heat_sources.empty() )
+            {
+                return;
+            }
+            auto terms = variable.append_child( "source_terms" );
+            for( const auto& heat_mesh : context_.heat_sources )
+            {
+                const auto& source =
+                    problem_.heat_sources()[heat_mesh.heat_source];
+                const auto divisor =
+                    source.block
+                        ? heat_mesh.volume
+                        : static_cast< double >( heat_mesh.mesh.points.size() );
+                const auto name = absl::StrCat( "heat_", source.name );
+                if( source.times.empty() )
+                {
+                    add_constant_parameter(
+                        name, source.powers.front() / divisor );
+                }
+                else
+                {
+                    add_curve_scaled_parameter( name, 1. / divisor );
+                }
+                auto term = terms.append_child( "source_term" );
+                add_text( term, "mesh", heat_mesh.stem );
+                add_text( term, "type", source.block ? "Volumetric" : "Nodal" );
+                add_text( term, "parameter", name );
+            }
+        }
+
+        // The curve of the name times a Constant <name>_scale
+        void add_curve_scaled_parameter( std::string_view name, double scale )
+        {
+            const auto scale_name = absl::StrCat( name, "_scale" );
+            add_constant_parameter( scale_name, scale );
+            auto node = parameters_.append_child( "parameter" );
+            add_text( node, "name", name );
+            add_text( node, "type", "CurveScaled" );
+            add_text( node, "curve", name );
+            add_text( node, "parameter", scale_name );
         }
 
         // Source terms on pressure only: in HT, injected fluid enters at the
@@ -872,6 +1289,13 @@ namespace
                     add_text( nonlinear, "max_iter",
                         absl::StrCat( HT_MAX_ITERATIONS ) );
                     return;
+                case geode::internal::OGS_PROCESS::small_deformation:
+                case geode::internal::OGS_PROCESS::hydro_mechanics:
+                case geode::internal::OGS_PROCESS::thermo_hydro_mechanics:
+                    add_text( nonlinear, "type", "Newton" );
+                    add_text( nonlinear, "max_iter",
+                        absl::StrCat( MECHANICS_MAX_ITERATIONS ) );
+                    return;
                 case geode::internal::OGS_PROCESS::liquid_flow:
                     add_text( nonlinear, "type", "Picard" );
                     add_text( nonlinear, "max_iter",
@@ -890,9 +1314,29 @@ namespace
             add_text( node, "values", reals( curve.values ) );
         }
 
-        void write_curves()
+        [[nodiscard]] bool has_heat_curves() const
         {
-            auto curves = root_.append_child( "curves" );
+            return absl::c_any_of(
+                problem_.heat_sources(), []( const geode::HeatSource& source ) {
+                    return !source.times.empty();
+                } );
+        }
+
+        // Power (W) of each time (s)
+        void write_heat_curves( pugi::xml_node& curves ) const
+        {
+            for( const auto& source : problem_.heat_sources() )
+            {
+                if( !source.times.empty() )
+                {
+                    add_curve( curves, absl::StrCat( "heat_", source.name ),
+                        { source.times, source.powers } );
+                }
+            }
+        }
+
+        void write_two_phase_curves( pugi::xml_node& curves ) const
+        {
             const auto& fluid =
                 dynamic_cast< const geode::DeadOilFluid& >( problem_.fluid() );
             const auto oil = geode::internal::oil_curves( fluid );

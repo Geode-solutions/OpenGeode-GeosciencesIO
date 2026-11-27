@@ -53,6 +53,7 @@
 #include <geode/geosciences/simulation/builder/physical_problem_builder.hpp>
 #include <geode/geosciences/simulation/core/flow_model.hpp>
 #include <geode/geosciences/simulation/core/fluid.hpp>
+#include <geode/geosciences/simulation/core/heat_source.hpp>
 #include <geode/geosciences/simulation/core/initial_condition.hpp>
 #include <geode/geosciences/simulation/core/material.hpp>
 #include <geode/geosciences/simulation/core/physical_problem.hpp>
@@ -685,6 +686,10 @@ void test_spe10_reference()
         "[Test] Wrong number of wells in the SPE10 reference deck" );
 }
 
+void check_export_failure( const geode::BRep& model,
+    const geode::PhysicalProblem& problem,
+    std::string_view keyword );
+
 void test_toy_model_thermal()
 {
     const auto model_filename =
@@ -736,6 +741,11 @@ void test_toy_model_thermal()
             absl::StrContains( deck, pattern ), "[Test] Thermal deck misses ",
             pattern );
     }
+    builder.add_heat_source(
+        { "canister", ( *model.blocks().begin() ).id(), {}, { 1000. } } );
+    check_export_failure( model, problem,
+        "GEOS has no energy source term: heat sources are not supported by "
+        "the GEOS exporter" );
 }
 
 void check_export_failure( const geode::BRep& model,

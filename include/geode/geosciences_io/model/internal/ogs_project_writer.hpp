@@ -52,6 +52,14 @@ namespace geode::internal
         std::string field_name;
     };
 
+    /// Cell value of a property: uniform, or a bulk cell array
+    struct OgsCellValue
+    {
+        std::optional< double > value;
+        /// Name of the bulk mesh cell array used without uniform value
+        std::string field_name;
+    };
+
     /// What the exporter wrote that the project file refers to
     struct OgsProjectContext
     {
@@ -62,15 +70,34 @@ namespace geode::internal
         bool has_porosity_field{ false };
         bool has_permeability_field{ false };
         /// Boundary meshes; boundary_water_fraction ones carry capillary
-        /// pressures, boundary_temperature ones (HT only) temperatures
+        /// pressures, boundary_temperature ones temperatures, the
+        /// boundary_normal_traction ones OGS normal tractions (tension
+        /// positive)
         absl::Span< const OgsBoundaryMesh > boundaries;
         absl::Span< const OgsWellMesh > wells;
+        /// One per HeatSource of the problem, in the problem order
+        absl::Span< const OgsHeatSourceMesh > heat_sources;
         OgsInitialValue initial_pressure;
         /// Two-phase only
         OgsInitialValue initial_capillary_pressure;
-        /// HT only
+        /// HT and THERMO_HYDRO_MECHANICS only
         OgsInitialValue initial_temperature;
         double reference_temperature{ 0 };
+        /// Mechanics only: LinearElasticIsotropic parameters
+        OgsCellValue youngs_modulus;
+        OgsCellValue poissons_ratio;
+        /// Solid phase density: the density in SMALL_DEFORMATION, the grain
+        /// density in HYDRO_MECHANICS and THERMO_HYDRO_MECHANICS
+        OgsCellValue solid_density;
+        /// HYDRO_MECHANICS and THERMO_HYDRO_MECHANICS only
+        OgsCellValue biot_coefficient;
+        /// THERMO_HYDRO_MECHANICS only: linear thermal expansion (1/K) and
+        /// specific heat capacity (J/(kg.K)) of the solid
+        OgsCellValue thermal_expansivity;
+        OgsCellValue solid_heat_capacity;
+        /// Bulk cell array of the 6 components of the initial stress (OGS
+        /// order, tension positive), empty without initial stress
+        std::string initial_stress_field;
     };
 
     /// Writes the OGS project file of a problem

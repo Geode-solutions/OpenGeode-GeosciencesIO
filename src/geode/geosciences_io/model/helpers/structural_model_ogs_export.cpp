@@ -72,6 +72,12 @@ namespace geode
         impl_->add_well_perforations( well_perforations, name );
     }
 
+    void StructuralModelOgsExporter::add_heat_source_points(
+        const PointSet3D& points, std::string_view name )
+    {
+        impl_->add_heat_source_points( points, name );
+    }
+
     void StructuralModelOgsExporter::set_physical_problem(
         const PhysicalProblem& problem )
     {

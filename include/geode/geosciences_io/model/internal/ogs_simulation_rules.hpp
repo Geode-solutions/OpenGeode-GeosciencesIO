@@ -68,6 +68,15 @@ namespace geode::internal
         const SolidMesh3D& mesh, index_t polyhedron );
 
     /*!
+     * Volume of a tetrahedron, pyramid, prism or hexahedron (VTK vertex
+     * order) as OGS integrates it: the volume of its isoparametric map
+     * (trilinear hexahedron, pyramid as a collapsed hexahedron), exact for
+     * non-planar faces
+     */
+    [[nodiscard]] double opengeode_geosciencesio_model_api ogs_cell_volume(
+        const SolidMesh3D& mesh, index_t polyhedron );
+
+    /*!
      * "ogs" solver options: "<role>/<path>" sets the text of the element
      * <path> (created if missing) below each node of the role. Roles:
      * process, nonlinear, linear, time_stepping, convergence, output.
@@ -83,17 +92,63 @@ namespace geode::internal
     {
         liquid_flow,
         two_phase_flow_pp,
-        ht
+        ht,
+        small_deformation,
+        hydro_mechanics,
+        thermo_hydro_mechanics
     };
 
     /*!
      * Without solid mechanics: LIQUID_FLOW for an isothermal SinglePhaseFlow
      * of a SinglePhaseFluid, HT for a thermal one, TWOPHASE_FLOW_PP for an
-     * isothermal MultiphaseFlow of a water-oil DeadOilFluid. Nothing
-     * otherwise (thermal multiphase and solid mechanics included).
+     * isothermal MultiphaseFlow of a water-oil DeadOilFluid.
+     * With solid mechanics: SMALL_DEFORMATION without flow,
+     * HYDRO_MECHANICS for an isothermal SinglePhaseFlow of a
+     * SinglePhaseFluid, THERMO_HYDRO_MECHANICS for a thermal one.
+     * Nothing otherwise (thermal multiphase flow, multiphase flow with
+     * mechanics).
      */
     [[nodiscard]] std::optional< OGS_PROCESS > opengeode_geosciencesio_model_api
         ogs_process( const PhysicalProblem& problem );
+
+    /// HT and THERMO_HYDRO_MECHANICS solve the temperature
+    [[nodiscard]] bool opengeode_geosciencesio_model_api has_temperature(
+        OGS_PROCESS process );
+
+    /// SMALL_DEFORMATION, HYDRO_MECHANICS and THERMO_HYDRO_MECHANICS solve
+    /// the displacement
+    [[nodiscard]] bool opengeode_geosciencesio_model_api has_displacement(
+        OGS_PROCESS process );
+
+    /// Bulk and shear moduli, Pa
+    struct OgsModuli
+    {
+        double bulk{ 0 };
+        double shear{ 0 };
+    };
+
+    /// LinearElasticIsotropic parameters: Young's modulus (Pa), Poisson's
+    /// ratio
+    struct OgsElasticity
+    {
+        double youngs_modulus{ 0 };
+        double poissons_ratio{ 0 };
+    };
+
+    /// E = 9KG / (3K + G), nu = (3K - 2G) / (2 (3K + G))
+    [[nodiscard]] OgsElasticity opengeode_geosciencesio_model_api
+        ogs_elasticity( const OgsModuli& moduli );
+
+    /// OGS symmetric tensor: xx, yy, zz, xy, yz, xz
+    using OgsStressTensor = std::array< double, 6 >;
+
+    /*!
+     * OGS symmetric tensor (xx, yy, zz, xy, yz, xz) of a model stress
+     * tensor (xx, yy, zz, yz, xz, xy), times the factor converting it to
+     * the OGS convention (tension positive)
+     */
+    [[nodiscard]] OgsStressTensor opengeode_geosciencesio_model_api
+        ogs_stress_tensor( const StressTensor& tensor, double factor );
 
     /*!
      * The ThermalParameters reference temperature (K) of a thermal problem.
